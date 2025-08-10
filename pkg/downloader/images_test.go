@@ -36,7 +36,7 @@ func TestNewImageDownloader(t *testing.T) {
 	defer os.RemoveAll(testPath)
 
 	downloader := NewImageDownloader(testPath)
-	
+
 	if downloader == nil {
 		t.Fatal("NewImageDownloader returned nil")
 	}
@@ -53,7 +53,7 @@ func TestNewImageDownloader(t *testing.T) {
 
 func TestImageDownloader_isValidImageURL(t *testing.T) {
 	downloader := NewImageDownloader(os.TempDir())
-	
+
 	tests := []struct {
 		url      string
 		expected bool
@@ -77,22 +77,22 @@ func TestImageDownloader_isValidImageURL(t *testing.T) {
 
 func TestImageDownloader_generateFileName(t *testing.T) {
 	downloader := NewImageDownloader(os.TempDir())
-	
+
 	url := "https://example.com/image.jpg"
 	extension := "jpg"
-	
+
 	fileName1 := downloader.generateFileName(url, extension)
-	
+
 	// 文件名应该包含扩展名
 	if filepath.Ext(fileName1) != "."+extension {
 		t.Errorf("fileName should end with .%s, got %s", extension, fileName1)
 	}
-	
+
 	// 文件名应该包含img_前缀
 	if !strings.HasPrefix(filepath.Base(fileName1), "img_") {
 		t.Errorf("fileName should start with img_, got %s", fileName1)
 	}
-	
+
 	// 不同URL应该生成不同的文件名
 	url2 := "https://example.com/different.jpg"
 	fileName2 := downloader.generateFileName(url2, extension)

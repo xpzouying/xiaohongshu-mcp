@@ -131,13 +131,13 @@ func (d *ImageDownloader) generateFileName(imageURL, extension string) string {
 	// 使用URL的SHA256哈希作为文件名，确保唯一性
 	hash := sha256.Sum256([]byte(imageURL))
 	hashStr := fmt.Sprintf("%x", hash)
-	
+
 	// 取前16位哈希值作为文件名
 	shortHash := hashStr[:16]
-	
+
 	// 添加时间戳确保更好的唯一性
 	timestamp := time.Now().Unix()
-	
+
 	return fmt.Sprintf("img_%s_%d.%s", shortHash, timestamp, extension)
 }
 

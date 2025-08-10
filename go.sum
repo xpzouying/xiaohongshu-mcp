@@ -79,10 +79,6 @@ github.com/xpzouying/headless_browser v0.0.2 h1:sLc4gqUT/5IyTruYIOfCW4aZLinq38hI
 github.com/xpzouying/headless_browser v0.0.2/go.mod h1:bQTSzGYHIipa1zwToMlOGHcXWDlvw8y33Cx5zzElekc=
 github.com/ysmood/fetchup v0.2.3 h1:ulX+SonA0Vma5zUFXtv52Kzip/xe7aj4vqT5AJwQ+ZQ=
 github.com/ysmood/fetchup v0.2.3/go.mod h1:xhibcRKziSvol0H1/pj33dnKrYyI2ebIvz5cOOkYGns=
-github.com/ysmood/fetchup v0.4.0 h1:x8n2dskN+lFCALOHArJ5+3jlPN+z5TEpKwdq4jSCuNw=
-github.com/ysmood/fetchup v0.4.0/go.mod h1:yCv8s8itjsCul1LGXJ1Q+8EQnZcVjfbZ4+l1zDm4StE=
-github.com/ysmood/fetchup v0.5.2 h1:P9w3OIA7RSNEEFvEmOiTq09IOu42C96PMyZ1MWd8TAs=
-github.com/ysmood/fetchup v0.5.2/go.mod h1:yCv8s8itjsCul1LGXJ1Q+8EQnZcVjfbZ4+l1zDm4StE=
 github.com/ysmood/goob v0.4.0 h1:HsxXhyLBeGzWXnqVKtmT9qM7EuVs/XOgkX7T6r1o1AQ=
 github.com/ysmood/goob v0.4.0/go.mod h1:u6yx7ZhS4Exf2MwciFr6nIM8knHQIE22lFpWHnfql18=
 github.com/ysmood/gop v0.0.2/go.mod h1:rr5z2z27oGEbyB787hpEcx4ab8cCiPnKxn0SUHt6xzk=

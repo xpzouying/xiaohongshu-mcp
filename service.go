@@ -100,7 +100,7 @@ func (s *XiaohongshuService) publishContent(ctx context.Context, content xiaohon
 	// 使用全局单例浏览器创建新页面
 	page := browser.NewPage()
 	defer page.Close()
-	
+
 	action, err := xiaohongshu.NewPublishImageAction(page)
 	if err != nil {
 		return err
