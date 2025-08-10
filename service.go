@@ -2,10 +2,10 @@ package main
 
 import (
 	"context"
-	"errors"
 
 	"github.com/xpzouying/xiaohongshu-mcp/browser"
 	"github.com/xpzouying/xiaohongshu-mcp/configs"
+	"github.com/xpzouying/xiaohongshu-mcp/pkg/downloader"
 	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
 )
 
@@ -19,9 +19,9 @@ func NewXiaohongshuService() *XiaohongshuService {
 
 // PublishRequest 发布请求
 type PublishRequest struct {
-	Title      string   `json:"title" binding:"required"`
-	Content    string   `json:"content" binding:"required"`
-	ImagePaths []string `json:"image_paths" binding:"required,min=1"`
+	Title   string   `json:"title" binding:"required"`
+	Content string   `json:"content" binding:"required"`
+	Images  []string `json:"images" binding:"required,min=1"`
 }
 
 // LoginStatusResponse 登录状态响应
@@ -61,43 +61,51 @@ func (s *XiaohongshuService) CheckLoginStatus(ctx context.Context) (*LoginStatus
 
 // PublishContent 发布内容
 func (s *XiaohongshuService) PublishContent(ctx context.Context, req *PublishRequest) (*PublishResponse, error) {
-	// 验证参数
-	if req.Title == "" {
-		return nil, errors.New("标题不能为空")
-	}
-	if req.Content == "" {
-		return nil, errors.New("内容不能为空")
-	}
-	if len(req.ImagePaths) == 0 {
-		return nil, errors.New("至少需要一个图片ID")
+	// 处理图片：下载URL图片或使用本地路径
+	imagePaths, err := s.processImages(req.Images)
+	if err != nil {
+		return nil, err
 	}
 
 	// 构建发布内容
 	content := xiaohongshu.PublishImageContent{
 		Title:      req.Title,
 		Content:    req.Content,
-		ImagePaths: req.ImagePaths,
-	}
-
-	// 使用全局单例浏览器创建新页面
-	page := browser.NewPage()
-	defer page.Close()
-	action, err := xiaohongshu.NewPublishImageAction(page)
-	if err != nil {
-		return nil, err
+		ImagePaths: imagePaths,
 	}
 
 	// 执行发布
-	if err := action.Publish(ctx, content); err != nil {
+	if err := s.publishContent(ctx, content); err != nil {
 		return nil, err
 	}
 
 	response := &PublishResponse{
 		Title:   req.Title,
 		Content: req.Content,
-		Images:  len(req.ImagePaths),
+		Images:  len(imagePaths),
 		Status:  "发布完成",
 	}
 
 	return response, nil
+}
+
+// processImages 处理图片列表，支持URL下载和本地路径
+func (s *XiaohongshuService) processImages(images []string) ([]string, error) {
+	processor := downloader.NewImageProcessor()
+	return processor.ProcessImages(images)
+}
+
+// publishContent 执行内容发布
+func (s *XiaohongshuService) publishContent(ctx context.Context, content xiaohongshu.PublishImageContent) error {
+	// 使用全局单例浏览器创建新页面
+	page := browser.NewPage()
+	defer page.Close()
+	
+	action, err := xiaohongshu.NewPublishImageAction(page)
+	if err != nil {
+		return err
+	}
+
+	// 执行发布
+	return action.Publish(ctx, content)
 }

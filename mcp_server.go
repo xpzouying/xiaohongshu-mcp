@@ -92,9 +92,9 @@ func handlePublishContent(ctx context.Context, args map[string]interface{}) *MCP
 
 	// 构建发布请求
 	req := &PublishRequest{
-		Title:      title,
-		Content:    content,
-		ImagePaths: imagePaths,
+		Title:   title,
+		Content: content,
+		Images:  imagePaths,
 	}
 
 	// 执行发布
