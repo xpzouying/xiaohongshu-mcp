@@ -28,24 +28,22 @@ go run . -headless=false
 npx @modelcontextprotocol/inspector
 ```
 
-![运行 Inspector](./assets/mcp-inspector.png)
+![运行 Inspector](./assets/run_inspect.png)
 
 运行后，打开红色标记的链接，配置 MCP inspector，输入 `http://localhost:18060/mcp` ，点击 `Connect` 按钮。
+
+![配置 MCP inspector](./assets/inspect_mcp.png)
+
+按照上面配置 MCP inspector 后，点击 `List Tools` 按钮，查看所有的 Tools。
 
 ## 使用 MCP 发布
 
 ### 检查登录状态
 
-<video width="600" controls>
-  <source src="./assets/check_login.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
+![检查登录状态](./assets/check_login.gif)
 
 ### 发布图文
 
 示例中是从 https://unsplash.com/ 中随机找了个图片做测试。
 
-<video width="600" controls>
-  <source src="./assets/inspect_mcp_publish.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
+![发布图文](./assets/inspect_mcp_publish.gif)
