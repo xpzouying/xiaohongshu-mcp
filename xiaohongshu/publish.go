@@ -90,7 +90,7 @@ func uploadImages(page *rod.Page, imagesPaths []string) error {
 	uploadInput.MustSetFiles(imagesPaths...)
 
 	// 等待上传完成
-	time.Sleep(1 * time.Second)
+	time.Sleep(3 * time.Second)
 
 	return nil
 }
@@ -110,7 +110,7 @@ func submitPublish(page *rod.Page, title, content string) error {
 	submitButton := page.MustElement("div.submit div.d-button-content")
 	submitButton.MustClick()
 
-	time.Sleep(5 * time.Second)
+	time.Sleep(3 * time.Second)
 
 	return nil
 }
