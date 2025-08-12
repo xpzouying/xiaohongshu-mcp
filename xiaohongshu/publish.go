@@ -3,6 +3,7 @@ package xiaohongshu
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/go-rod/rod"
@@ -118,15 +119,86 @@ func submitPublish(page *rod.Page, title, content string) error {
 	return nil
 }
 
-// 查找内容输入框
+// 查找内容输入框 - 使用Race方法处理两种样式
 func getContentElement(page *rod.Page) (*rod.Element, bool) {
-	if contentElem, err := page.Element("div.ql-editor"); err == nil {
-		return contentElem, true
+	var foundElement *rod.Element
+	var found bool
+
+	page.Race().
+		Element("div.ql-editor").MustHandle(func(e *rod.Element) {
+		foundElement = e
+		found = true
+	}).
+		ElementFunc(func(page *rod.Page) (*rod.Element, error) {
+			return findTextboxByPlaceholder(page)
+		}).MustHandle(func(e *rod.Element) {
+		foundElement = e
+		found = true
+	}).
+		MustDo()
+
+	if found {
+		return foundElement, true
 	}
 
-	if contentElem, err := page.Element("[data-placeholder*='输入正文描述']"); err == nil {
-		return contentElem, true
+	slog.Warn("no content element found by any method")
+	return nil, false
+}
+
+func findTextboxByPlaceholder(page *rod.Page) (*rod.Element, error) {
+	elements := page.MustElements("p")
+	if elements == nil {
+		return nil, errors.New("no p elements found")
 	}
 
-	return nil, false // 没有找到内容输入框
+	// 查找包含指定placeholder的元素
+	placeholderElem := findPlaceholderElement(elements, "输入正文描述")
+	if placeholderElem == nil {
+		return nil, errors.New("no placeholder element found")
+	}
+
+	// 向上查找textbox父元素
+	textboxElem := findTextboxParent(placeholderElem)
+	if textboxElem == nil {
+		return nil, errors.New("no textbox parent found")
+	}
+
+	return textboxElem, nil
+}
+
+func findPlaceholderElement(elements []*rod.Element, searchText string) *rod.Element {
+	for _, elem := range elements {
+		placeholder, err := elem.Attribute("data-placeholder")
+		if err != nil || placeholder == nil {
+			continue
+		}
+
+		if strings.Contains(*placeholder, searchText) {
+			return elem
+		}
+	}
+	return nil
+}
+
+func findTextboxParent(elem *rod.Element) *rod.Element {
+	currentElem := elem
+	for i := 0; i < 5; i++ {
+		parent, err := currentElem.Parent()
+		if err != nil {
+			break
+		}
+
+		role, err := parent.Attribute("role")
+		if err != nil || role == nil {
+			currentElem = parent
+			continue
+		}
+
+		if *role == "textbox" {
+			return parent
+		}
+
+		currentElem = parent
+	}
+	return nil
 }
