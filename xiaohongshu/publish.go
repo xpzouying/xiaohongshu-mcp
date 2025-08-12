@@ -102,8 +102,11 @@ func submitPublish(page *rod.Page, title, content string) error {
 
 	time.Sleep(1 * time.Second)
 
-	contentElem := page.MustElement("div.ql-editor")
-	contentElem.MustInput(content)
+	if contentElem, ok := getContentElement(page); ok {
+		contentElem.MustInput(content)
+	} else {
+		return errors.New("没有找到内容输入框")
+	}
 
 	time.Sleep(1 * time.Second)
 
@@ -113,4 +116,18 @@ func submitPublish(page *rod.Page, title, content string) error {
 	time.Sleep(3 * time.Second)
 
 	return nil
+}
+
+// 查找内容输入框
+func getContentElement(page *rod.Page) (*rod.Element, bool) {
+	if contentElem, err := page.Element("div.ql-editor"); err == nil {
+		slog.Info("found ql-editor element")
+		return contentElem, true
+	}
+
+	if contentElem, err := page.Element("[data-placeholder*='输入正文描述']"); err == nil {
+		return contentElem, true
+	}
+
+	return nil, false // 没有找到内容输入框
 }

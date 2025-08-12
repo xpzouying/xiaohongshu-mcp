@@ -24,9 +24,9 @@ func TestPublish(t *testing.T) {
 	require.NoError(t, err)
 
 	err = action.Publish(context.Background(), PublishImageContent{
-		Title:      "Claude移动端重大更新！随时随地高效办公",
-		Content:    "Claude移动端重大更新！随时随地高效办公",
-		ImagePaths: []string{"1948784311265894447"},
+		Title:      "Hello World",
+		Content:    "Hello World",
+		ImagePaths: []string{"/tmp/1.jpg"},
 	})
 	assert.NoError(t, err)
 }
