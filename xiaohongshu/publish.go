@@ -121,7 +121,6 @@ func submitPublish(page *rod.Page, title, content string) error {
 // 查找内容输入框
 func getContentElement(page *rod.Page) (*rod.Element, bool) {
 	if contentElem, err := page.Element("div.ql-editor"); err == nil {
-		slog.Info("found ql-editor element")
 		return contentElem, true
 	}
 
