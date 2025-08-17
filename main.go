@@ -8,7 +8,6 @@ import (
 )
 
 func main() {
-
 	var (
 		headless bool
 	)
@@ -17,7 +16,12 @@ func main() {
 
 	configs.InitHeadless(headless)
 
-	if err := startServer(); err != nil {
+	// 初始化服务
+	xiaohongshuService := NewXiaohongshuService()
+
+	// 创建并启动应用服务器
+	appServer := NewAppServer(xiaohongshuService)
+	if err := appServer.Start(":18060"); err != nil {
 		logrus.Fatalf("failed to run server: %v", err)
 	}
 }

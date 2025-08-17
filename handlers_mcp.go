@@ -9,50 +9,13 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// JSON-RPC 结构定义
-
-type JSONRPCRequest struct {
-	JSONRPC string      `json:"jsonrpc"`
-	Method  string      `json:"method"`
-	Params  interface{} `json:"params,omitempty"`
-	ID      interface{} `json:"id"`
-}
-
-type JSONRPCResponse struct {
-	JSONRPC string        `json:"jsonrpc"`
-	Result  interface{}   `json:"result,omitempty"`
-	Error   *JSONRPCError `json:"error,omitempty"`
-	ID      interface{}   `json:"id"`
-}
-
-type JSONRPCError struct {
-	Code    int         `json:"code"`
-	Message string      `json:"message"`
-	Data    interface{} `json:"data,omitempty"`
-}
-
-type MCPToolCall struct {
-	Name      string                 `json:"name"`
-	Arguments map[string]interface{} `json:"arguments"`
-}
-
-type MCPToolResult struct {
-	Content []MCPContent `json:"content"`
-	IsError bool         `json:"isError,omitempty"`
-}
-
-type MCPContent struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
-}
-
 // MCP 工具处理函数
 
 // handleCheckLoginStatus 处理检查登录状态
-func handleCheckLoginStatus(ctx context.Context) *MCPToolResult {
+func (s *AppServer) handleCheckLoginStatus(ctx context.Context) *MCPToolResult {
 	logrus.Info("MCP: 检查登录状态")
 
-	status, err := xiaohongshuService.CheckLoginStatus(ctx)
+	status, err := s.xiaohongshuService.CheckLoginStatus(ctx)
 	if err != nil {
 		return &MCPToolResult{
 			Content: []MCPContent{{
@@ -73,7 +36,7 @@ func handleCheckLoginStatus(ctx context.Context) *MCPToolResult {
 }
 
 // handlePublishContent 处理发布内容
-func handlePublishContent(ctx context.Context, args map[string]interface{}) *MCPToolResult {
+func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]interface{}) *MCPToolResult {
 	logrus.Info("MCP: 发布内容")
 
 	// 解析参数
@@ -98,7 +61,7 @@ func handlePublishContent(ctx context.Context, args map[string]interface{}) *MCP
 	}
 
 	// 执行发布
-	result, err := xiaohongshuService.PublishContent(ctx, req)
+	result, err := s.xiaohongshuService.PublishContent(ctx, req)
 	if err != nil {
 		return &MCPToolResult{
 			Content: []MCPContent{{
@@ -119,10 +82,10 @@ func handlePublishContent(ctx context.Context, args map[string]interface{}) *MCP
 }
 
 // handleListFeeds 处理获取Feeds列表
-func handleListFeeds(ctx context.Context) *MCPToolResult {
+func (s *AppServer) handleListFeeds(ctx context.Context) *MCPToolResult {
 	logrus.Info("MCP: 获取Feeds列表")
 
-	result, err := xiaohongshuService.ListFeeds(ctx)
+	result, err := s.xiaohongshuService.ListFeeds(ctx)
 	if err != nil {
 		return &MCPToolResult{
 			Content: []MCPContent{{
@@ -154,11 +117,11 @@ func handleListFeeds(ctx context.Context) *MCPToolResult {
 }
 
 // handleMCPRequest 处理 MCP 请求
-func handleMCPRequest(w http.ResponseWriter, r *http.Request) {
+func (s *AppServer) handleMCPRequest(w http.ResponseWriter, r *http.Request) {
 	var req JSONRPCRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		logrus.Errorf("解析请求失败: %v", err)
-		sendJSONRPCError(w, req.ID, -32700, "Parse error", nil)
+		s.sendJSONRPCError(w, req.ID, -32700, "Parse error", nil)
 		return
 	}
 
@@ -166,19 +129,19 @@ func handleMCPRequest(w http.ResponseWriter, r *http.Request) {
 
 	switch req.Method {
 	case "initialize":
-		handleInitialize(w, req)
+		s.handleInitialize(w, req)
 	case "tools/list":
-		handleToolsList(w, req)
+		s.handleToolsList(w, req)
 	case "tools/call":
-		handleToolsCall(w, r, req)
+		s.handleToolsCall(w, r, req)
 	default:
 		logrus.Warnf("不支持的方法: %s", req.Method)
-		sendJSONRPCError(w, req.ID, -32601, "Method not found", nil)
+		s.sendJSONRPCError(w, req.ID, -32601, "Method not found", nil)
 	}
 }
 
 // handleInitialize 处理初始化请求
-func handleInitialize(w http.ResponseWriter, req JSONRPCRequest) {
+func (s *AppServer) handleInitialize(w http.ResponseWriter, req JSONRPCRequest) {
 	result := map[string]interface{}{
 		"protocolVersion": "2024-11-05",
 		"capabilities": map[string]interface{}{
@@ -190,11 +153,11 @@ func handleInitialize(w http.ResponseWriter, req JSONRPCRequest) {
 		},
 	}
 
-	sendJSONRPCResponse(w, req.ID, result)
+	s.sendJSONRPCResponse(w, req.ID, result)
 }
 
 // handleToolsList 处理工具列表请求
-func handleToolsList(w http.ResponseWriter, req JSONRPCRequest) {
+func (s *AppServer) handleToolsList(w http.ResponseWriter, req JSONRPCRequest) {
 	tools := []map[string]interface{}{
 		{
 			"name":        "check_login_status",
@@ -242,16 +205,16 @@ func handleToolsList(w http.ResponseWriter, req JSONRPCRequest) {
 		"tools": tools,
 	}
 
-	sendJSONRPCResponse(w, req.ID, result)
+	s.sendJSONRPCResponse(w, req.ID, result)
 }
 
 // handleToolsCall 处理工具调用请求
-func handleToolsCall(w http.ResponseWriter, r *http.Request, req JSONRPCRequest) {
+func (s *AppServer) handleToolsCall(w http.ResponseWriter, r *http.Request, req JSONRPCRequest) {
 	var toolCall MCPToolCall
 	paramsBytes, _ := json.Marshal(req.Params)
 	if err := json.Unmarshal(paramsBytes, &toolCall); err != nil {
 		logrus.Errorf("解析工具调用参数失败: %v", err)
-		sendJSONRPCError(w, req.ID, -32602, "Invalid params", nil)
+		s.sendJSONRPCError(w, req.ID, -32602, "Invalid params", nil)
 		return
 	}
 
@@ -260,22 +223,22 @@ func handleToolsCall(w http.ResponseWriter, r *http.Request, req JSONRPCRequest)
 
 	switch toolCall.Name {
 	case "check_login_status":
-		result = handleCheckLoginStatus(ctx)
+		result = s.handleCheckLoginStatus(ctx)
 	case "publish_content":
-		result = handlePublishContent(ctx, toolCall.Arguments)
+		result = s.handlePublishContent(ctx, toolCall.Arguments)
 	case "list_feeds":
-		result = handleListFeeds(ctx)
+		result = s.handleListFeeds(ctx)
 	default:
 		logrus.Warnf("不支持的工具: %s", toolCall.Name)
-		sendJSONRPCError(w, req.ID, -32601, "Tool not found", nil)
+		s.sendJSONRPCError(w, req.ID, -32601, "Tool not found", nil)
 		return
 	}
 
-	sendJSONRPCResponse(w, req.ID, result)
+	s.sendJSONRPCResponse(w, req.ID, result)
 }
 
 // sendJSONRPCResponse 发送JSON-RPC响应
-func sendJSONRPCResponse(w http.ResponseWriter, id interface{}, result interface{}) {
+func (s *AppServer) sendJSONRPCResponse(w http.ResponseWriter, id interface{}, result interface{}) {
 	response := JSONRPCResponse{
 		JSONRPC: "2.0",
 		Result:  result,
@@ -283,11 +246,13 @@ func sendJSONRPCResponse(w http.ResponseWriter, id interface{}, result interface
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		logrus.Errorf("Failed to encode JSON-RPC response: %v", err)
+	}
 }
 
 // sendJSONRPCError 发送JSON-RPC错误响应
-func sendJSONRPCError(w http.ResponseWriter, id interface{}, code int, message string, data interface{}) {
+func (s *AppServer) sendJSONRPCError(w http.ResponseWriter, id interface{}, code int, message string, data interface{}) {
 	response := JSONRPCResponse{
 		JSONRPC: "2.0",
 		Error: &JSONRPCError{
@@ -300,11 +265,13 @@ func sendJSONRPCError(w http.ResponseWriter, id interface{}, code int, message s
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK) // JSON-RPC错误仍然返回200状态码
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		logrus.Errorf("Failed to encode JSON-RPC error response: %v", err)
+	}
 }
 
 // createMCPHandler 创建MCP HTTP处理器
-func createMCPHandler() http.HandlerFunc {
+func (s *AppServer) createMCPHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// 设置 CORS 头
 		w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -323,6 +290,6 @@ func createMCPHandler() http.HandlerFunc {
 		}
 
 		// 处理 MCP JSON-RPC 请求
-		handleMCPRequest(w, r)
+		s.handleMCPRequest(w, r)
 	}
 }

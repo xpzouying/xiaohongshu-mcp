@@ -12,7 +12,10 @@
       "Bash(rm:*)",
       "Bash(gofmt:*)",
       "Bash(goimports:*)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(true)",
+      "Bash(go vet:*)",
+      "Bash(golangci-lint run:*)"
     ],
     "deny": []
   }

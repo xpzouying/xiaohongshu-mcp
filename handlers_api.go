@@ -7,25 +7,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// LoginWaitRequest 等待登录请求
-type LoginWaitRequest struct {
-	Timeout int `json:"timeout"`
-}
-
-// ErrorResponse 错误响应
-type ErrorResponse struct {
-	Error   string `json:"error"`
-	Code    string `json:"code"`
-	Details any    `json:"details,omitempty"`
-}
-
-// SuccessResponse 成功响应
-type SuccessResponse struct {
-	Success bool   `json:"success"`
-	Data    any    `json:"data"`
-	Message string `json:"message,omitempty"`
-}
-
 // respondError 返回错误响应
 func respondError(c *gin.Context, statusCode int, code, message string, details any) {
 	response := ErrorResponse{
@@ -54,12 +35,9 @@ func respondSuccess(c *gin.Context, data any, message string) {
 	c.JSON(http.StatusOK, response)
 }
 
-// XiaohongshuService 全局服务实例
-var xiaohongshuService = NewXiaohongshuService()
-
 // checkLoginStatusHandler 检查登录状态
-func checkLoginStatusHandler(c *gin.Context) {
-	status, err := xiaohongshuService.CheckLoginStatus(c.Request.Context())
+func (s *AppServer) checkLoginStatusHandler(c *gin.Context) {
+	status, err := s.xiaohongshuService.CheckLoginStatus(c.Request.Context())
 	if err != nil {
 		respondError(c, http.StatusInternalServerError, "STATUS_CHECK_FAILED",
 			"检查登录状态失败", err.Error())
@@ -71,7 +49,7 @@ func checkLoginStatusHandler(c *gin.Context) {
 }
 
 // publishHandler 发布内容
-func publishHandler(c *gin.Context) {
+func (s *AppServer) publishHandler(c *gin.Context) {
 	var req PublishRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
@@ -80,7 +58,7 @@ func publishHandler(c *gin.Context) {
 	}
 
 	// 执行发布
-	result, err := xiaohongshuService.PublishContent(c.Request.Context(), &req)
+	result, err := s.xiaohongshuService.PublishContent(c.Request.Context(), &req)
 	if err != nil {
 		respondError(c, http.StatusInternalServerError, "PUBLISH_FAILED",
 			"发布失败", err.Error())
@@ -91,9 +69,9 @@ func publishHandler(c *gin.Context) {
 }
 
 // listFeedsHandler 获取Feeds列表
-func listFeedsHandler(c *gin.Context) {
+func (s *AppServer) listFeedsHandler(c *gin.Context) {
 	// 获取 Feeds 列表
-	result, err := xiaohongshuService.ListFeeds(c.Request.Context())
+	result, err := s.xiaohongshuService.ListFeeds(c.Request.Context())
 	if err != nil {
 		respondError(c, http.StatusInternalServerError, "LIST_FEEDS_FAILED",
 			"获取Feeds列表失败", err.Error())
@@ -112,30 +90,4 @@ func healthHandler(c *gin.Context) {
 		"account":   "ai-report",
 		"timestamp": "now",
 	}, "服务正常")
-}
-
-// corsMiddleware CORS 中间件
-func corsMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
-		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
-
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(http.StatusNoContent)
-			return
-		}
-
-		c.Next()
-	}
-}
-
-// errorHandlingMiddleware 错误处理中间件
-func errorHandlingMiddleware() gin.HandlerFunc {
-	return gin.CustomRecovery(func(c *gin.Context, recovered interface{}) {
-		logrus.Errorf("服务器内部错误: %v, path: %s", recovered, c.Request.URL.Path)
-
-		respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR",
-			"服务器内部错误", recovered)
-	})
 }
