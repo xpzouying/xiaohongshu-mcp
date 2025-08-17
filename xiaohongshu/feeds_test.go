@@ -35,7 +35,6 @@ func TestGetFeedsList(t *testing.T) {
 		require.NotEmpty(t, feed.ID, "Feed ID should not be empty")
 		require.NotEmpty(t, feed.ModelType, "ModelType should not be empty")
 		require.NotEmpty(t, feed.XsecToken, "XsecToken should not be empty")
-		require.NotEmpty(t, feed.TrackID, "TrackID should not be empty")
 		require.NotEmpty(t, feed.NoteCard.Type, "NoteCard Type should not be empty")
 		require.NotEmpty(t, feed.NoteCard.DisplayTitle, "DisplayTitle should not be empty")
 		require.NotEmpty(t, feed.NoteCard.User.UserID, "User ID should not be empty")

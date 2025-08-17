@@ -116,6 +116,55 @@ func (s *AppServer) handleListFeeds(ctx context.Context) *MCPToolResult {
 	}
 }
 
+// handleSearchFeeds 处理搜索Feeds
+func (s *AppServer) handleSearchFeeds(ctx context.Context, args map[string]interface{}) *MCPToolResult {
+	logrus.Info("MCP: 搜索Feeds")
+
+	// 解析参数
+	keyword, ok := args["keyword"].(string)
+	if !ok || keyword == "" {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "搜索Feeds失败: 缺少关键词参数",
+			}},
+			IsError: true,
+		}
+	}
+
+	logrus.Infof("MCP: 搜索Feeds - 关键词: %s", keyword)
+
+	result, err := s.xiaohongshuService.SearchFeeds(ctx, keyword)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "搜索Feeds失败: " + err.Error(),
+			}},
+			IsError: true,
+		}
+	}
+
+	// 格式化输出，转换为JSON字符串
+	jsonData, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: fmt.Sprintf("搜索Feeds成功，但序列化失败: %v", err),
+			}},
+			IsError: true,
+		}
+	}
+
+	return &MCPToolResult{
+		Content: []MCPContent{{
+			Type: "text",
+			Text: string(jsonData),
+		}},
+	}
+}
+
 // handleMCPRequest 处理 MCP 请求
 func (s *AppServer) handleMCPRequest(w http.ResponseWriter, r *http.Request) {
 	var req JSONRPCRequest
@@ -134,6 +183,16 @@ func (s *AppServer) handleMCPRequest(w http.ResponseWriter, r *http.Request) {
 		s.handleToolsList(w, req)
 	case "tools/call":
 		s.handleToolsCall(w, r, req)
+	case "notifications/initialized":
+		// 客户端通知已初始化完成，不需要响应
+		logrus.Info("MCP: 客户端已初始化完成")
+		// 通知不需要响应
+		return
+	case "notifications/cancelled":
+		// 客户端通知取消请求，记录日志即可
+		logrus.Info("MCP: 收到取消请求通知")
+		// 通知不需要响应
+		return
 	default:
 		logrus.Warnf("不支持的方法: %s", req.Method)
 		s.sendJSONRPCError(w, req.ID, -32601, "Method not found", nil)
@@ -199,6 +258,20 @@ func (s *AppServer) handleToolsList(w http.ResponseWriter, req JSONRPCRequest) {
 				"properties": map[string]interface{}{},
 			},
 		},
+		{
+			"name":        "search_feeds",
+			"description": "搜索小红书内容（前提：用户已登录）",
+			"inputSchema": map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"keyword": map[string]interface{}{
+						"type":        "string",
+						"description": "搜索关键词",
+					},
+				},
+				"required": []string{"keyword"},
+			},
+		},
 	}
 
 	result := map[string]interface{}{
@@ -228,6 +301,8 @@ func (s *AppServer) handleToolsCall(w http.ResponseWriter, r *http.Request, req 
 		result = s.handlePublishContent(ctx, toolCall.Arguments)
 	case "list_feeds":
 		result = s.handleListFeeds(ctx)
+	case "search_feeds":
+		result = s.handleSearchFeeds(ctx, toolCall.Arguments)
 	default:
 		logrus.Warnf("不支持的工具: %s", toolCall.Name)
 		s.sendJSONRPCError(w, req.ID, -32601, "Tool not found", nil)

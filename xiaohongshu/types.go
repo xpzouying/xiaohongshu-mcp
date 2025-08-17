@@ -19,15 +19,11 @@ type FeedsValue struct {
 
 // Feed 表示单个 Feed 项目
 type Feed struct {
-	XsecToken   string   `json:"xsecToken"`
-	ID          string   `json:"id"`
-	ModelType   string   `json:"modelType"`
-	NoteCard    NoteCard `json:"noteCard"`
-	TrackID     string   `json:"trackId"`
-	Ignore      bool     `json:"ignore"`
-	Index       int      `json:"index"`
-	Exposed     bool     `json:"exposed"`
-	SSRRendered bool     `json:"ssrRendered"`
+	XsecToken string   `json:"xsecToken"`
+	ID        string   `json:"id"`
+	ModelType string   `json:"modelType"`
+	NoteCard  NoteCard `json:"noteCard"`
+	Index     int      `json:"index"`
 }
 
 // NoteCard 表示笔记卡片信息
@@ -53,6 +49,12 @@ type User struct {
 type InteractInfo struct {
 	Liked      bool   `json:"liked"`
 	LikedCount string `json:"likedCount"`
+
+	SharedCount  string `json:"sharedCount"`
+	CommentCount string `json:"commentCount"`
+
+	CollectedCount string `json:"collectedCount"`
+	Collected      bool   `json:"collected"`
 }
 
 // Cover 表示封面信息

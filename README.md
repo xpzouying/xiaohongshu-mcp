@@ -7,10 +7,7 @@ MCP for xiaohongshu.com
 1. 登录。第一步必须，小红书需要进行登录。
 2. 发布图文。目前只支持发布图文，后续支持更多的发布功能。
 3. 获取推荐列表。
-
-Todos：
-
-- [ ] 搜索功能。
+4. 搜索内容。根据关键词搜索小红书内容。
 
 ## 1. 使用教程
 
@@ -63,6 +60,12 @@ npx @modelcontextprotocol/inspector
 
 ![发布图文](./assets/inspect_mcp_publish.gif)
 
+### 搜索内容
+
+使用搜索功能，根据关键词搜索小红书内容：
+
+![搜索内容](./assets/search_result.png)
+
 ## 2. MCP 客户端接入
 
 本服务支持标准的 Model Context Protocol (MCP)，可以接入各种支持 MCP 的 AI 客户端。
@@ -93,6 +96,7 @@ claude mcp add --transport http xiaohongshu-mcp http://localhost:18060/mcp
 - `check_login_status` - 检查登录状态
 - `publish_content` - 发布图文内容
 - `list_feeds` - 获取推荐列表
+- `search_feeds` - 搜索小红书内容（前提：用户已登录）
 
 ### 2.4. 使用示例
 

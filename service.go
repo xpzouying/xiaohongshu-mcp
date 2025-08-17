@@ -145,3 +145,25 @@ func (s *XiaohongshuService) ListFeeds(ctx context.Context) (*FeedsListResponse,
 
 	return response, nil
 }
+
+func (s *XiaohongshuService) SearchFeeds(ctx context.Context, keyword string) (*FeedsListResponse, error) {
+	b := browser.NewBrowser(configs.IsHeadless())
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewSearchAction(page)
+
+	feeds, err := action.Search(ctx, keyword)
+	if err != nil {
+		return nil, err
+	}
+
+	response := &FeedsListResponse{
+		Feeds: feeds,
+		Count: len(feeds),
+	}
+
+	return response, nil
+}

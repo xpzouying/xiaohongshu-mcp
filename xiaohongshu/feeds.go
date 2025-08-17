@@ -13,8 +13,8 @@ type FeedsListAction struct {
 	page *rod.Page
 }
 
-// InitialState 定义页面初始状态结构
-type InitialState struct {
+// FeedsResult 定义页面初始状态结构
+type FeedsResult struct {
 	Feed FeedData `json:"feed"`
 }
 
@@ -22,7 +22,7 @@ func NewFeedsListAction(page *rod.Page) *FeedsListAction {
 	pp := page.Timeout(60 * time.Second)
 
 	pp.MustNavigate("https://www.xiaohongshu.com")
-	pp.MustWaitLoad()
+	pp.MustWaitStable()
 	pp.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
 
 	return &FeedsListAction{page: pp}
@@ -45,7 +45,7 @@ func (f *FeedsListAction) GetFeedsList(ctx context.Context) ([]Feed, error) {
 	}
 
 	// 解析完整的 InitialState
-	var state InitialState
+	var state FeedsResult
 	if err := json.Unmarshal([]byte(result), &state); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal __INITIAL_STATE__: %w", err)
 	}

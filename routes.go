@@ -31,6 +31,7 @@ func setupRoutes(appServer *AppServer) *gin.Engine {
 		api.GET("/login/status", appServer.checkLoginStatusHandler)
 		api.POST("/publish", appServer.publishHandler)
 		api.GET("/feeds/list", appServer.listFeedsHandler)
+		api.GET("/feeds/search", appServer.searchFeedsHandler)
 	}
 
 	return router

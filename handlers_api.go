@@ -82,6 +82,27 @@ func (s *AppServer) listFeedsHandler(c *gin.Context) {
 	respondSuccess(c, result, "获取Feeds列表成功")
 }
 
+// searchFeedsHandler 搜索Feeds
+func (s *AppServer) searchFeedsHandler(c *gin.Context) {
+	keyword := c.Query("keyword")
+	if keyword == "" {
+		respondError(c, http.StatusBadRequest, "MISSING_KEYWORD",
+			"缺少关键词参数", "keyword parameter is required")
+		return
+	}
+
+	// 搜索 Feeds
+	result, err := s.xiaohongshuService.SearchFeeds(c.Request.Context(), keyword)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "SEARCH_FEEDS_FAILED",
+			"搜索Feeds失败", err.Error())
+		return
+	}
+
+	c.Set("account", "ai-report")
+	respondSuccess(c, result, "搜索Feeds成功")
+}
+
 // healthHandler 健康检查
 func healthHandler(c *gin.Context) {
 	respondSuccess(c, map[string]any{
