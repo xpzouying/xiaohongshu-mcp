@@ -14,10 +14,10 @@ func TestGetFeedsList(t *testing.T) {
 
 	t.Skip("SKIP: 测试发布")
 
-	_ = browser.Init(false)
-	defer browser.Close()
+	b := browser.NewBrowser(false)
+	defer b.Close()
 
-	page := browser.NewPage()
+	page := b.NewPage()
 	defer page.Close()
 
 	// NewFeedsListAction 内部已经处理导航

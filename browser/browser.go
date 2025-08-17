@@ -1,17 +1,12 @@
 package browser
 
 import (
-	"github.com/go-rod/rod"
 	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/headless_browser"
 	"github.com/xpzouying/xiaohongshu-mcp/cookies"
 )
 
-var (
-	browser *headless_browser.Browser
-)
-
-func Init(headless bool) error {
+func NewBrowser(headless bool) *headless_browser.Browser {
 
 	opts := []headless_browser.Option{
 		headless_browser.WithHeadless(headless),
@@ -28,15 +23,5 @@ func Init(headless bool) error {
 		logrus.Warnf("failed to load cookies: %v", err)
 	}
 
-	browser = headless_browser.New(opts...)
-
-	return nil
-}
-
-func NewPage() *rod.Page {
-	return browser.NewPage()
-}
-
-func Close() {
-	browser.Close()
+	return headless_browser.New(opts...)
 }

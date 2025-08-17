@@ -13,13 +13,11 @@ import (
 
 func main() {
 
-	headlessModel := false
-	if err := browser.Init(headlessModel); err != nil {
-		logrus.Fatalf("failed to init browser: %v", err)
-	}
-	defer browser.Close()
+	// 登录的时候，需要界面，所以不能无头模式
+	b := browser.NewBrowser(false)
+	defer b.Close()
 
-	page := browser.NewPage()
+	page := b.NewPage()
 	defer page.Close()
 
 	action := xiaohongshu.NewLogin(page)

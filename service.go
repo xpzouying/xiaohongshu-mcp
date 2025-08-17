@@ -47,9 +47,12 @@ type FeedsListResponse struct {
 
 // CheckLoginStatus 检查登录状态
 func (s *XiaohongshuService) CheckLoginStatus(ctx context.Context) (*LoginStatusResponse, error) {
-	// 使用全局单例浏览器创建新页面
-	page := browser.NewPage()
+	b := browser.NewBrowser(configs.IsHeadless())
+	defer b.Close()
+
+	page := b.NewPage()
 	defer page.Close()
+
 	loginAction := xiaohongshu.NewLogin(page)
 
 	isLoggedIn, err := loginAction.CheckLoginStatus(ctx)
@@ -103,8 +106,10 @@ func (s *XiaohongshuService) processImages(images []string) ([]string, error) {
 
 // publishContent 执行内容发布
 func (s *XiaohongshuService) publishContent(ctx context.Context, content xiaohongshu.PublishImageContent) error {
-	// 使用全局单例浏览器创建新页面
-	page := browser.NewPage()
+	b := browser.NewBrowser(configs.IsHeadless())
+	defer b.Close()
+
+	page := b.NewPage()
 	defer page.Close()
 
 	action, err := xiaohongshu.NewPublishImageAction(page)
@@ -118,8 +123,10 @@ func (s *XiaohongshuService) publishContent(ctx context.Context, content xiaohon
 
 // ListFeeds 获取Feeds列表
 func (s *XiaohongshuService) ListFeeds(ctx context.Context) (*FeedsListResponse, error) {
-	// 使用全局单例浏览器创建新页面
-	page := browser.NewPage()
+	b := browser.NewBrowser(configs.IsHeadless())
+	defer b.Close()
+
+	page := b.NewPage()
 	defer page.Close()
 
 	// 创建 Feeds 列表 action
