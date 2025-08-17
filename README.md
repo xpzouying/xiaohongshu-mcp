@@ -63,36 +63,50 @@ npx @modelcontextprotocol/inspector
 
 ![发布图文](./assets/inspect_mcp_publish.gif)
 
-## 2. MCP 集成
+## 2. MCP 客户端接入
 
-各种 MCP 集成工具，都可以使用这个 MCP 服务。
+本服务支持标准的 Model Context Protocol (MCP)，可以接入各种支持 MCP 的 AI 客户端。
 
-### 2.1. Claude Cli
+📖 **详细接入指南**：[MCP_README.md](./MCP_README.md)
+
+### 2.1. 快速开始
 
 ```bash
-# localhost 是本机，如果是远程的话，更换成对应的 IP 地址。
+# 启动 MCP 服务
+go run .
+
+# 使用 Claude Code CLI 接入
 claude mcp add --transport http xiaohongshu-mcp http://localhost:18060/mcp
 ```
 
-这里使用 Claude Code With K2 做演示，接入方式参考：[在 software agents 中使用 kimi k2 模型](https://platform.moonshot.cn/docs/guide/agent-support)。
+### 2.2. 支持的客户端
 
-**示例：**
+- ✅ **Claude Code CLI** - 官方命令行工具
+- ✅ **Claude Desktop** - 桌面应用
+- ✅ **Cursor** - AI 代码编辑器
+- ✅ **VSCode** - 通过 MCP 扩展支持
+- ✅ **MCP Inspector** - 调试工具
+- ✅ 其他支持 HTTP MCP 的客户端
 
-以 [Product Hunt 日报](https://product-daily.haha.ai/) 上面的一篇图片为例，使用 Claude Code 进行发布。
+### 2.3. 可用 MCP 工具
 
-打开 Claude Code 后，输入：
+- `check_login_status` - 检查登录状态
+- `publish_content` - 发布图文内容
+- `list_feeds` - 获取推荐列表
+
+### 2.4. 使用示例
+
+使用 Claude Code 发布内容到小红书：
 
 ```
 帮我写一篇帖子发布到小红书上，
 配图为：https://cn.bing.com/th?id=OHR.MaoriRock_EN-US6499689741_UHD.jpg&w=3840
-图片是：“纽西兰陶波湖的Ngātoroirangi矿湾毛利岩雕（© Joppi/Getty Images）”
+图片是："纽西兰陶波湖的Ngātoroirangi矿湾毛利岩雕（© Joppi/Getty Images）"
 
 使用 xiaohongshu-mcp 进行发布。
 ```
 
 ![claude-cli 进行发布](./assets/claude_push.gif)
-
-高清版本可以参考：[claude-cli 进行发布](./assets/claude_push.mp4)
 
 **发布结果：**
 
