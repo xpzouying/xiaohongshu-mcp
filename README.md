@@ -12,10 +12,53 @@ MCP for 小红书/xiaohongshu.com。
 
 **主要功能**
 
-1. 登录。第一步必须，小红书需要进行登录。
-2. 发布图文。目前只支持发布图文，后续支持更多的发布功能。
-3. 获取推荐列表。
-4. 搜索内容。根据关键词搜索小红书内容。
+<details>
+<summary><b>1. 登录和检查登录状态</b></summary>
+
+第一步必须，小红书需要进行登录。可以检查当前登录状态。
+
+**登录演示：**
+
+https://github.com/user-attachments/assets/8b05eb42-d437-41b7-9235-e2143f19e8b7
+
+**检查登录状态演示：**
+
+https://github.com/user-attachments/assets/bd9a9a4a-58cb-4421-b8f3-015f703ce1f9
+
+</details>
+
+<details>
+<summary><b>2. 发布图文内容</b></summary>
+
+支持发布图文内容到小红书，包括标题、内容描述和图片。后续支持更多的发布功能。
+
+**发布图文帖子演示：**
+
+https://github.com/user-attachments/assets/8aee0814-eb96-40af-b871-e66e6bbb6b06
+
+</details>
+
+<details>
+<summary><b>3. 搜索内容</b></summary>
+
+根据关键词搜索小红书内容。
+
+**搜索帖子演示：**
+
+https://github.com/user-attachments/assets/03c5077d-6160-4b18-b629-2e40933a1fd3
+
+</details>
+
+<details>
+<summary><b>4. 获取推荐列表</b></summary>
+
+获取小红书首页推荐内容列表。
+
+**获取推荐列表演示：**
+
+https://github.com/user-attachments/assets/110fc15d-46f2-4cca-bdad-9de5b5b8cc28
+
+</details>
 
 **小红书基础运营知识**
 
