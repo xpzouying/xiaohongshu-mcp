@@ -44,7 +44,7 @@ func (f *FeedDetailAction) GetFeedDetail(ctx context.Context, feedID, xsecToken 
 		return nil, fmt.Errorf("__INITIAL_STATE__ not found")
 	}
 
-	// 将原始结果保存到 feed_detail.json 文件
+	// 将原始结果保存到 feed_detail.json 文件用于测试
 	err := os.WriteFile("feed_detail.json", []byte(result), 0644)
 	if err != nil {
 		return nil, fmt.Errorf("failed to write feed_detail.json: %w", err)
@@ -77,18 +77,22 @@ func (f *FeedDetailAction) extractFeedDetailData(rawData map[string]any, feedID 
 		}
 	}
 
-	// 将提取的数据转换为结构化类型
-	var feedDetail FeedDetail
-	if noteBytes, err := json.Marshal(noteData); err != nil {
+	// 直接转换为结构化类型
+	noteBytes, err := json.Marshal(noteData)
+	if err != nil {
 		return nil, fmt.Errorf("failed to marshal note data: %w", err)
-	} else if err := json.Unmarshal(noteBytes, &feedDetail); err != nil {
+	}
+	var feedDetail FeedDetail
+	if err := json.Unmarshal(noteBytes, &feedDetail); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal note data to FeedDetail: %w", err)
 	}
 
-	var commentList CommentList
-	if commentsBytes, err := json.Marshal(commentsData); err != nil {
+	commentsBytes, err := json.Marshal(commentsData)
+	if err != nil {
 		return nil, fmt.Errorf("failed to marshal comments data: %w", err)
-	} else if err := json.Unmarshal(commentsBytes, &commentList); err != nil {
+	}
+	var commentList CommentList
+	if err := json.Unmarshal(commentsBytes, &commentList); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal comments data to CommentList: %w", err)
 	}
 
