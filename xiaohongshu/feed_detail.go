@@ -50,83 +50,28 @@ func (f *FeedDetailAction) GetFeedDetail(ctx context.Context, feedID, xsecToken 
 		return nil, fmt.Errorf("failed to write feed_detail.json: %w", err)
 	}
 
-	// 解析为通用的 map 结构
-	var rawData map[string]any
-	if err := json.Unmarshal([]byte(result), &rawData); err != nil {
+	// 定义响应结构并直接反序列化
+	var initialState struct {
+		Note struct {
+			NoteDetailMap map[string]struct {
+				Note     FeedDetail  `json:"note"`
+				Comments CommentList `json:"comments"`
+			} `json:"noteDetailMap"`
+		} `json:"note"`
+	}
+
+	if err := json.Unmarshal([]byte(result), &initialState); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal __INITIAL_STATE__: %w", err)
 	}
 
-	// 提取结构化数据
-	return f.extractFeedDetailData(rawData, feedID)
-}
-
-// extractFeedDetailData 从原始数据中提取结构化的 Feed 详情和评论数据
-func (f *FeedDetailAction) extractFeedDetailData(rawData map[string]any, feedID string) (*FeedDetailResponse, error) {
-	// 从 Vue 响应式数据中提取实际数据
-	noteData, err := f.extractNestedValue(rawData, "note", "noteDetailMap", feedID, "note", "_value")
-	if err != nil {
-		return nil, fmt.Errorf("failed to extract note data: %w", err)
-	}
-
-	commentsData, err := f.extractNestedValue(rawData, "note", "noteDetailMap", feedID, "comments", "_value")
-	if err != nil {
-		// 评论数据可能不存在，不是致命错误
-		commentsData = map[string]any{
-			"list":    []any{},
-			"hasMore": false,
-		}
-	}
-
-	// 直接转换为结构化类型
-	noteBytes, err := json.Marshal(noteData)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal note data: %w", err)
-	}
-	var feedDetail FeedDetail
-	if err := json.Unmarshal(noteBytes, &feedDetail); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal note data to FeedDetail: %w", err)
-	}
-
-	commentsBytes, err := json.Marshal(commentsData)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal comments data: %w", err)
-	}
-	var commentList CommentList
-	if err := json.Unmarshal(commentsBytes, &commentList); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal comments data to CommentList: %w", err)
+	// 从 noteDetailMap 中获取对应 feedID 的数据
+	noteDetail, exists := initialState.Note.NoteDetailMap[feedID]
+	if !exists {
+		return nil, fmt.Errorf("feed %s not found in noteDetailMap", feedID)
 	}
 
 	return &FeedDetailResponse{
-		Note:     feedDetail,
-		Comments: commentList,
+		Note:     noteDetail.Note,
+		Comments: noteDetail.Comments,
 	}, nil
-}
-
-// extractNestedValue 从嵌套的 map 结构中提取值
-func (f *FeedDetailAction) extractNestedValue(data map[string]any, keys ...string) (any, error) {
-	current := data
-	for i, key := range keys {
-		if current == nil {
-			return nil, fmt.Errorf("nil value at key path: %v", keys[:i])
-		}
-
-		value, exists := current[key]
-		if !exists {
-			return nil, fmt.Errorf("key '%s' not found at path: %v", key, keys[:i+1])
-		}
-
-		if i == len(keys)-1 {
-			// 最后一个 key，返回值
-			return value, nil
-		}
-
-		// 继续深入下一层
-		if nextMap, ok := value.(map[string]any); ok {
-			current = nextMap
-		} else {
-			return nil, fmt.Errorf("expected map[string]any at key '%s', got %T", key, value)
-		}
-	}
-
-	return nil, fmt.Errorf("no keys provided")
 }
