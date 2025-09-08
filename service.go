@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/xiaohongshu-mcp/browser"
 	"github.com/xpzouying/xiaohongshu-mcp/configs"
 	"github.com/xpzouying/xiaohongshu-mcp/pkg/downloader"
@@ -107,16 +109,22 @@ func (s *XiaohongshuService) processImages(images []string) ([]string, error) {
 // publishContent 执行内容发布
 func (s *XiaohongshuService) publishContent(ctx context.Context, content xiaohongshu.PublishImageContent) error {
 	b := browser.NewBrowser(configs.IsHeadless())
-	defer b.Close()
-
 	page := b.NewPage()
-	defer page.Close()
 
+	// 临时调试：不关闭浏览器，让页面保持打开状态
+	// defer func() {
+	//     page.Close()
+	//     b.Close()
+	// }()
+
+	logrus.Info("开始创建PublishImageAction")
 	action, err := xiaohongshu.NewPublishImageAction(page)
 	if err != nil {
+		logrus.Errorf("创建PublishImageAction失败: %v", err)
 		return err
 	}
 
+	logrus.Info("成功创建PublishImageAction，开始执行发布")
 	// 执行发布
 	return action.Publish(ctx, content)
 }
@@ -130,7 +138,10 @@ func (s *XiaohongshuService) ListFeeds(ctx context.Context) (*FeedsListResponse,
 	defer page.Close()
 
 	// 创建 Feeds 列表 action
-	action := xiaohongshu.NewFeedsListAction(page)
+	action, err := xiaohongshu.NewFeedsListAction(page)
+	if err != nil {
+		return nil, fmt.Errorf("创建FeedsListAction失败: %w", err)
+	}
 
 	// 获取 Feeds 列表
 	feeds, err := action.GetFeedsList(ctx)
