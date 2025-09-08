@@ -15,19 +15,13 @@ type FeedDetailAction struct {
 	page *rod.Page
 }
 
-// FeedDetailResult 表示 Feed 详情页的 __INITIAL_STATE__ 结构
-type FeedDetailResult struct {
-	// 这里会在获取到实际数据后进一步定义结构
-	Data map[string]any `json:",inline"`
-}
-
 // NewFeedDetailAction 创建 Feed 详情页动作
 func NewFeedDetailAction(page *rod.Page) *FeedDetailAction {
 	return &FeedDetailAction{page: page}
 }
 
 // GetFeedDetail 获取 Feed 详情页数据
-func (f *FeedDetailAction) GetFeedDetail(ctx context.Context, feedID, xsecToken string) (*FeedDetailResult, error) {
+func (f *FeedDetailAction) GetFeedDetail(ctx context.Context, feedID, xsecToken string) (*FeedDetailResponse, error) {
 	page := f.page.Context(ctx).Timeout(60 * time.Second)
 
 	// 构建详情页 URL
@@ -57,10 +51,78 @@ func (f *FeedDetailAction) GetFeedDetail(ctx context.Context, feedID, xsecToken 
 	}
 
 	// 解析为通用的 map 结构
-	var data map[string]any
-	if err := json.Unmarshal([]byte(result), &data); err != nil {
+	var rawData map[string]any
+	if err := json.Unmarshal([]byte(result), &rawData); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal __INITIAL_STATE__: %w", err)
 	}
 
-	return &FeedDetailResult{Data: data}, nil
+	// 提取结构化数据
+	return f.extractFeedDetailData(rawData, feedID)
+}
+
+// extractFeedDetailData 从原始数据中提取结构化的 Feed 详情和评论数据
+func (f *FeedDetailAction) extractFeedDetailData(rawData map[string]any, feedID string) (*FeedDetailResponse, error) {
+	// 从 Vue 响应式数据中提取实际数据
+	noteData, err := f.extractNestedValue(rawData, "note", "noteDetailMap", feedID, "note", "_value")
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract note data: %w", err)
+	}
+
+	commentsData, err := f.extractNestedValue(rawData, "note", "noteDetailMap", feedID, "comments", "_value")
+	if err != nil {
+		// 评论数据可能不存在，不是致命错误
+		commentsData = map[string]any{
+			"list":    []any{},
+			"hasMore": false,
+		}
+	}
+
+	// 将提取的数据转换为结构化类型
+	var feedDetail FeedDetail
+	if noteBytes, err := json.Marshal(noteData); err != nil {
+		return nil, fmt.Errorf("failed to marshal note data: %w", err)
+	} else if err := json.Unmarshal(noteBytes, &feedDetail); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal note data to FeedDetail: %w", err)
+	}
+
+	var commentList CommentList
+	if commentsBytes, err := json.Marshal(commentsData); err != nil {
+		return nil, fmt.Errorf("failed to marshal comments data: %w", err)
+	} else if err := json.Unmarshal(commentsBytes, &commentList); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal comments data to CommentList: %w", err)
+	}
+
+	return &FeedDetailResponse{
+		Note:     feedDetail,
+		Comments: commentList,
+	}, nil
+}
+
+// extractNestedValue 从嵌套的 map 结构中提取值
+func (f *FeedDetailAction) extractNestedValue(data map[string]any, keys ...string) (any, error) {
+	current := data
+	for i, key := range keys {
+		if current == nil {
+			return nil, fmt.Errorf("nil value at key path: %v", keys[:i])
+		}
+
+		value, exists := current[key]
+		if !exists {
+			return nil, fmt.Errorf("key '%s' not found at path: %v", key, keys[:i+1])
+		}
+
+		if i == len(keys)-1 {
+			// 最后一个 key，返回值
+			return value, nil
+		}
+
+		// 继续深入下一层
+		if nextMap, ok := value.(map[string]any); ok {
+			current = nextMap
+		} else {
+			return nil, fmt.Errorf("expected map[string]any at key '%s', got %T", key, value)
+		}
+	}
+
+	return nil, fmt.Errorf("no keys provided")
 }

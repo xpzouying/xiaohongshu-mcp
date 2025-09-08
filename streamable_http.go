@@ -217,7 +217,7 @@ func (s *AppServer) processToolsList(request *JSONRPCRequest) *JSONRPCResponse {
 		},
 		{
 			"name":        "get_feed_detail",
-			"description": "获取小红书Feed详情页数据",
+			"description": "获取小红书Feed详情页数据，包括笔记内容、用户信息、互动数据和评论列表",
 			"inputSchema": map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{

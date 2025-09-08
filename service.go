@@ -187,7 +187,7 @@ func (s *XiaohongshuService) GetFeedDetail(ctx context.Context, feedID, xsecToke
 
 	response := &FeedDetailResponse{
 		FeedID: feedID,
-		Data:   result.Data,
+		Data:   result,
 	}
 
 	return response, nil

@@ -83,3 +83,56 @@ type Video struct {
 type VideoCapability struct {
 	Duration int `json:"duration"` // 视频时长，单位秒
 }
+
+// ================ Feed 详情页相关结构体 ================
+
+// FeedDetailResponse 表示 Feed 详情页完整响应
+type FeedDetailResponse struct {
+	Note     FeedDetail  `json:"note"`
+	Comments CommentList `json:"comments"`
+}
+
+// FeedDetail 表示详情页的笔记内容
+type FeedDetail struct {
+	NoteID       string            `json:"noteId"`
+	XsecToken    string            `json:"xsecToken"`
+	Title        string            `json:"title"`
+	Desc         string            `json:"desc"`
+	Type         string            `json:"type"`
+	Time         int64             `json:"time"`
+	IPLocation   string            `json:"ipLocation"`
+	User         User              `json:"user"`
+	InteractInfo InteractInfo      `json:"interactInfo"`
+	ImageList    []DetailImageInfo `json:"imageList"`
+}
+
+// DetailImageInfo 表示详情页的图片信息
+type DetailImageInfo struct {
+	Width      int    `json:"width"`
+	Height     int    `json:"height"`
+	URLDefault string `json:"urlDefault"`
+	URLPre     string `json:"urlPre"`
+	LivePhoto  bool   `json:"livePhoto,omitempty"`
+}
+
+// CommentList 表示评论列表
+type CommentList struct {
+	List    []Comment `json:"list"`
+	Cursor  string    `json:"cursor"`
+	HasMore bool      `json:"hasMore"`
+}
+
+// Comment 表示单条评论
+type Comment struct {
+	ID              string    `json:"id"`
+	NoteID          string    `json:"noteId"`
+	Content         string    `json:"content"`
+	LikeCount       string    `json:"likeCount"`
+	CreateTime      int64     `json:"createTime"`
+	IPLocation      string    `json:"ipLocation"`
+	Liked           bool      `json:"liked"`
+	UserInfo        User      `json:"userInfo"`
+	SubCommentCount string    `json:"subCommentCount"`
+	SubComments     []Comment `json:"subComments"`
+	ShowTags        []string  `json:"showTags"`
+}
