@@ -176,11 +176,11 @@ func (s *AppServer) processToolsList(request *JSONRPCRequest) *JSONRPCResponse {
 					},
 					"content": map[string]interface{}{
 						"type":        "string",
-						"description": "正文内容",
+						"description": "正文内容，支持话题标签",
 					},
 					"images": map[string]interface{}{
 						"type":        "array",
-						"description": "图片路径列表（发布图文时使用）",
+						"description": "图片路径列表，支持本地路径或URL",
 						"items": map[string]interface{}{
 							"type": "string",
 						},
@@ -203,13 +203,13 @@ func (s *AppServer) processToolsList(request *JSONRPCRequest) *JSONRPCResponse {
 		},
 		{
 			"name":        "search_feeds",
-			"description": "搜索小红书内容（前提：用户已登录）",
+			"description": "搜索小红书内容，返回相关笔记列表（需要已登录）",
 			"inputSchema": map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
 					"keyword": map[string]interface{}{
 						"type":        "string",
-						"description": "搜索关键词",
+						"description": "搜索关键词，支持标题、内容、标签",
 					},
 				},
 				"required": []string{"keyword"},
@@ -217,17 +217,17 @@ func (s *AppServer) processToolsList(request *JSONRPCRequest) *JSONRPCResponse {
 		},
 		{
 			"name":        "get_feed_detail",
-			"description": "获取小红书Feed详情页数据，包括笔记内容、用户信息、互动数据和评论列表",
+			"description": "获取小红书笔记详情，返回笔记内容、图片、作者信息、互动数据（点赞/收藏/分享数）及评论列表",
 			"inputSchema": map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
 					"feed_id": map[string]interface{}{
 						"type":        "string",
-						"description": "Feed ID",
+						"description": "小红书笔记ID，从Feed列表获取",
 					},
 					"xsec_token": map[string]interface{}{
 						"type":        "string",
-						"description": "安全令牌",
+						"description": "访问令牌，从Feed列表的xsecToken字段获取",
 					},
 				},
 				"required": []string{"feed_id", "xsec_token"},
