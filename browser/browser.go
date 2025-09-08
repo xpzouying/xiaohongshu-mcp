@@ -20,7 +20,10 @@ type Browser struct {
 
 // NewPage 创建新页面
 func (b *Browser) NewPage() *rod.Page {
-	page := b.browser.MustPage()
+	page, err := b.browser.Page(proto.TargetCreateTarget{})
+	if err != nil {
+		logrus.Fatalf("Failed to create new page: %v", err)
+	}
 
 	// 应用cookies
 	b.applyCookies(page)
@@ -31,7 +34,9 @@ func (b *Browser) NewPage() *rod.Page {
 // Close 关闭浏览器
 func (b *Browser) Close() {
 	if b.browser != nil {
-		b.browser.MustClose()
+		if err := b.browser.Close(); err != nil {
+			logrus.Warnf("Failed to close browser: %v", err)
+		}
 	}
 	if b.launcher != nil {
 		b.launcher.Cleanup()
@@ -60,12 +65,14 @@ func (b *Browser) applyCookies(page *rod.Page) {
 						}
 
 						// 使用Rod的正确API设置cookie
-						page.MustSetCookies(&proto.NetworkCookieParam{
+						if err := page.SetCookies([]*proto.NetworkCookieParam{{
 							Name:   name,
 							Value:  value,
 							Domain: domain,
 							Path:   path,
-						})
+						}}); err != nil {
+							logrus.Warnf("Failed to set cookie %s: %v", name, err)
+						}
 					}
 				}
 			}

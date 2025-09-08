@@ -30,16 +30,43 @@ func NewPublishImageAction(page *rod.Page) (*PublishAction, error) {
 
 	pp := page.Timeout(60 * time.Second)
 
-	pp.MustNavigate(urlOfPublic)
+	// 导航到发布页面
+	if err := pp.Navigate(urlOfPublic); err != nil {
+		return nil, errors.Wrap(err, "导航到发布页面失败")
+	}
 
-	pp.MustElement(`div.upload-content`).MustWaitVisible()
-	slog.Info("wait for upload-content visible success")
+	// 等待页面加载完成
+	if err := pp.WaitLoad(); err != nil {
+		return nil, errors.Wrap(err, "等待页面加载失败")
+	}
+
+	// 等待上传内容区域出现，使用重试机制
+	uploadContentExists := false
+	for i := 0; i < 10; i++ {
+		if exists, _, _ := pp.Has(`div.upload-content`); exists {
+			uploadContentExists = true
+			break
+		}
+		time.Sleep(1 * time.Second)
+		slog.Info("等待上传内容区域出现", "尝试", i+1)
+	}
+
+	if !uploadContentExists {
+		return nil, errors.New("上传内容区域未找到")
+	}
+
+	slog.Info("等待上传内容区域出现成功")
 
 	// 等待一段时间确保页面完全加载
 	time.Sleep(10 * time.Second)
 
-	createElems := pp.MustElements("div.creator-tab")
-	slog.Info("foundcreator-tab elements", "count", len(createElems))
+	// 尝试查找并点击"上传图文"按钮
+	createElems, err := pp.Elements("div.creator-tab")
+	if err != nil {
+		slog.Warn("未找到creator-tab元素", "error", err)
+		createElems = []*rod.Element{} // 设置为空切片以避免panic
+	}
+	slog.Info("找到creator-tab元素", "count", len(createElems))
 	for _, elem := range createElems {
 		text, err := elem.Text()
 		if err != nil {
@@ -84,11 +111,28 @@ func (p *PublishAction) Publish(ctx context.Context, content PublishImageContent
 func uploadImages(page *rod.Page, imagesPaths []string) error {
 	pp := page.Timeout(30 * time.Second)
 
-	// 等待上传输入框出现
-	uploadInput := pp.MustElement(".upload-input")
+	// 等待上传输入框出现，使用重试机制
+	uploadInputFound := false
+	var uploadInput *rod.Element
+	for i := 0; i < 10; i++ {
+		if elem, err := pp.Element(".upload-input"); err == nil {
+			uploadInput = elem
+			uploadInputFound = true
+			slog.Info("找到上传输入框")
+			break
+		}
+		time.Sleep(1 * time.Second)
+		slog.Info("等待上传输入框", "尝试", i+1)
+	}
+
+	if !uploadInputFound {
+		return errors.New("未找到上传输入框")
+	}
 
 	// 上传多个文件
-	uploadInput.MustSetFiles(imagesPaths...)
+	if err := uploadInput.SetFiles(imagesPaths); err != nil {
+		return errors.Wrap(err, "设置文件失败")
+	}
 
 	// 等待上传完成
 	time.Sleep(3 * time.Second)
@@ -98,57 +142,66 @@ func uploadImages(page *rod.Page, imagesPaths []string) error {
 
 func submitPublish(page *rod.Page, title, content string) error {
 
-	titleElem := page.MustElement("div.d-input input")
-	titleElem.MustInput(title)
+	// 查找标题输入框
+	titleElem, err := page.Element("div.d-input input")
+	if err != nil {
+		return errors.Wrap(err, "未找到标题输入框")
+	}
+	if err := titleElem.Input(title); err != nil {
+		return errors.Wrap(err, "输入标题失败")
+	}
 
 	time.Sleep(1 * time.Second)
 
 	if contentElem, ok := getContentElement(page); ok {
-		contentElem.MustInput(content)
+		if err := contentElem.Input(content); err != nil {
+			return errors.Wrap(err, "输入内容失败")
+		}
 	} else {
 		return errors.New("没有找到内容输入框")
 	}
 
 	time.Sleep(1 * time.Second)
 
-	submitButton := page.MustElement("div.submit div.d-button-content")
-	submitButton.MustClick()
+	// 查找发布按钮
+	submitButton, err := page.Element("div.submit div.d-button-content")
+	if err != nil {
+		return errors.Wrap(err, "未找到发布按钮")
+	}
+	if err := submitButton.Click(proto.InputMouseButtonLeft, 1); err != nil {
+		return errors.Wrap(err, "点击发布按钮失败")
+	}
 
 	time.Sleep(3 * time.Second)
 
 	return nil
 }
 
-// 查找内容输入框 - 使用Race方法处理两种样式
+// 查找内容输入框 - 使用安全的方法处理两种样式
 func getContentElement(page *rod.Page) (*rod.Element, bool) {
-	var foundElement *rod.Element
-	var found bool
-
-	page.Race().
-		Element("div.ql-editor").MustHandle(func(e *rod.Element) {
-		foundElement = e
-		found = true
-	}).
-		ElementFunc(func(page *rod.Page) (*rod.Element, error) {
-			return findTextboxByPlaceholder(page)
-		}).MustHandle(func(e *rod.Element) {
-		foundElement = e
-		found = true
-	}).
-		MustDo()
-
-	if found {
-		return foundElement, true
+	// 先尝试第一种方式：ql-editor
+	if elem, err := page.Element("div.ql-editor"); err == nil {
+		slog.Info("找到ql-editor内容输入框")
+		return elem, true
 	}
 
-	slog.Warn("no content element found by any method")
+	// 再尝试第二种方式：placeholder方式
+	if elem, err := findTextboxByPlaceholder(page); err == nil {
+		slog.Info("找到placeholder内容输入框")
+		return elem, true
+	}
+
+	slog.Warn("所有方法都未找到内容输入框")
 	return nil, false
 }
 
 func findTextboxByPlaceholder(page *rod.Page) (*rod.Element, error) {
-	elements := page.MustElements("p")
+	elements, err := page.Elements("p")
+	if err != nil {
+		return nil, errors.Wrap(err, "未找到p元素")
+	}
 	if elements == nil {
-		return nil, errors.New("no p elements found")
+		return nil, errors.New("未找到p元素")
 	}
 
 	// 查找包含指定placeholder的元素
