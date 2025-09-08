@@ -203,13 +203,13 @@ func (s *AppServer) processToolsList(request *JSONRPCRequest) *JSONRPCResponse {
 		},
 		{
 			"name":        "search_feeds",
-			"description": "搜索小红书内容，返回相关笔记列表（需要已登录）",
+			"description": "搜索小红书内容（需要已登录）",
 			"inputSchema": map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
 					"keyword": map[string]interface{}{
 						"type":        "string",
-						"description": "搜索关键词，支持标题、内容、标签",
+						"description": "搜索关键词",
 					},
 				},
 				"required": []string{"keyword"},
