@@ -163,3 +163,63 @@ func (s *AppServer) handleSearchFeeds(ctx context.Context, args map[string]inter
 		}},
 	}
 }
+
+// handleGetFeedDetail 处理获取Feed详情
+func (s *AppServer) handleGetFeedDetail(ctx context.Context, args map[string]any) *MCPToolResult {
+	logrus.Info("MCP: 获取Feed详情")
+
+	// 解析参数
+	feedID, ok := args["feed_id"].(string)
+	if !ok || feedID == "" {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "获取Feed详情失败: 缺少feed_id参数",
+			}},
+			IsError: true,
+		}
+	}
+
+	xsecToken, ok := args["xsec_token"].(string)
+	if !ok || xsecToken == "" {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "获取Feed详情失败: 缺少xsec_token参数",
+			}},
+			IsError: true,
+		}
+	}
+
+	logrus.Infof("MCP: 获取Feed详情 - Feed ID: %s", feedID)
+
+	result, err := s.xiaohongshuService.GetFeedDetail(ctx, feedID, xsecToken)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "获取Feed详情失败: " + err.Error(),
+			}},
+			IsError: true,
+		}
+	}
+
+	// 格式化输出，转换为JSON字符串
+	jsonData, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: fmt.Sprintf("获取Feed详情成功，但序列化失败: %v", err),
+			}},
+			IsError: true,
+		}
+	}
+
+	return &MCPToolResult{
+		Content: []MCPContent{{
+			Type: "text",
+			Text: string(jsonData),
+		}},
+	}
+}

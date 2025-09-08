@@ -167,3 +167,28 @@ func (s *XiaohongshuService) SearchFeeds(ctx context.Context, keyword string) (*
 
 	return response, nil
 }
+
+// GetFeedDetail 获取Feed详情
+func (s *XiaohongshuService) GetFeedDetail(ctx context.Context, feedID, xsecToken string) (*FeedDetailResponse, error) {
+	b := browser.NewBrowser(configs.IsHeadless())
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	// 创建 Feed 详情 action
+	action := xiaohongshu.NewFeedDetailAction(page)
+
+	// 获取 Feed 详情
+	result, err := action.GetFeedDetail(ctx, feedID, xsecToken)
+	if err != nil {
+		return nil, err
+	}
+
+	response := &FeedDetailResponse{
+		FeedID: feedID,
+		Data:   result.Data,
+	}
+
+	return response, nil
+}

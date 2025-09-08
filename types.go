@@ -60,3 +60,15 @@ type MCPContent struct {
 	Type string `json:"type"`
 	Text string `json:"text"`
 }
+
+// FeedDetailRequest Feed详情请求
+type FeedDetailRequest struct {
+	FeedID    string `json:"feed_id" binding:"required"`
+	XsecToken string `json:"xsec_token" binding:"required"`
+}
+
+// FeedDetailResponse Feed详情响应
+type FeedDetailResponse struct {
+	FeedID string `json:"feed_id"`
+	Data   any    `json:"data"`
+}

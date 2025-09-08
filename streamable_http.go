@@ -215,6 +215,24 @@ func (s *AppServer) processToolsList(request *JSONRPCRequest) *JSONRPCResponse {
 				"required": []string{"keyword"},
 			},
 		},
+		{
+			"name":        "get_feed_detail",
+			"description": "获取小红书Feed详情页数据",
+			"inputSchema": map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"feed_id": map[string]interface{}{
+						"type":        "string",
+						"description": "Feed ID",
+					},
+					"xsec_token": map[string]interface{}{
+						"type":        "string",
+						"description": "安全令牌",
+					},
+				},
+				"required": []string{"feed_id", "xsec_token"},
+			},
+		},
 	}
 
 	return &JSONRPCResponse{
@@ -255,6 +273,8 @@ func (s *AppServer) processToolCall(ctx context.Context, request *JSONRPCRequest
 		result = s.handleListFeeds(ctx)
 	case "search_feeds":
 		result = s.handleSearchFeeds(ctx, toolArgs)
+	case "get_feed_detail":
+		result = s.handleGetFeedDetail(ctx, toolArgs)
 	default:
 		return &JSONRPCResponse{
 			JSONRPC: "2.0",

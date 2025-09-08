@@ -103,6 +103,27 @@ func (s *AppServer) searchFeedsHandler(c *gin.Context) {
 	respondSuccess(c, result, "搜索Feeds成功")
 }
 
+// getFeedDetailHandler 获取Feed详情
+func (s *AppServer) getFeedDetailHandler(c *gin.Context) {
+	var req FeedDetailRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
+			"请求参数错误", err.Error())
+		return
+	}
+
+	// 获取 Feed 详情
+	result, err := s.xiaohongshuService.GetFeedDetail(c.Request.Context(), req.FeedID, req.XsecToken)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "GET_FEED_DETAIL_FAILED",
+			"获取Feed详情失败", err.Error())
+		return
+	}
+
+	c.Set("account", "ai-report")
+	respondSuccess(c, result, "获取Feed详情成功")
+}
+
 // healthHandler 健康检查
 func healthHandler(c *gin.Context) {
 	respondSuccess(c, map[string]any{
