@@ -2,14 +2,13 @@ package xiaohongshu
 
 import (
 	"context"
-	"fmt"
-	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/proto"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 )
 
 // PublishImageContent 发布图文内容
@@ -28,101 +27,65 @@ const (
 )
 
 func NewPublishImageAction(page *rod.Page) (*PublishAction, error) {
+	pp := page.Timeout(300 * time.Second) // 延长超时时间
 
-	pp := page.Timeout(60 * time.Second)
-
-	// 导航到发布页面
+	logrus.Info("开始导航到发布页面")
+	// 安全导航
 	if err := pp.Navigate(urlOfPublic); err != nil {
+		logrus.Errorf("导航失败: %v", err)
 		return nil, errors.Wrap(err, "导航到发布页面失败")
 	}
 
-	// 等待页面加载完成
+	logrus.Info("导航成功，等待页面加载")
+	// 安全等待页面加载
 	if err := pp.WaitLoad(); err != nil {
+		logrus.Errorf("等待页面加载失败: %v", err)
 		return nil, errors.Wrap(err, "等待页面加载失败")
 	}
 
-	// 等待页面稳定，确保所有JavaScript完全加载
-	if err := pp.WaitStable(5 * time.Second); err != nil {
-		return nil, errors.Wrap(err, "等待页面稳定失败")
-	}
-
-	// 等待页面完全渲染，确保所有动态内容加载完成
-	time.Sleep(3 * time.Second)
-
-	// 等待关键页面状态加载完成，最多60秒
-	pageReady := false
+	logrus.Info("页面加载成功，开始等待60秒")
+	// 强制等待60秒，让页面完全加载，并每10秒检查页面状态
 	for i := 0; i < 60; i++ {
-		// 检查页面是否包含必要的元素，表明页面已完全加载
-		if ready, _, _ := pp.Has(`div.upload-content, div.creator-tab, .main-container`); ready {
-			slog.Info("页面关键元素已加载，页面准备就绪")
-			pageReady = true
-			break
-		}
 		time.Sleep(1 * time.Second)
-		slog.Info("等待页面完全加载", "进度", fmt.Sprintf("%d/60秒", i+1))
-	}
-
-	// 如果60秒后页面仍未准备好，必须抛出错误
-	if !pageReady {
-		return nil, errors.New("超时错误：等待60秒后页面关键元素仍未加载完成，可能是网络问题或页面结构变化")
-	}
-
-	// 额外等待确保页面完全稳定
-	time.Sleep(2 * time.Second)
-
-	// 等待上传内容区域出现，使用重试机制
-	uploadContentExists := false
-	for i := 0; i < 10; i++ {
-		if exists, _, _ := pp.Has(`div.upload-content`); exists {
-			uploadContentExists = true
-			break
-		}
-		time.Sleep(1 * time.Second)
-		slog.Info("等待上传内容区域出现", "尝试", i+1)
-	}
-
-	// 如果上传区域仍未找到，必须抛出错误
-	if !uploadContentExists {
-		return nil, errors.New("关键元素错误：上传内容区域未找到，请检查页面是否正常加载或网站结构是否变化")
-	}
-
-	slog.Info("上传内容区域找到，继续后续操作")
-
-	// 等待页面完全稳定
-	time.Sleep(3 * time.Second)
-
-	// 尝试查找并点击"上传图文"按钮
-	createElems, err := pp.Elements("div.creator-tab")
-	if err != nil {
-		slog.Warn("查找上传图文按钮失败", "error", err)
-		// 这里不抛出错误，因为某些页面可能不需要这个按钮
-		createElems = []*rod.Element{}
-	}
-
-	uploadButtonClicked := false
-	for _, elem := range createElems {
-		text, err := elem.Text()
-		if err != nil {
-			slog.Error("获取元素文本失败", "error", err)
-			continue
-		}
-
-		if text == "上传图文" {
-			if err := elem.Click(proto.InputMouseButtonLeft, 1); err != nil {
-				slog.Error("点击上传图文按钮失败", "error", err)
-				continue
+		if i%10 == 0 {
+			logrus.Infof("等待页面加载: %d/60秒", i+1)
+			// 检查页面状态，但不强制退出
+			if info, err := pp.Info(); err != nil {
+				logrus.Warnf("页面状态检查失败: %v", err)
+			} else {
+				logrus.Infof("页面状态正常: title=%s, url=%s", info.Title, info.URL)
 			}
-			uploadButtonClicked = true
-			slog.Info("成功点击上传图文按钮")
-			break
 		}
 	}
+	logrus.Info("60秒等待完成")
 
-	if len(createElems) > 0 && !uploadButtonClicked {
-		slog.Warn("找到creator-tab元素但未找到'上传图文'按钮", "count", len(createElems))
+	// 简化检查，不强制要求找到元素
+	logrus.Info("尝试查找上传内容区域")
+	if _, err := pp.Element("div.upload-content"); err == nil {
+		logrus.Info("找到上传内容区域")
+	} else {
+		logrus.Warnf("未找到上传内容区域: %v", err)
 	}
 
-	time.Sleep(1 * time.Second)
+	// 尝试查找并点击"上传图文"按钮，但不强制要求成功
+	logrus.Info("尝试查找上传图文按钮")
+	if createElems, err := pp.Elements("div.creator-tab"); err == nil {
+		for _, elem := range createElems {
+			if text, err := elem.Text(); err == nil && (text == "发布笔记" || text == "上传图文") {
+				if err := elem.Click(proto.InputMouseButtonLeft, 1); err != nil {
+					logrus.Warnf("点击上传图文按钮失败: %v", err)
+				} else {
+					logrus.Info("成功点击上传图文按钮")
+				}
+				break
+			}
+		}
+	} else {
+		logrus.Warnf("查找上传图文按钮失败: %v", err)
+	}
+
+	logrus.Info("创建PublishAction完成，页面将保持打开")
+	time.Sleep(2 * time.Second)
 
 	return &PublishAction{
 		page: pp,
@@ -150,31 +113,19 @@ func (p *PublishAction) Publish(ctx context.Context, content PublishImageContent
 func uploadImages(page *rod.Page, imagesPaths []string) error {
 	pp := page.Timeout(30 * time.Second)
 
-	// 等待上传输入框出现，使用重试机制
-	uploadInputFound := false
-	var uploadInput *rod.Element
-	for i := 0; i < 10; i++ {
-		if elem, err := pp.Element(".upload-input"); err == nil {
-			uploadInput = elem
-			uploadInputFound = true
-			slog.Info("找到上传输入框")
-			break
-		}
-		time.Sleep(1 * time.Second)
-		slog.Info("等待上传输入框", "尝试", i+1)
-	}
-
-	// 如果上传输入框未找到，必须抛出错误
-	if !uploadInputFound {
-		return errors.New("关键元素缺失：未找到上传输入框，可能是页面结构变化或网络问题")
+	// 安全等待上传输入框出现
+	uploadInput, err := pp.Element(".upload-input")
+	if err != nil {
+		return errors.Wrap(err, "未找到上传输入框")
 	}
 
 	// 上传多个文件
-	if err := uploadInput.SetFiles(imagesPaths); err != nil {
-		return errors.Wrap(err, "文件上传失败：设置文件失败")
+	err = uploadInput.SetFiles(imagesPaths)
+	if err != nil {
+		return err
 	}
 
-	slog.Info("文件上传设置成功，等待上传完成")
+	logrus.Infof("Uploaded %d images", len(imagesPaths))
 
 	// 等待上传完成
 	time.Sleep(3 * time.Second)
@@ -184,60 +135,60 @@ func uploadImages(page *rod.Page, imagesPaths []string) error {
 
 func submitPublish(page *rod.Page, title, content string) error {
 
-	// 查找标题输入框
+	// 安全查找标题输入框
 	titleElem, err := page.Element("div.d-input input")
 	if err != nil {
-		return errors.Wrap(err, "关键元素缺失：未找到标题输入框，可能是页面结构变化")
+		return errors.Wrap(err, "未找到标题输入框")
 	}
 	if err := titleElem.Input(title); err != nil {
-		return errors.Wrap(err, "操作失败：输入标题失败")
+		return errors.Wrap(err, "输入标题失败")
 	}
 
-	slog.Info("标题输入成功")
+	logrus.Info("Input title success")
 	time.Sleep(1 * time.Second)
 
 	contentElem, found := getContentElement(page)
 	if !found {
-		return errors.New("关键元素缺失：没有找到内容输入框，可能是页面结构变化或网络问题")
+		return errors.New("没有找到内容输入框")
 	}
 
 	if err := contentElem.Input(content); err != nil {
-		return errors.Wrap(err, "操作失败：输入内容失败")
+		return errors.Wrap(err, "输入内容失败")
 	}
 
-	slog.Info("内容输入成功")
+	logrus.Info("Input content success")
 	time.Sleep(1 * time.Second)
 
-	// 查找发布按钮
+	// 安全查找发布按钮
 	submitButton, err := page.Element("div.submit div.d-button-content")
 	if err != nil {
-		return errors.Wrap(err, "关键元素缺失：未找到发布按钮，可能是页面结构变化")
+		return errors.Wrap(err, "未找到发布按钮")
 	}
 	if err := submitButton.Click(proto.InputMouseButtonLeft, 1); err != nil {
-		return errors.Wrap(err, "操作失败：点击发布按钮失败")
+		return errors.Wrap(err, "点击发布按钮失败")
 	}
 
-	slog.Info("发布按钮点击成功")
+	logrus.Info("Submit button clicked")
 	time.Sleep(3 * time.Second)
 
 	return nil
 }
 
-// 查找内容输入框 - 使用安全的方法处理两种样式
+// 查找内容输入框 - 使用两种方式
 func getContentElement(page *rod.Page) (*rod.Element, bool) {
 	// 先尝试第一种方式：ql-editor
 	if elem, err := page.Element("div.ql-editor"); err == nil {
-		slog.Info("找到ql-editor内容输入框")
+		logrus.Info("Found ql-editor content input")
 		return elem, true
 	}
 
 	// 再尝试第二种方式：placeholder方式
 	if elem, err := findTextboxByPlaceholder(page); err == nil {
-		slog.Info("找到placeholder内容输入框")
+		logrus.Info("Found placeholder content input")
 		return elem, true
 	}
 
-	slog.Warn("所有方法都未找到内容输入框")
+	logrus.Warn("Content input not found with any method")
 	return nil, false
 }
 
