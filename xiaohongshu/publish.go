@@ -2,6 +2,7 @@ package xiaohongshu
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"strings"
 	"time"
@@ -39,6 +40,28 @@ func NewPublishImageAction(page *rod.Page) (*PublishAction, error) {
 	if err := pp.WaitLoad(); err != nil {
 		return nil, errors.Wrap(err, "等待页面加载失败")
 	}
+
+	// 等待页面稳定，确保所有JavaScript完全加载
+	if err := pp.WaitStable(5 * time.Second); err != nil {
+		return nil, errors.Wrap(err, "等待页面稳定失败")
+	}
+
+	// 等待页面完全渲染，确保所有动态内容加载完成
+	time.Sleep(3 * time.Second)
+
+	// 等待关键页面状态加载完成
+	for i := 0; i < 60; i++ { // 最多等待60秒
+		// 检查页面是否包含必要的元素，表明页面已完全加载
+		if ready, _, _ := pp.Has(`div.upload-content, div.creator-tab, .main-container`); ready {
+			slog.Info("页面关键元素已加载，页面准备就绪")
+			break
+		}
+		time.Sleep(1 * time.Second)
+		slog.Info("等待页面完全加载", "进度", fmt.Sprintf("%d/60秒", i+1))
+	}
+
+	// 额外等待确保页面完全稳定
+	time.Sleep(2 * time.Second)
 
 	// 等待上传内容区域出现，使用重试机制
 	uploadContentExists := false
