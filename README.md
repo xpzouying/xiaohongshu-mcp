@@ -364,7 +364,7 @@ npx @modelcontextprotocol/inspector
 连接成功后，可使用以下 MCP 工具：
 
 - `check_login_status` - 检查小红书登录状态（无参数）
-- `publish_content` - 发布图文内容到小红书（需要：title, content, 可选：images, video）
+- `publish_content` - 发布图文内容到小红书（必需：title, content, images）
 - `list_feeds` - 获取小红书首页推荐列表（无参数）
 - `search_feeds` - 搜索小红书内容（需要：keyword）
 - `get_feed_detail` - 获取帖子详情（需要：feed_id, xsec_token）

@@ -166,13 +166,13 @@ func (s *AppServer) processToolsList(request *JSONRPCRequest) *JSONRPCResponse {
 		},
 		{
 			"name":        "publish_content",
-			"description": "发布小红书内容（支持图文或视频）",
+			"description": "发布小红书图文内容",
 			"inputSchema": map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
 					"title": map[string]interface{}{
 						"type":        "string",
-						"description": "内容标题",
+						"description": "内容标题（小红书限制：最多20个中文字或英文单词）",
 					},
 					"content": map[string]interface{}{
 						"type":        "string",
@@ -180,17 +180,14 @@ func (s *AppServer) processToolsList(request *JSONRPCRequest) *JSONRPCResponse {
 					},
 					"images": map[string]interface{}{
 						"type":        "array",
-						"description": "图片路径列表，支持本地路径或URL",
+						"description": "图片路径列表，支持本地路径或URL（至少需要1张图片）",
 						"items": map[string]interface{}{
 							"type": "string",
 						},
-					},
-					"video": map[string]interface{}{
-						"type":        "string",
-						"description": "视频文件路径（发布视频时使用）",
+						"minItems": 1,
 					},
 				},
-				"required": []string{"title", "content"},
+				"required": []string{"title", "content", "images"},
 			},
 		},
 		{
