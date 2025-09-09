@@ -22,8 +22,7 @@ func NewFeedsListAction(page *rod.Page) *FeedsListAction {
 	pp := page.Timeout(60 * time.Second)
 
 	pp.MustNavigate("https://www.xiaohongshu.com")
-	pp.MustWaitStable()
-	pp.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
+	pp.MustWaitDOMStable()
 
 	return &FeedsListAction{page: pp}
 }
@@ -31,6 +30,8 @@ func NewFeedsListAction(page *rod.Page) *FeedsListAction {
 // GetFeedsList 获取页面的 Feed 列表数据
 func (f *FeedsListAction) GetFeedsList(ctx context.Context) ([]Feed, error) {
 	page := f.page.Context(ctx)
+
+	time.Sleep(1 * time.Second)
 
 	// 获取 window.__INITIAL_STATE__ 并转换为 JSON 字符串
 	result := page.MustEval(`() => {

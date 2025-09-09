@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/go-rod/rod"
@@ -29,8 +28,8 @@ func (f *FeedDetailAction) GetFeedDetail(ctx context.Context, feedID, xsecToken 
 
 	// 导航到详情页
 	page.MustNavigate(url)
-	page.MustWaitStable()
-	page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
+	page.MustWaitDOMStable()
+	time.Sleep(1 * time.Second)
 
 	// 获取 window.__INITIAL_STATE__ 并转换为 JSON 字符串
 	result := page.MustEval(`() => {
@@ -42,12 +41,6 @@ func (f *FeedDetailAction) GetFeedDetail(ctx context.Context, feedID, xsecToken 
 
 	if result == "" {
 		return nil, fmt.Errorf("__INITIAL_STATE__ not found")
-	}
-
-	// 将原始结果保存到 feed_detail.json 文件用于测试
-	err := os.WriteFile("feed_detail.json", []byte(result), 0644)
-	if err != nil {
-		return nil, fmt.Errorf("failed to write feed_detail.json: %w", err)
 	}
 
 	// 定义响应结构并直接反序列化
