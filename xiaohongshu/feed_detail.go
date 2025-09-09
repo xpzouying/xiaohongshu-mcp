@@ -25,7 +25,7 @@ func (f *FeedDetailAction) GetFeedDetail(ctx context.Context, feedID, xsecToken 
 	page := f.page.Context(ctx).Timeout(60 * time.Second)
 
 	// 构建详情页 URL
-	url := fmt.Sprintf("https://www.xiaohongshu.com/explore/%s?xsec_token=%s&xsec_source=pc_feed", feedID, xsecToken)
+	url := makeFeedDetailURL(feedID, xsecToken)
 
 	// 导航到详情页
 	page.MustNavigate(url)
@@ -74,4 +74,8 @@ func (f *FeedDetailAction) GetFeedDetail(ctx context.Context, feedID, xsecToken 
 		Note:     noteDetail.Note,
 		Comments: noteDetail.Comments,
 	}, nil
+}
+
+func makeFeedDetailURL(feedID, xsecToken string) string {
+	return fmt.Sprintf("https://www.xiaohongshu.com/explore/%s?xsec_token=%s&xsec_source=pc_feed", feedID, xsecToken)
 }

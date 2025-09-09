@@ -72,3 +72,17 @@ type FeedDetailResponse struct {
 	FeedID string `json:"feed_id"`
 	Data   any    `json:"data"`
 }
+
+// PostCommentRequest 发表评论请求
+type PostCommentRequest struct {
+	FeedID    string `json:"feed_id" binding:"required"`
+	XsecToken string `json:"xsec_token" binding:"required"`
+	Content   string `json:"content" binding:"required"`
+}
+
+// PostCommentResponse 发表评论响应
+type PostCommentResponse struct {
+	FeedID  string `json:"feed_id"`
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+}

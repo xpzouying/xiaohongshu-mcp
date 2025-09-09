@@ -124,6 +124,27 @@ func (s *AppServer) getFeedDetailHandler(c *gin.Context) {
 	respondSuccess(c, result, "获取Feed详情成功")
 }
 
+// postCommentHandler 发表评论到Feed
+func (s *AppServer) postCommentHandler(c *gin.Context) {
+	var req PostCommentRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
+			"请求参数错误", err.Error())
+		return
+	}
+
+	// 发表评论
+	result, err := s.xiaohongshuService.PostCommentToFeed(c.Request.Context(), req.FeedID, req.XsecToken, req.Content)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "POST_COMMENT_FAILED",
+			"发表评论失败", err.Error())
+		return
+	}
+
+	c.Set("account", "ai-report")
+	respondSuccess(c, result, result.Message)
+}
+
 // healthHandler 健康检查
 func healthHandler(c *gin.Context) {
 	respondSuccess(c, map[string]any{

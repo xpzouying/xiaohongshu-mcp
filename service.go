@@ -192,3 +192,30 @@ func (s *XiaohongshuService) GetFeedDetail(ctx context.Context, feedID, xsecToke
 
 	return response, nil
 }
+
+// PostCommentToFeed 发表评论到Feed
+func (s *XiaohongshuService) PostCommentToFeed(ctx context.Context, feedID, xsecToken, content string) (*PostCommentResponse, error) {
+	// 使用非无头模式以便查看操作过程
+	b := browser.NewBrowser(false)
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	// 创建 Feed 评论 action
+	action := xiaohongshu.NewCommentFeedAction(page)
+
+	// 发表评论
+	err := action.PostComment(ctx, feedID, xsecToken, content)
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostCommentResponse{
+		FeedID:  feedID,
+		Success: true,
+		Message: "评论发表成功",
+	}
+
+	return response, nil
+}

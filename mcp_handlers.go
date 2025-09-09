@@ -223,3 +223,65 @@ func (s *AppServer) handleGetFeedDetail(ctx context.Context, args map[string]any
 		}},
 	}
 }
+
+// handlePostComment 处理发表评论到Feed
+func (s *AppServer) handlePostComment(ctx context.Context, args map[string]interface{}) *MCPToolResult {
+	logrus.Info("MCP: 发表评论到Feed")
+
+	// 解析参数
+	feedID, ok := args["feed_id"].(string)
+	if !ok || feedID == "" {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "发表评论失败: 缺少feed_id参数",
+			}},
+			IsError: true,
+		}
+	}
+
+	xsecToken, ok := args["xsec_token"].(string)
+	if !ok || xsecToken == "" {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "发表评论失败: 缺少xsec_token参数",
+			}},
+			IsError: true,
+		}
+	}
+
+	content, ok := args["content"].(string)
+	if !ok || content == "" {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "发表评论失败: 缺少content参数",
+			}},
+			IsError: true,
+		}
+	}
+
+	logrus.Infof("MCP: 发表评论 - Feed ID: %s, 内容长度: %d", feedID, len(content))
+
+	// 发表评论
+	result, err := s.xiaohongshuService.PostCommentToFeed(ctx, feedID, xsecToken, content)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "发表评论失败: " + err.Error(),
+			}},
+			IsError: true,
+		}
+	}
+
+	// 返回成功结果，只包含feed_id
+	resultText := fmt.Sprintf("评论发表成功 - Feed ID: %s", result.FeedID)
+	return &MCPToolResult{
+		Content: []MCPContent{{
+			Type: "text",
+			Text: resultText,
+		}},
+	}
+}
