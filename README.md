@@ -82,6 +82,27 @@ https://github.com/user-attachments/assets/76a26130-a216-4371-a6b3-937b8fda092a
 
 </details>
 
+<details>
+<summary><b>6. 发表评论到帖子</b></summary>
+
+支持自动发表评论到小红书帖子。
+
+**功能说明：**
+- 自动定位评论输入框
+- 输入评论内容并发布
+- 支持 HTTP API 和 MCP 工具调用
+
+**⚠️ 重要提示：**
+- 需要先登录才能使用此功能
+- 需要提供帖子ID、xsec_token和评论内容
+- 这些参数可以从Feed列表或搜索结果中获取
+
+**发表评论演示：**
+
+https://github.com/user-attachments/assets/cc385b6c-422c-489b-a5fc-63e92c695b80
+
+</details>
+
 **小红书基础运营知识**
 
 - **标题：（非常重要）小红书要求标题不超过 20个字**
@@ -318,7 +339,7 @@ npx @modelcontextprotocol/inspector
 使用步骤：
 - 使用 MCP Inspector 测试连接
 - 测试 Ping Server 功能验证连接
-- 检查 List Tools 是否返回 4 个工具
+- 检查 List Tools 是否返回 6 个工具
 
 </details>
 
@@ -346,6 +367,8 @@ npx @modelcontextprotocol/inspector
 - `publish_content` - 发布图文内容到小红书（需要：title, content, 可选：images, video）
 - `list_feeds` - 获取小红书首页推荐列表（无参数）
 - `search_feeds` - 搜索小红书内容（需要：keyword）
+- `get_feed_detail` - 获取帖子详情（需要：feed_id, xsec_token）
+- `post_comment_to_feed` - 发表评论到小红书帖子（需要：feed_id, xsec_token, content）
 
 ### 2.4. 使用示例
 
