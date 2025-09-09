@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/mattn/go-runewidth"
 	"github.com/xpzouying/xiaohongshu-mcp/browser"
 	"github.com/xpzouying/xiaohongshu-mcp/configs"
 	"github.com/xpzouying/xiaohongshu-mcp/pkg/downloader"
@@ -70,6 +72,13 @@ func (s *XiaohongshuService) CheckLoginStatus(ctx context.Context) (*LoginStatus
 
 // PublishContent 发布内容
 func (s *XiaohongshuService) PublishContent(ctx context.Context, req *PublishRequest) (*PublishResponse, error) {
+	// 验证标题长度
+	// 小红书限制：最大40个单位长度
+	// 中文/日文/韩文占2个单位，英文/数字占1个单位
+	if titleWidth := runewidth.StringWidth(req.Title); titleWidth > 40 {
+		return nil, fmt.Errorf("标题长度超过限制")
+	}
+
 	// 处理图片：下载URL图片或使用本地路径
 	imagePaths, err := s.processImages(req.Images)
 	if err != nil {
