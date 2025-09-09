@@ -4,11 +4,9 @@ MCP for 小红书/xiaohongshu.com。
 
 - 我的博客文章：[haha.ai/xiaohongshu-mcp](https://www.haha.ai/xiaohongshu-mcp)
 
-
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=xpzouying/xiaohongshu-mcp&type=Timeline)](https://www.star-history.com/#xpzouying/xiaohongshu-mcp&Timeline)
-
 
 **主要功能**
 
@@ -66,14 +64,16 @@ https://github.com/user-attachments/assets/110fc15d-46f2-4cca-bdad-9de5b5b8cc28
 <summary><b>5. 获取帖子详情（包括互动数据和评论）</b></summary>
 
 获取小红书帖子的完整详情，包括：
+
 - 帖子内容（标题、描述、图片等）
 - 用户信息
 - 互动数据（点赞、收藏、分享、评论数）
 - 评论列表及子评论
 
 **⚠️ 重要提示：**
-- 需要提供帖子ID和xsec_token（两个参数缺一不可）
-- 这两个参数可以从Feed列表或搜索结果中获取
+
+- 需要提供帖子 ID 和 xsec_token（两个参数缺一不可）
+- 这两个参数可以从 Feed 列表或搜索结果中获取
 - 必须先登录才能使用此功能
 
 **获取帖子详情演示：**
@@ -88,14 +88,16 @@ https://github.com/user-attachments/assets/76a26130-a216-4371-a6b3-937b8fda092a
 支持自动发表评论到小红书帖子。
 
 **功能说明：**
+
 - 自动定位评论输入框
 - 输入评论内容并发布
 - 支持 HTTP API 和 MCP 工具调用
 
 **⚠️ 重要提示：**
+
 - 需要先登录才能使用此功能
-- 需要提供帖子ID、xsec_token和评论内容
-- 这些参数可以从Feed列表或搜索结果中获取
+- 需要提供帖子 ID、xsec_token 和评论内容
+- 这些参数可以从 Feed 列表或搜索结果中获取
 
 **发表评论演示：**
 
@@ -105,7 +107,7 @@ https://github.com/user-attachments/assets/cc385b6c-422c-489b-a5fc-63e92c695b80
 
 **小红书基础运营知识**
 
-- **标题：（非常重要）小红书要求标题不超过 20个字**
+- **标题：（非常重要）小红书要求标题不超过 20 个字**
 - 当前只支持图文发送：从推荐的角度看，图文的流量会比纯文字的更好。
 - （低优先级）可以考虑视频和纯文字的支持。1. 个人感觉这两种会大大增加运营的复杂度；2. 这两类在我的使用场景的价值较低。
 - Tags：马上支持。
@@ -130,7 +132,6 @@ https://github.com/user-attachments/assets/cc385b6c-422c-489b-a5fc-63e92c695b80
 一周左右的成果
 
 <img width="1840" height="582" alt="CleanShot 2025-09-05 at 01 33 13@2x" src="https://github.com/user-attachments/assets/fb367944-dc48-4bbd-8ece-934caa86323e" />
-
 
 ## 1. 使用教程
 
@@ -192,7 +193,6 @@ npx @modelcontextprotocol/inspector
 ## 2. MCP 客户端接入
 
 本服务支持标准的 Model Context Protocol (MCP)，可以接入各种支持 MCP 的 AI 客户端。
-
 
 ### 2.1. 快速开始
 
@@ -325,6 +325,26 @@ claude mcp add --transport http xiaohongshu-mcp http://localhost:18060/mcp
 </details>
 
 <details>
+<summary><b>Google Gemini CLI</b></summary>
+
+在 `~/.gemini/settings.json` 或项目目录 `.gemini/settings.json` 中配置：
+
+```json
+{
+  "mcpServers": {
+    "xiaohongshu": {
+      "httpUrl": "http://localhost:18060/mcp",
+      "timeout": 30000
+    }
+  }
+}
+```
+
+更多信息请参考 [Gemini CLI MCP 文档](https://google-gemini.github.io/gemini-cli/docs/tools/mcp-server.html)
+
+</details>
+
+<details>
 <summary><b>MCP Inspector</b></summary>
 
 调试工具，用于测试 MCP 连接：
@@ -337,6 +357,7 @@ npx @modelcontextprotocol/inspector
 ```
 
 使用步骤：
+
 - 使用 MCP Inspector 测试连接
 - 测试 Ping Server 功能验证连接
 - 检查 List Tools 是否返回 6 个工具
@@ -349,6 +370,7 @@ npx @modelcontextprotocol/inspector
 任何支持 HTTP MCP 协议的客户端都可以连接到：`http://localhost:18060/mcp`
 
 基本配置模板：
+
 ```json
 {
   "name": "xiaohongshu-mcp",
