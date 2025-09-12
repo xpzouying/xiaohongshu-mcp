@@ -36,7 +36,7 @@ func NewPublishImageAction(page *rod.Page) (*PublishAction, error) {
 	slog.Info("wait for upload-content visible success")
 
 	// 等待一段时间确保页面完全加载
-	time.Sleep(1 * time.Second)
+	time.Sleep(10 * time.Second)
 
 	createElems := pp.MustElements("div.creator-tab")
 	slog.Info("foundcreator-tab elements", "count", len(createElems))
