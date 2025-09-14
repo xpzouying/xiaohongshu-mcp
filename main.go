@@ -21,7 +21,7 @@ func main() {
 
 	// 创建并启动应用服务器
 	appServer := NewAppServer(xiaohongshuService)
-	if err := appServer.Start(":18060"); err != nil {
+	if err := appServer.Start("0.0.0.0:18060"); err != nil {
 		logrus.Fatalf("failed to run server: %v", err)
 	}
 }
