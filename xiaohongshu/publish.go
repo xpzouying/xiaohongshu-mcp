@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/go-rod/rod"
+	"github.com/go-rod/rod/lib/input"
 	"github.com/go-rod/rod/lib/proto"
 	"github.com/pkg/errors"
 )
@@ -113,8 +114,10 @@ func submitPublish(page *rod.Page, title, content string, tags []string) error {
 		return errors.New("没有找到内容输入框")
 	}
 
-	submitButton := page.MustElement("div.submit div.d-button-content")
-	submitButton.MustClick()
+	time.Sleep(10 * time.Second)
+
+	// submitButton := page.MustElement("div.submit div.d-button-content")
+	// submitButton.MustClick()
 
 	time.Sleep(3 * time.Second)
 
@@ -152,10 +155,23 @@ func inputTags(contentElem *rod.Element, tags []string) {
 		return
 	}
 
-	contentElem.MustInput("\n\n")
+	time.Sleep(1 * time.Second)
+
+	for i := 0; i < 20; i++ {
+		contentElem.MustKeyActions().
+			Type(input.ArrowRight).
+			MustDo()
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	contentElem.MustKeyActions().
+		Press(input.Enter).
+		Press(input.Enter).
+		MustDo()
+
+	time.Sleep(1 * time.Second)
 
 	for _, tag := range tags {
-
 		tag = strings.TrimLeft(tag, "#")
 		inputTag(contentElem, tag)
 	}
@@ -163,15 +179,14 @@ func inputTags(contentElem *rod.Element, tags []string) {
 
 func inputTag(contentElem *rod.Element, tag string) {
 	contentElem.MustInput("#")
-	time.Sleep(200 * time.Millisecond) // 等待标签系统激活
+	time.Sleep(200 * time.Millisecond)
 
 	for _, char := range tag {
 		contentElem.MustInput(string(char))
-		time.Sleep(50 * time.Millisecond) // 减少延迟时间
+		time.Sleep(50 * time.Millisecond)
 	}
 
-	// 等待标签联想下拉框出现
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(1 * time.Second)
 
 	page := contentElem.Page()
 	topicContainer, err := page.Element("#creator-editor-topic-container")
@@ -180,7 +195,7 @@ func inputTag(contentElem *rod.Element, tag string) {
 		if err == nil && firstItem != nil {
 			firstItem.MustClick()
 			slog.Info("成功点击标签联想选项", "tag", tag)
-			time.Sleep(200 * time.Millisecond) // 等待选择生效
+			time.Sleep(200 * time.Millisecond)
 		} else {
 			slog.Warn("未找到标签联想选项，直接输入空格", "tag", tag)
 			// 如果没有找到联想选项，输入空格结束
