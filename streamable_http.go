@@ -176,7 +176,7 @@ func (s *AppServer) processToolsList(request *JSONRPCRequest) *JSONRPCResponse {
 					},
 					"content": map[string]interface{}{
 						"type":        "string",
-						"description": "正文内容，支持话题标签",
+						"description": "正文内容",
 					},
 					"images": map[string]interface{}{
 						"type":        "array",
@@ -185,6 +185,13 @@ func (s *AppServer) processToolsList(request *JSONRPCRequest) *JSONRPCResponse {
 							"type": "string",
 						},
 						"minItems": 1,
+					},
+					"tags": map[string]interface{}{
+						"type":        "array",
+						"description": "话题标签列表（可选），如 [\"美食\", \"旅行\", \"生活\"]",
+						"items": map[string]interface{}{
+							"type": "string",
+						},
 					},
 				},
 				"required": []string{"title", "content", "images"},

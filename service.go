@@ -24,6 +24,7 @@ type PublishRequest struct {
 	Title   string   `json:"title" binding:"required"`
 	Content string   `json:"content" binding:"required"`
 	Images  []string `json:"images" binding:"required,min=1"`
+	Tags    []string `json:"tags,omitempty"`
 }
 
 // LoginStatusResponse 登录状态响应
@@ -89,6 +90,7 @@ func (s *XiaohongshuService) PublishContent(ctx context.Context, req *PublishReq
 	content := xiaohongshu.PublishImageContent{
 		Title:      req.Title,
 		Content:    req.Content,
+		Tags:       req.Tags,
 		ImagePaths: imagePaths,
 	}
 
