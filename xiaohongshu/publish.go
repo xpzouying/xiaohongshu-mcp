@@ -15,6 +15,7 @@ import (
 type PublishImageContent struct {
 	Title      string
 	Content    string
+	Tags       []string
 	ImagePaths []string
 }
 
@@ -74,7 +75,7 @@ func (p *PublishAction) Publish(ctx context.Context, content PublishImageContent
 		return errors.Wrap(err, "小红书上传图片失败")
 	}
 
-	if err := submitPublish(page, content.Title, content.Content); err != nil {
+	if err := submitPublish(page, content.Title, content.Content, content.Tags); err != nil {
 		return errors.Wrap(err, "小红书发布失败")
 	}
 
@@ -96,7 +97,7 @@ func uploadImages(page *rod.Page, imagesPaths []string) error {
 	return nil
 }
 
-func submitPublish(page *rod.Page, title, content string) error {
+func submitPublish(page *rod.Page, title, content string, tags []string) error {
 
 	titleElem := page.MustElement("div.d-input input")
 	titleElem.MustInput(title)
@@ -105,11 +106,12 @@ func submitPublish(page *rod.Page, title, content string) error {
 
 	if contentElem, ok := getContentElement(page); ok {
 		contentElem.MustInput(content)
+
+		inputTags(contentElem, tags)
+
 	} else {
 		return errors.New("没有找到内容输入框")
 	}
-
-	time.Sleep(1 * time.Second)
 
 	submitButton := page.MustElement("div.submit div.d-button-content")
 	submitButton.MustClick()
@@ -143,6 +145,54 @@ func getContentElement(page *rod.Page) (*rod.Element, bool) {
 
 	slog.Warn("no content element found by any method")
 	return nil, false
+}
+
+func inputTags(contentElem *rod.Element, tags []string) {
+	if len(tags) == 0 {
+		return
+	}
+
+	contentElem.MustInput("\n\n")
+
+	for _, tag := range tags {
+
+		tag = strings.TrimLeft(tag, "#")
+		inputTag(contentElem, tag)
+	}
+}
+
+func inputTag(contentElem *rod.Element, tag string) {
+	contentElem.MustInput("#")
+	time.Sleep(200 * time.Millisecond) // 等待标签系统激活
+
+	for _, char := range tag {
+		contentElem.MustInput(string(char))
+		time.Sleep(50 * time.Millisecond) // 减少延迟时间
+	}
+
+	// 等待标签联想下拉框出现
+	time.Sleep(500 * time.Millisecond)
+
+	page := contentElem.Page()
+	topicContainer, err := page.Element("#creator-editor-topic-container")
+	if err == nil && topicContainer != nil {
+		firstItem, err := topicContainer.Element(".item")
+		if err == nil && firstItem != nil {
+			firstItem.MustClick()
+			slog.Info("成功点击标签联想选项", "tag", tag)
+			time.Sleep(200 * time.Millisecond) // 等待选择生效
+		} else {
+			slog.Warn("未找到标签联想选项，直接输入空格", "tag", tag)
+			// 如果没有找到联想选项，输入空格结束
+			contentElem.MustInput(" ")
+		}
+	} else {
+		slog.Warn("未找到标签联想下拉框，直接输入空格", "tag", tag)
+		// 如果没有找到下拉框，输入空格结束
+		contentElem.MustInput(" ")
+	}
+
+	time.Sleep(500 * time.Millisecond) // 等待标签处理完成
 }
 
 func findTextboxByPlaceholder(page *rod.Page) (*rod.Element, error) {
