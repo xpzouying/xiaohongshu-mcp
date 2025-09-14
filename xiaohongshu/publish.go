@@ -114,10 +114,10 @@ func submitPublish(page *rod.Page, title, content string, tags []string) error {
 		return errors.New("没有找到内容输入框")
 	}
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(1 * time.Second)
 
-	// submitButton := page.MustElement("div.submit div.d-button-content")
-	// submitButton.MustClick()
+	submitButton := page.MustElement("div.submit div.d-button-content")
+	submitButton.MustClick()
 
 	time.Sleep(3 * time.Second)
 
