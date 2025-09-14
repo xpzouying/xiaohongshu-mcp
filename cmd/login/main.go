@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"flag"
 
 	"github.com/go-rod/rod"
 	"github.com/sirupsen/logrus"
@@ -12,9 +13,14 @@ import (
 )
 
 func main() {
+	var (
+		binPath string // 浏览器二进制文件路径
+	)
+	flag.StringVar(&binPath, "bin", "", "浏览器二进制文件路径")
+	flag.Parse()
 
 	// 登录的时候，需要界面，所以不能无头模式
-	b := browser.NewBrowser(false)
+	b := browser.NewBrowser(false, browser.WithBinPath(binPath))
 	defer b.Close()
 
 	page := b.NewPage()

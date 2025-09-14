@@ -10,11 +10,14 @@ import (
 func main() {
 	var (
 		headless bool
+		binPath  string // 浏览器二进制文件路径
 	)
 	flag.BoolVar(&headless, "headless", true, "是否无头模式")
+	flag.StringVar(&binPath, "bin", "", "浏览器二进制文件路径")
 	flag.Parse()
 
 	configs.InitHeadless(headless)
+	configs.SetBinPath(binPath)
 
 	// 初始化服务
 	xiaohongshuService := NewXiaohongshuService()

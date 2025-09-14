@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/mattn/go-runewidth"
+	"github.com/xpzouying/headless_browser"
 	"github.com/xpzouying/xiaohongshu-mcp/browser"
 	"github.com/xpzouying/xiaohongshu-mcp/configs"
 	"github.com/xpzouying/xiaohongshu-mcp/pkg/downloader"
@@ -50,7 +51,7 @@ type FeedsListResponse struct {
 
 // CheckLoginStatus 检查登录状态
 func (s *XiaohongshuService) CheckLoginStatus(ctx context.Context) (*LoginStatusResponse, error) {
-	b := browser.NewBrowser(configs.IsHeadless())
+	b := newBrowser()
 	defer b.Close()
 
 	page := b.NewPage()
@@ -117,7 +118,7 @@ func (s *XiaohongshuService) processImages(images []string) ([]string, error) {
 
 // publishContent 执行内容发布
 func (s *XiaohongshuService) publishContent(ctx context.Context, content xiaohongshu.PublishImageContent) error {
-	b := browser.NewBrowser(configs.IsHeadless())
+	b := newBrowser()
 	defer b.Close()
 
 	page := b.NewPage()
@@ -134,7 +135,7 @@ func (s *XiaohongshuService) publishContent(ctx context.Context, content xiaohon
 
 // ListFeeds 获取Feeds列表
 func (s *XiaohongshuService) ListFeeds(ctx context.Context) (*FeedsListResponse, error) {
-	b := browser.NewBrowser(configs.IsHeadless())
+	b := newBrowser()
 	defer b.Close()
 
 	page := b.NewPage()
@@ -158,7 +159,7 @@ func (s *XiaohongshuService) ListFeeds(ctx context.Context) (*FeedsListResponse,
 }
 
 func (s *XiaohongshuService) SearchFeeds(ctx context.Context, keyword string) (*FeedsListResponse, error) {
-	b := browser.NewBrowser(configs.IsHeadless())
+	b := newBrowser()
 	defer b.Close()
 
 	page := b.NewPage()
@@ -181,7 +182,7 @@ func (s *XiaohongshuService) SearchFeeds(ctx context.Context, keyword string) (*
 
 // GetFeedDetail 获取Feed详情
 func (s *XiaohongshuService) GetFeedDetail(ctx context.Context, feedID, xsecToken string) (*FeedDetailResponse, error) {
-	b := browser.NewBrowser(configs.IsHeadless())
+	b := newBrowser()
 	defer b.Close()
 
 	page := b.NewPage()
@@ -207,7 +208,7 @@ func (s *XiaohongshuService) GetFeedDetail(ctx context.Context, feedID, xsecToke
 // PostCommentToFeed 发表评论到Feed
 func (s *XiaohongshuService) PostCommentToFeed(ctx context.Context, feedID, xsecToken, content string) (*PostCommentResponse, error) {
 	// 使用非无头模式以便查看操作过程
-	b := browser.NewBrowser(false)
+	b := newBrowser()
 	defer b.Close()
 
 	page := b.NewPage()
@@ -229,4 +230,8 @@ func (s *XiaohongshuService) PostCommentToFeed(ctx context.Context, feedID, xsec
 	}
 
 	return response, nil
+}
+
+func newBrowser() *headless_browser.Browser {
+	return browser.NewBrowser(configs.IsHeadless(), browser.WithBinPath(configs.GetBinPath()))
 }

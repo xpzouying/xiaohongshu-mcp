@@ -135,7 +135,31 @@ https://github.com/user-attachments/assets/cc385b6c-422c-489b-a5fc-63e92c695b80
 
 ## 1. 使用教程
 
-### 1.1. 登录
+### 1.1. 安装
+
+<details>
+<summary>安装配置详情</summary>
+
+依赖 Golang 环境，安装方法请参考 [Golang 官方文档](https://go.dev/doc/install)。
+
+设置 Go 国内源的代理，
+
+```bash
+# 配置 GOPROXY 环境变量，以下三选一
+
+# 1. 七牛 CDN
+go env -w  GOPROXY=https://goproxy.cn,direct
+
+# 2. 阿里云
+go env -w GOPROXY=https://mirrors.aliyun.com/goproxy/,direct
+
+# 3. 官方
+go env -w  GOPROXY=https://goproxy.io,direct
+```
+
+</details>
+
+### 1.2. 登录
 
 第一次需要手动登录，需要保存小红书的登录状态。
 
@@ -145,7 +169,7 @@ https://github.com/user-attachments/assets/cc385b6c-422c-489b-a5fc-63e92c695b80
 go run cmd/login/main.go
 ```
 
-### 1.2. 启动 MCP 服务
+### 1.3. 启动 MCP 服务
 
 启动 xiaohongshu-mcp 服务。
 
@@ -158,7 +182,7 @@ go run .
 go run . -headless=false
 ```
 
-## 1.3. 验证 MCP
+## 1.4. 验证 MCP
 
 ```bash
 npx @modelcontextprotocol/inspector
@@ -172,7 +196,7 @@ npx @modelcontextprotocol/inspector
 
 按照上面配置 MCP inspector 后，点击 `List Tools` 按钮，查看所有的 Tools。
 
-## 1.4. 使用 MCP 发布
+## 1.5. 使用 MCP 发布
 
 ### 检查登录状态
 
@@ -410,7 +434,6 @@ npx @modelcontextprotocol/inspector
 
 <img src="./assets/publish_result.jpeg" alt="xiaohongshu-mcp 发布结果" width="400">
 
-
 ## 小红书 MCP 互助群
 
 因为项目刚刚启动，会有很多问题，拉一个群大家一起讨论问题，一起为开源项目做贡献。扫我的微信二维码加群讨论技术。
@@ -418,4 +441,3 @@ npx @modelcontextprotocol/inspector
 **申请时务必添加备注。**
 
 ![WechatIMG111](https://github.com/user-attachments/assets/ae535953-6c8b-4c12-91b6-ac1572ce9032)
-

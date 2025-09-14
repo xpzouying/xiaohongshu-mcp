@@ -6,10 +6,29 @@ import (
 	"github.com/xpzouying/xiaohongshu-mcp/cookies"
 )
 
-func NewBrowser(headless bool) *headless_browser.Browser {
+type browserConfig struct {
+	binPath string
+}
+
+type Option func(*browserConfig)
+
+func WithBinPath(binPath string) Option {
+	return func(c *browserConfig) {
+		c.binPath = binPath
+	}
+}
+
+func NewBrowser(headless bool, options ...Option) *headless_browser.Browser {
+	cfg := &browserConfig{}
+	for _, opt := range options {
+		opt(cfg)
+	}
 
 	opts := []headless_browser.Option{
 		headless_browser.WithHeadless(headless),
+	}
+	if cfg.binPath != "" {
+		opts = append(opts, headless_browser.WithChromeBinPath(cfg.binPath))
 	}
 
 	// 加载 cookies
