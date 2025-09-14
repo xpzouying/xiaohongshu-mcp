@@ -344,6 +344,30 @@ claude mcp add --transport http xiaohongshu-mcp http://localhost:18060/mcp
 
 </details>
 
+
+<details>
+<summary><b>CodeBuddy</b></summary>
+
+配置模板
+
+```json
+{
+	"mcpServers":{
+		"xiaohongshu-mcp":{
+			"url":"http://localhost:18060/mcp",
+			"transportType":"streamable-http",
+			"timeout":90000,
+			"description":"小红书内容发布和管理服务",
+			"disabled":false
+		}
+	}
+}
+```
+
+更多信息可参考官方文档 - https://cloud.tencent.com/document/product/1749
+
+</details>
+
 <details>
 <summary><b>MCP Inspector</b></summary>
 
@@ -378,8 +402,6 @@ npx @modelcontextprotocol/inspector
   "type": "http"
 }
 ```
-
-</details>
 
 ### 2.3. 可用 MCP 工具
 
