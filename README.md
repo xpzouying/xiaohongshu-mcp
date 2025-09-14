@@ -159,6 +159,10 @@ go env -w  GOPROXY=https://goproxy.io,direct
 
 </details>
 
+Windows 问题：
+
+可以参考这里 https://github.com/xpzouying/xiaohongshu-mcp/issues/56
+
 ### 1.2. 登录
 
 第一次需要手动登录，需要保存小红书的登录状态。
