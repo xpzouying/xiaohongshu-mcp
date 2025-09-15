@@ -159,9 +159,7 @@ go env -w  GOPROXY=https://goproxy.io,direct
 
 </details>
 
-Windows 问题：
-
-可以参考这里 https://github.com/xpzouying/xiaohongshu-mcp/issues/56
+Windows 遇到问题首先看这里：[Windows 安装指南](./docs/windows_guide.md)
 
 ### 1.2. 登录
 
@@ -448,14 +446,13 @@ npx @modelcontextprotocol/inspector
 
 <details>
 <summary>【飞书一群】已满</summary>
-  
+
 ![1757903591605_副本](https://github.com/user-attachments/assets/63ad53b9-6e5d-4117-ba61-90a223494501)
 
 </details>
 
-
 <!-- 两列排布：飞书二群 | 微信群 -->
-| 【飞书二群】：扫码进入 | 【微信群】：扫码进入 |
-| --- | --- |
-| <img src="https://github.com/user-attachments/assets/ca1f5d6e-b1bf-4c15-9975-ff75f339ec9b" alt="qrcode_2qun" width="300"> | <img src="https://github.com/user-attachments/assets/34c51c3a-d5fd-4086-9d37-a5a5284264c9" alt="WechatIMG119" width="300"> |
 
+| 【飞书二群】：扫码进入                                                                                                    | 【微信群】：扫码进入                                                                                                       |
+| ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| <img src="https://github.com/user-attachments/assets/ca1f5d6e-b1bf-4c15-9975-ff75f339ec9b" alt="qrcode_2qun" width="300"> | <img src="https://github.com/user-attachments/assets/34c51c3a-d5fd-4086-9d37-a5a5284264c9" alt="WechatIMG119" width="300"> |
