@@ -159,7 +159,7 @@ func inputTags(contentElem *rod.Element, tags []string) {
 
 	for i := 0; i < 20; i++ {
 		contentElem.MustKeyActions().
-			Type(input.ArrowRight).
+			Type(input.ArrowDown).
 			MustDo()
 		time.Sleep(10 * time.Millisecond)
 	}
