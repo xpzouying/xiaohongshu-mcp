@@ -176,7 +176,7 @@ func (s *AppServer) processToolsList(request *JSONRPCRequest) *JSONRPCResponse {
 					},
 					"content": map[string]interface{}{
 						"type":        "string",
-						"description": "正文内容",
+						"description": "正文内容，不包含以#开头的标签内容，所有话题标签都用tags参数来生成和提供即可",
 					},
 					"images": map[string]interface{}{
 						"type":        "array",
