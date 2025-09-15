@@ -436,6 +436,12 @@ npx @modelcontextprotocol/inspector
 
 <img src="./assets/publish_result.jpeg" alt="xiaohongshu-mcp 发布结果" width="400">
 
+## ShowCase
+
+直接参考大家的使用案例：[ShowCase](./examples/README.md)
+
+1. [n8n 完整的教程](./examples/n8n/README.md)
+
 ## 小红书 MCP 互助群
 
 因为项目刚刚启动，会有很多问题，拉一个群大家一起讨论问题，一起为开源项目做贡献。~~扫我的微信二维码加群讨论技术~~。
