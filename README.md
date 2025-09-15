@@ -456,3 +456,15 @@ npx @modelcontextprotocol/inspector
 | 【飞书二群】：扫码进入                                                                                                    | 【微信群】：扫码进入                                                                                                       |
 | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | <img src="https://github.com/user-attachments/assets/ca1f5d6e-b1bf-4c15-9975-ff75f339ec9b" alt="qrcode_2qun" width="300"> | <img src="https://github.com/user-attachments/assets/34c51c3a-d5fd-4086-9d37-a5a5284264c9" alt="WechatIMG119" width="300"> |
+
+## 🙏 致谢贡献者
+
+感谢所有为本项目做出贡献的朋友！
+
+<a href="https://github.com/xpzouying/xiaohongshu-mcp/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=xpzouying/xiaohongshu-mcp" />
+</a>
+
+### ✨ 特别感谢
+
+- [@wanpengxie](https://github.com/wanpengxie)
