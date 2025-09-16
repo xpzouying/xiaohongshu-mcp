@@ -21,6 +21,15 @@
         "infra",
         "review"
       ]
+    },
+    {
+      "login": "esperyong",
+      "name": "clearwater",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1271815?v=4",
+      "profile": "http://www.hwbuluo.com",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
