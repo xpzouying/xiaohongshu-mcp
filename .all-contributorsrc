@@ -1,0 +1,32 @@
+{
+  "files": [
+    "README.md"
+  ],
+  "imageSize": 100,
+  "commit": false,
+  "commitType": "docs",
+  "commitConvention": "angular",
+  "contributors": [
+    {
+      "login": "xpzouying",
+      "name": "zy",
+      "avatar_url": "https://avatars.githubusercontent.com/u/3946563?v=4",
+      "profile": "https://haha.ai",
+      "contributions": [
+        "code",
+        "ideas",
+        "doc",
+        "design",
+        "maintenance",
+        "infra",
+        "review"
+      ]
+    }
+  ],
+  "contributorsPerLine": 7,
+  "skipCi": true,
+  "repoType": "github",
+  "repoHost": "https://github.com",
+  "projectName": "xiaohongshu-mcp",
+  "projectOwner": "xpzouying"
+}
