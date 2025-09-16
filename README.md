@@ -444,6 +444,7 @@ npx @modelcontextprotocol/inspector
 直接参考大家的使用案例：[ShowCase](./examples/README.md)
 
 1. [n8n 完整的教程](./examples/n8n/README.md)
+2. [Cherry Studio 完整的教程](./examples/cherrystudio/README.md)
 
 ## 小红书 MCP 互助群
 

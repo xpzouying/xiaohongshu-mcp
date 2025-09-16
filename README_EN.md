@@ -441,6 +441,7 @@ Use xiaohongshu-mcp for publishing.
 Refer directly to user cases: [ShowCase](./examples/README.md)
 
 1. [n8n Complete Tutorial](./examples/n8n/README.md)
+2. [Cherry Studio Complete Tutorial](./examples/cherrystudio/README.md)
 
 ## RedNote MCP Community Group
 
