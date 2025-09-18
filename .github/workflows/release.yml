@@ -37,21 +37,22 @@ jobs:
     - name: Build for multiple platforms
       run: |
         # 主程序构建
+        # 禁用 CGO 以生成静态链接的二进制文件，避免 GLIBC 依赖问题
         # macOS ARM64 (Apple Silicon)
-        GOOS=darwin GOARCH=arm64 go build -o xiaohongshu-mcp-darwin-arm64 .
-        GOOS=darwin GOARCH=arm64 go build -o xiaohongshu-login-darwin-arm64 ./cmd/login
+        CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -o xiaohongshu-mcp-darwin-arm64 .
+        CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -o xiaohongshu-login-darwin-arm64 ./cmd/login
 
         # macOS Intel
-        GOOS=darwin GOARCH=amd64 go build -o xiaohongshu-mcp-darwin-amd64 .
-        GOOS=darwin GOARCH=amd64 go build -o xiaohongshu-login-darwin-amd64 ./cmd/login
+        CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -o xiaohongshu-mcp-darwin-amd64 .
+        CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -o xiaohongshu-login-darwin-amd64 ./cmd/login
 
         # Windows x64
-        GOOS=windows GOARCH=amd64 go build -o xiaohongshu-mcp-windows-amd64.exe .
-        GOOS=windows GOARCH=amd64 go build -o xiaohongshu-login-windows-amd64.exe ./cmd/login
+        CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o xiaohongshu-mcp-windows-amd64.exe .
+        CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o xiaohongshu-login-windows-amd64.exe ./cmd/login
 
         # Linux x64
-        GOOS=linux GOARCH=amd64 go build -o xiaohongshu-mcp-linux-amd64 .
-        GOOS=linux GOARCH=amd64 go build -o xiaohongshu-login-linux-amd64 ./cmd/login
+        CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o xiaohongshu-mcp-linux-amd64 .
+        CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o xiaohongshu-login-linux-amd64 ./cmd/login
 
     - name: Clean up old releases
       run: |
