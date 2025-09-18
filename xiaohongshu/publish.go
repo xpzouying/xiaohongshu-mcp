@@ -37,28 +37,12 @@ func NewPublishImageAction(page *rod.Page) (*PublishAction, error) {
 	pp.MustElement(`div.upload-content`).MustWaitVisible()
 	slog.Info("wait for upload-content visible success")
 
-	// 蜜罐元素防御检测
-	if err := detectHoneypotElements(pp); err != nil {
-		return nil, errors.Wrap(err, "蜜罐元素检测失败")
-	}
-
 	// 等待一段时间确保页面完全加载
 	time.Sleep(1 * time.Second)
 
 	createElems := pp.MustElements("div.creator-tab")
 	slog.Info("foundcreator-tab elements", "count", len(createElems))
-
-	// 蜜罐元素防御：过滤掉隐藏的元素
-	var visibleElems []*rod.Element
 	for _, elem := range createElems {
-		if isElementVisible(elem) {
-			visibleElems = append(visibleElems, elem)
-		}
-	}
-
-	slog.Info("filtered visible creator-tab elements", "count", len(visibleElems))
-
-	for _, elem := range visibleElems {
 		text, err := elem.Text()
 		if err != nil {
 			slog.Error("获取元素文本失败", "error", err)
@@ -282,50 +266,4 @@ func findTextboxParent(elem *rod.Element) *rod.Element {
 		currentElem = parent
 	}
 	return nil
-}
-
-// detectHoneypotElements 检测页面中的蜜罐元素
-func detectHoneypotElements(page *rod.Page) error {
-	// 检查是否存在隐藏的creator-tab元素（蜜罐元素）
-	elements := page.MustElements("div.creator-tab")
-
-	hiddenCount := 0
-	for _, elem := range elements {
-		if !isElementVisible(elem) {
-			hiddenCount++
-			slog.Info("检测到隐藏的creator-tab元素（蜜罐元素）")
-		}
-	}
-
-	if hiddenCount > 0 {
-		slog.Info("蜜罐元素检测完成", "隐藏元素数量", hiddenCount)
-	}
-
-	return nil
-}
-
-// isElementVisible 检查元素是否可见（非蜜罐元素）
-func isElementVisible(elem *rod.Element) bool {
-	// 检查style属性中是否包含隐藏样式
-	style, err := elem.Attribute("style")
-	if err == nil && style != nil {
-		styleStr := *style
-		// 检查是否被移到屏幕外（常见的蜜罐技术）
-		if strings.Contains(styleStr, "left: -9999px") ||
-			strings.Contains(styleStr, "top: -9999px") ||
-			strings.Contains(styleStr, "position: absolute; left: -9999px") ||
-			strings.Contains(styleStr, "display: none") ||
-			strings.Contains(styleStr, "visibility: hidden") {
-			return false
-		}
-	}
-
-	// 检查computed style
-	visible, err := elem.Visible()
-	if err != nil {
-		slog.Warn("无法获取元素可见性", "error", err)
-		return true // 如果无法确定，默认认为可见
-	}
-
-	return visible
 }
