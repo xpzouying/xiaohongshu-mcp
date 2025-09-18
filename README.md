@@ -502,6 +502,7 @@ npx @modelcontextprotocol/inspector
 
 1. **[n8n 完整集成教程](./examples/n8n/README.md)** - 工作流自动化平台集成
 2. **[Cherry Studio 完整配置教程](./examples/cherrystudio/README.md)** - AI 客户端完美接入
+3. **[Claude Code + Kimi K2 接入教程](./examples/claude-code/claude-code-kimi-k2.md)** - Claude Code 门槛太高，那么就接入 Kimi 国产大模型吧～
 
 > 🎯 **提示**: 点击上方链接查看详细的图文教程，快速上手各种集成方案！
 >
