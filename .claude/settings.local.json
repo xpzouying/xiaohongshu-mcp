@@ -22,7 +22,9 @@
       "mcp__playwright__browser_tab_select",
       "Bash(gh pr merge:*)",
       "Bash(gh release list:*)",
-      "Bash(awk:*)"
+      "Bash(awk:*)",
+      "Bash(CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o test-xiaohongshu-mcp-linux-amd64 .)",
+      "Bash(tar:*)"
     ],
     "deny": []
   }
