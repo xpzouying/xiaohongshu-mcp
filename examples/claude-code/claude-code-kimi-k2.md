@@ -55,3 +55,12 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/LLM-Red-Team/kimi-cc/ref
 
 注意这里的 API-Key 是 Kimi API Key，API Base URL 是 moonshot.cn 域名下的 URL，表示连接到 Kimi 的 API 了。
 
+## 3. 下载 MCP 程序
+
+从 [Release](https://github.com/xpzouying/xiaohongshu-mcp/releases) 中下载对应的二进制后启动。（以 Ubuntu 系统为例）
+
+
+## 4. 接入 MCP
+
+参考 [README 文档 - 接入 MCP 章节](https://github.com/xpzouying/xiaohongshu-mcp/tree/add-claude-code-kimi-k2-examples?tab=readme-ov-file#22-%E6%94%AF%E6%8C%81%E7%9A%84%E5%AE%A2%E6%88%B7%E7%AB%AF)
+
