@@ -1,8 +1,7 @@
 name: Build and Release
 
 on:
-  pull_request:
-    types: [closed]
+  push:
     branches: [ main ]
   workflow_dispatch:
 
@@ -12,8 +11,8 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    # 只在 PR 被合并时运行，或手动触发
-    if: (github.event.pull_request.merged == true) || (github.event_name == 'workflow_dispatch')
+    # 只在推送到 main 时运行，或手动触发
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch')
 
     steps:
     - uses: actions/checkout@v4
