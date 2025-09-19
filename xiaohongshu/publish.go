@@ -3,6 +3,7 @@ package xiaohongshu
 import (
 	"context"
 	"log/slog"
+	"os"
 	"strings"
 	"time"
 
@@ -102,16 +103,52 @@ func (p *PublishAction) Publish(ctx context.Context, content PublishImageContent
 func uploadImages(page *rod.Page, imagesPaths []string) error {
 	pp := page.Timeout(30 * time.Second)
 
+	// 验证文件路径有效性
+	for _, path := range imagesPaths {
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			return errors.Wrapf(err, "图片文件不存在: %s", path)
+		}
+	}
+
 	// 等待上传输入框出现
 	uploadInput := pp.MustElement(".upload-input")
 
 	// 上传多个文件
 	uploadInput.MustSetFiles(imagesPaths...)
 
-	// 等待上传完成
-	time.Sleep(3 * time.Second)
+	// 等待并验证上传完成
+	return waitForUploadComplete(pp, len(imagesPaths))
+}
 
-	return nil
+// waitForUploadComplete 等待并验证上传完成
+func waitForUploadComplete(page *rod.Page, expectedCount int) error {
+	maxWaitTime := 60 * time.Second
+	checkInterval := 500 * time.Millisecond
+	start := time.Now()
+
+	slog.Info("开始等待图片上传完成", "expected_count", expectedCount)
+
+	for time.Since(start) < maxWaitTime {
+		// 使用具体的pr类名检查已上传的图片
+		uploadedImages, err := page.Elements(".img-preview-area .pr")
+
+		slog.Info("uploadedImages", "uploadedImages", uploadedImages)
+
+		if err == nil {
+			currentCount := len(uploadedImages)
+			slog.Info("检测到已上传图片", "current_count", currentCount, "expected_count", expectedCount)
+			if currentCount >= expectedCount {
+				slog.Info("所有图片上传完成", "count", currentCount)
+				return nil
+			}
+		} else {
+			slog.Debug("未找到已上传图片元素")
+		}
+
+		time.Sleep(checkInterval)
+	}
+
+	return errors.New("上传超时，请检查网络连接和图片大小")
 }
 
 func submitPublish(page *rod.Page, title, content string, tags []string) error {
