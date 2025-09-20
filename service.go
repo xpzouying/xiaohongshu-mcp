@@ -49,6 +49,13 @@ type FeedsListResponse struct {
 	Count int                `json:"count"`
 }
 
+// UserProfileResponse 用户主页响应
+type UserProfileResponse struct {
+	UserBasicInfo xiaohongshu.UserBasicInfo      `json:"userBasicInfo"`
+	Interactions  []xiaohongshu.UserInteractions `json:"interactions"`
+	Feeds         []xiaohongshu.Feed             `json:"feeds"`
+}
+
 // CheckLoginStatus 检查登录状态
 func (s *XiaohongshuService) CheckLoginStatus(ctx context.Context) (*LoginStatusResponse, error) {
 	b := newBrowser()
@@ -203,6 +210,30 @@ func (s *XiaohongshuService) GetFeedDetail(ctx context.Context, feedID, xsecToke
 	}
 
 	return response, nil
+}
+
+// UserProfile 获取用户信息
+func (s *XiaohongshuService) UserProfile(ctx context.Context, userID, xsecToken string) (*UserProfileResponse, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewUserProfileAction(page)
+
+	result, err := action.UserProfile(ctx, userID, xsecToken)
+	if err != nil {
+		return nil, err
+	}
+	response := &UserProfileResponse{
+		UserBasicInfo: result.UserBasicInfo,
+		Interactions:  result.Interactions,
+		Feeds:         result.Feeds,
+	}
+
+	return response, nil
+
 }
 
 // PostCommentToFeed 发表评论到Feed
