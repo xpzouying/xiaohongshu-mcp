@@ -233,6 +233,66 @@ func (s *AppServer) handleGetFeedDetail(ctx context.Context, args map[string]any
 	}
 }
 
+// handleUserProfile 获取用户主页
+func (s *AppServer) handleUserProfile(ctx context.Context, args map[string]any) *MCPToolResult {
+	logrus.Info("MCP: 获取用户主页")
+
+	// 解析参数
+	userID, ok := args["user_id"].(string)
+	if !ok || userID == "" {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "获取用户主页失败: 缺少user_id参数",
+			}},
+			IsError: true,
+		}
+	}
+
+	xsecToken, ok := args["xsec_token"].(string)
+	if !ok || xsecToken == "" {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "获取用户主页失败: 缺少xsec_token参数",
+			}},
+			IsError: true,
+		}
+	}
+
+	logrus.Infof("MCP: 获取用户主页 - User ID: %s", userID)
+
+	result, err := s.xiaohongshuService.UserProfile(ctx, userID, xsecToken)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "获取用户主页失败: " + err.Error(),
+			}},
+			IsError: true,
+		}
+	}
+
+	// 格式化输出，转换为JSON字符串
+	jsonData, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: fmt.Sprintf("获取用户主页，但序列化失败: %v", err),
+			}},
+			IsError: true,
+		}
+	}
+
+	return &MCPToolResult{
+		Content: []MCPContent{{
+			Type: "text",
+			Text: string(jsonData),
+		}},
+	}
+}
+
 // handlePostComment 处理发表评论到Feed
 func (s *AppServer) handlePostComment(ctx context.Context, args map[string]interface{}) *MCPToolResult {
 	logrus.Info("MCP: 发表评论到Feed")

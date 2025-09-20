@@ -238,6 +238,24 @@ func (s *AppServer) processToolsList(request *JSONRPCRequest) *JSONRPCResponse {
 			},
 		},
 		{
+			"name":        "user_profile",
+			"description": "获取小红书用户主页，返回用户基本信息，关注、粉丝、获赞量及其笔记内容",
+			"inputSchema": map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"user_id": map[string]interface{}{
+						"type":        "string",
+						"description": "小红书用户ID，从Feed列表获取",
+					},
+					"xsec_token": map[string]interface{}{
+						"type":        "string",
+						"description": "访问令牌，从Feed列表的xsecToken字段获取",
+					},
+				},
+				"required": []string{"user_id", "xsec_token"},
+			},
+		},
+		{
 			"name":        "post_comment_to_feed",
 			"description": "发表评论到小红书笔记",
 			"inputSchema": map[string]interface{}{
@@ -301,6 +319,8 @@ func (s *AppServer) processToolCall(ctx context.Context, request *JSONRPCRequest
 		result = s.handleSearchFeeds(ctx, toolArgs)
 	case "get_feed_detail":
 		result = s.handleGetFeedDetail(ctx, toolArgs)
+	case "user_profile":
+		result = s.handleUserProfile(ctx, toolArgs)
 	case "post_comment_to_feed":
 		result = s.handlePostComment(ctx, toolArgs)
 	default:

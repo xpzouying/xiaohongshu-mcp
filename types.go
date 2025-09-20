@@ -86,3 +86,16 @@ type PostCommentResponse struct {
 	Success bool   `json:"success"`
 	Message string `json:"message"`
 }
+
+// UserProfileRequest 用户主页请求
+type UserProfileRequest struct {
+	UserID    string `json:"user_id" binding:"required"`
+	XsecToken string `json:"xsec_token" binding:"required"`
+}
+
+// UserProfileResponse 用户主页相应
+type UserProfileResponse struct {
+	UserBasicInfo any `json:"userBasicInfo"`
+	Interactions  any `json:"interactions"`
+	Feeds         any `json:"feeds"`
+}

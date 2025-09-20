@@ -124,6 +124,27 @@ func (s *AppServer) getFeedDetailHandler(c *gin.Context) {
 	respondSuccess(c, result, "获取Feed详情成功")
 }
 
+// userProfileHandler 用户主页
+func (s *AppServer) userProfileHandler(c *gin.Context) {
+	var req UserProfileRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
+			"请求参数错误", err.Error())
+		return
+	}
+
+	// 获取用户信息
+	result, err := s.xiaohongshuService.UserProfile(c.Request.Context(), req.UserID, req.XsecToken)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "GET_USER_PROFILE_FAILED",
+			"获取用户主页失败", err.Error())
+		return
+	}
+
+	c.Set("account", "ai-report")
+	respondSuccess(c, map[string]any{"data": result}, "result.Message")
+}
+
 // postCommentHandler 发表评论到Feed
 func (s *AppServer) postCommentHandler(c *gin.Context) {
 	var req PostCommentRequest
