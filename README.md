@@ -36,6 +36,26 @@ https://github.com/user-attachments/assets/bd9a9a4a-58cb-4421-b8f3-015f703ce1f9
 
 支持发布图文内容到小红书，包括标题、内容描述和图片。后续支持更多的发布功能。
 
+**图片支持方式：**
+
+支持两种图片输入方式：
+
+1. **HTTP/HTTPS 图片链接**
+   ```
+   ["https://example.com/image1.jpg", "https://example.com/image2.png"]
+   ```
+
+2. **本地图片绝对路径**（推荐）
+   ```
+   ["/Users/username/Pictures/image1.jpg", "/home/user/images/image2.png"]
+   ```
+
+**为什么推荐使用本地路径：**
+- ✅ 稳定性更好，不依赖网络
+- ✅ 上传速度更快
+- ✅ 避免图片链接失效问题
+- ✅ 支持更多图片格式
+
 **发布图文帖子演示：**
 
 https://github.com/user-attachments/assets/8aee0814-eb96-40af-b871-e66e6bbb6b06
@@ -475,6 +495,7 @@ npx @modelcontextprotocol/inspector
 
 - `check_login_status` - 检查小红书登录状态（无参数）
 - `publish_content` - 发布图文内容到小红书（必需：title, content, images）
+  - `images`: 支持HTTP链接或本地绝对路径，推荐使用本地路径
 - `list_feeds` - 获取小红书首页推荐列表（无参数）
 - `search_feeds` - 搜索小红书内容（需要：keyword）
 - `get_feed_detail` - 获取帖子详情（需要：feed_id, xsec_token）
@@ -484,10 +505,21 @@ npx @modelcontextprotocol/inspector
 
 使用 Claude Code 发布内容到小红书：
 
+**示例1：使用HTTP图片链接**
 ```
 帮我写一篇帖子发布到小红书上，
 配图为：https://cn.bing.com/th?id=OHR.MaoriRock_EN-US6499689741_UHD.jpg&w=3840
 图片是："纽西兰陶波湖的Ngātoroirangi矿湾毛利岩雕（© Joppi/Getty Images）"
+
+使用 xiaohongshu-mcp 进行发布。
+```
+
+**示例2：使用本地图片路径（推荐）**
+```
+帮我写一篇关于春天的帖子发布到小红书上，
+使用这些本地图片：
+- /Users/username/Pictures/spring_flowers.jpg
+- /Users/username/Pictures/cherry_blossom.jpg
 
 使用 xiaohongshu-mcp 进行发布。
 ```

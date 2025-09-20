@@ -180,7 +180,7 @@ func (s *AppServer) processToolsList(request *JSONRPCRequest) *JSONRPCResponse {
 					},
 					"images": map[string]interface{}{
 						"type":        "array",
-						"description": "图片路径列表，支持本地路径或URL（至少需要1张图片）",
+						"description": "图片路径列表（至少需要1张图片）。支持两种方式：1. HTTP/HTTPS图片链接（自动下载）；2. 本地图片绝对路径（推荐，如:/Users/user/image.jpg）",
 						"items": map[string]interface{}{
 							"type": "string",
 						},
