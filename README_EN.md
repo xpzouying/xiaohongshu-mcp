@@ -35,6 +35,26 @@ https://github.com/user-attachments/assets/bd9a9a4a-58cb-4421-b8f3-015f703ce1f9
 
 Supports publishing image and text content to RedNote, including title, content description, and images. More publishing features will be supported later.
 
+**Image Support Methods:**
+
+Supports two image input methods:
+
+1. **HTTP/HTTPS Image Links**
+   ```
+   ["https://example.com/image1.jpg", "https://example.com/image2.png"]
+   ```
+
+2. **Local Image Absolute Paths** (Recommended)
+   ```
+   ["/Users/username/Pictures/image1.jpg", "/home/user/images/image2.png"]
+   ```
+
+**Why Local Paths are Recommended:**
+- ✅ Better stability, not dependent on network
+- ✅ Faster upload speed
+- ✅ Avoid image link expiration issues
+- ✅ Support more image formats
+
 **Publish Image-Text Post Demo:**
 
 https://github.com/user-attachments/assets/8aee0814-eb96-40af-b871-e66e6bbb6b06
@@ -105,6 +125,31 @@ Supports automatically posting comments to RedNote posts.
 **Post Comment Demo:**
 
 https://github.com/user-attachments/assets/cc385b6c-422c-489b-a5fc-63e92c695b80
+
+</details>
+
+<details>
+<summary><b>7. Get User Profile</b></summary>
+
+Get RedNote user's personal profile information, including basic user information and note content.
+
+**Feature Description:**
+
+- Get user basic information (nickname, bio, avatar, etc.)
+- Get follower count, following count, likes count statistics
+- Get user's published note content list
+- Supports HTTP API and MCP tool calls
+
+**⚠️ Important Note:**
+
+- Must login first to use this feature
+- Need to provide user ID and xsec_token
+- These parameters can be obtained from Feed list or search results
+
+**Returned Information Includes:**
+- User basic info: nickname, bio, avatar, verification status
+- Statistics: following count, follower count, likes count, note count
+- Note list: all public notes published by the user
 
 </details>
 
@@ -461,19 +506,32 @@ After successful connection, you can use the following MCP tools:
 
 - `check_login_status` - Check RedNote login status (no parameters)
 - `publish_content` - Publish image-text content to RedNote (required: title, content, images)
+  - `images`: Supports HTTP links or local absolute paths, local paths recommended
 - `list_feeds` - Get RedNote homepage recommendation list (no parameters)
 - `search_feeds` - Search RedNote content (required: keyword)
 - `get_feed_detail` - Get post details (required: feed_id, xsec_token)
 - `post_comment_to_feed` - Post comments to RedNote posts (required: feed_id, xsec_token, content)
+- `user_profile` - Get user profile information (required: user_id, xsec_token)
 
 ### 2.4. Usage Examples
 
 Using Claude Code to publish content to RedNote:
 
+**Example 1: Using HTTP Image Links**
 ```
 Help me write a post to publish on RedNote,
 with image: https://cn.bing.com/th?id=OHR.MaoriRock_EN-US6499689741_UHD.jpg&w=3840
 The image is: "Maori rock carving at Ngātoroirangi Mine Bay, Lake Taupo, New Zealand (© Joppi/Getty Images)"
+
+Use xiaohongshu-mcp for publishing.
+```
+
+**Example 2: Using Local Image Paths (Recommended)**
+```
+Help me write a post about spring to publish on RedNote,
+using these local images:
+- /Users/username/Pictures/spring_flowers.jpg
+- /Users/username/Pictures/cherry_blossom.jpg
 
 Use xiaohongshu-mcp for publishing.
 ```

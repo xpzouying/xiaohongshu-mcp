@@ -129,6 +129,31 @@ https://github.com/user-attachments/assets/cc385b6c-422c-489b-a5fc-63e92c695b80
 
 </details>
 
+<details>
+<summary><b>7. 获取用户个人主页</b></summary>
+
+获取小红书用户的个人主页信息，包括用户基本信息和笔记内容。
+
+**功能说明：**
+
+- 获取用户基本信息（昵称、简介、头像等）
+- 获取关注数、粉丝数、获赞量统计
+- 获取用户发布的笔记内容列表
+- 支持 HTTP API 和 MCP 工具调用
+
+**⚠️ 重要提示：**
+
+- 需要先登录才能使用此功能
+- 需要提供用户 ID 和 xsec_token
+- 这些参数可以从 Feed 列表或搜索结果中获取
+
+**返回信息包括：**
+- 用户基本信息：昵称、简介、头像、认证状态
+- 统计数据：关注数、粉丝数、获赞量、笔记数
+- 笔记列表：用户发布的所有公开笔记
+
+</details>
+
 **小红书基础运营知识**
 
 - **标题：（非常重要）小红书要求标题不超过 20 个字**
@@ -500,6 +525,7 @@ npx @modelcontextprotocol/inspector
 - `search_feeds` - 搜索小红书内容（需要：keyword）
 - `get_feed_detail` - 获取帖子详情（需要：feed_id, xsec_token）
 - `post_comment_to_feed` - 发表评论到小红书帖子（需要：feed_id, xsec_token, content）
+- `user_profile` - 获取用户个人主页信息（需要：user_id, xsec_token）
 
 ### 2.4. 使用示例
 
