@@ -37,3 +37,6 @@ xiaohongshu-mcp
 
 # Test scripts
 test_*.sh
+
+# Cookies files (contain sensitive login information)
+cookies.json
