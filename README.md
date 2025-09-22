@@ -600,11 +600,19 @@ npx @modelcontextprotocol/inspector
 
 </details>
 
+<details>
+  <summary>【微信三群】已满 </summary>
+
+  <img src="https://github.com/user-attachments/assets/7665056d-be56-4bf3-a9f3-77f967079929" alt="WechatIMG119" width="300">
+
+</details>
+
+
 <!-- 两列排布：飞书二群 | 微信群 -->
 
 | 【飞书二群】：扫码进入                                                                                                    | 【微信群 3 群】：扫码进入                                                                                                  |
 | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| <img src="https://github.com/user-attachments/assets/ca1f5d6e-b1bf-4c15-9975-ff75f339ec9b" alt="qrcode_2qun" width="300"> | <img src="https://github.com/user-attachments/assets/7665056d-be56-4bf3-a9f3-77f967079929" alt="WechatIMG119" width="300"> |
+| <img src="https://github.com/user-attachments/assets/ca1f5d6e-b1bf-4c15-9975-ff75f339ec9b" alt="qrcode_2qun" width="300"> | <img src="https://github.com/user-attachments/assets/db322c69-89c3-430e-93b2-0038fbf7138e" alt="WechatIMG119" width="300"> |
 
 ## 🙏 致谢贡献者 ✨
 
