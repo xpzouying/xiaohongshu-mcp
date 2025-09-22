@@ -3,6 +3,22 @@ name: Build and Release
 on:
   push:
     branches: [ main ]
+    paths-ignore:
+      - 'README.md'
+      - 'README_EN.md'
+      - 'CLAUDE.md'
+      - '.all-contributorsrc'
+      - '.gitignore'
+      - '.claude/**'
+      - '.cursor/**'
+      - '.github/**'
+      - '.vscode/**'
+      - 'assets/**'
+      - 'configs/**'
+      - 'cookies/**'
+      - 'docs/**'
+      - 'donate/**'
+      - 'examples/**'
   workflow_dispatch:
 
 permissions:
