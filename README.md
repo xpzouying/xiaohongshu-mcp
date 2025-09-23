@@ -587,32 +587,41 @@ npx @modelcontextprotocol/inspector
 </details>
 
 <details>
-  <summary>【微信一群】已满 </summary>
+  <summary>【微信1群】已满 </summary>
 
   <img src="https://github.com/user-attachments/assets/34c51c3a-d5fd-4086-9d37-a5a5284264c9" alt="WechatIMG119" width="300">
 
 </details>
 
 <details>
-  <summary>【微信二群】已满 </summary>
+  <summary>【微信2群】已满 </summary>
 
   <img src="https://github.com/user-attachments/assets/d2c0340c-33e7-4d19-a9f5-cd581b63bd56" alt="WechatIMG119" width="300">
 
 </details>
 
 <details>
-  <summary>【微信三群】已满 </summary>
+  <summary>【微信3群】已满 </summary>
 
   <img src="https://github.com/user-attachments/assets/7665056d-be56-4bf3-a9f3-77f967079929" alt="WechatIMG119" width="300">
 
 </details>
 
+<details>
+  <summary>【微信4群】已满 </summary>
+
+  <img src="https://github.com/user-attachments/assets/db322c69-89c3-430e-93b2-0038fbf7138e" alt="WechatIMG119" width="300">
+
+</details>
+
+
+
 
 <!-- 两列排布：飞书二群 | 微信群 -->
 
-| 【飞书二群】：扫码进入                                                                                                    | 【微信群 3 群】：扫码进入                                                                                                  |
+| 【飞书二群】：扫码进入                                                                                                    | 【微信群 5 群】：扫码进入                                                                                                  |
 | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| <img src="https://github.com/user-attachments/assets/ca1f5d6e-b1bf-4c15-9975-ff75f339ec9b" alt="qrcode_2qun" width="300"> | <img src="https://github.com/user-attachments/assets/db322c69-89c3-430e-93b2-0038fbf7138e" alt="WechatIMG119" width="300"> |
+| <img src="https://github.com/user-attachments/assets/ca1f5d6e-b1bf-4c15-9975-ff75f339ec9b" alt="qrcode_2qun" width="300"> | <img src="https://github.com/user-attachments/assets/393965f9-6286-4b7d-9be0-7a0a2f6a75ba" alt="WechatIMG119" width="300"> |
 
 ## 🙏 致谢贡献者 ✨
 
