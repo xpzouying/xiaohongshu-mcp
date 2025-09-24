@@ -257,17 +257,28 @@ func submitScheduledPublish(page *rod.Page, title, content string, tags []string
 
 	time.Sleep(1 * time.Second)
 
-	// 总是执行定时发布设置，即使 publishTime 为 nil（使用默认时间）
+	// 执行定时发布设置
 	var timeToSet time.Time
+	var isCustomTime bool
+
 	if publishTime != nil {
 		timeToSet = *publishTime
+		// 检查是否是用户自定义时间（与当前时间+1小时的差距超过5分钟）
+		defaultTime := time.Now().Add(1 * time.Hour)
+		if timeToSet.Sub(defaultTime).Abs() > 5*time.Minute {
+			isCustomTime = true
+			slog.Info("检测到用户自定义时间", "custom_time", timeToSet.Format("2006-01-02 15:04"))
+		} else {
+			slog.Info("使用接近默认的时间", "time", timeToSet.Format("2006-01-02 15:04"))
+		}
 	} else {
 		// 使用默认时间（当前时间+1小时）
 		timeToSet = time.Now().Add(1 * time.Hour)
+		isCustomTime = false
 		slog.Info("使用默认定时发布时间", "default_time", timeToSet.Format("2006-01-02 15:04"))
 	}
 
-	if err := setScheduledPublishTime(page, timeToSet); err != nil {
+	if err := setScheduledPublishTime(page, timeToSet, isCustomTime); err != nil {
 		return errors.Wrap(err, "设置定时发布时间失败")
 	}
 
@@ -302,7 +313,7 @@ func submitScheduledPublish(page *rod.Page, title, content string, tags []string
 	return nil
 }
 
-func setScheduledPublishTime(page *rod.Page, publishTime time.Time) error {
+func setScheduledPublishTime(page *rod.Page, publishTime time.Time, isCustomTime bool) error {
 	slog.Info("设置定时发布选项")
 
 	// 使用合理的超时时间
@@ -354,25 +365,59 @@ func setScheduledPublishTime(page *rod.Page, publishTime time.Time) error {
 	if datePickerErr == nil {
 		slog.Info("date-picker出现，定时发布选择成功")
 
-		// 获取并打印定时发布的时间信息
+		// 获取时间输入框
 		timeInput, timeErr := datePicker.Element("input.el-input__inner")
 		if timeErr == nil {
-			if timeValue, valueErr := timeInput.Attribute("value"); valueErr == nil && timeValue != nil && *timeValue != "" {
-				slog.Info("当前设置的定时发布时间", "time", *timeValue)
-			} else if placeholder, placeholderErr := timeInput.Attribute("placeholder"); placeholderErr == nil && placeholder != nil {
-				slog.Info("定时发布时间输入框为空，将使用系统默认时间", "placeholder", *placeholder)
+			timeFormatted := publishTime.Format("2006-01-02 15:04")
+
+			// 如果是自定义时间，需要设置具体时间
+			if isCustomTime {
+				slog.Info("设置自定义定时发布时间", "custom_time", timeFormatted)
+
+				// 先清空输入框
+				if err := timeInput.SelectAllText(); err != nil {
+					slog.Warn("选择全部文本失败", "error", err)
+				}
+
+				// 输入自定义时间
+				if err := timeInput.Input(timeFormatted); err != nil {
+					return errors.Wrap(err, "输入自定义时间失败")
+				}
+
+				// 按回车确认
+				time.Sleep(500 * time.Millisecond)
+				if keyActions, keyErr := timeInput.KeyActions(); keyErr == nil {
+					if err := keyActions.Press(input.Enter).Do(); err != nil {
+						slog.Warn("按回车确认时间失败", "error", err)
+					} else {
+						slog.Info("自定义时间设置完成", "time", timeFormatted)
+					}
+				} else {
+					slog.Warn("获取KeyActions失败", "error", keyErr)
+				}
+
+			} else {
+				slog.Info("使用系统默认定时发布时间（传入时间与当前时间差距较小）")
 			}
+
+			// 最终检查时间输入框的值
+			if timeValue, valueErr := timeInput.Attribute("value"); valueErr == nil && timeValue != nil && *timeValue != "" {
+				slog.Info("最终设置的定时发布时间", "time", *timeValue)
+			} else if placeholder, placeholderErr := timeInput.Attribute("placeholder"); placeholderErr == nil && placeholder != nil {
+				slog.Info("定时发布时间输入框为空，使用系统默认时间", "placeholder", *placeholder)
+			}
+
 		} else {
 			slog.Warn("无法找到定时发布时间输入框", "error", timeErr)
 		}
 	} else {
-		slog.Warn("未找到date-picker，定时发布可能未成功选中", "error", datePickerErr)
+		return errors.Wrap(datePickerErr, "未找到date-picker，定时发布选择可能失败")
 	}
 
 	// 再等待一下让界面完全稳定
 	time.Sleep(1 * time.Second)
 
-	slog.Info("定时发布选项设置完成，使用系统默认时间")
+	slog.Info("定时发布时间设置完成")
 	return nil
 }
 
