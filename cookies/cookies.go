@@ -43,9 +43,21 @@ func (c *localCookie) SaveCookies(data []byte) error {
 }
 
 // GetCookiesFilePath 获取 cookies 文件路径。
-// 为了向后兼容，如果旧路径 /tmp/cookies.json 存在，则继续使用；
-// 否则使用当前目录下的 cookies.json
+// 优先级：
+// 1. 环境变量 COOKIE_FILE_PATH 指定的路径
+// 2. 旧路径 /tmp/cookies.json（如果存在）
+// 3. 当前目录下的 cookies.json
 func GetCookiesFilePath() string {
+	// 首先检查环境变量
+	if envPath := os.Getenv("COOKIE_FILE_PATH"); envPath != "" {
+		// 确保目录存在
+		dir := filepath.Dir(envPath)
+		if _, err := os.Stat(dir); os.IsNotExist(err) {
+			os.MkdirAll(dir, 0755)
+		}
+		return envPath
+	}
+
 	// 旧路径：/tmp/cookies.json
 	tmpDir := os.TempDir()
 	oldPath := filepath.Join(tmpDir, "cookies.json")

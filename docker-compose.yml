@@ -1,0 +1,20 @@
+version: '3'
+
+services:
+  xiaohongshu-mcp:
+    image: pengjunchen/xiaohongshu-mcp:latest
+    container_name: xiaohongshu-mcp
+    restart: unless-stopped
+    ports:
+      - "18060:18060"
+    environment:
+      - COOKIE_FILE_PATH=/data/cookies/cookies.json
+      # 设置为true强制重新登录
+      - FORCE_LOGIN=false
+      # 可选：设置调试模式
+      - DEBUG=false
+    volumes:
+      # 持久化cookie存储
+      - ./cookies:/data/cookies
+    # 如果需要在启动时传递额外参数，可以在这里添加
+    # command: -headless=true
