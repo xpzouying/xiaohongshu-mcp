@@ -1,12 +1,14 @@
 # xiaohongshu-mcp
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-10-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-12-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 MCP for 小红书/xiaohongshu.com。
 
 - 我的博客文章：[haha.ai/xiaohongshu-mcp](https://www.haha.ai/xiaohongshu-mcp)
+
+**遇到任何问题，务必要先看 [各种疑难杂症](https://github.com/xpzouying/xiaohongshu-mcp/issues/56)**。
 
 ## Star History
 
@@ -41,6 +43,7 @@ https://github.com/user-attachments/assets/bd9a9a4a-58cb-4421-b8f3-015f703ce1f9
 支持两种图片输入方式：
 
 1. **HTTP/HTTPS 图片链接**
+
    ```
    ["https://example.com/image1.jpg", "https://example.com/image2.png"]
    ```
@@ -51,6 +54,7 @@ https://github.com/user-attachments/assets/bd9a9a4a-58cb-4421-b8f3-015f703ce1f9
    ```
 
 **为什么推荐使用本地路径：**
+
 - ✅ 稳定性更好，不依赖网络
 - ✅ 上传速度更快
 - ✅ 避免图片链接失效问题
@@ -148,6 +152,7 @@ https://github.com/user-attachments/assets/cc385b6c-422c-489b-a5fc-63e92c695b80
 - 这些参数可以从 Feed 列表或搜索结果中获取
 
 **返回信息包括：**
+
 - 用户基本信息：昵称、简介、头像、认证状态
 - 统计数据：关注数、粉丝数、获赞量、笔记数
 - 笔记列表：用户发布的所有公开笔记
@@ -498,6 +503,59 @@ npx @modelcontextprotocol/inspector
 </details>
 
 <details>
+<summary><b>Cline</b></summary>
+
+Cline 是一个强大的 AI 编程助手，支持 MCP 协议集成。
+
+#### 配置方法
+
+在 Cline 的 MCP 设置中添加以下配置：
+
+```json
+{
+  "xiaohongshu-mcp": {
+    "url": "http://localhost:18060/mcp",
+    "type": "streamableHttp",
+    "autoApprove": [],
+    "disabled": false
+  }
+}
+```
+
+#### 使用步骤
+
+1. 确保小红书 MCP 服务正在运行（`http://localhost:18060/mcp`）
+2. 在 Cline 中打开 MCP 设置
+3. 添加上述配置到 MCP 服务器列表
+4. 保存配置并重启 Cline
+5. 在对话中可以直接使用小红书相关功能
+
+#### 配置说明
+
+- `url`: MCP 服务地址
+- `type`: 使用 `streamableHttp` 类型以获得更好的性能
+- `autoApprove`: 可配置自动批准的工具列表（留空表示手动批准）
+- `disabled`: 设置为 `false` 启用此 MCP 服务
+
+#### 使用示例
+
+配置完成后，可以在 Cline 中直接使用自然语言操作小红书：
+
+```
+帮我检查小红书登录状态
+```
+
+```
+帮我发布一篇关于春天的图文到小红书，使用这张图片：/path/to/spring.jpg
+```
+
+```
+搜索小红书上关于"美食"的内容
+```
+
+</details>
+
+<details>
 <summary><b>其他支持 HTTP MCP 的客户端</b></summary>
 
 任何支持 HTTP MCP 协议的客户端都可以连接到：`http://localhost:18060/mcp`
@@ -520,7 +578,7 @@ npx @modelcontextprotocol/inspector
 
 - `check_login_status` - 检查小红书登录状态（无参数）
 - `publish_content` - 发布图文内容到小红书（必需：title, content, images）
-  - `images`: 支持HTTP链接或本地绝对路径，推荐使用本地路径
+  - `images`: 支持 HTTP 链接或本地绝对路径，推荐使用本地路径
 - `list_feeds` - 获取小红书首页推荐列表（无参数）
 - `search_feeds` - 搜索小红书内容（需要：keyword）
 - `get_feed_detail` - 获取帖子详情（需要：feed_id, xsec_token）
@@ -531,7 +589,8 @@ npx @modelcontextprotocol/inspector
 
 使用 Claude Code 发布内容到小红书：
 
-**示例1：使用HTTP图片链接**
+**示例 1：使用 HTTP 图片链接**
+
 ```
 帮我写一篇帖子发布到小红书上，
 配图为：https://cn.bing.com/th?id=OHR.MaoriRock_EN-US6499689741_UHD.jpg&w=3840
@@ -540,7 +599,8 @@ npx @modelcontextprotocol/inspector
 使用 xiaohongshu-mcp 进行发布。
 ```
 
-**示例2：使用本地图片路径（推荐）**
+**示例 2：使用本地图片路径（推荐）**
+
 ```
 帮我写一篇关于春天的帖子发布到小红书上，
 使用这些本地图片：
@@ -565,7 +625,7 @@ npx @modelcontextprotocol/inspector
 1. **[n8n 完整集成教程](./examples/n8n/README.md)** - 工作流自动化平台集成
 2. **[Cherry Studio 完整配置教程](./examples/cherrystudio/README.md)** - AI 客户端完美接入
 3. **[Claude Code + Kimi K2 接入教程](./examples/claude-code/claude-code-kimi-k2.md)** - Claude Code 门槛太高，那么就接入 Kimi 国产大模型吧～
-4. **[AnythingLLM 完整指南](./examples/anythingLLM/readme.md)** - AnythingLLM 是一款all-in-one 多模态 AI 客户端，支持workflow定义，支持多种大模型和插件扩展。
+4. **[AnythingLLM 完整指南](./examples/anythingLLM/readme.md)** - AnythingLLM 是一款 all-in-one 多模态 AI 客户端，支持 workflow 定义，支持多种大模型和插件扩展。
 
 > 🎯 **提示**: 点击上方链接查看详细的图文教程，快速上手各种集成方案！
 >
@@ -614,9 +674,6 @@ npx @modelcontextprotocol/inspector
 
 </details>
 
-
-
-
 <!-- 两列排布：飞书二群 | 微信群 -->
 
 | 【飞书二群】：扫码进入                                                                                                    | 【微信群 5 群】：扫码进入                                                                                                  |
@@ -645,6 +702,8 @@ npx @modelcontextprotocol/inspector
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/eveyuyi"><img src="https://avatars.githubusercontent.com/u/69026872?v=4?s=100" width="100px;" alt="Eve Yu"/><br /><sub><b>Eve Yu</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=eveyuyi" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/CooperGuo"><img src="https://avatars.githubusercontent.com/u/183056602?v=4?s=100" width="100px;" alt="CooperGuo"/><br /><sub><b>CooperGuo</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=CooperGuo" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://biboyqg.github.io/"><img src="https://avatars.githubusercontent.com/u/125724218?v=4?s=100" width="100px;" alt="Banghao Chi"/><br /><sub><b>Banghao Chi</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=BiboyQG" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/varz1"><img src="https://avatars.githubusercontent.com/u/60377372?v=4?s=100" width="100px;" alt="varz1"/><br /><sub><b>varz1</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=varz1" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://google.meloguan.site"><img src="https://avatars.githubusercontent.com/u/62586556?v=4?s=100" width="100px;" alt="Melo Y Guan"/><br /><sub><b>Melo Y Guan</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=Meloyg" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>
