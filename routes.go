@@ -29,6 +29,7 @@ func setupRoutes(appServer *AppServer) *gin.Engine {
 	api := router.Group("/api/v1")
 	{
 		api.GET("/login/status", appServer.checkLoginStatusHandler)
+		api.GET("/login/qrcodeImg", appServer.loginQrcodeImgHandler)
 		api.POST("/publish", appServer.publishHandler)
 		api.GET("/feeds/list", appServer.listFeedsHandler)
 		api.GET("/feeds/search", appServer.searchFeedsHandler)

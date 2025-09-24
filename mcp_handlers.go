@@ -34,6 +34,31 @@ func (s *AppServer) handleCheckLoginStatus(ctx context.Context) *MCPToolResult {
 	}
 }
 
+// handleLoginQrcodeImg 处理获取登录扫码图片
+func (s *AppServer) handleLoginQrcodeImg(ctx context.Context) *MCPToolResult {
+	logrus.Info("MCP: 获取登录扫码图片")
+
+	result, err := s.xiaohongshuService.LoginQrcodeImg(ctx)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "获取登录扫码图片失败: " + err.Error(),
+			}},
+			IsError: true,
+		}
+	}
+
+	jsonData, err := json.MarshalIndent(result, "", "  ")
+
+	return &MCPToolResult{
+		Content: []MCPContent{{
+			Type: "text",
+			Text: string(jsonData),
+		}},
+	}
+}
+
 // handlePublishContent 处理发布内容
 func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]interface{}) *MCPToolResult {
 	logrus.Info("MCP: 发布内容")

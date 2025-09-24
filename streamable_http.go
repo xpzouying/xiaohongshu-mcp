@@ -165,6 +165,14 @@ func (s *AppServer) processToolsList(request *JSONRPCRequest) *JSONRPCResponse {
 			},
 		},
 		{
+			"name":        "login_qrcode_img",
+			"description": "获取登录扫码图片",
+			"inputSchema": map[string]interface{}{
+				"type":       "object",
+				"properties": map[string]interface{}{},
+			},
+		},
+		{
 			"name":        "publish_content",
 			"description": "发布小红书图文内容",
 			"inputSchema": map[string]interface{}{
@@ -311,6 +319,8 @@ func (s *AppServer) processToolCall(ctx context.Context, request *JSONRPCRequest
 	switch toolName {
 	case "check_login_status":
 		result = s.handleCheckLoginStatus(ctx)
+	case "login_qrcode_img":
+		result = s.handleLoginQrcodeImg(ctx)
 	case "publish_content":
 		result = s.handlePublishContent(ctx, toolArgs)
 	case "list_feeds":

@@ -48,6 +48,18 @@ func (s *AppServer) checkLoginStatusHandler(c *gin.Context) {
 	respondSuccess(c, status, "检查登录状态成功")
 }
 
+// loginQrcodeImgHandler 获取登录二维码
+func (s *AppServer) loginQrcodeImgHandler(c *gin.Context) {
+	result, err := s.xiaohongshuService.LoginQrcodeImg(c.Request.Context())
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "STATUS_CHECK_FAILED",
+			"获取登录二维码失败", err.Error())
+		return
+	}
+
+	respondSuccess(c, result, "获取登录二维码成功")
+}
+
 // publishHandler 发布内容
 func (s *AppServer) publishHandler(c *gin.Context) {
 	var req PublishRequest

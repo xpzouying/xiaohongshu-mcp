@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"os"
 
 	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/xiaohongshu-mcp/configs"
@@ -15,6 +16,10 @@ func main() {
 	flag.BoolVar(&headless, "headless", true, "是否无头模式")
 	flag.StringVar(&binPath, "bin", "", "浏览器二进制文件路径")
 	flag.Parse()
+
+	if len(binPath) == 0 {
+		binPath = os.Getenv("ROD_BROWSER_BIN")
+	}
 
 	configs.InitHeadless(headless)
 	configs.SetBinPath(binPath)

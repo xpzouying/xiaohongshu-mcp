@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-
 	"github.com/mattn/go-runewidth"
 	"github.com/xpzouying/headless_browser"
 	"github.com/xpzouying/xiaohongshu-mcp/browser"
@@ -32,6 +31,12 @@ type PublishRequest struct {
 type LoginStatusResponse struct {
 	IsLoggedIn bool   `json:"is_logged_in"`
 	Username   string `json:"username,omitempty"`
+}
+
+// LoginQrcodeResponse 登录扫码二维码
+type LoginQrcodeResponse struct {
+	Timeout string `json:"timeout"`
+	Img     string `json:"img,omitempty"`
 }
 
 // PublishResponse 发布响应
@@ -74,6 +79,29 @@ func (s *XiaohongshuService) CheckLoginStatus(ctx context.Context) (*LoginStatus
 	response := &LoginStatusResponse{
 		IsLoggedIn: isLoggedIn,
 		Username:   configs.Username,
+	}
+
+	return response, nil
+}
+
+// LoginQrcodeImg 获取登录的扫码二维码
+func (s *XiaohongshuService) LoginQrcodeImg(ctx context.Context) (*LoginQrcodeResponse, error) {
+	b := newBrowser()
+	//defer b.Close()
+
+	page := b.NewPage()
+	//defer page.Close()
+
+	loginAction := xiaohongshu.NewLogin(page)
+
+	img, timeout, err := loginAction.LoginQrcodeImg(ctx, b)
+	if err != nil {
+		return nil, err
+	}
+
+	response := &LoginQrcodeResponse{
+		Timeout: timeout,
+		Img:     img,
 	}
 
 	return response, nil
