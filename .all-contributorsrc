@@ -102,6 +102,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "varz1",
+      "name": "varz1",
+      "avatar_url": "https://avatars.githubusercontent.com/u/60377372?v=4",
+      "profile": "https://github.com/varz1",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
