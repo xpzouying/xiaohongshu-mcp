@@ -1,5 +1,7 @@
 package main
 
+import "time"
+
 // HTTP API 响应类型
 
 // ErrorResponse 错误响应
@@ -91,4 +93,20 @@ type PostCommentResponse struct {
 type UserProfileRequest struct {
 	UserID    string `json:"user_id" binding:"required"`
 	XsecToken string `json:"xsec_token" binding:"required"`
+}
+
+// ScheduledPublishRequest 定时发布请求
+type ScheduledPublishRequest struct {
+	Title       string     `json:"title"`
+	Content     string     `json:"content"`
+	Images      []string   `json:"images"`
+	Tags        []string   `json:"tags"`
+	PublishTime *time.Time `json:"publish_time,omitempty"`
+}
+
+// ScheduledPublishResponse 定时发布响应
+type ScheduledPublishResponse struct {
+	Success     bool       `json:"success"`
+	Message     string     `json:"message"`
+	PublishTime *time.Time `json:"publish_time,omitempty"`
 }
