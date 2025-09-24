@@ -16,6 +16,7 @@ on:
       - 'assets/**'
       - 'configs/**'
       - 'cookies/**'
+      - 'deploy/**'
       - 'docs/**'
       - 'donate/**'
       - 'examples/**'
