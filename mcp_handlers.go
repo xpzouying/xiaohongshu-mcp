@@ -34,11 +34,12 @@ func (s *AppServer) handleCheckLoginStatus(ctx context.Context) *MCPToolResult {
 	}
 }
 
-// handleLoginQrcodeImg 处理获取登录扫码图片
-func (s *AppServer) handleLoginQrcodeImg(ctx context.Context) *MCPToolResult {
+// handleGetLoginQrcode 处理获取登录二维码请求。
+// 返回二维码图片的 Base64 编码和超时时间，供前端展示扫码登录。
+func (s *AppServer) handleGetLoginQrcode(ctx context.Context) *MCPToolResult {
 	logrus.Info("MCP: 获取登录扫码图片")
 
-	result, err := s.xiaohongshuService.LoginQrcodeImg(ctx)
+	result, err := s.xiaohongshuService.GetLoginQrcode(ctx)
 	if err != nil {
 		return &MCPToolResult{
 			Content: []MCPContent{{

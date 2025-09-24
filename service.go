@@ -2,13 +2,18 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"github.com/go-rod/rod"
 	"github.com/mattn/go-runewidth"
+	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/headless_browser"
 	"github.com/xpzouying/xiaohongshu-mcp/browser"
 	"github.com/xpzouying/xiaohongshu-mcp/configs"
+	"github.com/xpzouying/xiaohongshu-mcp/cookies"
 	"github.com/xpzouying/xiaohongshu-mcp/pkg/downloader"
 	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
+	"time"
 )
 
 // XiaohongshuService 小红书业务服务
@@ -84,27 +89,39 @@ func (s *XiaohongshuService) CheckLoginStatus(ctx context.Context) (*LoginStatus
 	return response, nil
 }
 
-// LoginQrcodeImg 获取登录的扫码二维码
-func (s *XiaohongshuService) LoginQrcodeImg(ctx context.Context) (*LoginQrcodeResponse, error) {
+// GetLoginQrcode 获取登录的扫码二维码
+func (s *XiaohongshuService) GetLoginQrcode(ctx context.Context) (*LoginQrcodeResponse, error) {
 	b := newBrowser()
-	//defer b.Close()
-
 	page := b.NewPage()
-	//defer page.Close()
 
 	loginAction := xiaohongshu.NewLogin(page)
 
-	img, timeout, err := loginAction.LoginQrcodeImg(ctx, b)
+	img, err := loginAction.FetchQrcodeImage(ctx, b)
 	if err != nil {
 		return nil, err
 	}
 
-	response := &LoginQrcodeResponse{
-		Timeout: timeout,
-		Img:     img,
-	}
+	timeout := 4 * time.Minute
 
-	return response, nil
+	go func() {
+		ctxTimeout, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+		defer func() {
+			_ = page.Close()
+			b.Close()
+		}()
+
+		if loginAction.WaitForLogin(ctxTimeout) {
+			if er := saveCookies(page); er != nil {
+				logrus.Errorf("failed to save cookies: %v", er)
+			}
+		}
+	}()
+
+	return &LoginQrcodeResponse{
+		Timeout: timeout.String(),
+		Img:     img,
+	}, nil
 }
 
 // PublishContent 发布内容
@@ -293,4 +310,19 @@ func (s *XiaohongshuService) PostCommentToFeed(ctx context.Context, feedID, xsec
 
 func newBrowser() *headless_browser.Browser {
 	return browser.NewBrowser(configs.IsHeadless(), browser.WithBinPath(configs.GetBinPath()))
+}
+
+func saveCookies(page *rod.Page) error {
+	cks, err := page.Browser().GetCookies()
+	if err != nil {
+		return err
+	}
+
+	data, err := json.Marshal(cks)
+	if err != nil {
+		return err
+	}
+
+	cookieLoader := cookies.NewLoadCookie(cookies.GetCookiesFilePath())
+	return cookieLoader.SaveCookies(data)
 }

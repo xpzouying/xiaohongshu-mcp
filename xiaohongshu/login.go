@@ -2,10 +2,7 @@ package xiaohongshu
 
 import (
 	"context"
-	"encoding/json"
-	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/headless_browser"
-	"github.com/xpzouying/xiaohongshu-mcp/cookies"
 	"time"
 
 	"github.com/go-rod/rod"
@@ -60,7 +57,7 @@ func (a *LoginAction) Login(ctx context.Context) error {
 	return nil
 }
 
-func (a *LoginAction) LoginQrcodeImg(ctx context.Context, b *headless_browser.Browser) (string, string, error) {
+func (a *LoginAction) FetchQrcodeImage(ctx context.Context, b *headless_browser.Browser) (string, error) {
 	pp := a.page.Context(ctx)
 
 	// 导航到小红书首页，这会触发二维码弹窗
@@ -74,7 +71,7 @@ func (a *LoginAction) LoginQrcodeImg(ctx context.Context, b *headless_browser.Br
 		// 已经登录，直接返回
 		_ = pp.Close()
 		b.Close()
-		return "已经在登录状态", "0", nil
+		return "已经在登录状态", nil
 	}
 
 	// 获取二维码图片
@@ -82,58 +79,26 @@ func (a *LoginAction) LoginQrcodeImg(ctx context.Context, b *headless_browser.Br
 	if err != nil || attribute == nil || len(*attribute) == 0 {
 		_ = pp.Close()
 		b.Close()
-		return "", "0", errors.Wrap(err, "login qrcode failed")
+		return "", errors.Wrap(err, "login qrcode failed")
 	}
 
-	const timeout = 4 * time.Minute
-	const poll = 750 * time.Millisecond
-
-	// 这里我们用 goroutine 等待登录成功的元素出现，二维码图片直接返回
-	go func() {
-		defer func() { // 防止 rod 的 Must* panic 影响进程
-			if r := recover(); r != nil {
-				logrus.Errorf("[xhs-login] goroutine recovered: %v", r)
-			}
-		}()
-
-		// 单独用 Background，避免调用方 cancel 影响这里
-		p := a.page.Context(context.Background())
-		deadline := time.Now().Add(timeout)
-
-		selector := ".main-container .user .link-wrapper .channel"
-
-		for time.Now().Before(deadline) {
-			// 用带超时的非 Must 查找，避免阻塞 & panic
-			if el, err := p.Timeout(3 * time.Second).Element(selector); err == nil && el != nil {
-				if err := saveCookies(p); err != nil {
-					logrus.Errorf("failed to save cookies: %v", err)
-				}
-				_ = p.Close()
-				b.Close()
-				return
-			}
-			time.Sleep(poll)
-		}
-
-		// 超时
-		_ = p.Close()
-		b.Close()
-	}()
-
-	return *attribute, timeout.String(), nil
+	return *attribute, nil
 }
 
-func saveCookies(page *rod.Page) error {
-	cks, err := page.Browser().GetCookies()
-	if err != nil {
-		return err
-	}
+func (a *LoginAction) WaitForLogin(ctx context.Context) bool {
+	pp := a.page.Context(ctx)
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
 
-	data, err := json.Marshal(cks)
-	if err != nil {
-		return err
+	for {
+		select {
+		case <-ctx.Done():
+			return false
+		case <-ticker.C:
+			el, err := pp.Element(".main-container .user .link-wrapper .channel")
+			if err == nil && el != nil {
+				return true
+			}
+		}
 	}
-
-	cookieLoader := cookies.NewLoadCookie(cookies.GetCookiesFilePath())
-	return cookieLoader.SaveCookies(data)
 }
