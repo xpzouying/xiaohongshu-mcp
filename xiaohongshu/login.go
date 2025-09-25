@@ -2,7 +2,6 @@ package xiaohongshu
 
 import (
 	"context"
-	"github.com/xpzouying/headless_browser"
 	"time"
 
 	"github.com/go-rod/rod"
@@ -57,7 +56,7 @@ func (a *LoginAction) Login(ctx context.Context) error {
 	return nil
 }
 
-func (a *LoginAction) FetchQrcodeImage(ctx context.Context, b *headless_browser.Browser) (string, error) {
+func (a *LoginAction) FetchQrcodeImage(ctx context.Context) (string, bool, error) {
 	pp := a.page.Context(ctx)
 
 	// 导航到小红书首页，这会触发二维码弹窗
@@ -68,21 +67,19 @@ func (a *LoginAction) FetchQrcodeImage(ctx context.Context, b *headless_browser.
 
 	// 检查是否已经登录
 	if exists, _, _ := pp.Has(".main-container .user .link-wrapper .channel"); exists {
-		// 已经登录，直接返回
-		_ = pp.Close()
-		b.Close()
-		return "已经在登录状态", nil
+		return "", true, nil
 	}
 
 	// 获取二维码图片
-	attribute, err := pp.MustElement(".login-container .qrcode-img").Attribute("src")
-	if err != nil || attribute == nil || len(*attribute) == 0 {
-		_ = pp.Close()
-		b.Close()
-		return "", errors.Wrap(err, "login qrcode failed")
+	src, err := pp.MustElement(".login-container .qrcode-img").Attribute("src")
+	if err != nil {
+		return "", false, errors.Wrap(err, "get qrcode src failed")
+	}
+	if src == nil || len(*src) == 0 {
+		return "", false, errors.New("qrcode src is empty")
 	}
 
-	return *attribute, nil
+	return *src, false, nil
 }
 
 func (a *LoginAction) WaitForLogin(ctx context.Context) bool {

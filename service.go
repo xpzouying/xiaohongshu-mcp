@@ -40,8 +40,9 @@ type LoginStatusResponse struct {
 
 // LoginQrcodeResponse 登录扫码二维码
 type LoginQrcodeResponse struct {
-	Timeout string `json:"timeout"`
-	Img     string `json:"img,omitempty"`
+	Timeout    string `json:"timeout"`
+	IsLoggedIn bool   `json:"is_logged_in"`
+	Img        string `json:"img,omitempty"`
 }
 
 // PublishResponse 发布响应
@@ -94,33 +95,46 @@ func (s *XiaohongshuService) GetLoginQrcode(ctx context.Context) (*LoginQrcodeRe
 	b := newBrowser()
 	page := b.NewPage()
 
+	deferFunc := func() {
+		_ = page.Close()
+		b.Close()
+	}
+
 	loginAction := xiaohongshu.NewLogin(page)
 
-	img, err := loginAction.FetchQrcodeImage(ctx, b)
+	img, loggedIn, err := loginAction.FetchQrcodeImage(ctx)
+	if err != nil || loggedIn {
+		defer deferFunc()
+	}
 	if err != nil {
 		return nil, err
 	}
 
 	timeout := 4 * time.Minute
 
-	go func() {
-		ctxTimeout, cancel := context.WithTimeout(context.Background(), timeout)
-		defer cancel()
-		defer func() {
-			_ = page.Close()
-			b.Close()
-		}()
+	if !loggedIn {
+		go func() {
+			ctxTimeout, cancel := context.WithTimeout(context.Background(), timeout)
+			defer cancel()
+			defer deferFunc()
 
-		if loginAction.WaitForLogin(ctxTimeout) {
-			if er := saveCookies(page); er != nil {
-				logrus.Errorf("failed to save cookies: %v", er)
+			if loginAction.WaitForLogin(ctxTimeout) {
+				if er := saveCookies(page); er != nil {
+					logrus.Errorf("failed to save cookies: %v", er)
+				}
 			}
-		}
-	}()
+		}()
+	}
 
 	return &LoginQrcodeResponse{
-		Timeout: timeout.String(),
-		Img:     img,
+		Timeout: func() string {
+			if loggedIn {
+				return "0s"
+			}
+			return timeout.String()
+		}(),
+		Img:        img,
+		IsLoggedIn: loggedIn,
 	}, nil
 }
 

@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-
 	"github.com/sirupsen/logrus"
+	"strings"
+	"time"
 )
 
 // MCP 工具处理函数
@@ -42,22 +43,36 @@ func (s *AppServer) handleGetLoginQrcode(ctx context.Context) *MCPToolResult {
 	result, err := s.xiaohongshuService.GetLoginQrcode(ctx)
 	if err != nil {
 		return &MCPToolResult{
-			Content: []MCPContent{{
-				Type: "text",
-				Text: "获取登录扫码图片失败: " + err.Error(),
-			}},
+			Content: []MCPContent{{Type: "text", Text: "获取登录扫码图片失败: " + err.Error()}},
 			IsError: true,
 		}
 	}
 
-	jsonData, err := json.MarshalIndent(result, "", "  ")
-
-	return &MCPToolResult{
-		Content: []MCPContent{{
-			Type: "text",
-			Text: string(jsonData),
-		}},
+	if result.IsLoggedIn {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "你当前已处于登录状态"}},
+		}
 	}
+
+	now := time.Now()
+	deadline := func() string {
+		d, err := time.ParseDuration(result.Timeout)
+		if err != nil {
+			return now.Format("2006-01-02 15:04:05")
+		}
+		return now.Add(d).Format("2006-01-02 15:04:05")
+	}()
+
+	// 已登录：文本 + 图片
+	contents := []MCPContent{
+		{Type: "text", Text: "请用小红书 App 在 " + deadline + " 前扫码登录 👇"},
+		{
+			Type:     "image",
+			MimeType: "image/png",
+			Data:     strings.TrimPrefix(result.Img, "data:image/png;base64,"),
+		},
+	}
+	return &MCPToolResult{Content: contents}
 }
 
 // handlePublishContent 处理发布内容
