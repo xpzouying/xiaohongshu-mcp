@@ -35,15 +35,14 @@ func (s *AppServer) handleCheckLoginStatus(ctx context.Context) *MCPToolResult {
 	}
 }
 
-// handlePublishContent 处理发布内容
+// handlePublishContent 处理发布内容（支持立即发布和定时发布）
 func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]interface{}) *MCPToolResult {
-	logrus.Info("MCP: 发布内容")
-
 	// 解析参数
 	title, _ := args["title"].(string)
 	content, _ := args["content"].(string)
 	imagePathsInterface, _ := args["images"].([]interface{})
 	tagsInterface, _ := args["tags"].([]interface{})
+	publishTimeStr, _ := args["publish_time"].(string) // 可选的定时发布时间
 
 	var imagePaths []string
 	for _, path := range imagePathsInterface {
@@ -59,34 +58,114 @@ func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]in
 		}
 	}
 
-	logrus.Infof("MCP: 发布内容 - 标题: %s, 图片数量: %d, 标签数量: %d", title, len(imagePaths), len(tags))
+	// 解析发布时间（如果提供了）
+	var publishTime *time.Time
+	var err error
 
-	// 构建发布请求
-	req := &PublishRequest{
-		Title:   title,
-		Content: content,
-		Images:  imagePaths,
-		Tags:    tags,
-	}
+	if publishTimeStr != "" {
+		// 支持多种时间格式
+		timeFormats := []string{
+			"2006-01-02 15:04:05",
+			"2006-01-02 15:04",
+			"2006/01/02 15:04:05",
+			"2006/01/02 15:04",
+		}
 
-	// 执行发布
-	result, err := s.xiaohongshuService.PublishContent(ctx, req)
-	if err != nil {
-		return &MCPToolResult{
-			Content: []MCPContent{{
-				Type: "text",
-				Text: "发布失败: " + err.Error(),
-			}},
-			IsError: true,
+		for _, format := range timeFormats {
+			parsedTime, parseErr := time.Parse(format, publishTimeStr)
+			if parseErr == nil {
+				publishTime = &parsedTime
+				break
+			}
+			err = parseErr
+		}
+
+		if err != nil {
+			return &MCPToolResult{
+				Content: []MCPContent{{
+					Type: "text",
+					Text: fmt.Sprintf("解析发布时间失败: %s，支持的格式: 2006-01-02 15:04:05, 2006-01-02 15:04, 2006/01/02 15:04:05, 2006/01/02 15:04", err.Error()),
+				}},
+				IsError: true,
+			}
+		}
+
+		// 检查发布时间是否在未来
+		if publishTime.Before(time.Now()) {
+			return &MCPToolResult{
+				Content: []MCPContent{{
+					Type: "text",
+					Text: "发布时间必须是未来时间",
+				}},
+				IsError: true,
+			}
 		}
 	}
 
-	resultText := fmt.Sprintf("内容发布成功: %+v", result)
-	return &MCPToolResult{
-		Content: []MCPContent{{
-			Type: "text",
-			Text: resultText,
-		}},
+	if publishTime != nil {
+		logrus.Infof("MCP: 定时发布内容 - 标题: %s, 图片数量: %d, 标签数量: %d, 发布时间: %v",
+			title, len(imagePaths), len(tags), publishTime)
+	} else {
+		logrus.Infof("MCP: 立即发布内容 - 标题: %s, 图片数量: %d, 标签数量: %d",
+			title, len(imagePaths), len(tags))
+	}
+
+	// 根据是否有发布时间决定调用哪个服务
+	if publishTime != nil {
+		// 定时发布
+		req := &ScheduledPublishRequest{
+			Title:       title,
+			Content:     content,
+			Images:      imagePaths,
+			Tags:        tags,
+			PublishTime: publishTime,
+		}
+
+		result, err := s.xiaohongshuService.PublishScheduledContent(ctx, req)
+		if err != nil {
+			return &MCPToolResult{
+				Content: []MCPContent{{
+					Type: "text",
+					Text: "定时发布失败: " + err.Error(),
+				}},
+				IsError: true,
+			}
+		}
+
+		resultText := fmt.Sprintf("定时发布设置成功: %+v", result)
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: resultText,
+			}},
+		}
+	} else {
+		// 立即发布
+		req := &PublishRequest{
+			Title:   title,
+			Content: content,
+			Images:  imagePaths,
+			Tags:    tags,
+		}
+
+		result, err := s.xiaohongshuService.PublishContent(ctx, req)
+		if err != nil {
+			return &MCPToolResult{
+				Content: []MCPContent{{
+					Type: "text",
+					Text: "发布失败: " + err.Error(),
+				}},
+				IsError: true,
+			}
+		}
+
+		resultText := fmt.Sprintf("内容发布成功: %+v", result)
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: resultText,
+			}},
+		}
 	}
 }
 
@@ -348,115 +427,6 @@ func (s *AppServer) handlePostComment(ctx context.Context, args map[string]inter
 
 	// 返回成功结果，只包含feed_id
 	resultText := fmt.Sprintf("评论发表成功 - Feed ID: %s", result.FeedID)
-	return &MCPToolResult{
-		Content: []MCPContent{{
-			Type: "text",
-			Text: resultText,
-		}},
-	}
-}
-
-// handleScheduledPublishContent 处理定时发布内容
-func (s *AppServer) handleScheduledPublishContent(ctx context.Context, args map[string]interface{}) *MCPToolResult {
-	logrus.Info("MCP: 定时发布内容")
-
-	// 解析参数
-	title, _ := args["title"].(string)
-	content, _ := args["content"].(string)
-	imagePathsInterface, _ := args["images"].([]interface{})
-	tagsInterface, _ := args["tags"].([]interface{})
-	publishTimeStr, _ := args["publish_time"].(string)
-
-	var imagePaths []string
-	for _, path := range imagePathsInterface {
-		if pathStr, ok := path.(string); ok {
-			imagePaths = append(imagePaths, pathStr)
-		}
-	}
-
-	var tags []string
-	for _, tag := range tagsInterface {
-		if tagStr, ok := tag.(string); ok {
-			tags = append(tags, tagStr)
-		}
-	}
-
-	// 解析发布时间
-	var publishTime *time.Time
-	if publishTimeStr != "" {
-		// 支持多种时间格式
-		formats := []string{
-			"2006-01-02 15:04:05",
-			"2006-01-02 15:04",
-			"2006/01/02 15:04:05",
-			"2006/01/02 15:04",
-			time.RFC3339,
-		}
-
-		var parsedTime time.Time
-		var err error
-		for _, format := range formats {
-			parsedTime, err = time.Parse(format, publishTimeStr)
-			if err == nil {
-				publishTime = &parsedTime
-				break
-			}
-		}
-
-		if err != nil {
-			return &MCPToolResult{
-				Content: []MCPContent{{
-					Type: "text",
-					Text: fmt.Sprintf("解析发布时间失败: %s，支持的格式: 2006-01-02 15:04:05, 2006-01-02 15:04, 2006/01/02 15:04:05, 2006/01/02 15:04", err.Error()),
-				}},
-				IsError: true,
-			}
-		}
-
-		// 检查发布时间是否在未来
-		if publishTime.Before(time.Now()) {
-			return &MCPToolResult{
-				Content: []MCPContent{{
-					Type: "text",
-					Text: "发布时间必须是未来时间",
-				}},
-				IsError: true,
-			}
-		}
-	}
-
-	logrus.Infof("MCP: 定时发布内容 - 标题: %s, 图片数量: %d, 标签数量: %d, 发布时间: %v",
-		title, len(imagePaths), len(tags), publishTime)
-
-	// 构建定时发布请求
-	req := &ScheduledPublishRequest{
-		Title:       title,
-		Content:     content,
-		Images:      imagePaths,
-		Tags:        tags,
-		PublishTime: publishTime,
-	}
-
-	// 执行定时发布
-	result, err := s.xiaohongshuService.PublishScheduledContent(ctx, req)
-	if err != nil {
-		return &MCPToolResult{
-			Content: []MCPContent{{
-				Type: "text",
-				Text: "定时发布失败: " + err.Error(),
-			}},
-			IsError: true,
-		}
-	}
-
-	var resultText string
-	if publishTime != nil {
-		resultText = fmt.Sprintf("内容定时发布成功，预定发布时间: %s, 结果: %+v",
-			publishTime.Format("2006-01-02 15:04:05"), result)
-	} else {
-		resultText = fmt.Sprintf("内容立即发布成功: %+v", result)
-	}
-
 	return &MCPToolResult{
 		Content: []MCPContent{{
 			Type: "text",

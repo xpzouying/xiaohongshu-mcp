@@ -3,11 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
-	"log/slog"
-	"time"
 
 	"github.com/mattn/go-runewidth"
-	"github.com/pkg/errors"
 	"github.com/xpzouying/headless_browser"
 	"github.com/xpzouying/xiaohongshu-mcp/browser"
 	"github.com/xpzouying/xiaohongshu-mcp/configs"
@@ -190,50 +187,19 @@ func (s *XiaohongshuService) PublishScheduledContent(ctx context.Context, req *S
 
 // publishScheduledContent 执行定时发布
 func (s *XiaohongshuService) publishScheduledContent(ctx context.Context, content xiaohongshu.ScheduledPublishImageContent) error {
-	const maxRetries = 2
-	var lastErr error
+	b := newBrowser()
+	defer b.Close()
 
-	for retry := 0; retry <= maxRetries; retry++ {
-		if retry > 0 {
-			slog.Info("重试发布定时内容", "retry", retry, "max_retries", maxRetries)
-			time.Sleep(time.Duration(retry) * 5 * time.Second) // 递增的重试延迟
-		}
+	page := b.NewPage()
+	defer page.Close()
 
-		b := newBrowser()
-
-		func() {
-			defer b.Close()
-
-			page := b.NewPage()
-			defer page.Close()
-
-			action, err := xiaohongshu.NewPublishImageAction(page)
-			if err != nil {
-				lastErr = err
-				return
-			}
-
-			// 执行定时发布
-			lastErr = action.PublishScheduled(ctx, content)
-		}()
-
-		// 如果成功，直接返回
-		if lastErr == nil {
-			if retry > 0 {
-				slog.Info("重试成功", "retry_count", retry)
-			}
-			return nil
-		}
-
-		slog.Warn("发布失败，准备重试", "error", lastErr, "retry", retry)
-
-		// 如果是最后一次重试，不再等待
-		if retry == maxRetries {
-			break
-		}
+	action, err := xiaohongshu.NewPublishImageAction(page)
+	if err != nil {
+		return err
 	}
 
-	return errors.Wrap(lastErr, fmt.Sprintf("经过 %d 次重试后仍然失败", maxRetries+1))
+	// 执行定时发布
+	return action.PublishScheduled(ctx, content)
 }
 
 // ListFeeds 获取Feeds列表

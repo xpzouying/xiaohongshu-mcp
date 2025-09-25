@@ -166,7 +166,7 @@ func (s *AppServer) processToolsList(request *JSONRPCRequest) *JSONRPCResponse {
 		},
 		{
 			"name":        "publish_content",
-			"description": "发布小红书图文内容",
+			"description": "发布小红书图文内容（支持立即发布和定时发布）",
 			"inputSchema": map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
@@ -192,6 +192,10 @@ func (s *AppServer) processToolsList(request *JSONRPCRequest) *JSONRPCResponse {
 						"items": map[string]interface{}{
 							"type": "string",
 						},
+					},
+					"publish_time": map[string]interface{}{
+						"type":        "string",
+						"description": "定时发布时间（可选），支持格式：2006-01-02 15:04:05, 2006-01-02 15:04, 2006/01/02 15:04:05, 2006/01/02 15:04。留空表示立即发布。时间必须是未来时间。",
 					},
 				},
 				"required": []string{"title", "content", "images"},
@@ -277,43 +281,6 @@ func (s *AppServer) processToolsList(request *JSONRPCRequest) *JSONRPCResponse {
 				"required": []string{"feed_id", "xsec_token", "content"},
 			},
 		},
-		{
-			"name":        "scheduled_publish_content",
-			"description": "发布小红书图文内容（支持定时发布）",
-			"inputSchema": map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"title": map[string]interface{}{
-						"type":        "string",
-						"description": "内容标题（小红书限制：最多20个中文字或英文单词）",
-					},
-					"content": map[string]interface{}{
-						"type":        "string",
-						"description": "正文内容，不包含以#开头的标签内容，所有话题标签都用tags参数来生成和提供即可",
-					},
-					"images": map[string]interface{}{
-						"type":        "array",
-						"description": "图片路径列表（至少需要1张图片）。支持两种方式：1. HTTP/HTTPS图片链接（自动下载）；2. 本地图片绝对路径（推荐，如:/Users/user/image.jpg）",
-						"items": map[string]interface{}{
-							"type": "string",
-						},
-						"minItems": 1,
-					},
-					"tags": map[string]interface{}{
-						"type":        "array",
-						"description": "话题标签列表，不需要#符号前缀（如：[\"穿搭\", \"日常\"]）",
-						"items": map[string]interface{}{
-							"type": "string",
-						},
-					},
-					"publish_time": map[string]interface{}{
-						"type":        "string",
-						"description": "定时发布时间，支持格式：2006-01-02 15:04:05, 2006-01-02 15:04, 2006/01/02 15:04:05, 2006/01/02 15:04。留空表示立即发布。时间必须是未来时间。",
-					},
-				},
-				"required": []string{"title", "content", "images"},
-			},
-		},
 	}
 
 	return &JSONRPCResponse{
@@ -360,8 +327,6 @@ func (s *AppServer) processToolCall(ctx context.Context, request *JSONRPCRequest
 		result = s.handleUserProfile(ctx, toolArgs)
 	case "post_comment_to_feed":
 		result = s.handlePostComment(ctx, toolArgs)
-	case "scheduled_publish_content":
-		result = s.handleScheduledPublishContent(ctx, toolArgs)
 	default:
 		return &JSONRPCResponse{
 			JSONRPC: "2.0",
