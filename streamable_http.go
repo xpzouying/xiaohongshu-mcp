@@ -110,6 +110,13 @@ func (s *AppServer) processJSONRPCRequest(request *JSONRPCRequest, ctx context.C
 			Result:  map[string]interface{}{},
 			ID:      request.ID,
 		}
+	case "notifications/initialized":
+        // 兜底: 兼容 Dify 发送的 notifications/initialized 通知
+        		return &JSONRPCResponse{
+            		JSONRPC: "2.0",
+            		Result:  map[string]interface{}{},
+            		ID:      request.ID,
+        }
 	case "ping":
 		// 处理 ping 请求
 		return &JSONRPCResponse{
