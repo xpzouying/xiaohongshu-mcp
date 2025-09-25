@@ -7,7 +7,7 @@ services:
     volumes:
       - ./data:/app/data
     environment:
-      - ROD_BROWSER_BIN=/usr/bin/chromium  # ← 无头浏览器
-      - COOKIES_PATH=/app/data/cookies.json  # ← 程序读取/写入这个路径
+      - ROD_BROWSER_BIN=/usr/bin/google-chrome
+      - COOKIES_PATH=/app/data/cookies.json
     ports:
       - "18060:18060"

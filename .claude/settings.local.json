@@ -24,7 +24,9 @@
       "Bash(gh release list:*)",
       "Bash(awk:*)",
       "Bash(CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o test-xiaohongshu-mcp-linux-amd64 .)",
-      "Bash(tar:*)"
+      "Bash(tar:*)",
+      "mcp__playwright__browser_type",
+      "mcp__playwright__browser_close"
     ],
     "deny": []
   }
