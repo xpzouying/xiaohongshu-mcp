@@ -247,6 +247,48 @@ go env -w  GOPROXY=https://goproxy.io,direct
 
 </details>
 
+**方式三：使用 Docker 容器（最简单）**
+
+<details>
+<summary>Docker 部署详情</summary>
+
+使用 Docker 部署是最简单的方式，无需安装任何开发环境。
+
+**1. 构建镜像**
+
+```bash
+# 在项目根目录运行
+docker build -t xpzouying/xiaohongshu-mcp .
+```
+
+**2. 使用 Docker Compose 启动**
+
+```bash
+# 进入 docker 目录
+cd docker
+
+# 启动服务
+docker compose up -d
+
+# 查看日志
+docker compose logs -f
+
+# 停止服务
+docker compose stop
+```
+
+**3. 配置说明**
+
+Docker 版本会自动：
+- 配置 Chrome 浏览器和中文字体
+- 挂载 `./data` 用于存储 cookies
+- 挂载 `./images` 用于存储发布的图片
+- 暴露 18060 端口供 MCP 连接
+
+详细使用说明请参考：[Docker 部署指南](./docker/README.md)
+
+</details>
+
 Windows 遇到问题首先看这里：[Windows 安装指南](./docs/windows_guide.md)
 
 ### 1.2. 登录
