@@ -2,9 +2,10 @@ version: '3'
 
 services:
   xiaohongshu-mcp:
-    image: pengjunchen/xiaohongshu-mcp:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: xiaohongshu-mcp
-    restart: unless-stopped
     ports:
       - "18060:18060"
     environment:
