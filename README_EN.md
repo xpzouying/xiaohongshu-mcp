@@ -247,6 +247,48 @@ go env -w  GOPROXY=https://goproxy.io,direct
 
 </details>
 
+**Method 3: Using Docker Container (Simplest)**
+
+<details>
+<summary>Docker Deployment Details</summary>
+
+Using Docker deployment is the simplest method, requiring no development environment installation.
+
+**1. Build Image**
+
+```bash
+# Run in project root directory
+docker build -t xpzouying/xiaohongshu-mcp .
+```
+
+**2. Start with Docker Compose**
+
+```bash
+# Enter docker directory
+cd docker
+
+# Start service
+docker compose up -d
+
+# View logs
+docker compose logs -f
+
+# Stop service
+docker compose stop
+```
+
+**3. Configuration Notes**
+
+The Docker version automatically:
+- Configures Chrome browser and Chinese fonts
+- Mounts `./data` for storing cookies
+- Mounts `./images` for storing publish images
+- Exposes port 18060 for MCP connection
+
+For detailed instructions, please refer to: [Docker Deployment Guide](./docker/README.md)
+
+</details>
+
 For Windows issues, check here first: [Windows Installation Guide](./docs/windows_guide.md)
 
 ### 1.2. Login

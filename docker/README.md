@@ -1,8 +1,11 @@
 # Docker 使用说明
-<!-- TOC depthFrom:2 -->
 
-- [1. 自己构建镜像](#1-自己构建镜像)
-- [2. 手动 Docker Compose](#2-手动 Docker Compose)
+## 0. 重点注意
+
+写在最前面。
+
+- 启动后，会产生一个 `images/` 目录，用于存储发布的图片。它会挂载到 Docker 容器里面。
+  如果要使用本地图片发布的话，请确保图片拷贝到 `./images/` 目录下，并且让 MCP 在发布的时候，指定文件夹为：`/app/images`，否则一定失败。
 
 ## 1. 自己构建镜像
 
@@ -10,7 +13,9 @@
 
 在有项目的Dockerfile的目录运行
 
-`docker build -t xpzouying/xiaohongshu-mcp .`
+```bash
+docker build -t xpzouying/xiaohongshu-mcp .
+```
 
 `xpzouying/xiaohongshu-mcp`为镜像名称和版本。
 
@@ -18,7 +23,7 @@
 
 ## 2. 手动 Docker Compose
 
-```
+```bash
 # 注意：在 docker-compose.yml 文件的同一个目录，或者手动指定 docker-compose.yml。
 
 # --- 启动 docker 容器 ---
