@@ -73,7 +73,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY --from=builder /out/app .
 
-# 4. 设置默认 Chrome 路径（rod 会用）
+# 4. 创建共享目录并设置权限
+RUN mkdir -p /app/images && \
+    chmod 777 /app/images
+
+# 5. 设置默认 Chrome 路径（rod 会用）
 ENV ROD_BROWSER_BIN=/usr/bin/google-chrome
 
 EXPOSE 18060
