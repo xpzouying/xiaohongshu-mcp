@@ -110,62 +110,33 @@ func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]in
 			title, len(imagePaths), len(tags))
 	}
 
-	// 根据是否有发布时间决定调用哪个服务
-	if publishTime != nil {
-		// 定时发布
-		req := &ScheduledPublishRequest{
-			Title:       title,
-			Content:     content,
-			Images:      imagePaths,
-			Tags:        tags,
-			PublishTime: publishTime,
-		}
+	// 构建统一的发布请求
+	req := &PublishRequest{
+		Title:       title,
+		Content:     content,
+		Images:      imagePaths,
+		Tags:        tags,
+		PublishTime: publishTime,
+	}
 
-		result, err := s.xiaohongshuService.PublishScheduledContent(ctx, req)
-		if err != nil {
-			return &MCPToolResult{
-				Content: []MCPContent{{
-					Type: "text",
-					Text: "定时发布失败: " + err.Error(),
-				}},
-				IsError: true,
-			}
-		}
-
-		resultText := fmt.Sprintf("定时发布设置成功: %+v", result)
+	// 执行发布（内部会根据 PublishTime 是否为空决定立即发布还是定时发布）
+	result, err := s.xiaohongshuService.PublishContent(ctx, req)
+	if err != nil {
 		return &MCPToolResult{
 			Content: []MCPContent{{
 				Type: "text",
-				Text: resultText,
+				Text: "发布失败: " + err.Error(),
 			}},
+			IsError: true,
 		}
-	} else {
-		// 立即发布
-		req := &PublishRequest{
-			Title:   title,
-			Content: content,
-			Images:  imagePaths,
-			Tags:    tags,
-		}
+	}
 
-		result, err := s.xiaohongshuService.PublishContent(ctx, req)
-		if err != nil {
-			return &MCPToolResult{
-				Content: []MCPContent{{
-					Type: "text",
-					Text: "发布失败: " + err.Error(),
-				}},
-				IsError: true,
-			}
-		}
-
-		resultText := fmt.Sprintf("内容发布成功: %+v", result)
-		return &MCPToolResult{
-			Content: []MCPContent{{
-				Type: "text",
-				Text: resultText,
-			}},
-		}
+	resultText := fmt.Sprintf("发布操作完成: %+v", result)
+	return &MCPToolResult{
+		Content: []MCPContent{{
+			Type: "text",
+			Text: resultText,
+		}},
 	}
 }
 

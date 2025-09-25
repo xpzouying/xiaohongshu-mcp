@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/mattn/go-runewidth"
 	"github.com/xpzouying/headless_browser"
@@ -22,10 +23,11 @@ func NewXiaohongshuService() *XiaohongshuService {
 
 // PublishRequest 发布请求
 type PublishRequest struct {
-	Title   string   `json:"title" binding:"required"`
-	Content string   `json:"content" binding:"required"`
-	Images  []string `json:"images" binding:"required,min=1"`
-	Tags    []string `json:"tags,omitempty"`
+	Title       string     `json:"title" binding:"required"`
+	Content     string     `json:"content" binding:"required"`
+	Images      []string   `json:"images" binding:"required,min=1"`
+	Tags        []string   `json:"tags,omitempty"`
+	PublishTime *time.Time `json:"publish_time,omitempty"`
 }
 
 // LoginStatusResponse 登录状态响应
@@ -79,7 +81,7 @@ func (s *XiaohongshuService) CheckLoginStatus(ctx context.Context) (*LoginStatus
 	return response, nil
 }
 
-// PublishContent 发布内容
+// PublishContent 发布内容（支持立即发布和定时发布）
 func (s *XiaohongshuService) PublishContent(ctx context.Context, req *PublishRequest) (*PublishResponse, error) {
 	// 验证标题长度
 	// 小红书限制：最大40个单位长度
@@ -94,27 +96,58 @@ func (s *XiaohongshuService) PublishContent(ctx context.Context, req *PublishReq
 		return nil, err
 	}
 
-	// 构建发布内容
-	content := xiaohongshu.PublishImageContent{
-		Title:      req.Title,
-		Content:    req.Content,
-		Tags:       req.Tags,
-		ImagePaths: imagePaths,
-	}
+	// 根据是否有定时发布时间决定执行方式
+	if req.PublishTime != nil {
+		// 定时发布
+		content := xiaohongshu.ScheduledPublishImageContent{
+			Title:       req.Title,
+			Content:     req.Content,
+			Tags:        req.Tags,
+			ImagePaths:  imagePaths,
+			PublishTime: req.PublishTime,
+		}
 
-	// 执行发布
-	if err := s.publishContent(ctx, content); err != nil {
-		return nil, err
-	}
+		if err := s.publishScheduledContent(ctx, content); err != nil {
+			return nil, err
+		}
 
-	response := &PublishResponse{
-		Title:   req.Title,
-		Content: req.Content,
-		Images:  len(imagePaths),
-		Status:  "发布完成",
-	}
+		var statusMessage string
+		if req.PublishTime != nil {
+			statusMessage = fmt.Sprintf("定时发布设置成功，预定发布时间: %s", req.PublishTime.Format("2006-01-02 15:04:05"))
+		} else {
+			statusMessage = "立即发布完成"
+		}
 
-	return response, nil
+		response := &PublishResponse{
+			Title:   req.Title,
+			Content: req.Content,
+			Images:  len(imagePaths),
+			Status:  statusMessage,
+		}
+
+		return response, nil
+	} else {
+		// 立即发布
+		content := xiaohongshu.PublishImageContent{
+			Title:      req.Title,
+			Content:    req.Content,
+			Tags:       req.Tags,
+			ImagePaths: imagePaths,
+		}
+
+		if err := s.publishContent(ctx, content); err != nil {
+			return nil, err
+		}
+
+		response := &PublishResponse{
+			Title:   req.Title,
+			Content: req.Content,
+			Images:  len(imagePaths),
+			Status:  "发布完成",
+		}
+
+		return response, nil
+	}
 }
 
 // processImages 处理图片列表，支持URL下载和本地路径
@@ -138,51 +171,6 @@ func (s *XiaohongshuService) publishContent(ctx context.Context, content xiaohon
 
 	// 执行发布
 	return action.Publish(ctx, content)
-}
-
-// PublishScheduledContent 执行定时发布内容
-func (s *XiaohongshuService) PublishScheduledContent(ctx context.Context, req *ScheduledPublishRequest) (*ScheduledPublishResponse, error) {
-	// 验证标题长度
-	// 小红书限制：最大40个单位长度
-	// 中文/日文/韩文占2个单位，英文/数字占1个单位
-	if titleWidth := runewidth.StringWidth(req.Title); titleWidth > 40 {
-		return nil, fmt.Errorf("标题长度超过限制")
-	}
-
-	// 处理图片：下载URL图片或使用本地路径
-	imagePaths, err := s.processImages(req.Images)
-	if err != nil {
-		return nil, err
-	}
-
-	// 构建定时发布内容
-	content := xiaohongshu.ScheduledPublishImageContent{
-		Title:       req.Title,
-		Content:     req.Content,
-		Tags:        req.Tags,
-		ImagePaths:  imagePaths,
-		PublishTime: req.PublishTime,
-	}
-
-	// 执行定时发布
-	if err := s.publishScheduledContent(ctx, content); err != nil {
-		return nil, err
-	}
-
-	var message string
-	if req.PublishTime != nil {
-		message = fmt.Sprintf("定时发布设置成功，预定发布时间: %s", req.PublishTime.Format("2006-01-02 15:04:05"))
-	} else {
-		message = "立即发布成功"
-	}
-
-	response := &ScheduledPublishResponse{
-		Success:     true,
-		Message:     message,
-		PublishTime: req.PublishTime,
-	}
-
-	return response, nil
 }
 
 // publishScheduledContent 执行定时发布
