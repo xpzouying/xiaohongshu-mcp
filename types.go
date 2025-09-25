@@ -57,8 +57,10 @@ type MCPToolResult struct {
 
 // MCPContent MCP 内容
 type MCPContent struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
+	Type     string `json:"type"`
+	Text     string `json:"text"`
+	MimeType string `json:"mimeType"`
+	Data     string `json:"data"`
 }
 
 // FeedDetailRequest Feed详情请求

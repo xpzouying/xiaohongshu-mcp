@@ -2,14 +2,18 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-
+	"github.com/go-rod/rod"
 	"github.com/mattn/go-runewidth"
+	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/headless_browser"
 	"github.com/xpzouying/xiaohongshu-mcp/browser"
 	"github.com/xpzouying/xiaohongshu-mcp/configs"
+	"github.com/xpzouying/xiaohongshu-mcp/cookies"
 	"github.com/xpzouying/xiaohongshu-mcp/pkg/downloader"
 	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
+	"time"
 )
 
 // XiaohongshuService 小红书业务服务
@@ -32,6 +36,13 @@ type PublishRequest struct {
 type LoginStatusResponse struct {
 	IsLoggedIn bool   `json:"is_logged_in"`
 	Username   string `json:"username,omitempty"`
+}
+
+// LoginQrcodeResponse 登录扫码二维码
+type LoginQrcodeResponse struct {
+	Timeout    string `json:"timeout"`
+	IsLoggedIn bool   `json:"is_logged_in"`
+	Img        string `json:"img,omitempty"`
 }
 
 // PublishResponse 发布响应
@@ -77,6 +88,54 @@ func (s *XiaohongshuService) CheckLoginStatus(ctx context.Context) (*LoginStatus
 	}
 
 	return response, nil
+}
+
+// GetLoginQrcode 获取登录的扫码二维码
+func (s *XiaohongshuService) GetLoginQrcode(ctx context.Context) (*LoginQrcodeResponse, error) {
+	b := newBrowser()
+	page := b.NewPage()
+
+	deferFunc := func() {
+		_ = page.Close()
+		b.Close()
+	}
+
+	loginAction := xiaohongshu.NewLogin(page)
+
+	img, loggedIn, err := loginAction.FetchQrcodeImage(ctx)
+	if err != nil || loggedIn {
+		defer deferFunc()
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	timeout := 4 * time.Minute
+
+	if !loggedIn {
+		go func() {
+			ctxTimeout, cancel := context.WithTimeout(context.Background(), timeout)
+			defer cancel()
+			defer deferFunc()
+
+			if loginAction.WaitForLogin(ctxTimeout) {
+				if er := saveCookies(page); er != nil {
+					logrus.Errorf("failed to save cookies: %v", er)
+				}
+			}
+		}()
+	}
+
+	return &LoginQrcodeResponse{
+		Timeout: func() string {
+			if loggedIn {
+				return "0s"
+			}
+			return timeout.String()
+		}(),
+		Img:        img,
+		IsLoggedIn: loggedIn,
+	}, nil
 }
 
 // PublishContent 发布内容
@@ -265,4 +324,19 @@ func (s *XiaohongshuService) PostCommentToFeed(ctx context.Context, feedID, xsec
 
 func newBrowser() *headless_browser.Browser {
 	return browser.NewBrowser(configs.IsHeadless(), browser.WithBinPath(configs.GetBinPath()))
+}
+
+func saveCookies(page *rod.Page) error {
+	cks, err := page.Browser().GetCookies()
+	if err != nil {
+		return err
+	}
+
+	data, err := json.Marshal(cks)
+	if err != nil {
+		return err
+	}
+
+	cookieLoader := cookies.NewLoadCookie(cookies.GetCookiesFilePath())
+	return cookieLoader.SaveCookies(data)
 }
