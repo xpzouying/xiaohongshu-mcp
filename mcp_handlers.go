@@ -130,6 +130,51 @@ func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]in
 	}
 }
 
+// handlePublishVideo 处理发布视频
+func (s *AppServer) handlePublishVideo(ctx context.Context, args map[string]interface{}) *MCPToolResult {
+    logrus.Info("MCP: 发布视频内容")
+
+    title, _ := args["title"].(string)
+    content, _ := args["content"].(string)
+    video, _ := args["video"].(string)
+    tagsInterface, _ := args["tags"].([]interface{})
+
+    var tags []string
+    for _, tag := range tagsInterface {
+        if tagStr, ok := tag.(string); ok {
+            tags = append(tags, tagStr)
+        }
+    }
+
+    logrus.Infof("MCP: 发布视频 - 标题: %s, 标签数量: %d", title, len(tags))
+
+    req := &PublishVideoRequest{
+        Title:   title,
+        Content: content,
+        Video:   video,
+        Tags:    tags,
+    }
+
+    result, err := s.xiaohongshuService.PublishVideo(ctx, req)
+    if err != nil {
+        return &MCPToolResult{
+            Content: []MCPContent{{
+                Type: "text",
+                Text: "发布视频失败: " + err.Error(),
+            }},
+            IsError: true,
+        }
+    }
+
+    resultText := fmt.Sprintf("视频发布成功: %+v", result)
+    return &MCPToolResult{
+        Content: []MCPContent{{
+            Type: "text",
+            Text: resultText,
+        }},
+    }
+}
+
 // handleListFeeds 处理获取Feeds列表
 func (s *AppServer) handleListFeeds(ctx context.Context) *MCPToolResult {
 	logrus.Info("MCP: 获取Feeds列表")
