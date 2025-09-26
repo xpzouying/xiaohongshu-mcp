@@ -26,10 +26,18 @@ func NewXiaohongshuService() *XiaohongshuService {
 
 // PublishRequest 发布请求
 type PublishRequest struct {
-	Title   string   `json:"title" binding:"required"`
-	Content string   `json:"content" binding:"required"`
-	Images  []string `json:"images" binding:"required,min=1"`
-	Tags    []string `json:"tags,omitempty"`
+    Title   string   `json:"title" binding:"required"`
+    Content string   `json:"content" binding:"required"`
+    Images  []string `json:"images" binding:"required,min=1"`
+    Tags    []string `json:"tags,omitempty"`
+}
+
+// PublishVideoRequest 发布视频请求
+type PublishVideoRequest struct {
+    Title   string   `json:"title" binding:"required"`
+    Content string   `json:"content" binding:"required"`
+    Video   string   `json:"video"  binding:"required"`
+    Tags    []string `json:"tags,omitempty"`
 }
 
 // LoginStatusResponse 登录状态响应
@@ -47,11 +55,20 @@ type LoginQrcodeResponse struct {
 
 // PublishResponse 发布响应
 type PublishResponse struct {
-	Title   string `json:"title"`
-	Content string `json:"content"`
-	Images  int    `json:"images"`
-	Status  string `json:"status"`
-	PostID  string `json:"post_id,omitempty"`
+    Title   string `json:"title"`
+    Content string `json:"content"`
+    Images  int    `json:"images"`
+    Status  string `json:"status"`
+    PostID  string `json:"post_id,omitempty"`
+}
+
+// PublishVideoResponse 发布视频响应
+type PublishVideoResponse struct {
+    Title   string `json:"title"`
+    Content string `json:"content"`
+    Video   string `json:"video"`
+    Status  string `json:"status"`
+    PostID  string `json:"post_id,omitempty"`
 }
 
 // FeedsListResponse Feeds列表响应
@@ -178,8 +195,8 @@ func (s *XiaohongshuService) PublishContent(ctx context.Context, req *PublishReq
 
 // processImages 处理图片列表，支持URL下载和本地路径
 func (s *XiaohongshuService) processImages(images []string) ([]string, error) {
-	processor := downloader.NewImageProcessor()
-	return processor.ProcessImages(images)
+    processor := downloader.NewImageProcessor()
+    return processor.ProcessImages(images)
 }
 
 // publishContent 执行内容发布
@@ -197,6 +214,61 @@ func (s *XiaohongshuService) publishContent(ctx context.Context, content xiaohon
 
 	// 执行发布
 	return action.Publish(ctx, content)
+}
+
+// PublishVideo 发布视频
+func (s *XiaohongshuService) PublishVideo(ctx context.Context, req *PublishVideoRequest) (*PublishVideoResponse, error) {
+    if titleWidth := runewidth.StringWidth(req.Title); titleWidth > 40 {
+        return nil, fmt.Errorf("标题长度超过限制")
+    }
+
+    // 处理视频：下载URL或使用本地路径
+    videoPath, err := s.processVideo(req.Video)
+    if err != nil {
+        return nil, err
+    }
+
+    content := xiaohongshu.PublishVideoContent{
+        Title:     req.Title,
+        Content:   req.Content,
+        Tags:      req.Tags,
+        VideoPath: videoPath,
+    }
+
+    if err := s.publishVideo(ctx, content); err != nil {
+        return nil, err
+    }
+
+    response := &PublishVideoResponse{
+        Title:   req.Title,
+        Content: req.Content,
+        Video:   videoPath,
+        Status:  "发布完成",
+    }
+
+    return response, nil
+}
+
+// processVideo 处理视频（URL 下载或本地路径）
+func (s *XiaohongshuService) processVideo(video string) (string, error) {
+    processor := downloader.NewVideoProcessor()
+    return processor.ProcessVideo(video)
+}
+
+// publishVideo 执行视频发布
+func (s *XiaohongshuService) publishVideo(ctx context.Context, content xiaohongshu.PublishVideoContent) error {
+    b := newBrowser()
+    defer b.Close()
+
+    page := b.NewPage()
+    defer page.Close()
+
+    action, err := xiaohongshu.NewPublishVideoAction(page)
+    if err != nil {
+        return err
+    }
+
+    return action.PublishVideo(ctx, content)
 }
 
 // ListFeeds 获取Feeds列表
