@@ -206,6 +206,35 @@ func (s *AppServer) processToolsList(request *JSONRPCRequest) *JSONRPCResponse {
 			},
 		},
 		{
+			"name":        "publish_video",
+			"description": "发布小红书视频内容（仅支持单个视频）",
+			"inputSchema": map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"title": map[string]interface{}{
+						"type":        "string",
+						"description": "内容标题（小红书限制：最多20个中文字或英文单词）",
+					},
+					"content": map[string]interface{}{
+						"type":        "string",
+						"description": "正文内容，不包含以#开头的标签内容，所有话题标签都用tags参数来生成和提供即可",
+					},
+					"video": map[string]interface{}{
+						"type":        "string",
+						"description": "视频路径或URL（仅支持一个）。支持两种方式：1. HTTP/HTTPS视频链接（自动下载）；2. 本地视频绝对路径（推荐）",
+					},
+					"tags": map[string]interface{}{
+						"type":        "array",
+						"description": "话题标签列表（可选）",
+						"items": map[string]interface{}{
+							"type": "string",
+						},
+					},
+				},
+				"required": []string{"title", "content", "video"},
+			},
+		},
+		{
 			"name":        "list_feeds",
 			"description": "获取用户发布的内容列表",
 			"inputSchema": map[string]interface{}{
@@ -323,6 +352,8 @@ func (s *AppServer) processToolCall(ctx context.Context, request *JSONRPCRequest
 		result = s.handleGetLoginQrcode(ctx)
 	case "publish_content":
 		result = s.handlePublishContent(ctx, toolArgs)
+	case "publish_video":
+		result = s.handlePublishVideo(ctx, toolArgs)
 	case "list_feeds":
 		result = s.handleListFeeds(ctx)
 	case "search_feeds":
