@@ -195,7 +195,7 @@ func (s *AppServer) processToolsList(request *JSONRPCRequest) *JSONRPCResponse {
 					},
 					"publish_time": map[string]interface{}{
 						"type":        "string",
-						"description": "定时发布时间（可选），支持格式：2006-01-02 15:04:05, 2006-01-02 15:04, 2006/01/02 15:04:05, 2006/01/02 15:04。留空表示立即发布。时间必须是未来时间。",
+						"description": "定时发布时间（可选），支持格式：2006-01-02 15:04:05, 2006-01-02 15:04, 2006/01/02 15:04:05, 2006/01/02 15:04。留空表示立即发布。时间范围：当前时间后1小时至24小时内。",
 					},
 				},
 				"required": []string{"title", "content", "images"},

@@ -90,12 +90,26 @@ func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]in
 			}
 		}
 
-		// 检查发布时间是否在未来
-		if publishTime.Before(time.Now()) {
+		// 检查发布时间范围（1小时到24小时）
+		now := time.Now()
+		minTime := now.Add(1 * time.Hour)
+		maxTime := now.Add(24 * time.Hour)
+
+		if publishTime.Before(minTime) {
 			return &MCPToolResult{
 				Content: []MCPContent{{
 					Type: "text",
-					Text: "发布时间必须是未来时间",
+					Text: "定时发布时间必须至少在1小时后",
+				}},
+				IsError: true,
+			}
+		}
+
+		if publishTime.After(maxTime) {
+			return &MCPToolResult{
+				Content: []MCPContent{{
+					Type: "text",
+					Text: "定时发布时间不能超过24小时后",
 				}},
 				IsError: true,
 			}
