@@ -254,17 +254,26 @@ go env -w  GOPROXY=https://goproxy.io,direct
 
 Using Docker deployment is the simplest method, requiring no development environment installation.
 
-**1. Build Image**
+**1. Pull Image from Docker Hub (Recommended)**
+
+We provide pre-built Docker images that can be directly pulled from Docker Hub:
 
 ```bash
-# Run in project root directory
-docker build -t xpzouying/xiaohongshu-mcp .
+# Pull the latest image
+docker pull xpzouying/xiaohongshu-mcp
 ```
 
-**2. Start with Docker Compose**
+Docker Hub URL: [https://hub.docker.com/r/xpzouying/xiaohongshu-mcp](https://hub.docker.com/r/xpzouying/xiaohongshu-mcp)
+
+**2. Start with Docker Compose (Recommended)**
+
+We provide a pre-configured `docker-compose.yml` file that can be used directly:
 
 ```bash
-# Enter docker directory
+# Download docker-compose.yml
+wget https://raw.githubusercontent.com/xpzouying/xiaohongshu-mcp/main/docker/docker-compose.yml
+
+# Or if you've already cloned the project, enter the docker directory
 cd docker
 
 # Start service
@@ -277,7 +286,16 @@ docker compose logs -f
 docker compose stop
 ```
 
-**3. Configuration Notes**
+**3. Build Image Yourself (Optional)**
+
+If you need to customize or modify the code, you can build the image yourself:
+
+```bash
+# Run in project root directory
+docker build -t xpzouying/xiaohongshu-mcp .
+```
+
+**4. Configuration Notes**
 
 The Docker version automatically:
 - Configures Chrome browser and Chinese fonts
