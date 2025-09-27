@@ -254,17 +254,26 @@ go env -w  GOPROXY=https://goproxy.io,direct
 
 使用 Docker 部署是最简单的方式，无需安装任何开发环境。
 
-**1. 构建镜像**
+**1. 从 Docker Hub 拉取镜像（推荐）**
+
+我们提供了预构建的 Docker 镜像，可以直接从 Docker Hub 拉取使用：
 
 ```bash
-# 在项目根目录运行
-docker build -t xpzouying/xiaohongshu-mcp .
+# 拉取最新镜像
+docker pull xpzouying/xiaohongshu-mcp
 ```
 
-**2. 使用 Docker Compose 启动**
+Docker Hub 地址：[https://hub.docker.com/r/xpzouying/xiaohongshu-mcp](https://hub.docker.com/r/xpzouying/xiaohongshu-mcp)
+
+**2. 使用 Docker Compose 启动（推荐）**
+
+我们提供了配置好的 `docker-compose.yml` 文件，可以直接使用：
 
 ```bash
-# 进入 docker 目录
+# 下载 docker-compose.yml
+wget https://raw.githubusercontent.com/xpzouying/xiaohongshu-mcp/main/docker/docker-compose.yml
+
+# 或者如果已经克隆了项目，进入 docker 目录
 cd docker
 
 # 启动服务
@@ -277,7 +286,14 @@ docker compose logs -f
 docker compose stop
 ```
 
-**3. 配置说明**
+**3. 自己构建镜像（可选）**
+
+```bash
+# 在项目根目录运行
+docker build -t xpzouying/xiaohongshu-mcp .
+```
+
+**4. 配置说明**
 
 Docker 版本会自动：
 - 配置 Chrome 浏览器和中文字体

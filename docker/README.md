@@ -7,9 +7,20 @@
 - 启动后，会产生一个 `images/` 目录，用于存储发布的图片。它会挂载到 Docker 容器里面。
   如果要使用本地图片发布的话，请确保图片拷贝到 `./images/` 目录下，并且让 MCP 在发布的时候，指定文件夹为：`/app/images`，否则一定失败。
 
-## 1. 自己构建镜像
+## 1. 获取 Docker 镜像
 
-可以使用源码自己构建镜像，如下：
+### 1.1 从 Docker Hub 拉取（推荐）
+
+我们提供了预构建的 Docker 镜像，可以直接从 Docker Hub 拉取使用：
+
+```bash
+# 拉取最新镜像
+docker pull xpzouying/xiaohongshu-mcp
+```
+
+Docker Hub 地址：[https://hub.docker.com/r/xpzouying/xiaohongshu-mcp](https://hub.docker.com/r/xpzouying/xiaohongshu-mcp)
+
+### 1.2 自己构建镜像（可选）
 
 在有项目的Dockerfile的目录运行
 
