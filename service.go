@@ -26,10 +26,11 @@ func NewXiaohongshuService() *XiaohongshuService {
 
 // PublishRequest 发布请求
 type PublishRequest struct {
-	Title   string   `json:"title" binding:"required"`
-	Content string   `json:"content" binding:"required"`
-	Images  []string `json:"images" binding:"required,min=1"`
-	Tags    []string `json:"tags,omitempty"`
+	Title       string     `json:"title" binding:"required"`
+	Content     string     `json:"content" binding:"required"`
+	Images      []string   `json:"images" binding:"required,min=1"`
+	Tags        []string   `json:"tags,omitempty"`
+	PublishTime *time.Time `json:"publish_time,omitempty"`
 }
 
 // LoginStatusResponse 登录状态响应
@@ -153,12 +154,13 @@ func (s *XiaohongshuService) PublishContent(ctx context.Context, req *PublishReq
 		return nil, err
 	}
 
-	// 构建发布内容
+	// 构建统一的发布内容结构体
 	content := xiaohongshu.PublishImageContent{
-		Title:      req.Title,
-		Content:    req.Content,
-		Tags:       req.Tags,
-		ImagePaths: imagePaths,
+		Title:       req.Title,
+		Content:     req.Content,
+		Tags:        req.Tags,
+		ImagePaths:  imagePaths,
+		PublishTime: req.PublishTime, // 可以为nil（立即发布）或指定时间（定时发布）
 	}
 
 	// 执行发布
