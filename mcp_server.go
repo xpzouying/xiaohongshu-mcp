@@ -12,10 +12,11 @@ import (
 
 // PublishContentArgs 发布内容的参数
 type PublishContentArgs struct {
-	Title   string   `json:"title" jsonschema:"内容标题（小红书限制：最多20个中文字或英文单词）"`
-	Content string   `json:"content" jsonschema:"正文内容，不包含以#开头的标签内容，所有话题标签都用tags参数来生成和提供即可"`
-	Images  []string `json:"images" jsonschema:"图片路径列表（至少需要1张图片）。支持两种方式：1. HTTP/HTTPS图片链接（自动下载）；2. 本地图片绝对路径（推荐，如:/Users/user/image.jpg）"`
-	Tags    []string `json:"tags,omitempty" jsonschema:"话题标签列表（可选参数），如 [美食, 旅行, 生活]"`
+	Title       string   `json:"title" jsonschema:"内容标题（小红书限制：最多20个中文字或英文单词）"`
+	Content     string   `json:"content" jsonschema:"正文内容，不包含以#开头的标签内容，所有话题标签都用tags参数来生成和提供即可"`
+	Images      []string `json:"images" jsonschema:"图片路径列表（至少需要1张图片）。支持两种方式：1. HTTP/HTTPS图片链接（自动下载）；2. 本地图片绝对路径（推荐，如:/Users/user/image.jpg）"`
+	Tags        []string `json:"tags,omitempty" jsonschema:"话题标签列表（可选参数），如 [美食, 旅行, 生活]"`
+	PublishTime string   `json:"publish_time,omitempty" jsonschema:"定时发布时间，格式为2006-01-02 15:04:05"`
 }
 
 // SearchFeedsArgs 搜索内容的参数
@@ -91,9 +92,11 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "publish_content",
-			Description: "发布小红书图文内容",
+			Description: "发布小红书图文内容（支持立即发布和定时发布）",
 		},
 		func(ctx context.Context, req *mcp.CallToolRequest, args PublishContentArgs) (*mcp.CallToolResult, any, error) {
+			logrus.Infof("MCP Server: 收到发布请求，args: %+v", args)
+
 			// 转换参数格式到现有的 handler
 			argsMap := map[string]interface{}{
 				"title":   args.Title,
@@ -101,6 +104,16 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				"images":  convertStringsToInterfaces(args.Images),
 				"tags":    convertStringsToInterfaces(args.Tags),
 			}
+
+			// 添加 publish_time 参数（如果提供了的话）
+			if args.PublishTime != "" {
+				logrus.Infof("MCP Server: 检测到publish_time参数: %s", args.PublishTime)
+				argsMap["publish_time"] = args.PublishTime
+			} else {
+				logrus.Info("MCP Server: 没有publish_time参数，将立即发布")
+			}
+
+			logrus.Infof("MCP Server: 传递给handler的参数: %+v", argsMap)
 			result := appServer.handlePublishContent(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
 		},

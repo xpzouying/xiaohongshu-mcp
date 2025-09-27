@@ -78,12 +78,17 @@ func (s *AppServer) handleGetLoginQrcode(ctx context.Context) *MCPToolResult {
 
 // handlePublishContent 处理发布内容（支持立即发布和定时发布）
 func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]interface{}) *MCPToolResult {
+	logrus.Info("MCP: 发布内容")
+	logrus.Infof("MCP: 收到的参数: %+v", args)
+
 	// 解析参数
 	title, _ := args["title"].(string)
 	content, _ := args["content"].(string)
 	imagePathsInterface, _ := args["images"].([]interface{})
 	tagsInterface, _ := args["tags"].([]interface{})
 	publishTimeStr, _ := args["publish_time"].(string) // 可选的定时发布时间
+
+	logrus.Infof("MCP: 解析的publishTimeStr: '%s'", publishTimeStr)
 
 	var imagePaths []string
 	for _, path := range imagePathsInterface {

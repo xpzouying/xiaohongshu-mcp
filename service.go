@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"time"
-
 	"github.com/go-rod/rod"
 	"github.com/mattn/go-runewidth"
 	"github.com/sirupsen/logrus"
@@ -15,6 +13,7 @@ import (
 	"github.com/xpzouying/xiaohongshu-mcp/cookies"
 	"github.com/xpzouying/xiaohongshu-mcp/pkg/downloader"
 	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
+	"time"
 )
 
 // XiaohongshuService 小红书业务服务
@@ -140,7 +139,7 @@ func (s *XiaohongshuService) GetLoginQrcode(ctx context.Context) (*LoginQrcodeRe
 	}, nil
 }
 
-// PublishContent 发布内容（支持立即发布和定时发布）
+// PublishContent 发布内容
 func (s *XiaohongshuService) PublishContent(ctx context.Context, req *PublishRequest) (*PublishResponse, error) {
 	// 验证标题长度
 	// 小红书限制：最大40个单位长度
@@ -155,58 +154,28 @@ func (s *XiaohongshuService) PublishContent(ctx context.Context, req *PublishReq
 		return nil, err
 	}
 
-	// 根据是否有定时发布时间决定执行方式
-	if req.PublishTime != nil {
-		// 定时发布
-		content := xiaohongshu.ScheduledPublishImageContent{
-			Title:       req.Title,
-			Content:     req.Content,
-			Tags:        req.Tags,
-			ImagePaths:  imagePaths,
-			PublishTime: req.PublishTime,
-		}
-
-		if err := s.publishScheduledContent(ctx, content); err != nil {
-			return nil, err
-		}
-
-		var statusMessage string
-		if req.PublishTime != nil {
-			statusMessage = fmt.Sprintf("定时发布设置成功，预定发布时间: %s", req.PublishTime.Format("2006-01-02 15:04:05"))
-		} else {
-			statusMessage = "立即发布完成"
-		}
-
-		response := &PublishResponse{
-			Title:   req.Title,
-			Content: req.Content,
-			Images:  len(imagePaths),
-			Status:  statusMessage,
-		}
-
-		return response, nil
-	} else {
-		// 立即发布
-		content := xiaohongshu.PublishImageContent{
-			Title:      req.Title,
-			Content:    req.Content,
-			Tags:       req.Tags,
-			ImagePaths: imagePaths,
-		}
-
-		if err := s.publishContent(ctx, content); err != nil {
-			return nil, err
-		}
-
-		response := &PublishResponse{
-			Title:   req.Title,
-			Content: req.Content,
-			Images:  len(imagePaths),
-			Status:  "发布完成",
-		}
-
-		return response, nil
+	// 构建统一的发布内容结构体
+	content := xiaohongshu.PublishImageContent{
+		Title:       req.Title,
+		Content:     req.Content,
+		Tags:        req.Tags,
+		ImagePaths:  imagePaths,
+		PublishTime: req.PublishTime, // 可以为nil（立即发布）或指定时间（定时发布）
 	}
+
+	// 执行发布
+	if err := s.publishContent(ctx, content); err != nil {
+		return nil, err
+	}
+
+	response := &PublishResponse{
+		Title:   req.Title,
+		Content: req.Content,
+		Images:  len(imagePaths),
+		Status:  "发布完成",
+	}
+
+	return response, nil
 }
 
 // processImages 处理图片列表，支持URL下载和本地路径
@@ -230,23 +199,6 @@ func (s *XiaohongshuService) publishContent(ctx context.Context, content xiaohon
 
 	// 执行发布
 	return action.Publish(ctx, content)
-}
-
-// publishScheduledContent 执行定时发布
-func (s *XiaohongshuService) publishScheduledContent(ctx context.Context, content xiaohongshu.ScheduledPublishImageContent) error {
-	b := newBrowser()
-	defer b.Close()
-
-	page := b.NewPage()
-	defer page.Close()
-
-	action, err := xiaohongshu.NewPublishImageAction(page)
-	if err != nil {
-		return err
-	}
-
-	// 执行定时发布
-	return action.PublishScheduled(ctx, content)
 }
 
 // ListFeeds 获取Feeds列表

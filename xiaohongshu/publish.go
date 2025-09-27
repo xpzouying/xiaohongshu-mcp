@@ -13,16 +13,8 @@ import (
 	"github.com/pkg/errors"
 )
 
-// PublishImageContent 发布图文内容
+// PublishImageContent 发布图文内容（统一支持立即发布和定时发布）
 type PublishImageContent struct {
-	Title      string
-	Content    string
-	Tags       []string
-	ImagePaths []string
-}
-
-// ScheduledPublishImageContent 定时发布图文内容
-type ScheduledPublishImageContent struct {
 	Title       string
 	Content     string
 	Tags        []string
@@ -42,27 +34,15 @@ func NewPublishImageAction(page *rod.Page) (*PublishAction, error) {
 
 	pp := page.Timeout(60 * time.Second)
 
-	if err := pp.Navigate(urlOfPublic); err != nil {
-		return nil, errors.Wrap(err, "导航到发布页面失败")
-	}
+	pp.MustNavigate(urlOfPublic)
 
-	uploadContentElem, err := pp.Element(`div.upload-content`)
-	if err != nil {
-		return nil, errors.Wrap(err, "找不到上传内容元素")
-	}
-
-	if err := uploadContentElem.WaitVisible(); err != nil {
-		return nil, errors.Wrap(err, "等待上传内容可见失败")
-	}
+	pp.MustElement(`div.upload-content`).MustWaitVisible()
 	slog.Info("wait for upload-content visible success")
 
 	// 等待一段时间确保页面完全加载
 	time.Sleep(1 * time.Second)
 
-	createElems, err := pp.Elements("div.creator-tab")
-	if err != nil {
-		return nil, errors.Wrap(err, "找不到创建标签元素")
-	}
+	createElems := pp.MustElements("div.creator-tab")
 
 	// 过滤掉隐藏的元素
 	var visibleElems []*rod.Element
@@ -99,6 +79,7 @@ func NewPublishImageAction(page *rod.Page) (*PublishAction, error) {
 	}, nil
 }
 
+// Publish 统一的发布方法（支持立即发布和定时发布）
 func (p *PublishAction) Publish(ctx context.Context, content PublishImageContent) error {
 	if len(content.ImagePaths) == 0 {
 		return errors.New("图片不能为空")
@@ -110,26 +91,17 @@ func (p *PublishAction) Publish(ctx context.Context, content PublishImageContent
 		return errors.Wrap(err, "小红书上传图片失败")
 	}
 
-	if err := submitPublish(page, content.Title, content.Content, content.Tags); err != nil {
-		return errors.Wrap(err, "小红书发布失败")
-	}
-
-	return nil
-}
-
-func (p *PublishAction) PublishScheduled(ctx context.Context, content ScheduledPublishImageContent) error {
-	if len(content.ImagePaths) == 0 {
-		return errors.New("图片不能为空")
-	}
-
-	page := p.page.Context(ctx)
-
-	if err := uploadImages(page, content.ImagePaths); err != nil {
-		return errors.Wrap(err, "小红书上传图片失败")
-	}
-
-	if err := submitScheduledPublish(page, content.Title, content.Content, content.Tags, content.PublishTime); err != nil {
-		return errors.Wrap(err, "小红书定时发布失败")
+	// 根据 PublishTime 是否为空决定立即发布还是定时发布
+	if content.PublishTime != nil {
+		// 定时发布
+		if err := submitScheduledPublish(page, content.Title, content.Content, content.Tags, content.PublishTime); err != nil {
+			return errors.Wrap(err, "小红书定时发布失败")
+		}
+	} else {
+		// 立即发布
+		if err := submitPublish(page, content.Title, content.Content, content.Tags); err != nil {
+			return errors.Wrap(err, "小红书发布失败")
+		}
 	}
 
 	return nil
@@ -146,15 +118,10 @@ func uploadImages(page *rod.Page, imagesPaths []string) error {
 	}
 
 	// 等待上传输入框出现
-	uploadInput, err := pp.Element(".upload-input")
-	if err != nil {
-		return errors.Wrap(err, "找不到上传输入框")
-	}
+	uploadInput := pp.MustElement(".upload-input")
 
 	// 上传多个文件
-	if err := uploadInput.SetFiles(imagesPaths); err != nil {
-		return errors.Wrap(err, "设置上传文件失败")
-	}
+	uploadInput.MustSetFiles(imagesPaths...)
 
 	// 等待并验证上传完成
 	return waitForUploadComplete(pp, len(imagesPaths))
@@ -192,265 +159,54 @@ func waitForUploadComplete(page *rod.Page, expectedCount int) error {
 }
 
 func submitPublish(page *rod.Page, title, content string, tags []string) error {
-	// 使用更长的超时时间
-	pp := page.Timeout(30 * time.Second)
 
-	titleElem, err := pp.Element("div.d-input input")
-	if err != nil {
-		return errors.Wrap(err, "找不到标题输入框")
-	}
-
-	if err := titleElem.Input(title); err != nil {
-		return errors.Wrap(err, "输入标题失败")
-	}
+	titleElem := page.MustElement("div.d-input input")
+	titleElem.MustInput(title)
 
 	time.Sleep(1 * time.Second)
 
 	if contentElem, ok := getContentElement(page); ok {
-		if err := contentElem.Input(content); err != nil {
-			return errors.Wrap(err, "输入内容失败")
-		}
+		contentElem.MustInput(content)
+
 		inputTags(contentElem, tags)
+
 	} else {
 		return errors.New("没有找到内容输入框")
 	}
 
 	time.Sleep(1 * time.Second)
 
-	submitButton, err := pp.Element("div.submit button.d-button")
-	if err != nil {
-		return errors.Wrap(err, "找不到提交按钮")
-	}
-
-	if err := submitButton.Click(proto.InputMouseButtonLeft, 1); err != nil {
-		return errors.Wrap(err, "点击提交按钮失败")
-	}
+	submitButton := page.MustElement("div.submit div.d-button-content")
+	submitButton.MustClick()
 
 	time.Sleep(3 * time.Second)
 
 	return nil
 }
 
-func submitScheduledPublish(page *rod.Page, title, content string, tags []string, publishTime *time.Time) error {
-	// 使用更长的超时时间
-	pp := page.Timeout(30 * time.Second)
-
-	titleElem, err := pp.Element("div.d-input input")
-	if err != nil {
-		return errors.Wrap(err, "找不到标题输入框")
-	}
-
-	if err := titleElem.Input(title); err != nil {
-		return errors.Wrap(err, "输入标题失败")
-	}
-
-	time.Sleep(1 * time.Second)
-
-	if contentElem, ok := getContentElement(page); ok {
-		if err := contentElem.Input(content); err != nil {
-			return errors.Wrap(err, "输入内容失败")
-		}
-		inputTags(contentElem, tags)
-	} else {
-		return errors.New("没有找到内容输入框")
-	}
-
-	time.Sleep(1 * time.Second)
-
-	// 执行定时发布设置
-	var timeToSet time.Time
-	var isCustomTime bool
-
-	if publishTime != nil {
-		timeToSet = *publishTime
-		// 检查是否是用户自定义时间（与当前时间+1小时的差距超过5分钟）
-		defaultTime := time.Now().Add(1 * time.Hour)
-		if timeToSet.Sub(defaultTime).Abs() > 5*time.Minute {
-			isCustomTime = true
-			slog.Info("检测到用户自定义时间", "custom_time", timeToSet.Format("2006-01-02 15:04"))
-		} else {
-			slog.Info("使用接近默认的时间", "time", timeToSet.Format("2006-01-02 15:04"))
-		}
-	} else {
-		// 使用默认时间（当前时间+1小时）
-		timeToSet = time.Now().Add(1 * time.Hour)
-		isCustomTime = false
-		slog.Info("使用默认定时发布时间", "default_time", timeToSet.Format("2006-01-02 15:04"))
-	}
-
-	if err := setScheduledPublishTime(page, timeToSet, isCustomTime); err != nil {
-		return errors.Wrap(err, "设置定时发布时间失败")
-	}
-
-	time.Sleep(2 * time.Second) // 等待界面更新
-
-	// submitScheduledPublish 函数专用于定时发布，总是寻找"定时发布"按钮
-	var submitButton *rod.Element
-
-	// 使用更精确的选择器寻找定时发布按钮
-	submitButton, err = pp.Element("button.publishBtn")
-	if err != nil {
-		slog.Warn("找不到publishBtn按钮，尝试通过文本查找")
-		// 备用方案：通过span文本内容查找
-		submitButton, err = pp.Element("button:has(span:contains('定时发布'))")
-		if err != nil {
-			slog.Warn("通过文本也找不到，尝试第一个红色按钮")
-			// 最后备用方案：红色按钮
-			submitButton, err = pp.Element("button.red.publishBtn, button.d-button.red")
-			if err != nil {
-				return errors.Wrap(err, "找不到定时发布按钮")
-			}
-		}
-	}
-	slog.Info("找到定时发布按钮")
-
-	if err := submitButton.Click(proto.InputMouseButtonLeft, 1); err != nil {
-		return errors.Wrap(err, "点击提交按钮失败")
-	}
-
-	time.Sleep(3 * time.Second)
-
-	return nil
-}
-
-func setScheduledPublishTime(page *rod.Page, publishTime time.Time, isCustomTime bool) error {
-	slog.Info("设置定时发布选项")
-
-	// 使用合理的超时时间
-	pp := page.Timeout(10 * time.Second)
-
-	// 查找定时发布的 radio button - 根据精确的HTML结构更新选择器
-	// 使用精确的选择器直接找到定时发布的label
-	timingLabel, err := pp.Element("label.el-radio:has(input[value='1']) .el-radio__label:contains('定时发布')")
-	if err != nil {
-		// 备选方案：通过input的value找到对应的label
-		timingLabel, err = pp.Element("input.el-radio__original[value='1'][type='radio']")
-		if err == nil {
-			// 找到input后，获取其父级label
-			if parent1, err1 := timingLabel.Parent(); err1 == nil {
-				if parentLabel, parentErr := parent1.Parent(); parentErr == nil {
-					timingLabel = parentLabel
-					slog.Info("通过input找到父级label")
-				}
-			}
-		}
-	}
-
-	if err != nil {
-		return errors.Wrap(err, "找不到定时发布选项")
-	}
-
-	// 检查是否已经选中
-	if hasClass, classErr := timingLabel.Eval("() => this.classList.contains('is-checked')"); classErr == nil && hasClass != nil && hasClass.Value.Bool() {
-		slog.Info("定时发布选项已经被选中")
-	} else {
-		slog.Info("点击定时发布选项")
-		// 直接点击label元素
-		if err := timingLabel.Click(proto.InputMouseButtonLeft, 1); err != nil {
-			slog.Warn("直接点击失败，尝试JavaScript点击", "error", err)
-			if _, jsErr := timingLabel.Eval("() => this.click()"); jsErr != nil {
-				return errors.Wrap(err, "点击定时发布选项失败")
-			}
-			slog.Info("JavaScript点击成功")
-		} else {
-			slog.Info("直接点击成功")
-		}
-	}
-
-	// 等待一下让界面响应，确保定时发布选项生效
-	time.Sleep(1 * time.Second)
-
-	// 等待date-picker出现（这表明定时发布被正确选中）
-	datePicker, datePickerErr := pp.Timeout(5 * time.Second).Element("div.date-picker")
-	if datePickerErr == nil {
-		slog.Info("date-picker出现，定时发布选择成功")
-
-		// 获取时间输入框
-		timeInput, timeErr := datePicker.Element("input.el-input__inner")
-		if timeErr == nil {
-			timeFormatted := publishTime.Format("2006-01-02 15:04")
-
-			// 如果是自定义时间，需要设置具体时间
-			if isCustomTime {
-				slog.Info("设置自定义定时发布时间", "custom_time", timeFormatted)
-
-				// 先清空输入框
-				if err := timeInput.SelectAllText(); err != nil {
-					slog.Warn("选择全部文本失败", "error", err)
-				}
-
-				// 输入自定义时间
-				if err := timeInput.Input(timeFormatted); err != nil {
-					return errors.Wrap(err, "输入自定义时间失败")
-				}
-
-				// 按回车确认
-				time.Sleep(500 * time.Millisecond)
-				if keyActions, keyErr := timeInput.KeyActions(); keyErr == nil {
-					if err := keyActions.Press(input.Enter).Do(); err != nil {
-						slog.Warn("按回车确认时间失败", "error", err)
-					} else {
-						slog.Info("自定义时间设置完成", "time", timeFormatted)
-					}
-				} else {
-					slog.Warn("获取KeyActions失败", "error", keyErr)
-				}
-
-			} else {
-				slog.Info("使用系统默认定时发布时间（传入时间与当前时间差距较小）")
-			}
-
-			// 最终检查时间输入框的值
-			if timeValue, valueErr := timeInput.Attribute("value"); valueErr == nil && timeValue != nil && *timeValue != "" {
-				slog.Info("最终设置的定时发布时间", "time", *timeValue)
-			} else if placeholder, placeholderErr := timeInput.Attribute("placeholder"); placeholderErr == nil && placeholder != nil {
-				slog.Info("定时发布时间输入框为空，使用系统默认时间", "placeholder", *placeholder)
-			}
-
-		} else {
-			slog.Warn("无法找到定时发布时间输入框", "error", timeErr)
-		}
-	} else {
-		return errors.Wrap(datePickerErr, "未找到date-picker，定时发布选择可能失败")
-	}
-
-	// 再等待一下让界面完全稳定
-	time.Sleep(1 * time.Second)
-
-	slog.Info("定时发布时间设置完成")
-	return nil
-}
-
-// 查找内容输入框 - 使用多种方法处理不同的页面样式
+// 查找内容输入框 - 使用Race方法处理两种样式
 func getContentElement(page *rod.Page) (*rod.Element, bool) {
-	// 使用timeout来避免无限等待
-	pp := page.Timeout(10 * time.Second)
+	var foundElement *rod.Element
+	var found bool
 
-	// 方法1: 查找 contenteditable 的 div (新版界面)
-	if elem, err := pp.Element("div[contenteditable='true']"); err == nil {
-		slog.Info("找到 contenteditable div 内容输入框")
-		return elem, true
+	page.Race().
+		Element("div.ql-editor").MustHandle(func(e *rod.Element) {
+		foundElement = e
+		found = true
+	}).
+		ElementFunc(func(page *rod.Page) (*rod.Element, error) {
+			return findTextboxByPlaceholder(page)
+		}).MustHandle(func(e *rod.Element) {
+		foundElement = e
+		found = true
+	}).
+		MustDo()
+
+	if found {
+		return foundElement, true
 	}
 
-	// 方法2: 查找 TipTap 编辑器 (新版界面)
-	if elem, err := pp.Element("div.tiptap.ProseMirror"); err == nil {
-		slog.Info("找到 TipTap 内容编辑器")
-		return elem, true
-	}
-
-	// 方法3: 查找传统的 ql-editor (旧版界面)
-	if elem, err := pp.Element("div.ql-editor"); err == nil {
-		slog.Info("找到 ql-editor 内容输入框")
-		return elem, true
-	}
-
-	// 方法4: 通过placeholder查找 (备用方法)
-	if elem, err := findTextboxByPlaceholder(pp); err == nil {
-		slog.Info("通过 placeholder 找到内容输入框")
-		return elem, true
-	}
-
-	slog.Warn("所有方法都无法找到内容输入框")
+	slog.Warn("no content element found by any method")
 	return nil, false
 }
 
@@ -462,26 +218,16 @@ func inputTags(contentElem *rod.Element, tags []string) {
 	time.Sleep(1 * time.Second)
 
 	for i := 0; i < 20; i++ {
-		keyActions, err := contentElem.KeyActions()
-		if err != nil {
-			slog.Warn("获取KeyActions失败", "error", err)
-			break
-		}
-		if err := keyActions.Type(input.ArrowDown).Do(); err != nil {
-			slog.Warn("移动到内容末尾失败", "error", err)
-			break
-		}
+		contentElem.MustKeyActions().
+			Type(input.ArrowDown).
+			MustDo()
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	keyActions, err := contentElem.KeyActions()
-	if err != nil {
-		slog.Warn("获取KeyActions失败", "error", err)
-	} else {
-		if err := keyActions.Press(input.Enter).Press(input.Enter).Do(); err != nil {
-			slog.Warn("添加换行失败", "error", err)
-		}
-	}
+	contentElem.MustKeyActions().
+		Press(input.Enter).
+		Press(input.Enter).
+		MustDo()
 
 	time.Sleep(1 * time.Second)
 
@@ -492,17 +238,11 @@ func inputTags(contentElem *rod.Element, tags []string) {
 }
 
 func inputTag(contentElem *rod.Element, tag string) {
-	if err := contentElem.Input("#"); err != nil {
-		slog.Warn("输入#符号失败", "tag", tag, "error", err)
-		return
-	}
+	contentElem.MustInput("#")
 	time.Sleep(200 * time.Millisecond)
 
 	for _, char := range tag {
-		if err := contentElem.Input(string(char)); err != nil {
-			slog.Warn("输入标签字符失败", "tag", tag, "char", string(char), "error", err)
-			return
-		}
+		contentElem.MustInput(string(char))
 		time.Sleep(50 * time.Millisecond)
 	}
 
@@ -513,40 +253,26 @@ func inputTag(contentElem *rod.Element, tag string) {
 	if err == nil && topicContainer != nil {
 		firstItem, err := topicContainer.Element(".item")
 		if err == nil && firstItem != nil {
-			if err := firstItem.Click(proto.InputMouseButtonLeft, 1); err != nil {
-				slog.Warn("点击标签联想选项失败", "tag", tag, "error", err)
-			} else {
-				slog.Info("成功点击标签联想选项", "tag", tag)
-				time.Sleep(200 * time.Millisecond)
-				return
-			}
+			firstItem.MustClick()
+			slog.Info("成功点击标签联想选项", "tag", tag)
+			time.Sleep(200 * time.Millisecond)
 		} else {
 			slog.Warn("未找到标签联想选项，直接输入空格", "tag", tag)
-		}
-
-		// 如果没有找到联想选项或点击失败，输入空格结束
-		if err := contentElem.Input(" "); err != nil {
-			slog.Warn("输入空格失败", "tag", tag, "error", err)
+			// 如果没有找到联想选项，输入空格结束
+			contentElem.MustInput(" ")
 		}
 	} else {
 		slog.Warn("未找到标签联想下拉框，直接输入空格", "tag", tag)
 		// 如果没有找到下拉框，输入空格结束
-		if err := contentElem.Input(" "); err != nil {
-			slog.Warn("输入空格失败", "tag", tag, "error", err)
-		}
+		contentElem.MustInput(" ")
 	}
 
 	time.Sleep(500 * time.Millisecond) // 等待标签处理完成
 }
 
 func findTextboxByPlaceholder(page *rod.Page) (*rod.Element, error) {
-	// 使用带超时的页面实例
-	pp := page.Timeout(10 * time.Second)
-	elements, err := pp.Elements("p")
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to find p elements")
-	}
-	if len(elements) == 0 {
+	elements := page.MustElements("p")
+	if elements == nil {
 		return nil, errors.New("no p elements found")
 	}
 
@@ -626,4 +352,142 @@ func isElementVisible(elem *rod.Element) bool {
 	}
 
 	return visible
+}
+
+func submitScheduledPublish(page *rod.Page, title, content string, tags []string, publishTime *time.Time) error {
+	// 使用更长的超时时间
+	pp := page.Timeout(30 * time.Second)
+
+	titleElem := pp.MustElement("div.d-input input")
+	titleElem.MustInput(title)
+
+	time.Sleep(1 * time.Second)
+
+	if contentElem, ok := getContentElement(page); ok {
+		contentElem.MustInput(content)
+		inputTags(contentElem, tags)
+	} else {
+		return errors.New("没有找到内容输入框")
+	}
+
+	time.Sleep(1 * time.Second)
+
+	// 执行定时发布设置
+	var timeToSet time.Time
+	var isCustomTime bool
+
+	if publishTime != nil {
+		timeToSet = *publishTime
+		// 检查是否是用户自定义时间（与当前时间+1小时的差距超过5分钟）
+		defaultTime := time.Now().Add(1 * time.Hour)
+		if timeToSet.Sub(defaultTime).Abs() > 5*time.Minute {
+			isCustomTime = true
+		}
+	} else {
+		// 使用默认时间（当前时间+1小时）
+		timeToSet = time.Now().Add(1 * time.Hour)
+		isCustomTime = false
+	}
+
+	if err := setScheduledPublishTime(page, timeToSet, isCustomTime); err != nil {
+		return errors.Wrap(err, "设置定时发布时间失败")
+	}
+
+	time.Sleep(2 * time.Second) // 等待界面更新
+
+	// submitScheduledPublish 函数专用于定时发布，总是寻找"定时发布"按钮
+	var submitButton *rod.Element
+
+	// 使用更精确的选择器寻找定时发布按钮
+	submitButton, err := pp.Element("button.publishBtn")
+	if err != nil {
+		// 备用方案：通过span文本内容查找
+		submitButton, err = pp.Element("button:has(span:contains('定时发布'))")
+		if err != nil {
+			// 最后备用方案：红色按钮
+			submitButton, err = pp.Element("button.red.publishBtn, button.d-button.red")
+			if err != nil {
+				return errors.Wrap(err, "找不到定时发布按钮")
+			}
+		}
+	}
+
+	submitButton.MustClick()
+
+	time.Sleep(3 * time.Second)
+
+	return nil
+}
+
+func setScheduledPublishTime(page *rod.Page, publishTime time.Time, isCustomTime bool) error {
+	// 使用合理的超时时间
+	pp := page.Timeout(10 * time.Second)
+
+	// 查找定时发布的 radio button
+	timingLabel, err := pp.Element("label.el-radio:has(input[value='1']) .el-radio__label:contains('定时发布')")
+	if err != nil {
+		// 备选方案：通过input的value找到对应的label
+		timingLabel, err = pp.Element("input.el-radio__original[value='1'][type='radio']")
+		if err == nil {
+			// 找到input后，获取其父级label
+			if parent1, err1 := timingLabel.Parent(); err1 == nil {
+				if parentLabel, parentErr := parent1.Parent(); parentErr == nil {
+					timingLabel = parentLabel
+				}
+			}
+		}
+	}
+
+	if err != nil {
+		return errors.Wrap(err, "找不到定时发布选项")
+	}
+
+	// 检查是否已经选中
+	if hasClass, classErr := timingLabel.Eval("() => this.classList.contains('is-checked')"); classErr == nil && hasClass != nil && hasClass.Value.Bool() {
+		// 已选中
+	} else {
+		// 直接点击label元素
+		if err := timingLabel.Click(proto.InputMouseButtonLeft, 1); err != nil {
+			if _, jsErr := timingLabel.Eval("() => this.click()"); jsErr != nil {
+				return errors.Wrap(err, "点击定时发布选项失败")
+			}
+		}
+	}
+
+	// 等待一下让界面响应
+	time.Sleep(1 * time.Second)
+
+	// 等待date-picker出现
+	datePicker, datePickerErr := pp.Timeout(5 * time.Second).Element("div.date-picker")
+	if datePickerErr == nil {
+		// 获取时间输入框
+		timeInput, timeErr := datePicker.Element("input.el-input__inner")
+		if timeErr == nil {
+			timeFormatted := publishTime.Format("2006-01-02 15:04")
+
+			// 如果是自定义时间，需要设置具体时间
+			if isCustomTime {
+				// 先清空输入框
+				timeInput.MustSelectAllText()
+
+				// 输入自定义时间
+				if err := timeInput.Input(timeFormatted); err != nil {
+					return errors.Wrap(err, "输入自定义时间失败")
+				}
+
+				// 按回车确认
+				time.Sleep(500 * time.Millisecond)
+				if keyActions, keyErr := timeInput.KeyActions(); keyErr == nil {
+					keyActions.Press(input.Enter).MustDo()
+				}
+			}
+		}
+	} else {
+		return errors.Wrap(datePickerErr, "未找到date-picker，定时发布选择可能失败")
+	}
+
+	// 再等待一下让界面完全稳定
+	time.Sleep(1 * time.Second)
+
+	return nil
 }
