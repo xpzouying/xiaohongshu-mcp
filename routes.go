@@ -1,7 +1,10 @@
 package main
 
 import (
+	"net/http"
+
 	"github.com/gin-gonic/gin"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // setupRoutes 设置路由配置
@@ -20,8 +23,15 @@ func setupRoutes(appServer *AppServer) *gin.Engine {
 	// 健康检查
 	router.GET("/health", healthHandler)
 
-	// MCP 端点 - 使用 Streamable HTTP 协议
-	mcpHandler := appServer.StreamableHTTPHandler()
+	// MCP 端点 - 使用官方 SDK 的 Streamable HTTP Handler
+	mcpHandler := mcp.NewStreamableHTTPHandler(
+		func(r *http.Request) *mcp.Server {
+			return appServer.mcpServer
+		},
+		&mcp.StreamableHTTPOptions{
+			JSONResponse: true, // 支持 JSON 响应
+		},
+	)
 	router.Any("/mcp", gin.WrapH(mcpHandler))
 	router.Any("/mcp/*path", gin.WrapH(mcpHandler))
 
@@ -29,6 +39,7 @@ func setupRoutes(appServer *AppServer) *gin.Engine {
 	api := router.Group("/api/v1")
 	{
 		api.GET("/login/status", appServer.checkLoginStatusHandler)
+		api.GET("/login/qrcode", appServer.getLoginQrcodeHandler)
 		api.POST("/publish", appServer.publishHandler)
 		api.GET("/feeds/list", appServer.listFeedsHandler)
 		api.GET("/feeds/search", appServer.searchFeedsHandler)

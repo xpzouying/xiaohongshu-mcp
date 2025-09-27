@@ -9,21 +9,28 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/sirupsen/logrus"
 )
 
 // AppServer 应用服务器结构体，封装所有服务和处理器
 type AppServer struct {
 	xiaohongshuService *XiaohongshuService
+	mcpServer          *mcp.Server
 	router             *gin.Engine
 	httpServer         *http.Server
 }
 
 // NewAppServer 创建新的应用服务器实例
 func NewAppServer(xiaohongshuService *XiaohongshuService) *AppServer {
-	return &AppServer{
+	appServer := &AppServer{
 		xiaohongshuService: xiaohongshuService,
 	}
+
+	// 初始化 MCP Server（需要在创建 appServer 之后，因为工具注册需要访问 appServer）
+	appServer.mcpServer = InitMCPServer(appServer)
+
+	return appServer
 }
 
 // Start 启动服务器
@@ -51,16 +58,14 @@ func (s *AppServer) Start(port string) error {
 
 	logrus.Infof("正在关闭服务器...")
 
-	// 优雅关闭
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// 关闭 HTTP 服务器
 	if err := s.httpServer.Shutdown(ctx); err != nil {
-		logrus.Errorf("服务器关闭失败: %v", err)
-		return err
+		logrus.Warnf("等待连接关闭超时，强制退出: %v", err)
+	} else {
+		logrus.Infof("服务器已优雅关闭")
 	}
 
-	logrus.Infof("服务器已关闭")
 	return nil
 }

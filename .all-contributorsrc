@@ -102,6 +102,33 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "varz1",
+      "name": "varz1",
+      "avatar_url": "https://avatars.githubusercontent.com/u/60377372?v=4",
+      "profile": "https://github.com/varz1",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "Meloyg",
+      "name": "Melo Y Guan",
+      "avatar_url": "https://avatars.githubusercontent.com/u/62586556?v=4",
+      "profile": "https://google.meloguan.site",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "lmxdawn",
+      "name": "lmxdawn",
+      "avatar_url": "https://avatars.githubusercontent.com/u/21293193?v=4",
+      "profile": "https://github.com/lmxdawn",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

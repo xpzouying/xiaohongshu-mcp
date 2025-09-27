@@ -56,6 +56,11 @@ func GetCookiesFilePath() string {
 		return oldPath
 	}
 
+	path := os.Getenv("COOKIES_PATH") // 判断环境变量
+	if path == "" {
+		path = "cookies.json" // fallback，本地调试时用当前目录
+	}
+
 	// 文件不存在，使用新路径（当前目录）
-	return "cookies.json"
+	return path
 }

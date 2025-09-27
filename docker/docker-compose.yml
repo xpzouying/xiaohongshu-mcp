@@ -1,0 +1,14 @@
+services:
+  xiaohongshu-mcp:
+    image: xpzouying/xiaohongshu-mcp
+    container_name: xiaohongshu-mcp
+    restart: unless-stopped
+    tty: true
+    volumes:
+      - ./data:/app/data
+      - ./images:/app/images
+    environment:
+      - ROD_BROWSER_BIN=/usr/bin/google-chrome
+      - COOKIES_PATH=/app/data/cookies.json
+    ports:
+      - "18060:18060"
