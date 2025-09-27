@@ -113,7 +113,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				logrus.Info("MCP Server: 没有publish_time参数，将立即发布")
 			}
 
-			logrus.Infof("MCP Server: 传递给handler的参数: %+v", argsMap)
+			logrus.Debugf("MCP Server: 传递给handler的参数: %+v", argsMap)
 			result := appServer.handlePublishContent(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
 		},

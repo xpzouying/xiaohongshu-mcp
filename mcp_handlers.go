@@ -79,7 +79,7 @@ func (s *AppServer) handleGetLoginQrcode(ctx context.Context) *MCPToolResult {
 // handlePublishContent 处理发布内容（支持立即发布和定时发布）
 func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]interface{}) *MCPToolResult {
 	logrus.Info("MCP: 发布内容")
-	logrus.Infof("MCP: 收到的参数: %+v", args)
+	logrus.Debugf("MCP: 收到的参数: %+v", args)
 
 	// 解析参数
 	title, _ := args["title"].(string)
@@ -191,7 +191,7 @@ func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]in
 		}
 	}
 
-	resultText := fmt.Sprintf("发布操作完成: %+v", result)
+	resultText := fmt.Sprintf("内容发布成功: %+v", result)
 	return &MCPToolResult{
 		Content: []MCPContent{{
 			Type: "text",
