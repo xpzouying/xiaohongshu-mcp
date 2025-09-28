@@ -11,6 +11,7 @@ import (
 	"github.com/go-rod/rod/lib/input"
 	"github.com/go-rod/rod/lib/proto"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 )
 
 // PublishImageContent 发布图文内容
@@ -31,9 +32,14 @@ const (
 
 func NewPublishImageAction(page *rod.Page) (*PublishAction, error) {
 
-	pp := page.Timeout(60 * time.Second)
+	pp := page.Timeout(180 * time.Second)
 
-	pp.MustNavigate(urlOfPublic)
+	pp.MustNavigate(urlOfPublic).MustWaitIdle().MustWaitDOMStable()
+	time.Sleep(1 * time.Second)
+
+	logrus.Info("navigate to publish page success")
+
+	removePopCover(page) // 移除弹窗封面
 
 	pp.MustElement(`div.upload-content`).MustWaitVisible()
 	slog.Info("wait for upload-content visible success")
@@ -94,6 +100,19 @@ func (p *PublishAction) Publish(ctx context.Context, content PublishImageContent
 	}
 
 	return nil
+}
+
+func removePopCover(page *rod.Page) {
+
+	has, elem, err := page.Has("div.d-popover")
+	if err != nil {
+		return
+	}
+
+	if has {
+		elem.MustRemove()
+	}
+
 }
 
 func uploadImages(page *rod.Page, imagesPaths []string) error {
