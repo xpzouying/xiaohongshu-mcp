@@ -130,6 +130,63 @@ func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]in
 	}
 }
 
+// handlePublishVideo 处理发布视频内容（仅本地单个视频文件）
+func (s *AppServer) handlePublishVideo(ctx context.Context, args map[string]interface{}) *MCPToolResult {
+    logrus.Info("MCP: 发布视频内容（本地）")
+
+    title, _ := args["title"].(string)
+    content, _ := args["content"].(string)
+    videoPath, _ := args["video"].(string)
+    tagsInterface, _ := args["tags"].([]interface{})
+
+    var tags []string
+    for _, tag := range tagsInterface {
+        if tagStr, ok := tag.(string); ok {
+            tags = append(tags, tagStr)
+        }
+    }
+
+    if videoPath == "" {
+        return &MCPToolResult{
+            Content: []MCPContent{{
+                Type: "text",
+                Text: "发布失败: 缺少本地视频文件路径",
+            }},
+            IsError: true,
+        }
+    }
+
+    logrus.Infof("MCP: 发布视频 - 标题: %s, 标签数量: %d", title, len(tags))
+
+    // 构建发布请求
+    req := &PublishVideoRequest{
+        Title:   title,
+        Content: content,
+        Video:   videoPath,
+        Tags:    tags,
+    }
+
+    // 执行发布
+    result, err := s.xiaohongshuService.PublishVideo(ctx, req)
+    if err != nil {
+        return &MCPToolResult{
+            Content: []MCPContent{{
+                Type: "text",
+                Text: "发布失败: " + err.Error(),
+            }},
+            IsError: true,
+        }
+    }
+
+    resultText := fmt.Sprintf("视频发布成功: %+v", result)
+    return &MCPToolResult{
+        Content: []MCPContent{{
+            Type: "text",
+            Text: resultText,
+        }},
+    }
+}
+
 // handleListFeeds 处理获取Feeds列表
 func (s *AppServer) handleListFeeds(ctx context.Context) *MCPToolResult {
 	logrus.Info("MCP: 获取Feeds列表")
