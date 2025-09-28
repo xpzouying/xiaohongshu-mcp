@@ -26,7 +26,8 @@
       "Bash(CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o test-xiaohongshu-mcp-linux-amd64 .)",
       "Bash(tar:*)",
       "mcp__playwright__browser_type",
-      "mcp__playwright__browser_close"
+      "mcp__playwright__browser_close",
+      "Bash(git remote:*)"
     ],
     "deny": []
   }
