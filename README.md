@@ -36,7 +36,7 @@ https://github.com/user-attachments/assets/bd9a9a4a-58cb-4421-b8f3-015f703ce1f9
 <details>
 <summary><b>2. 发布图文内容</b></summary>
 
-支持发布图文内容到小红书，包括标题、内容描述和图片。后续支持更多的发布功能。
+支持发布图文内容到小红书，包括标题、内容描述和图片。
 
 **图片支持方式：**
 
@@ -67,7 +67,35 @@ https://github.com/user-attachments/assets/8aee0814-eb96-40af-b871-e66e6bbb6b06
 </details>
 
 <details>
-<summary><b>3. 搜索内容</b></summary>
+<summary><b>3. 发布视频内容</b></summary>
+
+支持发布视频内容到小红书，包括标题、内容描述和本地视频文件。
+
+**视频支持方式：**
+
+仅支持本地视频文件绝对路径：
+
+```
+"/Users/username/Videos/video.mp4"
+```
+
+**功能特点：**
+
+- ✅ 支持本地视频文件上传
+- ✅ 自动处理视频格式转换
+- ✅ 支持标题、内容描述和标签
+- ✅ 等待视频处理完成后自动发布
+
+**注意事项：**
+
+- 仅支持本地视频文件，不支持 HTTP 链接
+- 视频处理时间较长，请耐心等待
+- 建议视频文件大小不超过 1GB
+
+</details>
+
+<details>
+<summary><b>4. 搜索内容</b></summary>
 
 根据关键词搜索小红书内容。
 
@@ -78,7 +106,7 @@ https://github.com/user-attachments/assets/03c5077d-6160-4b18-b629-2e40933a1fd3
 </details>
 
 <details>
-<summary><b>4. 获取推荐列表</b></summary>
+<summary><b>5. 获取推荐列表</b></summary>
 
 获取小红书首页推荐内容列表。
 
@@ -89,7 +117,7 @@ https://github.com/user-attachments/assets/110fc15d-46f2-4cca-bdad-9de5b5b8cc28
 </details>
 
 <details>
-<summary><b>5. 获取帖子详情（包括互动数据和评论）</b></summary>
+<summary><b>6. 获取帖子详情（包括互动数据和评论）</b></summary>
 
 获取小红书帖子的完整详情，包括：
 
@@ -111,7 +139,7 @@ https://github.com/user-attachments/assets/76a26130-a216-4371-a6b3-937b8fda092a
 </details>
 
 <details>
-<summary><b>6. 发表评论到帖子</b></summary>
+<summary><b>7. 发表评论到帖子</b></summary>
 
 支持自动发表评论到小红书帖子。
 
@@ -134,7 +162,7 @@ https://github.com/user-attachments/assets/cc385b6c-422c-489b-a5fc-63e92c695b80
 </details>
 
 <details>
-<summary><b>7. 获取用户个人主页</b></summary>
+<summary><b>8. 获取用户个人主页</b></summary>
 
 获取小红书用户的个人主页信息，包括用户基本信息和笔记内容。
 
@@ -637,6 +665,8 @@ Cline 是一个强大的 AI 编程助手，支持 MCP 协议集成。
 - `check_login_status` - 检查小红书登录状态（无参数）
 - `publish_content` - 发布图文内容到小红书（必需：title, content, images）
   - `images`: 支持 HTTP 链接或本地绝对路径，推荐使用本地路径
+- `publish_with_video` - 发布视频内容到小红书（必需：title, content, video）
+  - `video`: 仅支持本地视频文件绝对路径
 - `list_feeds` - 获取小红书首页推荐列表（无参数）
 - `search_feeds` - 搜索小红书内容（需要：keyword）
 - `get_feed_detail` - 获取帖子详情（需要：feed_id, xsec_token）
@@ -666,6 +696,16 @@ Cline 是一个强大的 AI 编程助手，支持 MCP 协议集成。
 - /Users/username/Pictures/cherry_blossom.jpg
 
 使用 xiaohongshu-mcp 进行发布。
+```
+
+**示例 3：发布视频内容**
+
+```
+帮我写一篇关于美食制作的视频发布到小红书上，
+使用这个本地视频文件：
+- /Users/username/Videos/cooking_tutorial.mp4
+
+使用 xiaohongshu-mcp 的视频发布功能。
 ```
 
 ![claude-cli 进行发布](./assets/claude_push.gif)

@@ -36,7 +36,7 @@ https://github.com/user-attachments/assets/bd9a9a4a-58cb-4421-b8f3-015f703ce1f9
 <details>
 <summary><b>2. Publish Image and Text Content</b></summary>
 
-Supports publishing image and text content to RedNote, including title, content description, and images. More publishing features will be supported later.
+Supports publishing image and text content to RedNote, including title, content description, and images.
 
 **Image Support Methods:**
 
@@ -67,7 +67,35 @@ https://github.com/user-attachments/assets/8aee0814-eb96-40af-b871-e66e6bbb6b06
 </details>
 
 <details>
-<summary><b>3. Search Content</b></summary>
+<summary><b>3. Publish Video Content</b></summary>
+
+Supports publishing video content to RedNote, including title, content description, and local video files.
+
+**Video Support Methods:**
+
+Only supports local video file absolute paths:
+
+```
+"/Users/username/Videos/video.mp4"
+```
+
+**Features:**
+
+- ✅ Supports local video file upload
+- ✅ Automatic video format processing
+- ✅ Supports title, content description, and tags
+- ✅ Automatically publishes after video processing is complete
+
+**Important Notes:**
+
+- Only supports local video files, not HTTP links
+- Video processing takes longer, please be patient
+- Recommended video file size should not exceed 1GB
+
+</details>
+
+<details>
+<summary><b>4. Search Content</b></summary>
 
 Search RedNote content by keywords.
 
@@ -78,7 +106,7 @@ https://github.com/user-attachments/assets/03c5077d-6160-4b18-b629-2e40933a1fd3
 </details>
 
 <details>
-<summary><b>4. Get Recommendation List</b></summary>
+<summary><b>5. Get Recommendation List</b></summary>
 
 Get RedNote homepage recommendation content list.
 
@@ -89,7 +117,7 @@ https://github.com/user-attachments/assets/110fc15d-46f2-4cca-bdad-9de5b5b8cc28
 </details>
 
 <details>
-<summary><b>5. Get Post Details (Including Interaction Data and Comments)</b></summary>
+<summary><b>6. Get Post Details (Including Interaction Data and Comments)</b></summary>
 
 Get complete details of RedNote posts, including:
 
@@ -111,7 +139,7 @@ https://github.com/user-attachments/assets/76a26130-a216-4371-a6b3-937b8fda092a
 </details>
 
 <details>
-<summary><b>6. Post Comments to Posts</b></summary>
+<summary><b>7. Post Comments to Posts</b></summary>
 
 Supports automatically posting comments to RedNote posts.
 
@@ -134,7 +162,7 @@ https://github.com/user-attachments/assets/cc385b6c-422c-489b-a5fc-63e92c695b80
 </details>
 
 <details>
-<summary><b>7. Get User Profile</b></summary>
+<summary><b>8. Get User Profile</b></summary>
 
 Get RedNote user's personal profile information, including basic user information and note content.
 
@@ -633,6 +661,8 @@ After successful connection, you can use the following MCP tools:
 - `check_login_status` - Check RedNote login status (no parameters)
 - `publish_content` - Publish image-text content to RedNote (required: title, content, images)
   - `images`: Supports HTTP links or local absolute paths, local paths recommended
+- `publish_with_video` - Publish video content to RedNote (required: title, content, video)
+  - `video`: Only supports local video file absolute paths
 - `list_feeds` - Get RedNote homepage recommendation list (no parameters)
 - `search_feeds` - Search RedNote content (required: keyword)
 - `get_feed_detail` - Get post details (required: feed_id, xsec_token)
@@ -662,6 +692,16 @@ using these local images:
 - /Users/username/Pictures/cherry_blossom.jpg
 
 Use xiaohongshu-mcp for publishing.
+```
+
+**Example 3: Publishing Video Content**
+
+```
+Help me write a video post about cooking tutorials to publish on RedNote,
+using this local video file:
+- /Users/username/Videos/cooking_tutorial.mp4
+
+Use xiaohongshu-mcp's video publishing feature.
 ```
 
 ![claude-cli publishing](./assets/claude_push.gif)

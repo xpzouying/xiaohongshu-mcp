@@ -111,7 +111,9 @@ GET /api/v1/login/qrcode
 
 ### 3. 内容发布
 
-发布笔记内容到小红书。
+#### 3.1 发布图文内容
+
+发布图文笔记内容到小红书。
 
 **请求**
 ```
@@ -152,6 +154,52 @@ Content-Type: application/json
   "message": "发布成功"
 }
 ```
+
+#### 3.2 发布视频内容
+
+发布视频内容到小红书（仅支持本地视频文件）。
+
+**请求**
+```
+POST /api/v1/publish_video
+Content-Type: application/json
+```
+
+**请求体**
+```json
+{
+  "title": "视频标题",
+  "content": "视频内容描述",
+  "video": "/Users/username/Videos/video.mp4",
+  "tags": ["标签1", "标签2"]
+}
+```
+
+**请求参数说明:**
+- `title` (string, required): 视频标题
+- `content` (string, required): 视频内容描述
+- `video` (string, required): 本地视频文件绝对路径
+- `tags` (array, optional): 标签数组
+
+**响应**
+```json
+{
+  "success": true,
+  "data": {
+    "title": "视频标题",
+    "content": "视频内容描述",
+    "video": "/Users/username/Videos/video.mp4",
+    "status": "发布完成",
+    "post_id": "64f1a2b3c4d5e6f7a8b9c0d1"
+  },
+  "message": "视频发布成功"
+}
+```
+
+**注意事项:**
+- 仅支持本地视频文件路径，不支持 HTTP 链接
+- 视频处理时间较长，请耐心等待
+- 建议视频文件大小不超过 1GB
 
 ---
 

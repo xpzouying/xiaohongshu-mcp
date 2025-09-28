@@ -81,6 +81,26 @@ func (s *AppServer) publishHandler(c *gin.Context) {
 	respondSuccess(c, result, "发布成功")
 }
 
+// publishVideoHandler 发布视频内容
+func (s *AppServer) publishVideoHandler(c *gin.Context) {
+	var req PublishVideoRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
+			"请求参数错误", err.Error())
+		return
+	}
+
+	// 执行视频发布
+	result, err := s.xiaohongshuService.PublishVideo(c.Request.Context(), &req)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "PUBLISH_VIDEO_FAILED",
+			"视频发布失败", err.Error())
+		return
+	}
+
+	respondSuccess(c, result, "视频发布成功")
+}
+
 // listFeedsHandler 获取Feeds列表
 func (s *AppServer) listFeedsHandler(c *gin.Context) {
 	// 获取 Feeds 列表
