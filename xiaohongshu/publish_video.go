@@ -178,16 +178,3 @@ func submitPublishVideo(page *rod.Page, title, content string, tags []string) er
     time.Sleep(3 * time.Second)
     return nil
 }
-
-func removePopCover(page *rod.Page) {
-
-	has, elem, err := page.Has("div.d-popover")
-	if err != nil {
-		return
-	}
-
-	if has {
-		elem.MustRemove()
-	}
-
-}
