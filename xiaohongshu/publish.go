@@ -37,45 +37,7 @@ func NewPublishImageAction(page *rod.Page) (*PublishAction, error) {
 	pp.MustNavigate(urlOfPublic).MustWaitIdle().MustWaitDOMStable()
 	time.Sleep(1 * time.Second)
 
-	logrus.Info("navigate to publish page success")
-
-	removePopCover(page) // 移除弹窗封面
-
-	pp.MustElement(`div.upload-content`).MustWaitVisible()
-	slog.Info("wait for upload-content visible success")
-
-	// 等待一段时间确保页面完全加载
-	time.Sleep(1 * time.Second)
-
-	createElems := pp.MustElements("div.creator-tab")
-
-	// 过滤掉隐藏的元素
-	var visibleElems []*rod.Element
-	for _, elem := range createElems {
-		if isElementVisible(elem) {
-			visibleElems = append(visibleElems, elem)
-		}
-	}
-
-	if len(visibleElems) == 0 {
-		return nil, errors.New("没有找到上传图文元素")
-	}
-
-	for _, elem := range visibleElems {
-		text, err := elem.Text()
-		if err != nil {
-			slog.Error("获取元素文本失败", "error", err)
-			continue
-		}
-
-		if text == "上传图文" {
-			if err := elem.Click(proto.InputMouseButtonLeft, 1); err != nil {
-				slog.Error("点击元素失败", "error", err)
-				continue
-			}
-			break
-		}
-	}
+	mustClickPublishTab(page, "上传图文")
 
 	time.Sleep(1 * time.Second)
 
@@ -113,6 +75,54 @@ func removePopCover(page *rod.Page) {
 		elem.MustRemove()
 	}
 
+}
+
+func mustClickPublishTab(page *rod.Page, tabname string) error {
+
+	removePopCover(page) // 移除弹窗封面
+
+	page.MustElement(`div.upload-content`).MustWaitVisible()
+
+	time.Sleep(1 * time.Second)
+
+	createElems := page.MustElements("div.creator-tab")
+
+	// 过滤掉隐藏的元素
+	var visibleElems []*rod.Element
+	for _, elem := range createElems {
+		if isElementVisible(elem) {
+			visibleElems = append(visibleElems, elem)
+		}
+	}
+
+	if len(visibleElems) == 0 {
+		return errors.Errorf("没有找到发布 TAB - %s", tabname)
+	}
+
+	var clicked bool
+
+	for _, elem := range visibleElems {
+		text, err := elem.Text()
+		if err != nil {
+			logrus.Errorf("获取元素文本失败: %v", err)
+			continue
+		}
+		if text == tabname {
+			if err := elem.Click(proto.InputMouseButtonLeft, 1); err != nil {
+				logrus.Errorf("点击元素失败: %v", err)
+				continue
+			}
+
+			clicked = true
+			break
+		}
+	}
+
+	if !clicked {
+		return errors.Errorf("没有找到发布 TAB - %s", tabname)
+	}
+
+	return nil
 }
 
 func uploadImages(page *rod.Page, imagesPaths []string) error {
