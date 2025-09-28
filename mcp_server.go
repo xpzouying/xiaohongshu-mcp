@@ -18,6 +18,14 @@ type PublishContentArgs struct {
 	Tags    []string `json:"tags,omitempty" jsonschema:"话题标签列表（可选参数），如 [美食, 旅行, 生活]"`
 }
 
+// PublishVideoArgs 发布视频的参数（仅支持本地单个视频文件）
+type PublishVideoArgs struct {
+    Title   string   `json:"title" jsonschema:"内容标题（小红书限制：最多20个中文字或英文单词）"`
+    Content string   `json:"content" jsonschema:"正文内容，不包含以#开头的标签内容，所有话题标签都用tags参数来生成和提供即可"`
+    Video   string   `json:"video" jsonschema:"本地视频绝对路径（仅支持单个视频文件，如:/Users/user/video.mp4）"`
+    Tags    []string `json:"tags,omitempty" jsonschema:"话题标签列表（可选参数），如 [美食, 旅行, 生活]"`
+}
+
 // SearchFeedsArgs 搜索内容的参数
 type SearchFeedsArgs struct {
 	Keyword string `json:"keyword" jsonschema:"搜索关键词"`
@@ -182,7 +190,25 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		},
 	)
 
-	logrus.Infof("Registered %d MCP tools", 8)
+	// 工具 9: 发布视频（仅本地文件）
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "publish_with_video",
+			Description: "发布小红书视频内容（仅支持本地单个视频文件）",
+		},
+		func(ctx context.Context, req *mcp.CallToolRequest, args PublishVideoArgs) (*mcp.CallToolResult, any, error) {
+			argsMap := map[string]interface{}{
+				"title":   args.Title,
+				"content": args.Content,
+				"video":   args.Video,
+				"tags":    convertStringsToInterfaces(args.Tags),
+			}
+			result := appServer.handlePublishVideo(ctx, argsMap)
+			return convertToMCPResult(result), nil, nil
+		},
+	)
+
+	logrus.Infof("Registered %d MCP tools", 9)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式

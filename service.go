@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"github.com/go-rod/rod"
 	"github.com/mattn/go-runewidth"
 	"github.com/sirupsen/logrus"
@@ -47,11 +48,28 @@ type LoginQrcodeResponse struct {
 
 // PublishResponse 发布响应
 type PublishResponse struct {
-	Title   string `json:"title"`
-	Content string `json:"content"`
-	Images  int    `json:"images"`
-	Status  string `json:"status"`
-	PostID  string `json:"post_id,omitempty"`
+    Title   string `json:"title"`
+    Content string `json:"content"`
+    Images  int    `json:"images"`
+    Status  string `json:"status"`
+    PostID  string `json:"post_id,omitempty"`
+}
+
+// PublishVideoRequest 发布视频请求（仅支持本地单个视频文件）
+type PublishVideoRequest struct {
+    Title   string   `json:"title" binding:"required"`
+    Content string   `json:"content" binding:"required"`
+    Video   string   `json:"video" binding:"required"`
+    Tags    []string `json:"tags,omitempty"`
+}
+
+// PublishVideoResponse 发布视频响应
+type PublishVideoResponse struct {
+    Title   string `json:"title"`
+    Content string `json:"content"`
+    Video   string `json:"video"`
+    Status  string `json:"status"`
+    PostID  string `json:"post_id,omitempty"`
 }
 
 // FeedsListResponse Feeds列表响应
@@ -197,6 +215,59 @@ func (s *XiaohongshuService) publishContent(ctx context.Context, content xiaohon
 
 	// 执行发布
 	return action.Publish(ctx, content)
+}
+
+// PublishVideo 发布视频（本地文件）
+func (s *XiaohongshuService) PublishVideo(ctx context.Context, req *PublishVideoRequest) (*PublishVideoResponse, error) {
+    // 标题长度校验
+    if titleWidth := runewidth.StringWidth(req.Title); titleWidth > 40 {
+        return nil, fmt.Errorf("标题长度超过限制")
+    }
+
+    // 本地视频文件校验
+    if req.Video == "" {
+        return nil, fmt.Errorf("必须提供本地视频文件")
+    }
+    if _, err := os.Stat(req.Video); err != nil {
+        return nil, fmt.Errorf("视频文件不存在或不可访问: %v", err)
+    }
+
+    // 构建发布内容
+    content := xiaohongshu.PublishVideoContent{
+        Title:     req.Title,
+        Content:   req.Content,
+        Tags:      req.Tags,
+        VideoPath: req.Video,
+    }
+
+    // 执行发布
+    if err := s.publishVideo(ctx, content); err != nil {
+        return nil, err
+    }
+
+    resp := &PublishVideoResponse{
+        Title:   req.Title,
+        Content: req.Content,
+        Video:   req.Video,
+        Status:  "发布完成",
+    }
+    return resp, nil
+}
+
+// publishVideo 执行视频发布
+func (s *XiaohongshuService) publishVideo(ctx context.Context, content xiaohongshu.PublishVideoContent) error {
+    b := newBrowser()
+    defer b.Close()
+
+    page := b.NewPage()
+    defer page.Close()
+
+    action, err := xiaohongshu.NewPublishVideoAction(page)
+    if err != nil {
+        return err
+    }
+
+    return action.PublishVideo(ctx, content)
 }
 
 // ListFeeds 获取Feeds列表
