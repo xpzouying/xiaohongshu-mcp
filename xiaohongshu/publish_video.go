@@ -22,9 +22,11 @@ type PublishVideoContent struct {
 
 // NewPublishVideoAction 进入发布页并切换到“上传视频”
 func NewPublishVideoAction(page *rod.Page) (*PublishAction, error) {
-    pp := page.Timeout(60 * time.Second)
+    pp := page.Timeout(300 * time.Second)
 
     pp.MustNavigate(urlOfPublic)
+
+    removePopCover(page) // 移除弹窗封面
 
     pp.MustElement(`div.upload-content`).MustWaitVisible()
     slog.Info("wait for upload-content visible success (video)")
@@ -175,4 +177,17 @@ func submitPublishVideo(page *rod.Page, title, content string, tags []string) er
 
     time.Sleep(3 * time.Second)
     return nil
+}
+
+func removePopCover(page *rod.Page) {
+
+	has, elem, err := page.Has("div.d-popover")
+	if err != nil {
+		return
+	}
+
+	if has {
+		elem.MustRemove()
+	}
+
 }
