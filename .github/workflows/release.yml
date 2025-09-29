@@ -142,6 +142,10 @@ jobs:
           ./xiaohongshu-mcp-darwin-arm64
           ```
 
+          ### 🐳 Docker 镜像
+
+          Docker 镜像需要手动触发构建，请到 Actions 页面运行 "Docker Release" workflow。
+
           ### 📊 构建信息
 
           - **Commit**: ${{ github.sha }}
