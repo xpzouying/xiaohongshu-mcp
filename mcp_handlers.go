@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"strings"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 // MCP 工具处理函数
@@ -75,15 +76,19 @@ func (s *AppServer) handleGetLoginQrcode(ctx context.Context) *MCPToolResult {
 	return &MCPToolResult{Content: contents}
 }
 
-// handlePublishContent 处理发布内容
+// handlePublishContent 处理发布内容（支持立即发布和定时发布）
 func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]interface{}) *MCPToolResult {
 	logrus.Info("MCP: 发布内容")
+	logrus.Debugf("MCP: 收到的参数: %+v", args)
 
 	// 解析参数
 	title, _ := args["title"].(string)
 	content, _ := args["content"].(string)
 	imagePathsInterface, _ := args["images"].([]interface{})
 	tagsInterface, _ := args["tags"].([]interface{})
+	publishTimeStr, _ := args["publish_time"].(string) // 可选的定时发布时间
+
+	logrus.Infof("MCP: 解析的publishTimeStr: '%s'", publishTimeStr)
 
 	var imagePaths []string
 	for _, path := range imagePathsInterface {
@@ -99,17 +104,82 @@ func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]in
 		}
 	}
 
-	logrus.Infof("MCP: 发布内容 - 标题: %s, 图片数量: %d, 标签数量: %d", title, len(imagePaths), len(tags))
+	// 解析发布时间（如果提供了）
+	var publishTime *time.Time
+	var err error
 
-	// 构建发布请求
-	req := &PublishRequest{
-		Title:   title,
-		Content: content,
-		Images:  imagePaths,
-		Tags:    tags,
+	if publishTimeStr != "" {
+		// 支持多种时间格式
+		timeFormats := []string{
+			"2006-01-02 15:04:05",
+			"2006-01-02 15:04",
+			"2006/01/02 15:04:05",
+			"2006/01/02 15:04",
+		}
+
+		for _, format := range timeFormats {
+			parsedTime, parseErr := time.Parse(format, publishTimeStr)
+			if parseErr == nil {
+				publishTime = &parsedTime
+				break
+			}
+			err = parseErr
+		}
+
+		if err != nil {
+			return &MCPToolResult{
+				Content: []MCPContent{{
+					Type: "text",
+					Text: fmt.Sprintf("解析发布时间失败: %s，支持的格式: 2006-01-02 15:04:05, 2006-01-02 15:04, 2006/01/02 15:04:05, 2006/01/02 15:04", err.Error()),
+				}},
+				IsError: true,
+			}
+		}
+
+		// 检查发布时间范围（1小时到24小时）
+		now := time.Now()
+		minTime := now.Add(1 * time.Hour)
+		maxTime := now.Add(24 * time.Hour)
+
+		if publishTime.Before(minTime) {
+			return &MCPToolResult{
+				Content: []MCPContent{{
+					Type: "text",
+					Text: "定时发布时间必须至少在1小时后",
+				}},
+				IsError: true,
+			}
+		}
+
+		if publishTime.After(maxTime) {
+			return &MCPToolResult{
+				Content: []MCPContent{{
+					Type: "text",
+					Text: "定时发布时间不能超过24小时后",
+				}},
+				IsError: true,
+			}
+		}
 	}
 
-	// 执行发布
+	if publishTime != nil {
+		logrus.Infof("MCP: 定时发布内容 - 标题: %s, 图片数量: %d, 标签数量: %d, 发布时间: %v",
+			title, len(imagePaths), len(tags), publishTime)
+	} else {
+		logrus.Infof("MCP: 立即发布内容 - 标题: %s, 图片数量: %d, 标签数量: %d",
+			title, len(imagePaths), len(tags))
+	}
+
+	// 构建统一的发布请求
+	req := &PublishRequest{
+		Title:       title,
+		Content:     content,
+		Images:      imagePaths,
+		Tags:        tags,
+		PublishTime: publishTime,
+	}
+
+	// 执行发布（内部会根据 PublishTime 是否为空决定立即发布还是定时发布）
 	result, err := s.xiaohongshuService.PublishContent(ctx, req)
 	if err != nil {
 		return &MCPToolResult{
