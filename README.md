@@ -731,59 +731,17 @@ Cline 是一个强大的 AI 编程助手，支持 MCP 协议集成。
 
 ## 4. 小红书 MCP 互助群
 
-因为项目刚刚启动，会有很多问题，拉一个群大家一起讨论问题，一起为开源项目做贡献。~~扫我的微信二维码加群讨论技术~~。
+**重要：在群里问问题之前，请一定要先仔细看完 README 文档以及查看 Issues。**
 
-由于添加微信的人太多了，导致微信把我账号封禁了，原因是：处于不安全的网络中。（不确定是不是因为人太多，可能触发了微信的电信诈骗的安全检测，做了：1.实名认证；2.绑定银行卡；3.人工申诉；都没有用。）
-
-换到飞书群，直接扫码进群
-
-<details>
-<summary>【飞书一群】已满</summary>
-
-![1757903591605_副本](https://github.com/user-attachments/assets/63ad53b9-6e5d-4117-ba61-90a223494501)
-
-</details>
-
-<details>
-  <summary>【微信1群】已满 </summary>
-
-  <img src="https://github.com/user-attachments/assets/34c51c3a-d5fd-4086-9d37-a5a5284264c9" alt="WechatIMG119" width="300">
-
-</details>
-
-<details>
-  <summary>【微信2群】已满 </summary>
-
-  <img src="https://github.com/user-attachments/assets/d2c0340c-33e7-4d19-a9f5-cd581b63bd56" alt="WechatIMG119" width="300">
-
-</details>
-
-<details>
-  <summary>【微信3群】已满 </summary>
-
-  <img src="https://github.com/user-attachments/assets/7665056d-be56-4bf3-a9f3-77f967079929" alt="WechatIMG119" width="300">
-
-</details>
-
-<details>
-  <summary>【微信4群】已满 </summary>
-
-  <img src="https://github.com/user-attachments/assets/db322c69-89c3-430e-93b2-0038fbf7138e" alt="WechatIMG119" width="300">
-
-</details>
-
-<details>
-  <summary>【微信5群】已满 </summary>
-
-  <img src="https://github.com/user-attachments/assets/393965f9-6286-4b7d-9be0-7a0a2f6a75ba" alt="WechatIMG119" width="300">
-
-</details>
 
 <!-- 两列排布：飞书二群 | 微信群 -->
 
 | 【飞书二群】：扫码进入                                                                                                    | 【微信群 6 群】：扫码进入                                                                                                  |
 | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| <img src="https://github.com/user-attachments/assets/ca1f5d6e-b1bf-4c15-9975-ff75f339ec9b" alt="qrcode_2qun" width="300"> | <img src="https://github.com/user-attachments/assets/acf75823-8270-4771-8454-24e44c20860e" alt="WechatIMG119" width="300"> |
+| <img src="https://github.com/user-attachments/assets/ca1f5d6e-b1bf-4c15-9975-ff75f339ec9b" alt="qrcode_2qun" width="300"> | <img src="https://github.com/user-attachments/assets/9055afb7-20e5-4e2c-9988-08aaa6956f1f" alt="WechatIMG119" width="300"> |
+
+
+
 
 
 ## 🙏 致谢贡献者 ✨
