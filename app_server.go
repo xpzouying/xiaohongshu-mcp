@@ -17,6 +17,7 @@ import (
 type AppServer struct {
 	xiaohongshuService *XiaohongshuService
 	mcpServer          *mcp.Server
+	sessionManager     *SessionManager
 	router             *gin.Engine
 	httpServer         *http.Server
 }
@@ -29,6 +30,9 @@ func NewAppServer(xiaohongshuService *XiaohongshuService) *AppServer {
 
 	// 初始化 MCP Server（需要在创建 appServer 之后，因为工具注册需要访问 appServer）
 	appServer.mcpServer = InitMCPServer(appServer)
+
+	// 初始化会话管理器
+	appServer.sessionManager = NewSessionManager(appServer)
 
 	return appServer
 }
