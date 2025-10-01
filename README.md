@@ -10,6 +10,62 @@ MCP for 小红书/xiaohongshu.com。
 
 **遇到任何问题，务必要先看 [各种疑难杂症](https://github.com/xpzouying/xiaohongshu-mcp/issues/56)**。
 
+---
+
+## 🔧 重要更新：HTTP 会话管理修复
+
+> **注意：** 此分支（`fix-session-management`）包含了重要的会话管理修复。
+
+### 修复的问题
+
+原版本在使用 HTTP 短连接时存在会话状态管理问题，导致以下错误：
+```
+method "tools/call" is invalid during session initialization
+```
+
+这是因为每个 HTTP POST 请求都被视为新会话，MCP 协议状态机无法正常工作。
+
+### 解决方案
+
+本分支实现了 `SessionManager` 来维护跨 HTTP 请求的会话状态：
+
+- ✅ 使用 `X-Session-Id` HTTP header 识别会话
+- ✅ 为每个会话维护独立的 MCP Server 实例
+- ✅ 线程安全的会话存储
+- ✅ 向后兼容（无 session ID 时使用 RemoteAddr）
+
+### 在 Claude Code 中使用
+
+1. **编译修复版本：**
+   ```bash
+   go build -o xiaohongshu-mcp .
+   ```
+
+2. **配置 `.mcp.json`：**
+   ```json
+   {
+     "mcpServers": {
+       "xiaohongshu": {
+         "type": "http",
+         "url": "http://localhost:18060/mcp",
+         "description": "小红书 MCP 服务器（修复版）"
+       }
+     }
+   }
+   ```
+
+3. **启动服务器：**
+   ```bash
+   ./xiaohongshu-mcp -headless=true
+   ```
+
+### 相关链接
+
+- 📝 详细说明：[FIX_SESSION_MANAGEMENT.md](./FIX_SESSION_MANAGEMENT.md)
+- 🔀 上游 PR：[#195](https://github.com/xpzouying/xiaohongshu-mcp/pull/195)
+
+---
+
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=xpzouying/xiaohongshu-mcp&type=Timeline)](https://www.star-history.com/#xpzouying/xiaohongshu-mcp&Timeline)
