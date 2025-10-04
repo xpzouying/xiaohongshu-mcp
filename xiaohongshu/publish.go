@@ -3,6 +3,7 @@ package xiaohongshu
 import (
 	"context"
 	"log/slog"
+	"math/rand"
 	"os"
 	"strings"
 	"time"
@@ -66,15 +67,24 @@ func (p *PublishAction) Publish(ctx context.Context, content PublishImageContent
 
 func removePopCover(page *rod.Page) {
 
+	// 先移除弹窗封面
 	has, elem, err := page.Has("div.d-popover")
 	if err != nil {
 		return
 	}
-
 	if has {
 		elem.MustRemove()
 	}
 
+	// 兜底：点击一下空位置吧
+	clickEmptyPosition(page) // 点击空位置
+}
+
+func clickEmptyPosition(page *rod.Page) {
+	x := 380 + rand.Intn(100)
+	y := 20 + rand.Intn(60)
+	page.Mouse.MustMoveTo(float64(x), float64(y)).MustClick(proto.InputMouseButtonLeft)
+	logrus.Infof("点击空位置: x=%d, y=%d", x, y)
 }
 
 func mustClickPublishTab(page *rod.Page, tabname string) error {
