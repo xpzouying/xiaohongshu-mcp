@@ -3,6 +3,7 @@ package xiaohongshu
 import (
 	"context"
 	"log/slog"
+	"math/rand"
 	"os"
 	"strings"
 	"time"
@@ -80,8 +81,10 @@ func removePopCover(page *rod.Page) {
 }
 
 func clickEmptyPosition(page *rod.Page) {
-	page.Mouse.MustMoveTo(400, 200).MustClick(proto.InputMouseButtonLeft)
-	logrus.Info("点击空位置")
+	x := 400 + rand.Intn(100)
+	y := 200 + rand.Intn(100)
+	page.Mouse.MustMoveTo(float64(x), float64(y)).MustClick(proto.InputMouseButtonLeft)
+	logrus.Info("点击空位置:", "x", x, "y", y)
 }
 
 func mustClickPublishTab(page *rod.Page, tabname string) error {
