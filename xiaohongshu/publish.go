@@ -66,15 +66,22 @@ func (p *PublishAction) Publish(ctx context.Context, content PublishImageContent
 
 func removePopCover(page *rod.Page) {
 
+	// 先移除弹窗封面
 	has, elem, err := page.Has("div.d-popover")
 	if err != nil {
 		return
 	}
-
 	if has {
 		elem.MustRemove()
 	}
 
+	// 兜底：点击一下空位置吧
+	clickEmptyPosition(page) // 点击空位置
+}
+
+func clickEmptyPosition(page *rod.Page) {
+	page.Mouse.MustMoveTo(400, 200).MustClick(proto.InputMouseButtonLeft)
+	logrus.Info("点击空位置")
 }
 
 func mustClickPublishTab(page *rod.Page, tabname string) error {
