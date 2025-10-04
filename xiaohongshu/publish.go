@@ -81,10 +81,10 @@ func removePopCover(page *rod.Page) {
 }
 
 func clickEmptyPosition(page *rod.Page) {
-	x := 400 + rand.Intn(100)
-	y := 200 + rand.Intn(100)
+	x := 380 + rand.Intn(100)
+	y := 20 + rand.Intn(60)
 	page.Mouse.MustMoveTo(float64(x), float64(y)).MustClick(proto.InputMouseButtonLeft)
-	logrus.Info("点击空位置:", "x", x, "y", y)
+	logrus.Infof("点击空位置: x=%d, y=%d", x, y)
 }
 
 func mustClickPublishTab(page *rod.Page, tabname string) error {
