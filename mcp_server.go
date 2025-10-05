@@ -50,6 +50,12 @@ type PostCommentArgs struct {
 	Content   string `json:"content" jsonschema:"评论内容"`
 }
 
+// LikeFavoriteArgs 点赞/收藏参数
+type LikeFavoriteArgs struct {
+	FeedID    string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
+	XsecToken string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
+}
+
 // InitMCPServer 初始化 MCP Server
 func InitMCPServer(appServer *AppServer) *mcp.Server {
 	// 创建 MCP Server
@@ -208,7 +214,39 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		},
 	)
 
-	logrus.Infof("Registered %d MCP tools", 9)
+	// 工具 10: 点赞笔记
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "like_feed",
+			Description: "为指定笔记点赞（如已点赞将跳过）",
+		},
+		func(ctx context.Context, req *mcp.CallToolRequest, args LikeFavoriteArgs) (*mcp.CallToolResult, any, error) {
+			argsMap := map[string]interface{}{
+				"feed_id":    args.FeedID,
+				"xsec_token": args.XsecToken,
+			}
+			result := appServer.handleLikeFeed(ctx, argsMap)
+			return convertToMCPResult(result), nil, nil
+		},
+	)
+
+	// 工具 11: 收藏笔记
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "favorite_feed",
+			Description: "收藏指定笔记（如已收藏将跳过）",
+		},
+		func(ctx context.Context, req *mcp.CallToolRequest, args LikeFavoriteArgs) (*mcp.CallToolResult, any, error) {
+			argsMap := map[string]interface{}{
+				"feed_id":    args.FeedID,
+				"xsec_token": args.XsecToken,
+			}
+			result := appServer.handleFavoriteFeed(ctx, argsMap)
+			return convertToMCPResult(result), nil, nil
+		},
+	)
+
+	logrus.Infof("Registered %d MCP tools", 11)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式

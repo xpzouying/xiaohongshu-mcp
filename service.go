@@ -20,6 +20,13 @@ import (
 // XiaohongshuService 小红书业务服务
 type XiaohongshuService struct{}
 
+// ActionResult 通用动作响应（点赞/收藏等）
+type ActionResult struct {
+    FeedID  string `json:"feed_id"`
+    Success bool   `json:"success"`
+    Message string `json:"message"`
+}
+
 // NewXiaohongshuService 创建小红书服务实例
 func NewXiaohongshuService() *XiaohongshuService {
 	return &XiaohongshuService{}
@@ -368,29 +375,49 @@ func (s *XiaohongshuService) UserProfile(ctx context.Context, userID, xsecToken 
 
 // PostCommentToFeed 发表评论到Feed
 func (s *XiaohongshuService) PostCommentToFeed(ctx context.Context, feedID, xsecToken, content string) (*PostCommentResponse, error) {
-	// 使用非无头模式以便查看操作过程
 	b := newBrowser()
 	defer b.Close()
 
 	page := b.NewPage()
 	defer page.Close()
 
-	// 创建 Feed 评论 action
 	action := xiaohongshu.NewCommentFeedAction(page)
 
-	// 发表评论
-	err := action.PostComment(ctx, feedID, xsecToken, content)
-	if err != nil {
+	if err := action.PostComment(ctx, feedID, xsecToken, content); err != nil {
 		return nil, err
 	}
 
-	response := &PostCommentResponse{
-		FeedID:  feedID,
-		Success: true,
-		Message: "评论发表成功",
-	}
+	return &PostCommentResponse{FeedID: feedID, Success: true, Message: "评论发表成功"}, nil
+}
 
-	return response, nil
+// LikeFeed 点赞笔记
+func (s *XiaohongshuService) LikeFeed(ctx context.Context, feedID, xsecToken string) (*ActionResult, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewLikeFavoriteAction(page)
+	if err := action.Like(ctx, feedID, xsecToken); err != nil {
+		return nil, err
+	}
+	return &ActionResult{FeedID: feedID, Success: true, Message: "点赞成功或已点赞"}, nil
+}
+
+// FavoriteFeed 收藏笔记
+func (s *XiaohongshuService) FavoriteFeed(ctx context.Context, feedID, xsecToken string) (*ActionResult, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewLikeFavoriteAction(page)
+	if err := action.Favorite(ctx, feedID, xsecToken); err != nil {
+		return nil, err
+	}
+	return &ActionResult{FeedID: feedID, Success: true, Message: "收藏成功或已收藏"}, nil
 }
 
 func newBrowser() *headless_browser.Browser {

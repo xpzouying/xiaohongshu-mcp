@@ -391,6 +391,40 @@ func (s *AppServer) handleUserProfile(ctx context.Context, args map[string]any) 
 	}
 }
 
+// handleLikeFeed 处理点赞
+func (s *AppServer) handleLikeFeed(ctx context.Context, args map[string]interface{}) *MCPToolResult {
+	feedID, ok := args["feed_id"].(string)
+	if !ok || feedID == "" {
+		return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: "点赞失败: 缺少feed_id参数"}}, IsError: true}
+	}
+	xsecToken, ok := args["xsec_token"].(string)
+	if !ok || xsecToken == "" {
+		return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: "点赞失败: 缺少xsec_token参数"}}, IsError: true}
+	}
+	res, err := s.xiaohongshuService.LikeFeed(ctx, feedID, xsecToken)
+	if err != nil {
+		return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: "点赞失败: " + err.Error()}}, IsError: true}
+	}
+	return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: fmt.Sprintf("点赞成功 - Feed ID: %s", res.FeedID)}}}
+}
+
+// handleFavoriteFeed 处理收藏
+func (s *AppServer) handleFavoriteFeed(ctx context.Context, args map[string]interface{}) *MCPToolResult {
+	feedID, ok := args["feed_id"].(string)
+	if !ok || feedID == "" {
+		return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: "收藏失败: 缺少feed_id参数"}}, IsError: true}
+	}
+	xsecToken, ok := args["xsec_token"].(string)
+	if !ok || xsecToken == "" {
+		return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: "收藏失败: 缺少xsec_token参数"}}, IsError: true}
+	}
+	res, err := s.xiaohongshuService.FavoriteFeed(ctx, feedID, xsecToken)
+	if err != nil {
+		return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: "收藏失败: " + err.Error()}}, IsError: true}
+	}
+	return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: fmt.Sprintf("收藏成功 - Feed ID: %s", res.FeedID)}}}
+}
+
 // handlePostComment 处理发表评论到Feed
 func (s *AppServer) handlePostComment(ctx context.Context, args map[string]interface{}) *MCPToolResult {
 	logrus.Info("MCP: 发表评论到Feed")
