@@ -24,111 +24,77 @@ func NewLikeFavoriteAction(page *rod.Page) *LikeFavoriteAction {
 	return &LikeFavoriteAction{page: page}
 }
 
-// Like 点赞指定笔记，如果已点赞则直接返回
-func (a *LikeFavoriteAction) Like(ctx context.Context, feedID, xsecToken string) error {
+// interactActionType 交互动作类型
+type interactActionType string
+
+const (
+	actionLike     interactActionType = "点赞"
+	actionFavorite interactActionType = "收藏"
+)
+
+// performInteractAction 执行交互动作的通用方法
+func (a *LikeFavoriteAction) performInteractAction(ctx context.Context, feedID, xsecToken string, actionType interactActionType, selector string, getStateFunc func(bool, bool) bool) error {
 	page := a.page.Context(ctx).Timeout(60 * time.Second)
 	url := makeFeedDetailURL(feedID, xsecToken)
-	logrus.Infof("Opening feed detail page for like: %s", url)
+	logrus.Infof("Opening feed detail page for %s: %s", actionType, url)
 
 	page.MustNavigate(url)
 	page.MustWaitDOMStable()
 	time.Sleep(1 * time.Second)
 
-	liked, _, err := a.getInteractState(page, feedID)
+	liked, collected, err := a.getInteractState(page, feedID)
 	if err != nil {
 		logrus.Warnf("failed to read interact state: %v (continue to try clicking)", err)
-	} else if liked {
-		logrus.Infof("feed %s already liked, skip clicking", feedID)
+	} else if getStateFunc(liked, collected) {
+		logrus.Infof("feed %s already %sd, skip clicking", feedID, actionType)
 		return nil
 	}
 
-
-	// 尝试点击点赞按钮
-	if err := clickLastMatch(page, []string{".like-lottie"}); err != nil {
-		return errors.Wrap(err, "点击点赞按钮失败")
-	}
+	// 点击按钮
+	elem := page.MustElement(selector)
+	elem.MustClick()
 
 	time.Sleep(3 * time.Second) // 增加等待时间，确保状态更新
-	
-	// 验证点赞是否成功
-	newLiked, _, err := a.getInteractState(page, feedID)
-	if err == nil && newLiked {
-		logrus.Infof("feed %s 点赞成功", feedID)
+
+	// 验证是否成功
+	newLiked, newCollected, err := a.getInteractState(page, feedID)
+	if err == nil && getStateFunc(newLiked, newCollected) {
+		logrus.Infof("feed %s %s成功", feedID, actionType)
 		return nil
 	}
-	
+
 	if err != nil {
-		logrus.Warnf("验证点赞状态失败: %v", err)
+		logrus.Warnf("验证%s状态失败: %v", actionType, err)
 	} else {
-		logrus.Warnf("feed %s 点赞可能未成功，状态未变化，尝试再次点击", feedID)
+		logrus.Warnf("feed %s %s可能未成功，状态未变化，尝试再次点击", feedID, actionType)
 		// 如果第一次点击失败，尝试再次点击
-		if err := clickLastMatch(page, []string{".like-lottie"}); err != nil {
-			logrus.Warnf("第二次点击点赞按钮也失败: %v", err)
-		} else {
+		elem := page.MustElement(selector)
+		elem.MustClick()
+		{
 			time.Sleep(2 * time.Second)
-			newLiked2, _, err2 := a.getInteractState(page, feedID)
-			if err2 == nil && newLiked2 {
-				logrus.Infof("feed %s 第二次点击点赞成功", feedID)
+			finalLiked, finalCollected, err2 := a.getInteractState(page, feedID)
+			if err2 == nil && getStateFunc(finalLiked, finalCollected) {
+				logrus.Infof("feed %s 第二次点击%s成功", feedID, actionType)
 				return nil
-			} else if err2 == nil && !newLiked2 {
-				logrus.Warnf("feed %s 第二次点击后取消了点赞，这是正常行为", feedID)
-				return nil
-			}
+			} 
 		}
 	}
-	
+
 	return nil
+}
+
+// Like 点赞指定笔记，如果已点赞则直接返回
+func (a *LikeFavoriteAction) Like(ctx context.Context, feedID, xsecToken string) error {
+	return a.performInteractAction(ctx, feedID, xsecToken, actionLike, ".left > :first-child", func(liked, collected bool) bool {
+		return liked
+	})
 }
 
 // Favorite 收藏指定笔记，如果已收藏则直接返回
 func (a *LikeFavoriteAction) Favorite(ctx context.Context, feedID, xsecToken string) error {
-	page := a.page.Context(ctx).Timeout(60 * time.Second)
-	url := makeFeedDetailURL(feedID, xsecToken)
-	logrus.Infof("Opening feed detail page for favorite: %s", url)
-
-	page.MustNavigate(url)
-	page.MustWaitDOMStable()
-	time.Sleep(1 * time.Second)
-
-	_, collected, err := a.getInteractState(page, feedID)
-	if err != nil {
-		logrus.Warnf("failed to read interact state: %v (continue to try clicking)", err)
-	} else if collected {
-		logrus.Infof("feed %s already favorited, skip clicking", feedID)
-		return nil
-	}
-
-	if err := clickLastMatch(page, []string{"#collect"}); err != nil {
-		return errors.Wrap(err, "点击收藏按钮失败")
-	}
-
-	time.Sleep(3 * time.Second) // 增加等待时间，确保状态更新
-	
-	// 验证收藏是否成功
-	_, newCollected, err := a.getInteractState(page, feedID)
-	if err == nil && newCollected {
-		logrus.Infof("feed %s 收藏成功", feedID)
-		return nil
-	}
-	
-	if err != nil {
-		logrus.Warnf("验证收藏状态失败: %v", err)
-	} else {
-		logrus.Warnf("feed %s 收藏可能未成功，状态未变化，尝试再次点击", feedID)
-		// 如果第一次点击失败，尝试再次点击
-		if err := clickLastMatch(page, []string{"#collect"}); err != nil {
-			logrus.Warnf("第二次点击收藏按钮也失败: %v", err)
-		} else {
-			time.Sleep(2 * time.Second)
-			_, newCollected2, err2 := a.getInteractState(page, feedID)
-			if err2 == nil && newCollected2 {
-				logrus.Infof("feed %s 第二次点击收藏成功", feedID)
-				return nil
-			}
-		}
-	}
-	
-	return nil
+	return a.performInteractAction(ctx, feedID, xsecToken, actionFavorite, ".collect-wrapper > :last-child", func(liked, collected bool) bool {
+		return collected
+	})
 }
 
 // getInteractState 从 __INITIAL_STATE__ 读取笔记的点赞/收藏状态
@@ -164,24 +130,4 @@ func (a *LikeFavoriteAction) getInteractState(page *rod.Page, feedID string) (li
 		return false, false, fmt.Errorf("feed %s not in noteDetailMap", feedID)
 	}
 	return detail.Note.InteractInfo.Liked, detail.Note.InteractInfo.Collected, nil
-}
-
-// clickLastMatch 点击选择器匹配的最后一个元素
-func clickLastMatch(page *rod.Page, selectors []string) error {
-	for _, sel := range selectors {
-		if els, err := page.Elements(sel); err == nil && len(els) > 0 {
-			// 直接点击最后一个元素
-			lastEl := els[len(els)-1]
-			if err := lastEl.Click("left", 1); err == nil {
-				return nil
-			}
-		}
-		// 单个元素回退
-		if el, err := page.Element(sel); err == nil && el != nil {
-			if err := el.Click("left", 1); err == nil {
-				return nil
-			}
-		}
-	}
-	return errors.New("no clickable element matched for selectors")
 }
