@@ -24,167 +24,195 @@ const (
 	SelectorCollectButton = ".interact-container .left .reds-icon.collect-icon"
 )
 
-// LikeFavoriteAction 点赞/收藏 动作
-// 提供在笔记详情页执行点赞和收藏的能力，并在可能的情况下避免重复点击
-// 通过读取 window.__INITIAL_STATE__ 判断当前状态
-// 注意：该实现依赖页面 DOM，可能随页面升级而变化
-
-type LikeFavoriteAction struct {
-	page *rod.Page
-}
-
-func NewLikeFavoriteAction(page *rod.Page) *LikeFavoriteAction {
-	return &LikeFavoriteAction{page: page}
-}
-
 // interactActionType 交互动作类型
 type interactActionType string
 
 const (
-	actionLike         interactActionType = "点赞"
-	actionFavorite     interactActionType = "收藏"
-	actionUnlike       interactActionType = "取消点赞"
-	actionUnfavorite   interactActionType = "取消收藏"
+	actionLike       interactActionType = "点赞"
+	actionFavorite   interactActionType = "收藏"
+	actionUnlike     interactActionType = "取消点赞"
+	actionUnfavorite interactActionType = "取消收藏"
 )
 
-// getValidationFunc 根据动作类型获取验证函数
-func getValidationFunc(actionType interactActionType) func(bool, bool) bool {
-	switch actionType {
-	case actionLike:
-		return func(l, c bool) bool { return l }
-	case actionFavorite:
-		return func(l, c bool) bool { return c }
-	case actionUnlike:
-		return func(l, c bool) bool { return !l }
-	case actionUnfavorite:
-		return func(l, c bool) bool { return !c }
-	default:
-		return func(l, c bool) bool { return false }
-	}
+type interactAction struct {
+	page *rod.Page
 }
 
-// skipMessage 根据动作类型生成跳过消息
-func skipMessage(actionType interactActionType, feedID string) string {
-	if actionType == actionLike || actionType == actionFavorite {
-		return fmt.Sprintf("feed %s already %sd, skip clicking", feedID, actionType)
-	}
-	return fmt.Sprintf("feed %s not %sd yet, skip clicking", feedID, string(actionType)[2:])
+func newInteractAction(page *rod.Page) *interactAction {
+	return &interactAction{page: page}
 }
 
-// performClick 执行点击操作
-func (a *LikeFavoriteAction) performClick(page *rod.Page, selector string) {
-	elem := page.MustElement(selector)
-	elem.MustClick()
-}
-
-// interactConfig 交互动作配置
-type interactConfig struct {
-	feedID      string
-	xsecToken   string
-	actionType  interactActionType
-	selector    string
-	shouldSkip  func(bool, bool) bool
-}
-
-// performInteractAction 执行交互动作的通用方法
-func (a *LikeFavoriteAction) performInteractAction(ctx context.Context, config interactConfig) error {
+func (a *interactAction) preparePage(ctx context.Context, actionType interactActionType, feedID, xsecToken string) *rod.Page {
 	page := a.page.Context(ctx).Timeout(60 * time.Second)
-	url := makeFeedDetailURL(config.feedID, config.xsecToken)
-	logrus.Infof("Opening feed detail page for %s: %s", config.actionType, url)
+	url := makeFeedDetailURL(feedID, xsecToken)
+	logrus.Infof("Opening feed detail page for %s: %s", actionType, url)
 
 	page.MustNavigate(url)
 	page.MustWaitDOMStable()
 	time.Sleep(1 * time.Second)
 
-	// 检查当前状态
-	liked, collected, err := a.getInteractState(page, config.feedID)
+	return page
+}
+
+func (a *interactAction) performClick(page *rod.Page, selector string) {
+	element := page.MustElement(selector)
+	element.MustClick()
+}
+
+// LikeAction 负责处理点赞相关交互
+type LikeAction struct {
+	*interactAction
+}
+
+func NewLikeAction(page *rod.Page) *LikeAction {
+	return &LikeAction{interactAction: newInteractAction(page)}
+}
+
+// Like 点赞指定笔记，如果已点赞则直接返回
+func (a *LikeAction) Like(ctx context.Context, feedID, xsecToken string) error {
+	return a.perform(ctx, feedID, xsecToken, true)
+}
+
+// Unlike 取消点赞指定笔记，如果未点赞则直接返回
+func (a *LikeAction) Unlike(ctx context.Context, feedID, xsecToken string) error {
+	return a.perform(ctx, feedID, xsecToken, false)
+}
+
+func (a *LikeAction) perform(ctx context.Context, feedID, xsecToken string, targetLiked bool) error {
+	actionType := actionLike
+	if !targetLiked {
+		actionType = actionUnlike
+	}
+
+	page := a.preparePage(ctx, actionType, feedID, xsecToken)
+
+	liked, _, err := a.getInteractState(page, feedID)
 	if err != nil {
 		logrus.Warnf("failed to read interact state: %v (continue to try clicking)", err)
-	} else if config.shouldSkip(liked, collected) {
-		logrus.Infof(skipMessage(config.actionType, config.feedID))
+		return a.toggleLike(page, feedID, targetLiked, actionType)
+	}
+
+	if targetLiked && liked {
+		logrus.Infof("feed %s already liked, skip clicking", feedID)
+		return nil
+	}
+	if !targetLiked && !liked {
+		logrus.Infof("feed %s not liked yet, skip clicking", feedID)
 		return nil
 	}
 
-	// 执行点击
-	a.performClick(page, config.selector)
+	return a.toggleLike(page, feedID, targetLiked, actionType)
+}
+
+func (a *LikeAction) toggleLike(page *rod.Page, feedID string, targetLiked bool, actionType interactActionType) error {
+	a.performClick(page, SelectorLikeButton)
 	time.Sleep(3 * time.Second)
 
-	// 验证结果
-	isSuccess := getValidationFunc(config.actionType)
-	newLiked, newCollected, err := a.getInteractState(page, config.feedID)
-	if err == nil && isSuccess(newLiked, newCollected) {
-		logrus.Infof("feed %s %s成功", config.feedID, config.actionType)
+	liked, _, err := a.getInteractState(page, feedID)
+	if err != nil {
+		logrus.Warnf("验证%s状态失败: %v", actionType, err)
+		return nil
+	}
+	if liked == targetLiked {
+		logrus.Infof("feed %s %s成功", feedID, actionType)
 		return nil
 	}
 
-	// 失败重试
+	logrus.Warnf("feed %s %s可能未成功，状态未变化，尝试再次点击", feedID, actionType)
+	a.performClick(page, SelectorLikeButton)
+	time.Sleep(2 * time.Second)
+
+	liked, _, err = a.getInteractState(page, feedID)
 	if err != nil {
-		logrus.Warnf("验证%s状态失败: %v", config.actionType, err)
-	} else {
-		logrus.Warnf("feed %s %s可能未成功，状态未变化，尝试再次点击", config.feedID, config.actionType)
-		a.performClick(page, config.selector)
-		time.Sleep(2 * time.Second)
-		
-		finalLiked, finalCollected, err2 := a.getInteractState(page, config.feedID)
-		if err2 == nil && isSuccess(finalLiked, finalCollected) {
-			logrus.Infof("feed %s 第二次点击%s成功", config.feedID, config.actionType)
-			return nil
-		} 
+		logrus.Warnf("第二次验证%s状态失败: %v", actionType, err)
+		return nil
+	}
+	if liked == targetLiked {
+		logrus.Infof("feed %s 第二次点击%s成功", feedID, actionType)
+		return nil
 	}
 
 	return nil
 }
 
-// Like 点赞指定笔记，如果已点赞则直接返回
-func (a *LikeFavoriteAction) Like(ctx context.Context, feedID, xsecToken string) error {
-	config := interactConfig{
-		feedID:     feedID,
-		xsecToken:  xsecToken,
-		actionType: actionLike,
-		selector:   SelectorLikeButton,
-		shouldSkip: func(liked, collected bool) bool { return liked },
-	}
-	return a.performInteractAction(ctx, config)
+// FavoriteAction 负责处理收藏相关交互
+type FavoriteAction struct {
+	*interactAction
+}
+
+func NewFavoriteAction(page *rod.Page) *FavoriteAction {
+	return &FavoriteAction{interactAction: newInteractAction(page)}
 }
 
 // Favorite 收藏指定笔记，如果已收藏则直接返回
-func (a *LikeFavoriteAction) Favorite(ctx context.Context, feedID, xsecToken string) error {
-	config := interactConfig{
-		feedID:     feedID,
-		xsecToken:  xsecToken,
-		actionType: actionFavorite,
-		selector:   SelectorCollectButton,
-		shouldSkip: func(liked, collected bool) bool { return collected },
-	}
-	return a.performInteractAction(ctx, config)
-}
-
-// Unlike 取消点赞指定笔记，如果未点赞则直接返回
-func (a *LikeFavoriteAction) Unlike(ctx context.Context, feedID, xsecToken string) error {
-	config := interactConfig{
-		feedID:     feedID,
-		xsecToken:  xsecToken,
-		actionType: actionUnlike,
-		selector:   SelectorLikeButton,
-		shouldSkip: func(liked, collected bool) bool { return !liked },
-	}
-	return a.performInteractAction(ctx, config)
+func (a *FavoriteAction) Favorite(ctx context.Context, feedID, xsecToken string) error {
+	return a.perform(ctx, feedID, xsecToken, true)
 }
 
 // Unfavorite 取消收藏指定笔记，如果未收藏则直接返回
-func (a *LikeFavoriteAction) Unfavorite(ctx context.Context, feedID, xsecToken string) error {
-	config := interactConfig{
-		feedID:     feedID,
-		xsecToken:  xsecToken,
-		actionType: actionUnfavorite,
-		selector:   SelectorCollectButton,
-		shouldSkip: func(liked, collected bool) bool { return !collected },
+func (a *FavoriteAction) Unfavorite(ctx context.Context, feedID, xsecToken string) error {
+	return a.perform(ctx, feedID, xsecToken, false)
+}
+
+func (a *FavoriteAction) perform(ctx context.Context, feedID, xsecToken string, targetCollected bool) error {
+	actionType := actionFavorite
+	if !targetCollected {
+		actionType = actionUnfavorite
 	}
-	return a.performInteractAction(ctx, config)
+
+	page := a.preparePage(ctx, actionType, feedID, xsecToken)
+
+	_, collected, err := a.getInteractState(page, feedID)
+	if err != nil {
+		logrus.Warnf("failed to read interact state: %v (continue to try clicking)", err)
+		return a.toggleFavorite(page, feedID, targetCollected, actionType)
+	}
+
+	if targetCollected && collected {
+		logrus.Infof("feed %s already favorited, skip clicking", feedID)
+		return nil
+	}
+	if !targetCollected && !collected {
+		logrus.Infof("feed %s not favorited yet, skip clicking", feedID)
+		return nil
+	}
+
+	return a.toggleFavorite(page, feedID, targetCollected, actionType)
+}
+
+func (a *FavoriteAction) toggleFavorite(page *rod.Page, feedID string, targetCollected bool, actionType interactActionType) error {
+	a.performClick(page, SelectorCollectButton)
+	time.Sleep(3 * time.Second)
+
+	_, collected, err := a.getInteractState(page, feedID)
+	if err != nil {
+		logrus.Warnf("验证%s状态失败: %v", actionType, err)
+		return nil
+	}
+	if collected == targetCollected {
+		logrus.Infof("feed %s %s成功", feedID, actionType)
+		return nil
+	}
+
+	logrus.Warnf("feed %s %s可能未成功，状态未变化，尝试再次点击", feedID, actionType)
+	a.performClick(page, SelectorCollectButton)
+	time.Sleep(2 * time.Second)
+
+	_, collected, err = a.getInteractState(page, feedID)
+	if err != nil {
+		logrus.Warnf("第二次验证%s状态失败: %v", actionType, err)
+		return nil
+	}
+	if collected == targetCollected {
+		logrus.Infof("feed %s 第二次点击%s成功", feedID, actionType)
+		return nil
+	}
+
+	return nil
 }
 
 // getInteractState 从 __INITIAL_STATE__ 读取笔记的点赞/收藏状态
-func (a *LikeFavoriteAction) getInteractState(page *rod.Page, feedID string) (liked bool, collected bool, err error) {
+func (a *interactAction) getInteractState(page *rod.Page, feedID string) (liked bool, collected bool, err error) {
 	result := page.MustEval(`() => {
 		if (window.__INITIAL_STATE__) {
 			return JSON.stringify(window.__INITIAL_STATE__);
@@ -217,4 +245,3 @@ func (a *LikeFavoriteAction) getInteractState(page *rod.Page, feedID string) (li
 	}
 	return detail.Note.InteractInfo.Liked, detail.Note.InteractInfo.Collected, nil
 }
-

@@ -391,7 +391,7 @@ func (s *XiaohongshuService) LikeFeed(ctx context.Context, feedID, xsecToken str
 	page := b.NewPage()
 	defer page.Close()
 
-	action := xiaohongshu.NewLikeFavoriteAction(page)
+	action := xiaohongshu.NewLikeAction(page)
 	if err := action.Like(ctx, feedID, xsecToken); err != nil {
 		return nil, err
 	}
@@ -406,7 +406,7 @@ func (s *XiaohongshuService) UnlikeFeed(ctx context.Context, feedID, xsecToken s
 	page := b.NewPage()
 	defer page.Close()
 
-	action := xiaohongshu.NewLikeFavoriteAction(page)
+	action := xiaohongshu.NewLikeAction(page)
 	if err := action.Unlike(ctx, feedID, xsecToken); err != nil {
 		return nil, err
 	}
@@ -421,7 +421,7 @@ func (s *XiaohongshuService) FavoriteFeed(ctx context.Context, feedID, xsecToken
 	page := b.NewPage()
 	defer page.Close()
 
-	action := xiaohongshu.NewLikeFavoriteAction(page)
+	action := xiaohongshu.NewFavoriteAction(page)
 	if err := action.Favorite(ctx, feedID, xsecToken); err != nil {
 		return nil, err
 	}
@@ -436,7 +436,7 @@ func (s *XiaohongshuService) UnfavoriteFeed(ctx context.Context, feedID, xsecTok
 	page := b.NewPage()
 	defer page.Close()
 
-	action := xiaohongshu.NewLikeFavoriteAction(page)
+	action := xiaohongshu.NewFavoriteAction(page)
 	if err := action.Unfavorite(ctx, feedID, xsecToken); err != nil {
 		return nil, err
 	}
