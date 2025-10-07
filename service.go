@@ -20,13 +20,6 @@ import (
 // XiaohongshuService 小红书业务服务
 type XiaohongshuService struct{}
 
-// ActionResult 通用动作响应（点赞/收藏等）
-type ActionResult struct {
-    FeedID  string `json:"feed_id"`
-    Success bool   `json:"success"`
-    Message string `json:"message"`
-}
-
 // NewXiaohongshuService 创建小红书服务实例
 func NewXiaohongshuService() *XiaohongshuService {
 	return &XiaohongshuService{}
@@ -405,6 +398,21 @@ func (s *XiaohongshuService) LikeFeed(ctx context.Context, feedID, xsecToken str
 	return &ActionResult{FeedID: feedID, Success: true, Message: "点赞成功或已点赞"}, nil
 }
 
+// UnlikeFeed 取消点赞笔记
+func (s *XiaohongshuService) UnlikeFeed(ctx context.Context, feedID, xsecToken string) (*ActionResult, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewLikeFavoriteAction(page)
+	if err := action.Unlike(ctx, feedID, xsecToken); err != nil {
+		return nil, err
+	}
+	return &ActionResult{FeedID: feedID, Success: true, Message: "取消点赞成功或未点赞"}, nil
+}
+
 // FavoriteFeed 收藏笔记
 func (s *XiaohongshuService) FavoriteFeed(ctx context.Context, feedID, xsecToken string) (*ActionResult, error) {
 	b := newBrowser()
@@ -418,6 +426,21 @@ func (s *XiaohongshuService) FavoriteFeed(ctx context.Context, feedID, xsecToken
 		return nil, err
 	}
 	return &ActionResult{FeedID: feedID, Success: true, Message: "收藏成功或已收藏"}, nil
+}
+
+// UnfavoriteFeed 取消收藏笔记
+func (s *XiaohongshuService) UnfavoriteFeed(ctx context.Context, feedID, xsecToken string) (*ActionResult, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewLikeFavoriteAction(page)
+	if err := action.Unfavorite(ctx, feedID, xsecToken); err != nil {
+		return nil, err
+	}
+	return &ActionResult{FeedID: feedID, Success: true, Message: "取消收藏成功或未收藏"}, nil
 }
 
 func newBrowser() *headless_browser.Browser {
