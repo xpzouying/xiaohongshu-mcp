@@ -22,9 +22,9 @@ type XiaohongshuService struct{}
 
 // ActionResult 通用动作响应（点赞/收藏等）
 type ActionResult struct {
-    FeedID  string `json:"feed_id"`
-    Success bool   `json:"success"`
-    Message string `json:"message"`
+	FeedID  string `json:"feed_id"`
+	Success bool   `json:"success"`
+	Message string `json:"message"`
 }
 
 // NewXiaohongshuService 创建小红书服务实例
@@ -388,6 +388,29 @@ func (s *XiaohongshuService) PostCommentToFeed(ctx context.Context, feedID, xsec
 	}
 
 	return &PostCommentResponse{FeedID: feedID, Success: true, Message: "评论发表成功"}, nil
+}
+
+// ReplyCommentToFeed 回复指定评论
+func (s *XiaohongshuService) ReplyCommentToFeed(ctx context.Context, feedID, xsecToken, commentID, userID, content string) (*ReplyCommentResponse, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewCommentFeedAction(page)
+
+	if err := action.ReplyToComment(ctx, feedID, xsecToken, commentID, userID, content); err != nil {
+		return nil, err
+	}
+
+	return &ReplyCommentResponse{
+		FeedID:          feedID,
+		TargetCommentID: commentID,
+		TargetUserID:    userID,
+		Success:         true,
+		Message:         "评论回复成功",
+	}, nil
 }
 
 // LikeFeed 点赞笔记
