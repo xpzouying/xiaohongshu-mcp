@@ -368,29 +368,79 @@ func (s *XiaohongshuService) UserProfile(ctx context.Context, userID, xsecToken 
 
 // PostCommentToFeed 发表评论到Feed
 func (s *XiaohongshuService) PostCommentToFeed(ctx context.Context, feedID, xsecToken, content string) (*PostCommentResponse, error) {
-	// 使用非无头模式以便查看操作过程
 	b := newBrowser()
 	defer b.Close()
 
 	page := b.NewPage()
 	defer page.Close()
 
-	// 创建 Feed 评论 action
 	action := xiaohongshu.NewCommentFeedAction(page)
 
-	// 发表评论
-	err := action.PostComment(ctx, feedID, xsecToken, content)
-	if err != nil {
+	if err := action.PostComment(ctx, feedID, xsecToken, content); err != nil {
 		return nil, err
 	}
 
-	response := &PostCommentResponse{
-		FeedID:  feedID,
-		Success: true,
-		Message: "评论发表成功",
-	}
+	return &PostCommentResponse{FeedID: feedID, Success: true, Message: "评论发表成功"}, nil
+}
 
-	return response, nil
+// LikeFeed 点赞笔记
+func (s *XiaohongshuService) LikeFeed(ctx context.Context, feedID, xsecToken string) (*ActionResult, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewLikeAction(page)
+	if err := action.Like(ctx, feedID, xsecToken); err != nil {
+		return nil, err
+	}
+	return &ActionResult{FeedID: feedID, Success: true, Message: "点赞成功或已点赞"}, nil
+}
+
+// UnlikeFeed 取消点赞笔记
+func (s *XiaohongshuService) UnlikeFeed(ctx context.Context, feedID, xsecToken string) (*ActionResult, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewLikeAction(page)
+	if err := action.Unlike(ctx, feedID, xsecToken); err != nil {
+		return nil, err
+	}
+	return &ActionResult{FeedID: feedID, Success: true, Message: "取消点赞成功或未点赞"}, nil
+}
+
+// FavoriteFeed 收藏笔记
+func (s *XiaohongshuService) FavoriteFeed(ctx context.Context, feedID, xsecToken string) (*ActionResult, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewFavoriteAction(page)
+	if err := action.Favorite(ctx, feedID, xsecToken); err != nil {
+		return nil, err
+	}
+	return &ActionResult{FeedID: feedID, Success: true, Message: "收藏成功或已收藏"}, nil
+}
+
+// UnfavoriteFeed 取消收藏笔记
+func (s *XiaohongshuService) UnfavoriteFeed(ctx context.Context, feedID, xsecToken string) (*ActionResult, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewFavoriteAction(page)
+	if err := action.Unfavorite(ctx, feedID, xsecToken); err != nil {
+		return nil, err
+	}
+	return &ActionResult{FeedID: feedID, Success: true, Message: "取消收藏成功或未收藏"}, nil
 }
 
 func newBrowser() *headless_browser.Browser {
