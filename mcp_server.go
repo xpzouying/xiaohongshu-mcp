@@ -50,6 +50,20 @@ type PostCommentArgs struct {
 	Content   string `json:"content" jsonschema:"评论内容"`
 }
 
+// LikeFeedArgs 点赞参数
+type LikeFeedArgs struct {
+	FeedID    string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
+	XsecToken string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
+	Unlike    bool   `json:"unlike,omitempty" jsonschema:"是否取消点赞，true为取消点赞，false或未设置则为点赞"`
+}
+
+// FavoriteFeedArgs 收藏参数
+type FavoriteFeedArgs struct {
+	FeedID    string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
+	XsecToken string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
+	Unfavorite bool   `json:"unfavorite,omitempty" jsonschema:"是否取消收藏，true为取消收藏，false或未设置则为收藏"`
+}
+
 // InitMCPServer 初始化 MCP Server
 func InitMCPServer(appServer *AppServer) *mcp.Server {
 	// 创建 MCP Server
@@ -208,7 +222,41 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		},
 	)
 
-	logrus.Infof("Registered %d MCP tools", 9)
+	// 工具 10: 点赞笔记
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "like_feed",
+			Description: "为指定笔记点赞或取消点赞（如已点赞将跳过点赞，如未点赞将跳过取消点赞）",
+		},
+		func(ctx context.Context, req *mcp.CallToolRequest, args LikeFeedArgs) (*mcp.CallToolResult, any, error) {
+			argsMap := map[string]interface{}{
+				"feed_id":    args.FeedID,
+				"xsec_token": args.XsecToken,
+				"unlike":     args.Unlike,
+			}
+			result := appServer.handleLikeFeed(ctx, argsMap)
+			return convertToMCPResult(result), nil, nil
+		},
+	)
+
+	// 工具 11: 收藏笔记
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "favorite_feed",
+			Description: "收藏指定笔记或取消收藏（如已收藏将跳过收藏，如未收藏将跳过取消收藏）",
+		},
+		func(ctx context.Context, req *mcp.CallToolRequest, args FavoriteFeedArgs) (*mcp.CallToolResult, any, error) {
+			argsMap := map[string]interface{}{
+				"feed_id":    args.FeedID,
+				"xsec_token": args.XsecToken,
+				"unfavorite": args.Unfavorite,
+			}
+			result := appServer.handleFavoriteFeed(ctx, argsMap)
+			return convertToMCPResult(result), nil, nil
+		},
+	)
+
+	logrus.Infof("Registered %d MCP tools", 11)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式
