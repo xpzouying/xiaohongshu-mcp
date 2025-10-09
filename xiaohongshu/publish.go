@@ -7,6 +7,8 @@ import (
 	"os"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/input"
@@ -53,6 +55,11 @@ func NewPublishImageAction(page *rod.Page) (*PublishAction, error) {
 func (p *PublishAction) Publish(ctx context.Context, content PublishImageContent) error {
 	if len(content.ImagePaths) == 0 {
 		return errors.New("图片不能为空")
+	}
+
+	trimmedContent := strings.TrimRightFunc(content.Content, unicode.IsSpace)
+	if utf8.RuneCountInString(trimmedContent) > 1000 {
+		return errors.New("正文内容不能超过1000个字符")
 	}
 
 	page := p.page.Context(ctx)

@@ -23,28 +23,66 @@ func NewCommentFeedAction(page *rod.Page) *CommentFeedAction {
 // PostComment 发表评论到 Feed
 func (f *CommentFeedAction) PostComment(ctx context.Context, feedID, xsecToken, content string) error {
 	page := f.page.Context(ctx).Timeout(60 * time.Second)
+
 	// 构建详情页 URL
 	url := makeFeedDetailURL(feedID, xsecToken)
+
 	logrus.Infof("Opening feed detail page: %s", url)
+
 	// 导航到详情页
-	page.MustNavigate(url)
-	page.MustWaitDOMStable()
-	time.Sleep(3 * time.Second) // 增加等待时间确保页面完全加载
-	
-	// 等待评论容器加载
-	waitForCommentsContainer(page)
-	
-	elem := page.MustElement("div.input-box div.content-edit span")
-	elem.MustClick()
-	elem2 := page.MustElement("div.input-box div.content-edit p.content-input")
-	elem2.MustInput(content)
-	time.Sleep(2 * time.Second) // 增加等待时间
-	submitButton := page.MustElement("div.bottom button.submit")
-	submitButton.MustClick()
-	time.Sleep(2 * time.Second) // 增加等待时间确保提交完成
+	if err := page.Navigate(url); err != nil {
+		logrus.Warnf("Failed to navigate to feed detail page: %v", err)
+		return fmt.Errorf("无法打开帖子详情页，该帖子可能在网页端不可访问: %w", err)
+	}
+
+	if err := page.WaitStable(2 * time.Second); err != nil {
+		logrus.Warnf("Failed to wait for page stable: %v", err)
+		return fmt.Errorf("页面加载超时，该帖子可能在网页端不可访问: %w", err)
+	}
+
+	time.Sleep(1 * time.Second)
+
+	// 查找评论输入框
+	elem, err := page.Element("div.input-box div.content-edit span")
+	if err != nil {
+		logrus.Warnf("Failed to find comment input box: %v", err)
+		return fmt.Errorf("未找到评论输入框，该帖子可能不支持评论或网页端不可访问: %w", err)
+	}
+
+	if err := elem.Click(proto.InputMouseButtonLeft, 1); err != nil {
+		logrus.Warnf("Failed to click comment input box: %v", err)
+		return fmt.Errorf("无法点击评论输入框: %w", err)
+	}
+
+	elem2, err := page.Element("div.input-box div.content-edit p.content-input")
+	if err != nil {
+		logrus.Warnf("Failed to find comment input field: %v", err)
+		return fmt.Errorf("未找到评论输入区域: %w", err)
+	}
+
+	if err := elem2.Input(content); err != nil {
+		logrus.Warnf("Failed to input comment content: %v", err)
+		return fmt.Errorf("无法输入评论内容: %w", err)
+	}
+
+	time.Sleep(1 * time.Second)
+
+	submitButton, err := page.Element("div.bottom button.submit")
+	if err != nil {
+		logrus.Warnf("Failed to find submit button: %v", err)
+		return fmt.Errorf("未找到提交按钮: %w", err)
+	}
+
+	if err := submitButton.Click(proto.InputMouseButtonLeft, 1); err != nil {
+		logrus.Warnf("Failed to click submit button: %v", err)
+		return fmt.Errorf("无法点击提交按钮: %w", err)
+	}
+
+	time.Sleep(1 * time.Second)
+
+	logrus.Infof("Comment posted successfully to feed: %s", feedID)
 	return nil
 }
-
 // ReplyToComment 回复指定评论
 func (f *CommentFeedAction) ReplyToComment(ctx context.Context, feedID, xsecToken, commentID, userID, content string) error {
 	page := f.page.Context(ctx).Timeout(60 * time.Second)
