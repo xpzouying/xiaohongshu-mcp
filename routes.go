@@ -47,6 +47,7 @@ func setupRoutes(appServer *AppServer) *gin.Engine {
 		api.POST("/feeds/detail", appServer.getFeedDetailHandler)
 		api.POST("/user/profile", appServer.userProfileHandler)
 		api.POST("/feeds/comment", appServer.postCommentHandler)
+		api.POST("/feeds/comment/reply", appServer.replyCommentHandler)
 	}
 
 	return router
