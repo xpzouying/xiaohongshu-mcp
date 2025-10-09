@@ -54,8 +54,8 @@ type PostCommentArgs struct {
 type ReplyCommentArgs struct {
 	FeedID    string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
 	XsecToken string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
-	CommentID string `json:"comment_id" jsonschema:"评论ID"`
-	UserID    string `json:"user_id" jsonschema:"用户ID"`
+	CommentID string `json:"comment_id,omitempty" jsonschema:"目标评论ID，从评论列表获取"`
+	UserID    string `json:"user_id,omitempty" jsonschema:"目标评论用户ID，从评论列表获取"`
 	Content   string `json:"content" jsonschema:"回复内容"`
 }
 
@@ -216,10 +216,17 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 	// 工具 9: 回复评论
 	mcp.AddTool(server,
 		&mcp.Tool{
-			Name:        "reply_to_comment",
-			Description: "回复小红书笔记的评论",
+			Name:        "reply_comment_in_feed",
+			Description: "回复小红书笔记下的指定评论",
 		},
 		func(ctx context.Context, req *mcp.CallToolRequest, args ReplyCommentArgs) (*mcp.CallToolResult, any, error) {
+			if args.CommentID == "" && args.UserID == "" {
+				return &mcp.CallToolResult{
+					IsError: true,
+					Content: []mcp.Content{&mcp.TextContent{Text: "缺少 comment_id 或 user_id"}},
+				}, nil, nil
+			}
+
 			argsMap := map[string]interface{}{
 				"feed_id":    args.FeedID,
 				"xsec_token": args.XsecToken,

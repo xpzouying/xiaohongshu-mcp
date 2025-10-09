@@ -552,23 +552,13 @@ func (s *AppServer) handleReplyComment(ctx context.Context, args map[string]inte
 		}
 	}
 
-	commentID, ok := args["comment_id"].(string)
-	if !ok || commentID == "" {
+	commentID, _ := args["comment_id"].(string)
+	userID, _ := args["user_id"].(string)
+	if commentID == "" && userID == "" {
 		return &MCPToolResult{
 			Content: []MCPContent{{
 				Type: "text",
-				Text: "回复评论失败: 缺少comment_id参数",
-			}},
-			IsError: true,
-		}
-	}
-
-	userID, ok := args["user_id"].(string)
-	if !ok || userID == "" {
-		return &MCPToolResult{
-			Content: []MCPContent{{
-				Type: "text",
-				Text: "回复评论失败: 缺少user_id参数",
+				Text: "回复评论失败: 缺少comment_id或user_id参数",
 			}},
 			IsError: true,
 		}
@@ -600,11 +590,11 @@ func (s *AppServer) handleReplyComment(ctx context.Context, args map[string]inte
 	}
 
 	// 返回成功结果
-	resultText := fmt.Sprintf("回复评论成功 - Feed ID: %s", result.FeedID)
+	responseText := fmt.Sprintf("评论回复成功 - Feed ID: %s, Comment ID: %s, User ID: %s", result.FeedID, result.TargetCommentID, result.TargetUserID)
 	return &MCPToolResult{
 		Content: []MCPContent{{
 			Type: "text",
-			Text: resultText,
+			Text: responseText,
 		}},
 	}
 }
