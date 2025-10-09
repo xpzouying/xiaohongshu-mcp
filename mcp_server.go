@@ -50,6 +50,15 @@ type PostCommentArgs struct {
 	Content   string `json:"content" jsonschema:"评论内容"`
 }
 
+// ReplyCommentArgs 回复评论的参数
+type ReplyCommentArgs struct {
+	FeedID    string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
+	XsecToken string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
+	CommentID string `json:"comment_id" jsonschema:"评论ID"`
+	UserID    string `json:"user_id" jsonschema:"用户ID"`
+	Content   string `json:"content" jsonschema:"回复内容"`
+}
+
 // LikeFeedArgs 点赞参数
 type LikeFeedArgs struct {
 	FeedID    string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
@@ -204,7 +213,26 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		},
 	)
 
-	// 工具 9: 发布视频（仅本地文件）
+	// 工具 9: 回复评论
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "reply_to_comment",
+			Description: "回复小红书笔记的评论",
+		},
+		func(ctx context.Context, req *mcp.CallToolRequest, args ReplyCommentArgs) (*mcp.CallToolResult, any, error) {
+			argsMap := map[string]interface{}{
+				"feed_id":    args.FeedID,
+				"xsec_token": args.XsecToken,
+				"comment_id": args.CommentID,
+				"user_id":    args.UserID,
+				"content":    args.Content,
+			}
+			result := appServer.handleReplyComment(ctx, argsMap)
+			return convertToMCPResult(result), nil, nil
+		},
+	)
+
+	// 工具 10: 发布视频（仅本地文件）
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "publish_with_video",
@@ -222,7 +250,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		},
 	)
 
-	// 工具 10: 点赞笔记
+	// 工具 11: 点赞笔记
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "like_feed",
@@ -239,7 +267,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		},
 	)
 
-	// 工具 11: 收藏笔记
+	// 工具 12: 收藏笔记
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "favorite_feed",
