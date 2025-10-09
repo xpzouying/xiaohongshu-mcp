@@ -50,19 +50,18 @@ type PostCommentArgs struct {
 	Content   string `json:"content" jsonschema:"评论内容"`
 }
 
-// ReplyCommentArgs 回复评论的参数
-type ReplyCommentArgs struct {
+// LikeFeedArgs 点赞参数
+type LikeFeedArgs struct {
 	FeedID    string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
 	XsecToken string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
-	CommentID string `json:"comment_id,omitempty" jsonschema:"目标评论ID，从评论列表获取"`
-	UserID    string `json:"user_id,omitempty" jsonschema:"目标评论作者ID，从评论列表获取"`
-	Content   string `json:"content" jsonschema:"回复内容"`
+	Unlike    bool   `json:"unlike,omitempty" jsonschema:"是否取消点赞，true为取消点赞，false或未设置则为点赞"`
 }
 
-// LikeFavoriteArgs 点赞/收藏参数
-type LikeFavoriteArgs struct {
+// FavoriteFeedArgs 收藏参数
+type FavoriteFeedArgs struct {
 	FeedID    string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
 	XsecToken string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
+	Unfavorite bool   `json:"unfavorite,omitempty" jsonschema:"是否取消收藏，true为取消收藏，false或未设置则为收藏"`
 }
 
 // InitMCPServer 初始化 MCP Server
@@ -205,33 +204,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		},
 	)
 
-	// 工具 9: 回复评论
-	mcp.AddTool(server,
-		&mcp.Tool{
-			Name:        "reply_comment_in_feed",
-			Description: "回复小红书笔记下的指定评论",
-		},
-		func(ctx context.Context, req *mcp.CallToolRequest, args ReplyCommentArgs) (*mcp.CallToolResult, any, error) {
-			if args.CommentID == "" && args.UserID == "" {
-				return &mcp.CallToolResult{
-					IsError: true,
-					Content: []mcp.Content{&mcp.TextContent{Text: "缺少 comment_id 或 user_id"}},
-				}, nil, nil
-			}
-
-			argsMap := map[string]interface{}{
-				"feed_id":    args.FeedID,
-				"xsec_token": args.XsecToken,
-				"comment_id": args.CommentID,
-				"user_id":    args.UserID,
-				"content":    args.Content,
-			}
-			result := appServer.handleReplyComment(ctx, argsMap)
-			return convertToMCPResult(result), nil, nil
-		},
-	)
-
-	// 工具 10: 发布视频（仅本地文件）
+	// 工具 9: 发布视频（仅本地文件）
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "publish_with_video",
@@ -249,39 +222,41 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		},
 	)
 
-	// 工具 11: 点赞笔记
+	// 工具 10: 点赞笔记
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "like_feed",
-			Description: "为指定笔记点赞（如已点赞将跳过）",
+			Description: "为指定笔记点赞或取消点赞（如已点赞将跳过点赞，如未点赞将跳过取消点赞）",
 		},
-		func(ctx context.Context, req *mcp.CallToolRequest, args LikeFavoriteArgs) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, req *mcp.CallToolRequest, args LikeFeedArgs) (*mcp.CallToolResult, any, error) {
 			argsMap := map[string]interface{}{
 				"feed_id":    args.FeedID,
 				"xsec_token": args.XsecToken,
+				"unlike":     args.Unlike,
 			}
 			result := appServer.handleLikeFeed(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
 		},
 	)
 
-	// 工具 12: 收藏笔记
+	// 工具 11: 收藏笔记
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "favorite_feed",
-			Description: "收藏指定笔记（如已收藏将跳过）",
+			Description: "收藏指定笔记或取消收藏（如已收藏将跳过收藏，如未收藏将跳过取消收藏）",
 		},
-		func(ctx context.Context, req *mcp.CallToolRequest, args LikeFavoriteArgs) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, req *mcp.CallToolRequest, args FavoriteFeedArgs) (*mcp.CallToolResult, any, error) {
 			argsMap := map[string]interface{}{
 				"feed_id":    args.FeedID,
 				"xsec_token": args.XsecToken,
+				"unfavorite": args.Unfavorite,
 			}
 			result := appServer.handleFavoriteFeed(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
 		},
 	)
 
-	logrus.Infof("Registered %d MCP tools", 12)
+	logrus.Infof("Registered %d MCP tools", 11)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式
