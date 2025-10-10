@@ -3,6 +3,7 @@ package xiaohongshu
 import (
 	"context"
 	"log/slog"
+	"math/rand"
 	"os"
 	"strings"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/go-rod/rod/lib/input"
 	"github.com/go-rod/rod/lib/proto"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 )
 
 // PublishImageContent 发布图文内容（统一支持立即发布和定时发布）
@@ -32,44 +34,14 @@ const (
 
 func NewPublishImageAction(page *rod.Page) (*PublishAction, error) {
 
-	pp := page.Timeout(60 * time.Second)
+	pp := page.Timeout(180 * time.Second)
 
-	pp.MustNavigate(urlOfPublic)
-
-	pp.MustElement(`div.upload-content`).MustWaitVisible()
-	slog.Info("wait for upload-content visible success")
-
-	// 等待一段时间确保页面完全加载
+	pp.MustNavigate(urlOfPublic).MustWaitIdle().MustWaitDOMStable()
 	time.Sleep(1 * time.Second)
 
-	createElems := pp.MustElements("div.creator-tab")
-
-	// 过滤掉隐藏的元素
-	var visibleElems []*rod.Element
-	for _, elem := range createElems {
-		if isElementVisible(elem) {
-			visibleElems = append(visibleElems, elem)
-		}
-	}
-
-	if len(visibleElems) == 0 {
-		return nil, errors.New("没有找到上传图文元素")
-	}
-
-	for _, elem := range visibleElems {
-		text, err := elem.Text()
-		if err != nil {
-			slog.Error("获取元素文本失败", "error", err)
-			continue
-		}
-
-		if text == "上传图文" {
-			if err := elem.Click(proto.InputMouseButtonLeft, 1); err != nil {
-				slog.Error("点击元素失败", "error", err)
-				continue
-			}
-			break
-		}
+	if err := mustClickPublishTab(page, "上传图文"); err != nil {
+		logrus.Errorf("点击上传图文 TAB 失败: %v", err)
+		return nil, err
 	}
 
 	time.Sleep(1 * time.Second)
@@ -105,6 +77,113 @@ func (p *PublishAction) Publish(ctx context.Context, content PublishImageContent
 	}
 
 	return nil
+}
+
+func removePopCover(page *rod.Page) {
+
+	// 先移除弹窗封面
+	has, elem, err := page.Has("div.d-popover")
+	if err != nil {
+		return
+	}
+	if has {
+		elem.MustRemove()
+	}
+
+	// 兜底：点击一下空位置吧
+	clickEmptyPosition(page)
+}
+
+func clickEmptyPosition(page *rod.Page) {
+	x := 380 + rand.Intn(100)
+	y := 20 + rand.Intn(60)
+	page.Mouse.MustMoveTo(float64(x), float64(y)).MustClick(proto.InputMouseButtonLeft)
+}
+
+func mustClickPublishTab(page *rod.Page, tabname string) error {
+	page.MustElement(`div.upload-content`).MustWaitVisible()
+
+	deadline := time.Now().Add(15 * time.Second)
+	for time.Now().Before(deadline) {
+		tab, blocked, err := getTabElement(page, tabname)
+		if err != nil {
+			logrus.Warnf("获取发布 TAB 元素失败: %v", err)
+			time.Sleep(200 * time.Millisecond)
+			continue
+		}
+
+		if tab == nil {
+			time.Sleep(200 * time.Millisecond)
+			continue
+		}
+
+		if blocked {
+			logrus.Info("发布 TAB 被遮挡，尝试移除遮挡")
+			removePopCover(page)
+			time.Sleep(200 * time.Millisecond)
+			continue
+		}
+
+		if err := tab.Click(proto.InputMouseButtonLeft, 1); err != nil {
+			logrus.Warnf("点击发布 TAB 失败: %v", err)
+			time.Sleep(200 * time.Millisecond)
+			continue
+		}
+
+		return nil
+	}
+
+	return errors.Errorf("没有找到发布 TAB - %s", tabname)
+}
+
+func getTabElement(page *rod.Page, tabname string) (*rod.Element, bool, error) {
+	elems, err := page.Elements("div.creator-tab")
+	if err != nil {
+		return nil, false, err
+	}
+
+	for _, elem := range elems {
+		if !isElementVisible(elem) {
+			continue
+		}
+
+		text, err := elem.Text()
+		if err != nil {
+			logrus.Debugf("获取发布 TAB 文本失败: %v", err)
+			continue
+		}
+
+		if strings.TrimSpace(text) != tabname {
+			continue
+		}
+
+		blocked, err := isElementBlocked(elem)
+		if err != nil {
+			return nil, false, err
+		}
+
+		return elem, blocked, nil
+	}
+
+	return nil, false, nil
+}
+
+func isElementBlocked(elem *rod.Element) (bool, error) {
+	result, err := elem.Eval(`() => {
+		const rect = this.getBoundingClientRect();
+		if (rect.width === 0 || rect.height === 0) {
+			return true;
+		}
+		const x = rect.left + rect.width / 2;
+		const y = rect.top + rect.height / 2;
+		const target = document.elementFromPoint(x, y);
+		return !(target === this || this.contains(target));
+	}`)
+	if err != nil {
+		return false, err
+	}
+
+	return result.Value.Bool(), nil
 }
 
 func uploadImages(page *rod.Page, imagesPaths []string) error {

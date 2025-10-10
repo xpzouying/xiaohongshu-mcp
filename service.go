@@ -13,6 +13,7 @@ import (
 	"github.com/xpzouying/xiaohongshu-mcp/cookies"
 	"github.com/xpzouying/xiaohongshu-mcp/pkg/downloader"
 	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
+	"os"
 	"time"
 )
 
@@ -51,6 +52,23 @@ type PublishResponse struct {
 	Title   string `json:"title"`
 	Content string `json:"content"`
 	Images  int    `json:"images"`
+	Status  string `json:"status"`
+	PostID  string `json:"post_id,omitempty"`
+}
+
+// PublishVideoRequest 发布视频请求（仅支持本地单个视频文件）
+type PublishVideoRequest struct {
+	Title   string   `json:"title" binding:"required"`
+	Content string   `json:"content" binding:"required"`
+	Video   string   `json:"video" binding:"required"`
+	Tags    []string `json:"tags,omitempty"`
+}
+
+// PublishVideoResponse 发布视频响应
+type PublishVideoResponse struct {
+	Title   string `json:"title"`
+	Content string `json:"content"`
+	Video   string `json:"video"`
 	Status  string `json:"status"`
 	PostID  string `json:"post_id,omitempty"`
 }
@@ -201,6 +219,59 @@ func (s *XiaohongshuService) publishContent(ctx context.Context, content xiaohon
 	return action.Publish(ctx, content)
 }
 
+// PublishVideo 发布视频（本地文件）
+func (s *XiaohongshuService) PublishVideo(ctx context.Context, req *PublishVideoRequest) (*PublishVideoResponse, error) {
+	// 标题长度校验
+	if titleWidth := runewidth.StringWidth(req.Title); titleWidth > 40 {
+		return nil, fmt.Errorf("标题长度超过限制")
+	}
+
+	// 本地视频文件校验
+	if req.Video == "" {
+		return nil, fmt.Errorf("必须提供本地视频文件")
+	}
+	if _, err := os.Stat(req.Video); err != nil {
+		return nil, fmt.Errorf("视频文件不存在或不可访问: %v", err)
+	}
+
+	// 构建发布内容
+	content := xiaohongshu.PublishVideoContent{
+		Title:     req.Title,
+		Content:   req.Content,
+		Tags:      req.Tags,
+		VideoPath: req.Video,
+	}
+
+	// 执行发布
+	if err := s.publishVideo(ctx, content); err != nil {
+		return nil, err
+	}
+
+	resp := &PublishVideoResponse{
+		Title:   req.Title,
+		Content: req.Content,
+		Video:   req.Video,
+		Status:  "发布完成",
+	}
+	return resp, nil
+}
+
+// publishVideo 执行视频发布
+func (s *XiaohongshuService) publishVideo(ctx context.Context, content xiaohongshu.PublishVideoContent) error {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action, err := xiaohongshu.NewPublishVideoAction(page)
+	if err != nil {
+		return err
+	}
+
+	return action.PublishVideo(ctx, content)
+}
+
 // ListFeeds 获取Feeds列表
 func (s *XiaohongshuService) ListFeeds(ctx context.Context) (*FeedsListResponse, error) {
 	b := newBrowser()
@@ -299,29 +370,79 @@ func (s *XiaohongshuService) UserProfile(ctx context.Context, userID, xsecToken 
 
 // PostCommentToFeed 发表评论到Feed
 func (s *XiaohongshuService) PostCommentToFeed(ctx context.Context, feedID, xsecToken, content string) (*PostCommentResponse, error) {
-	// 使用非无头模式以便查看操作过程
 	b := newBrowser()
 	defer b.Close()
 
 	page := b.NewPage()
 	defer page.Close()
 
-	// 创建 Feed 评论 action
 	action := xiaohongshu.NewCommentFeedAction(page)
 
-	// 发表评论
-	err := action.PostComment(ctx, feedID, xsecToken, content)
-	if err != nil {
+	if err := action.PostComment(ctx, feedID, xsecToken, content); err != nil {
 		return nil, err
 	}
 
-	response := &PostCommentResponse{
-		FeedID:  feedID,
-		Success: true,
-		Message: "评论发表成功",
-	}
+	return &PostCommentResponse{FeedID: feedID, Success: true, Message: "评论发表成功"}, nil
+}
 
-	return response, nil
+// LikeFeed 点赞笔记
+func (s *XiaohongshuService) LikeFeed(ctx context.Context, feedID, xsecToken string) (*ActionResult, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewLikeAction(page)
+	if err := action.Like(ctx, feedID, xsecToken); err != nil {
+		return nil, err
+	}
+	return &ActionResult{FeedID: feedID, Success: true, Message: "点赞成功或已点赞"}, nil
+}
+
+// UnlikeFeed 取消点赞笔记
+func (s *XiaohongshuService) UnlikeFeed(ctx context.Context, feedID, xsecToken string) (*ActionResult, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewLikeAction(page)
+	if err := action.Unlike(ctx, feedID, xsecToken); err != nil {
+		return nil, err
+	}
+	return &ActionResult{FeedID: feedID, Success: true, Message: "取消点赞成功或未点赞"}, nil
+}
+
+// FavoriteFeed 收藏笔记
+func (s *XiaohongshuService) FavoriteFeed(ctx context.Context, feedID, xsecToken string) (*ActionResult, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewFavoriteAction(page)
+	if err := action.Favorite(ctx, feedID, xsecToken); err != nil {
+		return nil, err
+	}
+	return &ActionResult{FeedID: feedID, Success: true, Message: "收藏成功或已收藏"}, nil
+}
+
+// UnfavoriteFeed 取消收藏笔记
+func (s *XiaohongshuService) UnfavoriteFeed(ctx context.Context, feedID, xsecToken string) (*ActionResult, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewFavoriteAction(page)
+	if err := action.Unfavorite(ctx, feedID, xsecToken); err != nil {
+		return nil, err
+	}
+	return &ActionResult{FeedID: feedID, Success: true, Message: "取消收藏成功或未收藏"}, nil
 }
 
 func newBrowser() *headless_browser.Browser {
