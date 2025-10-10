@@ -391,6 +391,78 @@ func (s *AppServer) handleUserProfile(ctx context.Context, args map[string]any) 
 	}
 }
 
+// handleLikeFeed 处理点赞/取消点赞
+func (s *AppServer) handleLikeFeed(ctx context.Context, args map[string]interface{}) *MCPToolResult {
+	feedID, ok := args["feed_id"].(string)
+	if !ok || feedID == "" {
+		return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: "操作失败: 缺少feed_id参数"}}, IsError: true}
+	}
+	xsecToken, ok := args["xsec_token"].(string)
+	if !ok || xsecToken == "" {
+		return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: "操作失败: 缺少xsec_token参数"}}, IsError: true}
+	}
+	unlike, _ := args["unlike"].(bool)
+	
+	var res *ActionResult
+	var err error
+	
+	if unlike {
+		res, err = s.xiaohongshuService.UnlikeFeed(ctx, feedID, xsecToken)
+	} else {
+		res, err = s.xiaohongshuService.LikeFeed(ctx, feedID, xsecToken)
+	}
+	
+	if err != nil {
+		action := "点赞"
+		if unlike {
+			action = "取消点赞"
+		}
+		return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: action + "失败: " + err.Error()}}, IsError: true}
+	}
+	
+	action := "点赞"
+	if unlike {
+		action = "取消点赞"
+	}
+	return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: fmt.Sprintf("%s成功 - Feed ID: %s", action, res.FeedID)}}}
+}
+
+// handleFavoriteFeed 处理收藏/取消收藏
+func (s *AppServer) handleFavoriteFeed(ctx context.Context, args map[string]interface{}) *MCPToolResult {
+	feedID, ok := args["feed_id"].(string)
+	if !ok || feedID == "" {
+		return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: "操作失败: 缺少feed_id参数"}}, IsError: true}
+	}
+	xsecToken, ok := args["xsec_token"].(string)
+	if !ok || xsecToken == "" {
+		return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: "操作失败: 缺少xsec_token参数"}}, IsError: true}
+	}
+	unfavorite, _ := args["unfavorite"].(bool)
+	
+	var res *ActionResult
+	var err error
+	
+	if unfavorite {
+		res, err = s.xiaohongshuService.UnfavoriteFeed(ctx, feedID, xsecToken)
+	} else {
+		res, err = s.xiaohongshuService.FavoriteFeed(ctx, feedID, xsecToken)
+	}
+	
+	if err != nil {
+		action := "收藏"
+		if unfavorite {
+			action = "取消收藏"
+		}
+		return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: action + "失败: " + err.Error()}}, IsError: true}
+	}
+	
+	action := "收藏"
+	if unfavorite {
+		action = "取消收藏"
+	}
+	return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: fmt.Sprintf("%s成功 - Feed ID: %s", action, res.FeedID)}}}
+}
+
 // handlePostComment 处理发表评论到Feed
 func (s *AppServer) handlePostComment(ctx context.Context, args map[string]interface{}) *MCPToolResult {
 	logrus.Info("MCP: 发表评论到Feed")
