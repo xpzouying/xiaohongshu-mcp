@@ -416,3 +416,38 @@ func saveCookies(page *rod.Page) error {
 	cookieLoader := cookies.NewLoadCookie(cookies.GetCookiesFilePath())
 	return cookieLoader.SaveCookies(data)
 }
+
+// withBrowserPage 执行需要浏览器页面的操作的通用函数
+func withBrowserPage(fn func(*rod.Page) error) error {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	return fn(page)
+}
+
+// GetMyProfile 获取当前登录用户的个人信息
+func (s *XiaohongshuService) GetMyProfile(ctx context.Context) (*UserProfileResponse, error) {
+	var result *xiaohongshu.UserProfileResponse
+	var err error
+
+	err = withBrowserPage(func(page *rod.Page) error {
+		action := xiaohongshu.NewUserProfileAction(page)
+		result, err = action.GetMyProfileViaSidebar(ctx)
+		return err
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UserProfileResponse{
+		UserBasicInfo: result.UserBasicInfo,
+		Interactions:  result.Interactions,
+		Feeds:         result.Feeds,
+	}
+
+	return response, nil
+}
