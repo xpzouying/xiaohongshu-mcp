@@ -164,6 +164,11 @@ func (s *XiaohongshuService) PublishContent(ctx context.Context, req *PublishReq
 	if titleWidth := runewidth.StringWidth(req.Title); titleWidth > 40 {
 		return nil, fmt.Errorf("标题长度超过限制")
 	}
+	// 修改为同时校验宽度和字符数
+	titleRunes := []rune(req.Title)
+	if len(titleRunes) > 20 {
+		return nil, fmt.Errorf("标题字符数超过限制")
+	}
 
 	// 处理图片：下载URL图片或使用本地路径
 	imagePaths, err := s.processImages(req.Images)
