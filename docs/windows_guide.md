@@ -134,21 +134,3 @@ npx @modelcontextprotocol/inspector
 ![](https://wdcdn.qpic.cn/MTY4ODg1NTIyMTY1ODI2NQ_861647_Lo0xw1oXyLKD5A2Y_1760165693?w=1074&h=452&type=image/png)
 
 ![](https://wdcdn.qpic.cn/MTY4ODg1NTIyMTY1ODI2NQ_260079_5FFeEfMTVXaLGXoz_1760165797?w=1905&h=937&type=image/png)
-
-## 5.  AI 客户端 （iflow cli)
-
-终端安装
-
-```
-npm install -g @iflow-ai/iflow-cli@latest
-```
-
-启动iFlow
-
-```
-iflow
-```
-
-用自然语言形式发布笔记效果
-
-![](https://wdcdn.qpic.cn/MTY4ODg1NTIyMTY1ODI2NQ_60616_56RN77ZzAtQ50MK9_1760166565?w=3319&h=1673&type=image/png)
