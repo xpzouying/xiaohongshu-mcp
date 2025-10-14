@@ -17,9 +17,9 @@ type SearchResult struct {
 }
 
 type FilterOption struct {
-	FiltersIndex int    `json:"filters_index"` // 筛选组索引 (1-based): 1=排序依据, 2=笔记类型, 3=发布时间, 4=搜索范围, 5=位置距离
-	TagsIndex    int    `json:"tags_index"`    // 标签索引 (1-based): 1=不限, 2=第一个选项, 3=第二个选项...
-	Text         string `json:"text"`          // 标签文本描述，用于说明
+	FiltersIndex int    `json:"filters_index" jsonschema:"筛选组索引 1=排序依据, 2=笔记类型, 3=发布时间, 4=搜索范围, 5=位置距离"`
+	TagsIndex    int    `json:"tags_index" jsonschema:"标签索引，根据不同的筛选组索引对应不同的选项: 1=排序依据(1-5), 2=笔记类型(1-3), 3=发布时间(1-4), 4=搜索范围(1-4), 5=位置距离(1-3)"`
+	Text         string `json:"text" jsonschema:"标签文本描述"`
 }
 
 // 预定义的筛选选项映射表
@@ -53,6 +53,15 @@ var FilterOptionsMap = map[int][]FilterOption{
 		{FiltersIndex: 5, TagsIndex: 2, Text: "同城"},
 		{FiltersIndex: 5, TagsIndex: 3, Text: "附近"},
 	},
+}
+
+// 定义筛选组索引到中文描述的映射
+var filterGroupMap = map[int]string{
+	1: "排序依据",
+	2: "笔记类型",
+	3: "发布时间",
+	4: "搜索范围",
+	5: "位置距离",
 }
 
 // validateFilterOption 验证筛选选项是否在有效范围内
@@ -111,6 +120,25 @@ func SearchScope(text string) (FilterOption, error) {
 
 func LocationDistance(text string) (FilterOption, error) {
 	return NewFilterOption(5, text) // 位置距离
+}
+
+// GetFilterGroupDescription 根据筛选组索引获取中文描述
+func GetFilterGroupDescription(index int) string {
+	if desc, exists := filterGroupMap[index]; exists {
+		return desc
+	}
+	return "未知筛选组"
+}
+
+// GetFilterGroupIndex 根据中文描述获取筛选组索引
+func GetFilterGroupIndex(text string) int {
+	// 通过遍历filterGroupMap获取对应的索引
+	for index, description := range filterGroupMap {
+		if description == text {
+			return index
+		}
+	}
+	return -1 // 未找到匹配项时返回-1
 }
 
 type SearchAction struct {
