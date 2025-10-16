@@ -3,6 +3,8 @@ package main
 import (
 	"net/http"
 
+	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
+
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 )
@@ -117,7 +119,24 @@ func (s *AppServer) listFeedsHandler(c *gin.Context) {
 
 // searchFeedsHandler 搜索Feeds
 func (s *AppServer) searchFeedsHandler(c *gin.Context) {
-	keyword := c.Query("keyword")
+	var keyword string
+	var filters []xiaohongshu.FilterOption
+
+	switch c.Request.Method {
+	case http.MethodPost:
+		// 对于POST请求，从JSON中获取keyword
+		var searchReq SearchFeedsRequest
+		if err := c.ShouldBindJSON(&searchReq); err != nil {
+			respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
+				"请求参数错误", err.Error())
+			return
+		}
+		keyword = searchReq.Keyword
+		filters = searchReq.Filters
+	default:
+		keyword = c.Query("keyword")
+	}
+
 	if keyword == "" {
 		respondError(c, http.StatusBadRequest, "MISSING_KEYWORD",
 			"缺少关键词参数", "keyword parameter is required")
@@ -125,7 +144,7 @@ func (s *AppServer) searchFeedsHandler(c *gin.Context) {
 	}
 
 	// 搜索 Feeds
-	result, err := s.xiaohongshuService.SearchFeeds(c.Request.Context(), keyword)
+	result, err := s.xiaohongshuService.SearchFeeds(c.Request.Context(), keyword, filters...)
 	if err != nil {
 		respondError(c, http.StatusInternalServerError, "SEARCH_FEEDS_FAILED",
 			"搜索Feeds失败", err.Error())

@@ -1,5 +1,7 @@
 package main
 
+import "github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
+
 // HTTP API 响应类型
 
 // ErrorResponse 错误响应
@@ -36,6 +38,11 @@ type MCPContent struct {
 type FeedDetailRequest struct {
 	FeedID    string `json:"feed_id" binding:"required"`
 	XsecToken string `json:"xsec_token" binding:"required"`
+}
+
+type SearchFeedsRequest struct {
+	Keyword string                     `json:"keyword" binding:"required"`
+	Filters []xiaohongshu.FilterOption `json:"filters" binding:"required"`
 }
 
 // FeedDetailResponse Feed详情响应

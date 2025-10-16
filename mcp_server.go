@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/base64"
-
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/sirupsen/logrus"
 )
@@ -28,7 +27,13 @@ type PublishVideoArgs struct {
 
 // SearchFeedsArgs 搜索内容的参数
 type SearchFeedsArgs struct {
-	Keyword string `json:"keyword" jsonschema:"搜索关键词"`
+	Keyword string         `json:"keyword" jsonschema:"搜索关键词"`
+	Filters []FilterOption `json:"filters,omitempty" jsonschema:"筛选选项列表"`
+}
+
+type FilterOption struct {
+	FiltersIndex string `json:"filters_index" jsonschema:"筛选索引 排序依据 笔记类型, 发布时间, 搜索范围, 位置距离"` //
+	TagsIndex    string `json:"tags_index" jsonschema:"筛选值 排序依据（综合、最新、最多点赞、最多评论、最多收藏）笔记类型（不限、视频、图文）发布时间（不限、一天内、一周内、半年内）搜索范围（不限、已看过、未看过、已关注）位置距离（不限、同城、附近）"`
 }
 
 // FeedDetailArgs 获取Feed详情的参数
@@ -147,10 +152,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 			Description: "搜索小红书内容（需要已登录）",
 		},
 		func(ctx context.Context, req *mcp.CallToolRequest, args SearchFeedsArgs) (*mcp.CallToolResult, any, error) {
-			argsMap := map[string]interface{}{
-				"keyword": args.Keyword,
-			}
-			result := appServer.handleSearchFeeds(ctx, argsMap)
+			result := appServer.handleSearchFeeds(ctx, args)
 			return convertToMCPResult(result), nil, nil
 		},
 	)

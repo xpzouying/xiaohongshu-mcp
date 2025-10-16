@@ -295,7 +295,7 @@ func (s *XiaohongshuService) ListFeeds(ctx context.Context) (*FeedsListResponse,
 	return response, nil
 }
 
-func (s *XiaohongshuService) SearchFeeds(ctx context.Context, keyword string) (*FeedsListResponse, error) {
+func (s *XiaohongshuService) SearchFeeds(ctx context.Context, keyword string, filters ...xiaohongshu.FilterOption) (*FeedsListResponse, error) {
 	b := newBrowser()
 	defer b.Close()
 
@@ -304,7 +304,7 @@ func (s *XiaohongshuService) SearchFeeds(ctx context.Context, keyword string) (*
 
 	action := xiaohongshu.NewSearchAction(page)
 
-	feeds, err := action.Search(ctx, keyword)
+	feeds, err := action.Search(ctx, keyword, filters...)
 	if err != nil {
 		return nil, err
 	}
