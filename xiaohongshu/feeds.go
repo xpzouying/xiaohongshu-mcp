@@ -33,24 +33,26 @@ func (f *FeedsListAction) GetFeedsList(ctx context.Context) ([]Feed, error) {
 
 	time.Sleep(1 * time.Second)
 
-	// 获取 window.__INITIAL_STATE__ 并转换为 JSON 字符串
+	// 直接获取 window.__INITIAL_STATE__.feed.feeds.value 避免循环引用
 	result := page.MustEval(`() => {
-		if (window.__INITIAL_STATE__) {
-			return JSON.stringify(window.__INITIAL_STATE__);
+		if (window.__INITIAL_STATE__ &&
+		    window.__INITIAL_STATE__.feed &&
+		    window.__INITIAL_STATE__.feed.feeds &&
+		    window.__INITIAL_STATE__.feed.feeds.value) {
+			return JSON.stringify(window.__INITIAL_STATE__.feed.feeds.value);
 		}
 		return "";
 	}`).String()
 
 	if result == "" {
-		return nil, fmt.Errorf("__INITIAL_STATE__ not found")
+		return nil, fmt.Errorf("feed.feeds.value not found in __INITIAL_STATE__")
 	}
 
-	// 解析完整的 InitialState
-	var state FeedsResult
-	if err := json.Unmarshal([]byte(result), &state); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal __INITIAL_STATE__: %w", err)
+	// 直接解析为 Feed 数组
+	var feeds []Feed
+	if err := json.Unmarshal([]byte(result), &feeds); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal feeds: %w", err)
 	}
 
-	// 返回 feed.feeds._value
-	return state.Feed.Feeds.Value, nil
+	return feeds, nil
 }
