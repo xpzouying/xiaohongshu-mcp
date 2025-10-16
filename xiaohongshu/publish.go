@@ -33,7 +33,7 @@ const (
 
 func NewPublishImageAction(page *rod.Page) (*PublishAction, error) {
 
-	pp := page.Timeout(180 * time.Second)
+	pp := page.Timeout(300 * time.Second)
 
 	pp.MustNavigate(urlOfPublic).MustWaitIdle().MustWaitDOMStable()
 	time.Sleep(1 * time.Second)
@@ -61,7 +61,15 @@ func (p *PublishAction) Publish(ctx context.Context, content PublishImageContent
 		return errors.Wrap(err, "小红书上传图片失败")
 	}
 
-	if err := submitPublish(page, content.Title, content.Content, content.Tags); err != nil {
+	tags := content.Tags
+	if len(tags) >= 10 {
+		logrus.Warnf("标签数量超过10，截取前10个标签")
+		tags = tags[:10]
+	}
+
+	logrus.Infof("发布内容: title=%s, images=%v, tags=%v", content.Title, len(content.ImagePaths), tags)
+
+	if err := submitPublish(page, content.Title, content.Content, tags); err != nil {
 		return errors.Wrap(err, "小红书发布失败")
 	}
 
@@ -179,20 +187,25 @@ func uploadImages(page *rod.Page, imagesPaths []string) error {
 	pp := page.Timeout(30 * time.Second)
 
 	// 验证文件路径有效性
+	validPaths := make([]string, 0, len(imagesPaths))
 	for _, path := range imagesPaths {
 		if _, err := os.Stat(path); os.IsNotExist(err) {
-			return errors.Wrapf(err, "图片文件不存在: %s", path)
+			logrus.Warnf("图片文件不存在: %s", path)
+			continue
 		}
+		validPaths = append(validPaths, path)
+
+		logrus.Infof("获取有效图片：%s", path)
 	}
 
 	// 等待上传输入框出现
 	uploadInput := pp.MustElement(".upload-input")
 
 	// 上传多个文件
-	uploadInput.MustSetFiles(imagesPaths...)
+	uploadInput.MustSetFiles(validPaths...)
 
 	// 等待并验证上传完成
-	return waitForUploadComplete(pp, len(imagesPaths))
+	return waitForUploadComplete(pp, len(validPaths))
 }
 
 // waitForUploadComplete 等待并验证上传完成
