@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"time"
+
 	"github.com/go-rod/rod"
 	"github.com/mattn/go-runewidth"
 	"github.com/sirupsen/logrus"
@@ -13,8 +16,6 @@ import (
 	"github.com/xpzouying/xiaohongshu-mcp/cookies"
 	"github.com/xpzouying/xiaohongshu-mcp/pkg/downloader"
 	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
-	"os"
-	"time"
 )
 
 // XiaohongshuService 小红书业务服务
@@ -284,6 +285,7 @@ func (s *XiaohongshuService) ListFeeds(ctx context.Context) (*FeedsListResponse,
 	// 获取 Feeds 列表
 	feeds, err := action.GetFeedsList(ctx)
 	if err != nil {
+		logrus.Errorf("获取 Feeds 列表失败: %v", err)
 		return nil, err
 	}
 

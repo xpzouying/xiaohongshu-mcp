@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/go-rod/rod"
+	"github.com/xpzouying/xiaohongshu-mcp/errors"
 )
 
 type SearchResult struct {
@@ -190,24 +191,29 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 		page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
 	}
 
-	// 获取 window.__INITIAL_STATE__ 并转换为 JSON 字符串
 	result := page.MustEval(`() => {
-			if (window.__INITIAL_STATE__) {
-				return JSON.stringify(window.__INITIAL_STATE__);
+		if (window.__INITIAL_STATE__ &&
+		    window.__INITIAL_STATE__.search &&
+		    window.__INITIAL_STATE__.search.feeds) {
+			const feeds = window.__INITIAL_STATE__.search.feeds;
+			const feedsData = feeds.value !== undefined ? feeds.value : feeds._value;
+			if (feedsData) {
+				return JSON.stringify(feedsData);
 			}
-			return "";
-		}`).String()
+		}
+		return "";
+	}`).String()
 
 	if result == "" {
-		return nil, fmt.Errorf("__INITIAL_STATE__ not found")
+		return nil, errors.ErrNoFeeds
 	}
 
-	var searchResult SearchResult
-	if err := json.Unmarshal([]byte(result), &searchResult); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal __INITIAL_STATE__: %w", err)
+	var feeds []Feed
+	if err := json.Unmarshal([]byte(result), &feeds); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal feeds: %w", err)
 	}
 
-	return searchResult.Search.Feeds.Value, nil
+	return feeds, nil
 }
 
 func makeSearchURL(keyword string) string {

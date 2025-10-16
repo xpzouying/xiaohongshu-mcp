@@ -7,15 +7,11 @@ import (
 	"time"
 
 	"github.com/go-rod/rod"
+	"github.com/xpzouying/xiaohongshu-mcp/errors"
 )
 
 type FeedsListAction struct {
 	page *rod.Page
-}
-
-// FeedsResult 定义页面初始状态结构
-type FeedsResult struct {
-	Feed FeedData `json:"feed"`
 }
 
 func NewFeedsListAction(page *rod.Page) *FeedsListAction {
@@ -33,24 +29,27 @@ func (f *FeedsListAction) GetFeedsList(ctx context.Context) ([]Feed, error) {
 
 	time.Sleep(1 * time.Second)
 
-	// 获取 window.__INITIAL_STATE__ 并转换为 JSON 字符串
 	result := page.MustEval(`() => {
-		if (window.__INITIAL_STATE__) {
-			return JSON.stringify(window.__INITIAL_STATE__);
+		if (window.__INITIAL_STATE__ &&
+		    window.__INITIAL_STATE__.feed &&
+		    window.__INITIAL_STATE__.feed.feeds) {
+			const feeds = window.__INITIAL_STATE__.feed.feeds;
+			const feedsData = feeds.value !== undefined ? feeds.value : feeds._value;
+			if (feedsData) {
+				return JSON.stringify(feedsData);
+			}
 		}
 		return "";
 	}`).String()
 
 	if result == "" {
-		return nil, fmt.Errorf("__INITIAL_STATE__ not found")
+		return nil, errors.ErrNoFeeds
 	}
 
-	// 解析完整的 InitialState
-	var state FeedsResult
-	if err := json.Unmarshal([]byte(result), &state); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal __INITIAL_STATE__: %w", err)
+	var feeds []Feed
+	if err := json.Unmarshal([]byte(result), &feeds); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal feeds: %w", err)
 	}
 
-	// 返回 feed.feeds._value
-	return state.Feed.Feeds.Value, nil
+	return feeds, nil
 }

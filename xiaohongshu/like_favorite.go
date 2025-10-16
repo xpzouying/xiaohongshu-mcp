@@ -9,6 +9,7 @@ import (
 	"github.com/go-rod/rod"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	myerrors "github.com/xpzouying/xiaohongshu-mcp/errors"
 )
 
 // ActionResult 通用动作响应（点赞/收藏等）
@@ -213,33 +214,33 @@ func (a *FavoriteAction) toggleFavorite(page *rod.Page, feedID string, targetCol
 
 // getInteractState 从 __INITIAL_STATE__ 读取笔记的点赞/收藏状态
 func (a *interactAction) getInteractState(page *rod.Page, feedID string) (liked bool, collected bool, err error) {
+
 	result := page.MustEval(`() => {
-		if (window.__INITIAL_STATE__) {
-			return JSON.stringify(window.__INITIAL_STATE__);
+		if (window.__INITIAL_STATE__ &&
+		    window.__INITIAL_STATE__.note &&
+		    window.__INITIAL_STATE__.note.noteDetailMap) {
+			return JSON.stringify(window.__INITIAL_STATE__.note.noteDetailMap);
 		}
 		return "";
 	}`).String()
 	if result == "" {
-		return false, false, fmt.Errorf("__INITIAL_STATE__ not found")
+		return false, false, myerrors.ErrNoFeedDetail
 	}
 
-	var state struct {
+	// 直接解析为 noteDetailMap
+	var noteDetailMap map[string]struct {
 		Note struct {
-			NoteDetailMap map[string]struct {
-				Note struct {
-					InteractInfo struct {
-						Liked     bool `json:"liked"`
-						Collected bool `json:"collected"`
-					} `json:"interactInfo"`
-				} `json:"note"`
-			} `json:"noteDetailMap"`
+			InteractInfo struct {
+				Liked     bool `json:"liked"`
+				Collected bool `json:"collected"`
+			} `json:"interactInfo"`
 		} `json:"note"`
 	}
-	if err := json.Unmarshal([]byte(result), &state); err != nil {
-		return false, false, errors.Wrap(err, "unmarshal __INITIAL_STATE__ failed")
+	if err := json.Unmarshal([]byte(result), &noteDetailMap); err != nil {
+		return false, false, errors.Wrap(err, "unmarshal noteDetailMap failed")
 	}
 
-	detail, ok := state.Note.NoteDetailMap[feedID]
+	detail, ok := noteDetailMap[feedID]
 	if !ok {
 		return false, false, fmt.Errorf("feed %s not in noteDetailMap", feedID)
 	}
