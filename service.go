@@ -182,6 +182,7 @@ func (s *XiaohongshuService) PublishContent(ctx context.Context, req *PublishReq
 
 	// 执行发布
 	if err := s.publishContent(ctx, content); err != nil {
+		logrus.Errorf("发布内容失败: title=%s %v", content.Title, err)
 		return nil, err
 	}
 
