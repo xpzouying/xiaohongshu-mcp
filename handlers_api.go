@@ -208,3 +208,17 @@ func healthHandler(c *gin.Context) {
 		"timestamp": "now",
 	}, "服务正常")
 }
+
+// myProfileHandler 我的信息
+func (s *AppServer) myProfileHandler(c *gin.Context) {
+	// 获取当前登录用户信息
+	result, err := s.xiaohongshuService.GetMyProfile(c.Request.Context())
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "GET_MY_PROFILE_FAILED",
+			"获取我的主页失败", err.Error())
+		return
+	}
+
+	c.Set("account", "ai-report")
+	respondSuccess(c, map[string]any{"data": result}, "获取我的主页成功")
+}
