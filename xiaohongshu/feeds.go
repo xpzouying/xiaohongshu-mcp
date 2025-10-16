@@ -33,13 +33,18 @@ func (f *FeedsListAction) GetFeedsList(ctx context.Context) ([]Feed, error) {
 
 	time.Sleep(1 * time.Second)
 
-	// 直接获取 window.__INITIAL_STATE__.feed.feeds.value 避免循环引用
+	// 直接获取 window.__INITIAL_STATE__.feed.feeds 的值，避免循环引用
+	// 尝试 value 属性（getter）或 _value 字段（内部存储）
 	result := page.MustEval(`() => {
 		if (window.__INITIAL_STATE__ &&
 		    window.__INITIAL_STATE__.feed &&
-		    window.__INITIAL_STATE__.feed.feeds &&
-		    window.__INITIAL_STATE__.feed.feeds.value) {
-			return JSON.stringify(window.__INITIAL_STATE__.feed.feeds.value);
+		    window.__INITIAL_STATE__.feed.feeds) {
+			const feeds = window.__INITIAL_STATE__.feed.feeds;
+			// 优先使用 value（getter），如果不存在则使用 _value（内部字段）
+			const feedsData = feeds.value !== undefined ? feeds.value : feeds._value;
+			if (feedsData) {
+				return JSON.stringify(feedsData);
+			}
 		}
 		return "";
 	}`).String()
