@@ -33,42 +33,71 @@ func (u *UserProfileAction) UserProfile(ctx context.Context, userID, xsecToken s
 func (u *UserProfileAction) extractUserProfileData(page *rod.Page) (*UserProfileResponse, error) {
 	page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
 
-	// 获取 window.__INITIAL_STATE__ 并转换为 JSON 字符串
-	result := page.MustEval(`() => {
-			if (window.__INITIAL_STATE__) {
-				return JSON.stringify(window.__INITIAL_STATE__);
+	userDataResult := page.MustEval(`() => {
+		if (window.__INITIAL_STATE__ &&
+		    window.__INITIAL_STATE__.user &&
+		    window.__INITIAL_STATE__.user.userPageData) {
+			const userPageData = window.__INITIAL_STATE__.user.userPageData;
+			const data = userPageData.value !== undefined ? userPageData.value : userPageData._value;
+			if (data) {
+				return JSON.stringify(data);
 			}
-			return "";
-		}`).String()
+		}
+		return "";
+	}`).String()
 
-	if result == "" {
-		return nil, fmt.Errorf("__INITIAL_STATE__ not found")
+	if userDataResult == "" {
+		return nil, fmt.Errorf("user.userPageData.value not found in __INITIAL_STATE__")
 	}
-	// 定义响应结构并直接反序列化
-	var initialState = struct {
-		User struct {
-			UserPageData UserPageData `json:"userPageData"`
-			Notes        struct {
-				Feeds [][]Feed `json:"_rawValue"` // 帖子为双重数组
-			} `json:"notes"`
-		} `json:"user"`
-	}{}
-	if err := json.Unmarshal([]byte(result), &initialState); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal __INITIAL_STATE__: %w", err)
+
+	// 2. 获取用户帖子：window.__INITIAL_STATE__.user.notes.value
+	notesResult := page.MustEval(`() => {
+		if (window.__INITIAL_STATE__ &&
+		    window.__INITIAL_STATE__.user &&
+		    window.__INITIAL_STATE__.user.notes) {
+			const notes = window.__INITIAL_STATE__.user.notes;
+			// 优先使用 value（getter），如果不存在则使用 _value（内部字段）
+			const data = notes.value !== undefined ? notes.value : notes._value;
+			if (data) {
+				return JSON.stringify(data);
+			}
+		}
+		return "";
+	}`).String()
+
+	if notesResult == "" {
+		return nil, fmt.Errorf("user.notes.value not found in __INITIAL_STATE__")
 	}
+
+	// 解析用户信息
+	var userPageData struct {
+		Interactions []UserInteractions `json:"interactions"`
+		BasicInfo    UserBasicInfo      `json:"basicInfo"`
+	}
+	if err := json.Unmarshal([]byte(userDataResult), &userPageData); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal userPageData: %w", err)
+	}
+
+	// 解析帖子数据（帖子为双重数组）
+	var notesFeeds [][]Feed
+	if err := json.Unmarshal([]byte(notesResult), &notesFeeds); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal notes: %w", err)
+	}
+
+	// 组装响应
 	response := &UserProfileResponse{
-		UserBasicInfo: initialState.User.UserPageData.RawValue.BasicInfo,
-		Interactions:  initialState.User.UserPageData.RawValue.Interactions,
+		UserBasicInfo: userPageData.BasicInfo,
+		Interactions:  userPageData.Interactions,
 	}
-	// 添加用户贴子
-	for _, feeds := range initialState.User.Notes.Feeds {
+
+	// 添加用户帖子（展平双重数组）
+	for _, feeds := range notesFeeds {
 		if len(feeds) != 0 {
 			response.Feeds = append(response.Feeds, feeds...)
 		}
 	}
 
 	return response, nil
-
 }
 
 func makeUserProfileURL(userID, xsecToken string) string {
