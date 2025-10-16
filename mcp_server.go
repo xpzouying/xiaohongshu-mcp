@@ -91,8 +91,6 @@ func InitMCPServer(appServer *AppServer) *mcp.Server {
 	return server
 }
 
-// withPanicRecovery 包装 tool handler，捕获 panic 防止程序崩溃
-// 泛型参数 T 是 handler 的参数类型
 func withPanicRecovery[T any](
 	toolName string,
 	handler func(context.Context, *mcp.CallToolRequest, T) (*mcp.CallToolResult, any, error),
@@ -101,16 +99,13 @@ func withPanicRecovery[T any](
 	return func(ctx context.Context, req *mcp.CallToolRequest, args T) (result *mcp.CallToolResult, resp any, err error) {
 		defer func() {
 			if r := recover(); r != nil {
-				// 记录 panic 信息和堆栈
 				logrus.WithFields(logrus.Fields{
 					"tool":  toolName,
 					"panic": r,
 				}).Error("Tool handler panicked")
 
-				// 打印堆栈跟踪
 				logrus.Errorf("Stack trace:\n%s", debug.Stack())
 
-				// 返回错误结果给客户端
 				result = &mcp.CallToolResult{
 					Content: []mcp.Content{
 						&mcp.TextContent{
@@ -120,11 +115,10 @@ func withPanicRecovery[T any](
 					IsError: true,
 				}
 				resp = nil
-				err = nil // 不返回 error，通过 IsError 标记错误
+				err = nil
 			}
 		}()
 
-		// 执行实际的 handler
 		return handler(ctx, req, args)
 	}
 }
@@ -178,7 +172,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "list_feeds",
-			Description: "获取用户发布的内容列表",
+			Description: "获取首页 Feeds 列表",
 		},
 		withPanicRecovery("list_feeds", func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, any, error) {
 			result := appServer.handleListFeeds(ctx)
