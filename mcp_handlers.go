@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/sirupsen/logrus"
+	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
 	"strings"
 	"time"
 )
@@ -223,12 +224,10 @@ func (s *AppServer) handleListFeeds(ctx context.Context) *MCPToolResult {
 }
 
 // handleSearchFeeds 处理搜索Feeds
-func (s *AppServer) handleSearchFeeds(ctx context.Context, args map[string]interface{}) *MCPToolResult {
+func (s *AppServer) handleSearchFeeds(ctx context.Context, args SearchFeedsArgs) *MCPToolResult {
 	logrus.Info("MCP: 搜索Feeds")
 
-	// 解析参数
-	keyword, ok := args["keyword"].(string)
-	if !ok || keyword == "" {
+	if args.Keyword == "" {
 		return &MCPToolResult{
 			Content: []MCPContent{{
 				Type: "text",
@@ -238,9 +237,23 @@ func (s *AppServer) handleSearchFeeds(ctx context.Context, args map[string]inter
 		}
 	}
 
-	logrus.Infof("MCP: 搜索Feeds - 关键词: %s", keyword)
-
-	result, err := s.xiaohongshuService.SearchFeeds(ctx, keyword)
+	logrus.Infof("MCP: 搜索Feeds - 关键词: %s, 筛选条件数量: %d", args.Keyword, len(args.Filters))
+	var filters []xiaohongshu.FilterOption
+	for _, filter := range args.Filters {
+		filterOption, err := xiaohongshu.NewFilterOption(xiaohongshu.GetFilterGroupIndex(filter.FiltersIndex), filter.TagsIndex)
+		if err != nil {
+			return &MCPToolResult{
+				Content: []MCPContent{{
+					Type: "text",
+					Text: fmt.Sprintf("搜索Feeds失败: 筛选组 %v 的标签索引 %v 错误: %v",
+						filter.FiltersIndex, filter.TagsIndex, err),
+				}},
+				IsError: true,
+			}
+		}
+		filters = append(filters, filterOption)
+	}
+	result, err := s.xiaohongshuService.SearchFeeds(ctx, args.Keyword, filters...)
 	if err != nil {
 		return &MCPToolResult{
 			Content: []MCPContent{{
