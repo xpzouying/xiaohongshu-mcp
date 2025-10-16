@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/go-rod/rod"
+	"github.com/xpzouying/xiaohongshu-mcp/errors"
 )
 
 type FeedsListAction struct {
@@ -42,7 +43,7 @@ func (f *FeedsListAction) GetFeedsList(ctx context.Context) ([]Feed, error) {
 	}`).String()
 
 	if result == "" {
-		return nil, fmt.Errorf("没有捕获到 feeds 数据")
+		return nil, errors.ErrNoFeeds
 	}
 
 	var feeds []Feed
