@@ -17,14 +17,24 @@ type SearchResult struct {
 	} `json:"search"`
 }
 
+// FilterOption 筛选选项结构体
 type FilterOption struct {
-	FiltersIndex int    `json:"filters_index" jsonschema:"筛选组索引 1=排序依据, 2=笔记类型, 3=发布时间, 4=搜索范围, 5=位置距离"`
-	TagsIndex    int    `json:"tags_index" jsonschema:"标签索引，根据不同的筛选组索引对应不同的选项: 1=排序依据(1-5), 2=笔记类型(1-3), 3=发布时间(1-4), 4=搜索范围(1-4), 5=位置距离(1-3)"`
-	Text         string `json:"text" jsonschema:"标签文本描述"`
+	SortBy      string `json:"sort_by,omitempty" jsonschema:"排序依据: 综合|最新|最多点赞|最多评论|最多收藏,默认为'综合'"`
+	NoteType    string `json:"note_type,omitempty" jsonschema:"笔记类型: 不限|视频|图文,默认为'不限'"`
+	PublishTime string `json:"publish_time,omitempty" jsonschema:"发布时间: 不限|一天内|一周内|半年内,默认为'不限'"`
+	SearchScope string `json:"search_scope,omitempty" jsonschema:"搜索范围: 不限|已看过|未看过|已关注,默认为'不限'"`
+	Location    string `json:"location,omitempty" jsonschema:"位置距离: 不限|同城|附近,默认为'不限'"`
 }
 
-// 预定义的筛选选项映射表
-var FilterOptionsMap = map[int][]FilterOption{
+// internalFilterOption 内部使用的筛选选项(基于索引)
+type internalFilterOption struct {
+	FiltersIndex int    // 筛选组索引
+	TagsIndex    int    // 标签索引
+	Text         string // 标签文本描述
+}
+
+// 预定义的筛选选项映射表（内部使用）
+var filterOptionsMap = map[int][]internalFilterOption{
 	1: { // 排序依据
 		{FiltersIndex: 1, TagsIndex: 1, Text: "综合"},
 		{FiltersIndex: 1, TagsIndex: 2, Text: "最新"},
@@ -56,24 +66,83 @@ var FilterOptionsMap = map[int][]FilterOption{
 	},
 }
 
-// 定义筛选组索引到中文描述的映射
-var filterGroupMap = map[int]string{
-	1: "排序依据",
-	2: "笔记类型",
-	3: "发布时间",
-	4: "搜索范围",
-	5: "位置距离",
+// convertToInternalFilters 将 FilterOption 转换为内部的 internalFilterOption 列表
+func convertToInternalFilters(filter FilterOption) ([]internalFilterOption, error) {
+	var internalFilters []internalFilterOption
+
+	// 处理排序依据
+	if filter.SortBy != "" {
+		internal, err := findInternalOption(1, filter.SortBy)
+		if err != nil {
+			return nil, fmt.Errorf("排序依据错误: %w", err)
+		}
+		internalFilters = append(internalFilters, internal)
+	}
+
+	// 处理笔记类型
+	if filter.NoteType != "" {
+		internal, err := findInternalOption(2, filter.NoteType)
+		if err != nil {
+			return nil, fmt.Errorf("笔记类型错误: %w", err)
+		}
+		internalFilters = append(internalFilters, internal)
+	}
+
+	// 处理发布时间
+	if filter.PublishTime != "" {
+		internal, err := findInternalOption(3, filter.PublishTime)
+		if err != nil {
+			return nil, fmt.Errorf("发布时间错误: %w", err)
+		}
+		internalFilters = append(internalFilters, internal)
+	}
+
+	// 处理搜索范围
+	if filter.SearchScope != "" {
+		internal, err := findInternalOption(4, filter.SearchScope)
+		if err != nil {
+			return nil, fmt.Errorf("搜索范围错误: %w", err)
+		}
+		internalFilters = append(internalFilters, internal)
+	}
+
+	// 处理位置距离
+	if filter.Location != "" {
+		internal, err := findInternalOption(5, filter.Location)
+		if err != nil {
+			return nil, fmt.Errorf("位置距离错误: %w", err)
+		}
+		internalFilters = append(internalFilters, internal)
+	}
+
+	return internalFilters, nil
 }
 
-// validateFilterOption 验证筛选选项是否在有效范围内
-func validateFilterOption(filter FilterOption) error {
+// findInternalOption 根据筛选组索引和文本查找内部筛选选项
+func findInternalOption(filtersIndex int, text string) (internalFilterOption, error) {
+	options, exists := filterOptionsMap[filtersIndex]
+	if !exists {
+		return internalFilterOption{}, fmt.Errorf("筛选组 %d 不存在", filtersIndex)
+	}
+
+	for _, option := range options {
+		if option.Text == text {
+			return option, nil
+		}
+	}
+
+	return internalFilterOption{}, fmt.Errorf("在筛选组 %d 中未找到文本 '%s'", filtersIndex, text)
+}
+
+// validateInternalFilterOption 验证内部筛选选项是否在有效范围内
+func validateInternalFilterOption(filter internalFilterOption) error {
 	// 检查筛选组索引是否有效
 	if filter.FiltersIndex < 1 || filter.FiltersIndex > 5 {
 		return fmt.Errorf("无效的筛选组索引 %d，有效范围为 1-5", filter.FiltersIndex)
 	}
 
 	// 检查标签索引是否在对应筛选组的有效范围内
-	options, exists := FilterOptionsMap[filter.FiltersIndex]
+	options, exists := filterOptionsMap[filter.FiltersIndex]
 	if !exists {
 		return fmt.Errorf("筛选组 %d 不存在", filter.FiltersIndex)
 	}
@@ -84,62 +153,6 @@ func validateFilterOption(filter FilterOption) error {
 	}
 
 	return nil
-}
-
-// 便利函数：根据文本创建筛选选项
-func NewFilterOption(filtersIndex int, text string) (FilterOption, error) {
-	options, exists := FilterOptionsMap[filtersIndex]
-	if !exists {
-		return FilterOption{}, fmt.Errorf("筛选组 %d 不存在", filtersIndex)
-	}
-
-	for _, option := range options {
-		if option.Text == text {
-			return option, nil
-		}
-	}
-
-	return FilterOption{}, fmt.Errorf("在筛选组 %d 中未找到文本 '%s'", filtersIndex, text)
-}
-
-// 便利函数：创建常用的筛选选项
-func SortBy(text string) (FilterOption, error) {
-	return NewFilterOption(1, text) // 排序依据
-}
-
-func NoteType(text string) (FilterOption, error) {
-	return NewFilterOption(2, text) // 笔记类型
-}
-
-func TimeRange(text string) (FilterOption, error) {
-	return NewFilterOption(3, text) // 发布时间
-}
-
-func SearchScope(text string) (FilterOption, error) {
-	return NewFilterOption(4, text) // 搜索范围
-}
-
-func LocationDistance(text string) (FilterOption, error) {
-	return NewFilterOption(5, text) // 位置距离
-}
-
-// GetFilterGroupDescription 根据筛选组索引获取中文描述
-func GetFilterGroupDescription(index int) string {
-	if desc, exists := filterGroupMap[index]; exists {
-		return desc
-	}
-	return "未知筛选组"
-}
-
-// GetFilterGroupIndex 根据中文描述获取筛选组索引
-func GetFilterGroupIndex(text string) int {
-	// 通过遍历filterGroupMap获取对应的索引
-	for index, description := range filterGroupMap {
-		if description == text {
-			return index
-		}
-	}
-	return -1 // 未找到匹配项时返回-1
 }
 
 type SearchAction struct {
@@ -163,9 +176,19 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 
 	// 如果有筛选条件，则应用筛选
 	if len(filters) > 0 {
-		// 验证所有筛选选项
+		// 将所有 FilterOption 转换为内部筛选选项
+		var allInternalFilters []internalFilterOption
 		for _, filter := range filters {
-			if err := validateFilterOption(filter); err != nil {
+			internalFilters, err := convertToInternalFilters(filter)
+			if err != nil {
+				return nil, fmt.Errorf("筛选选项转换失败: %w", err)
+			}
+			allInternalFilters = append(allInternalFilters, internalFilters...)
+		}
+
+		// 验证所有内部筛选选项
+		for _, filter := range allInternalFilters {
+			if err := validateInternalFilterOption(filter); err != nil {
 				return nil, fmt.Errorf("筛选选项验证失败: %w", err)
 			}
 		}
@@ -178,7 +201,7 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 		page.MustWait(`() => document.querySelector('div.filter-panel') !== null`)
 
 		// 应用所有筛选条件
-		for _, filter := range filters {
+		for _, filter := range allInternalFilters {
 			selector := fmt.Sprintf(`div.filter-panel div.filters:nth-child(%d) div.tags:nth-child(%d)`,
 				filter.FiltersIndex, filter.TagsIndex)
 			option := page.MustElement(selector)

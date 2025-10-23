@@ -17,7 +17,9 @@ func TestSearch(t *testing.T) {
 	defer b.Close()
 
 	page := b.NewPage()
-	defer page.Close()
+	defer func() {
+		_ = page.Close()
+	}()
 
 	action := NewSearchAction(page)
 
@@ -35,75 +37,69 @@ func TestSearch(t *testing.T) {
 
 func TestSearchWithFilters(t *testing.T) {
 
-	t.Skip("SKIP: 测试筛选功能")
+	//t.Skip("SKIP: 测试筛选功能")
 
 	b := browser.NewBrowser(false)
 	defer b.Close()
 
 	page := b.NewPage()
-	defer page.Close()
+	defer func() {
+		_ = page.Close()
+	}()
 
 	action := NewSearchAction(page)
 
-	// 方式1：直接使用索引
-	filters1 := []FilterOption{
-		{FiltersIndex: 2, TagsIndex: 3, Text: "图文"},  // 笔记类型 -> 图文
-		{FiltersIndex: 3, TagsIndex: 2, Text: "一天内"}, // 发布时间 -> 一天内
+	// 使用新的 FilterOption 结构
+	filter := FilterOption{
+		NoteType:    "图文",
+		PublishTime: "一天内",
 	}
 
-	feeds1, err := action.Search(context.Background(), "dn432", filters1...)
+	feeds, err := action.Search(context.Background(), "dn432", filter)
 	require.NoError(t, err)
-	require.NotEmpty(t, feeds1, "feeds should not be empty")
+	require.NotEmpty(t, feeds, "feeds should not be empty")
 
-	fmt.Printf("方式1 - 成功获取到 %d 个筛选后的 Feed\n", len(feeds1))
+	fmt.Printf("成功获取到 %d 个筛选后的 Feed\n", len(feeds))
 
-	// 方式2：使用便利函数
-	filter2, err := NoteType("图文")
-	require.NoError(t, err)
-
-	filter3, err := TimeRange("一天内")
-	require.NoError(t, err)
-
-	filters2 := []FilterOption{filter2, filter3}
-	feeds2, err := action.Search(context.Background(), "dn432", filters2...)
-	require.NoError(t, err)
-	require.NotEmpty(t, feeds2, "feeds should not be empty")
-
-	fmt.Printf("方式2 - 成功获取到 %d 个筛选后的 Feed\n", len(feeds2))
-
-	for _, feed := range feeds2 {
+	for _, feed := range feeds {
 		fmt.Printf("Feed ID: %s\n", feed.ID)
 		fmt.Printf("Feed Title: %s\n", feed.NoteCard.DisplayTitle)
 	}
 }
 
 func TestFilterValidation(t *testing.T) {
-	// 测试有效的筛选选项
-	validFilter := FilterOption{FiltersIndex: 2, TagsIndex: 3, Text: "图文"}
-	err := validateFilterOption(validFilter)
+	// 测试有效的筛选选项转换
+	validFilter := FilterOption{
+		NoteType:    "图文",
+		PublishTime: "一天内",
+	}
+	internalFilters, err := convertToInternalFilters(validFilter)
 	require.NoError(t, err)
+	require.Len(t, internalFilters, 2)
 
-	// 测试无效的筛选组索引
-	invalidFilterGroup := FilterOption{FiltersIndex: 6, TagsIndex: 1, Text: "无效"}
-	err = validateFilterOption(invalidFilterGroup)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "无效的筛选组索引")
+	// 验证转换后的内部筛选选项
+	for _, filter := range internalFilters {
+		err := validateInternalFilterOption(filter)
+		require.NoError(t, err)
+	}
 
-	// 测试无效的标签索引
-	invalidTagIndex := FilterOption{FiltersIndex: 2, TagsIndex: 5, Text: "无效"}
-	err = validateFilterOption(invalidTagIndex)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "标签索引 5 超出范围")
-
-	// 测试便利函数
-	filter, err := NoteType("图文")
-	require.NoError(t, err)
-	require.Equal(t, 2, filter.FiltersIndex)
-	require.Equal(t, 3, filter.TagsIndex)
-	require.Equal(t, "图文", filter.Text)
-
-	// 测试不存在的文本
-	_, err = NoteType("不存在的类型")
+	// 测试无效的筛选值
+	invalidFilter := FilterOption{
+		NoteType: "不存在的类型",
+	}
+	_, err = convertToInternalFilters(invalidFilter)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "未找到文本")
+
+	// 测试所有有效的筛选选项
+	allFilters := FilterOption{
+		SortBy:      "最新",
+		NoteType:    "视频",
+		PublishTime: "一周内",
+		SearchScope: "已关注",
+		Location:    "同城",
+	}
+	internalFilters, err = convertToInternalFilters(allFilters)
+	require.NoError(t, err)
+	require.Len(t, internalFilters, 5)
 }

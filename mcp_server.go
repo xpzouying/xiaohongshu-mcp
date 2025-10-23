@@ -30,13 +30,17 @@ type PublishVideoArgs struct {
 
 // SearchFeedsArgs 搜索内容的参数
 type SearchFeedsArgs struct {
-	Keyword string         `json:"keyword" jsonschema:"搜索关键词"`
-	Filters []FilterOption `json:"filters,omitempty" jsonschema:"筛选选项列表"`
+	Keyword string       `json:"keyword" jsonschema:"搜索关键词"`
+	Filters FilterOption `json:"filters,omitempty" jsonschema:"筛选选项"`
 }
 
+// FilterOption 筛选选项结构体
 type FilterOption struct {
-	FiltersIndex string `json:"filters_index" jsonschema:"筛选索引 排序依据 笔记类型, 发布时间, 搜索范围, 位置距离"` //
-	TagsIndex    string `json:"tags_index" jsonschema:"筛选值 排序依据（综合、最新、最多点赞、最多评论、最多收藏）笔记类型（不限、视频、图文）发布时间（不限、一天内、一周内、半年内）搜索范围（不限、已看过、未看过、已关注）位置距离（不限、同城、附近）"`
+	SortBy      string `json:"sort_by,omitempty" jsonschema:"排序依据: 综合|最新|最多点赞|最多评论|最多收藏,默认为'综合'"`
+	NoteType    string `json:"note_type,omitempty" jsonschema:"笔记类型: 不限|视频|图文,默认为'不限'"`
+	PublishTime string `json:"publish_time,omitempty" jsonschema:"发布时间: 不限|一天内|一周内|半年内,默认为'不限'"`
+	SearchScope string `json:"search_scope,omitempty" jsonschema:"搜索范围: 不限|已看过|未看过|已关注,默认为'不限'"`
+	Location    string `json:"location,omitempty" jsonschema:"位置距离: 不限|同城|附近,默认为'不限'"`
 }
 
 // FeedDetailArgs 获取Feed详情的参数

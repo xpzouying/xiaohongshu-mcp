@@ -41,8 +41,8 @@ type FeedDetailRequest struct {
 }
 
 type SearchFeedsRequest struct {
-	Keyword string                     `json:"keyword" binding:"required"`
-	Filters []xiaohongshu.FilterOption `json:"filters" binding:"required"`
+	Keyword string                   `json:"keyword" binding:"required"`
+	Filters xiaohongshu.FilterOption `json:"filters,omitempty"`
 }
 
 // FeedDetailResponse Feed详情响应

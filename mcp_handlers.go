@@ -237,23 +237,18 @@ func (s *AppServer) handleSearchFeeds(ctx context.Context, args SearchFeedsArgs)
 		}
 	}
 
-	logrus.Infof("MCP: 搜索Feeds - 关键词: %s, 筛选条件数量: %d", args.Keyword, len(args.Filters))
-	var filters []xiaohongshu.FilterOption
-	for _, filter := range args.Filters {
-		filterOption, err := xiaohongshu.NewFilterOption(xiaohongshu.GetFilterGroupIndex(filter.FiltersIndex), filter.TagsIndex)
-		if err != nil {
-			return &MCPToolResult{
-				Content: []MCPContent{{
-					Type: "text",
-					Text: fmt.Sprintf("搜索Feeds失败: 筛选组 %v 的标签索引 %v 错误: %v",
-						filter.FiltersIndex, filter.TagsIndex, err),
-				}},
-				IsError: true,
-			}
-		}
-		filters = append(filters, filterOption)
+	logrus.Infof("MCP: 搜索Feeds - 关键词: %s", args.Keyword)
+
+	// 将 MCP 的 FilterOption 转换为 xiaohongshu.FilterOption
+	filter := xiaohongshu.FilterOption{
+		SortBy:      args.Filters.SortBy,
+		NoteType:    args.Filters.NoteType,
+		PublishTime: args.Filters.PublishTime,
+		SearchScope: args.Filters.SearchScope,
+		Location:    args.Filters.Location,
 	}
-	result, err := s.xiaohongshuService.SearchFeeds(ctx, args.Keyword, filters...)
+
+	result, err := s.xiaohongshuService.SearchFeeds(ctx, args.Keyword, filter)
 	if err != nil {
 		return &MCPToolResult{
 			Content: []MCPContent{{
@@ -415,16 +410,16 @@ func (s *AppServer) handleLikeFeed(ctx context.Context, args map[string]interfac
 		return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: "操作失败: 缺少xsec_token参数"}}, IsError: true}
 	}
 	unlike, _ := args["unlike"].(bool)
-	
+
 	var res *ActionResult
 	var err error
-	
+
 	if unlike {
 		res, err = s.xiaohongshuService.UnlikeFeed(ctx, feedID, xsecToken)
 	} else {
 		res, err = s.xiaohongshuService.LikeFeed(ctx, feedID, xsecToken)
 	}
-	
+
 	if err != nil {
 		action := "点赞"
 		if unlike {
@@ -432,7 +427,7 @@ func (s *AppServer) handleLikeFeed(ctx context.Context, args map[string]interfac
 		}
 		return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: action + "失败: " + err.Error()}}, IsError: true}
 	}
-	
+
 	action := "点赞"
 	if unlike {
 		action = "取消点赞"
@@ -451,16 +446,16 @@ func (s *AppServer) handleFavoriteFeed(ctx context.Context, args map[string]inte
 		return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: "操作失败: 缺少xsec_token参数"}}, IsError: true}
 	}
 	unfavorite, _ := args["unfavorite"].(bool)
-	
+
 	var res *ActionResult
 	var err error
-	
+
 	if unfavorite {
 		res, err = s.xiaohongshuService.UnfavoriteFeed(ctx, feedID, xsecToken)
 	} else {
 		res, err = s.xiaohongshuService.FavoriteFeed(ctx, feedID, xsecToken)
 	}
-	
+
 	if err != nil {
 		action := "收藏"
 		if unfavorite {
@@ -468,7 +463,7 @@ func (s *AppServer) handleFavoriteFeed(ctx context.Context, args map[string]inte
 		}
 		return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: action + "失败: " + err.Error()}}, IsError: true}
 	}
-	
+
 	action := "收藏"
 	if unfavorite {
 		action = "取消收藏"
