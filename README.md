@@ -382,7 +382,7 @@ go run . -headless=false
 ## 1.4. 验证 MCP
 
 ```bash
-npx @modelcontextprotocol/inspector
+npx -y @modelcontextprotocol/inspector@latest
 ```
 
 ![运行 Inspector](./assets/run_inspect.png)
