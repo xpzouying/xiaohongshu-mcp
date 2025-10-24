@@ -578,7 +578,7 @@ claude mcp list
 
 ```bash
 # 启动 MCP Inspector
-npx @modelcontextprotocol/inspector
+npx -y @modelcontextprotocol/inspector@latest
 
 # 在浏览器中连接到：http://localhost:18060/mcp
 ```
