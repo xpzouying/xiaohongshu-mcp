@@ -1,0 +1,153 @@
+name: Tag and Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v1.0.0)'
+        required: true
+        type: string
+      release_notes:
+        description: 'Release notes (optional)'
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  tag-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Validate version format
+      run: |
+        VERSION="${{ github.event.inputs.version }}"
+        if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9\.]+)?$ ]]; then
+          echo "Error: Version must follow semantic versioning (e.g., v1.0.0, v1.0.0-beta.1)"
+          exit 1
+        fi
+
+        # Check if tag already exists
+        if git rev-parse "$VERSION" >/dev/null 2>&1; then
+          echo "Error: Tag $VERSION already exists"
+          exit 1
+        fi
+
+        echo "Version $VERSION is valid"
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.24'
+
+    - name: Build for multiple platforms
+      run: |
+        # 主程序构建
+        # macOS ARM64 (Apple Silicon)
+        GOOS=darwin GOARCH=arm64 go build -o xiaohongshu-mcp-darwin-arm64 .
+        GOOS=darwin GOARCH=arm64 go build -o xiaohongshu-login-darwin-arm64 ./cmd/login
+
+        # macOS Intel
+        GOOS=darwin GOARCH=amd64 go build -o xiaohongshu-mcp-darwin-amd64 .
+        GOOS=darwin GOARCH=amd64 go build -o xiaohongshu-login-darwin-amd64 ./cmd/login
+
+        # Windows x64
+        GOOS=windows GOARCH=amd64 go build -o xiaohongshu-mcp-windows-amd64.exe .
+        GOOS=windows GOARCH=amd64 go build -o xiaohongshu-login-windows-amd64.exe ./cmd/login
+
+        # Linux x64
+        GOOS=linux GOARCH=amd64 go build -o xiaohongshu-mcp-linux-amd64 .
+        GOOS=linux GOARCH=amd64 go build -o xiaohongshu-login-linux-amd64 ./cmd/login
+
+    - name: Generate changelog
+      id: changelog
+      run: |
+        # Get the previous tag
+        PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+
+        if [ -z "$PREV_TAG" ]; then
+          echo "No previous tag found, including all commits"
+          COMMITS=$(git log --oneline --format="- %s (%h)" | head -20)
+        else
+          echo "Generating changelog from $PREV_TAG to HEAD"
+          COMMITS=$(git log $PREV_TAG..HEAD --oneline --format="- %s (%h)")
+        fi
+
+        # Save to output
+        {
+          echo "commits<<EOF"
+          echo "$COMMITS"
+          echo "EOF"
+        } >> $GITHUB_OUTPUT
+
+    - name: Create tag and release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ github.event.inputs.version }}
+        name: Release ${{ github.event.inputs.version }}
+        draft: false
+        prerelease: ${{ contains(github.event.inputs.version, '-') }}
+        body: |
+          ## 🚀 新版本发布: ${{ github.event.inputs.version }}
+
+          ${{ github.event.inputs.release_notes }}
+
+          ### 📋 更新内容
+
+          ${{ steps.changelog.outputs.commits }}
+
+          ---
+
+          ### 📦 下载说明
+
+          **主程序（MCP 服务）：**
+          - **macOS Apple Silicon**: `xiaohongshu-mcp-darwin-arm64`
+          - **macOS Intel**: `xiaohongshu-mcp-darwin-amd64`
+          - **Windows x64**: `xiaohongshu-mcp-windows-amd64.exe`
+          - **Linux x64**: `xiaohongshu-mcp-linux-amd64`
+
+          **登录工具：**
+          - **macOS Apple Silicon**: `xiaohongshu-login-darwin-arm64`
+          - **macOS Intel**: `xiaohongshu-login-darwin-amd64`
+          - **Windows x64**: `xiaohongshu-login-windows-amd64.exe`
+          - **Linux x64**: `xiaohongshu-login-linux-amd64`
+
+          ### 🔧 使用方法
+
+          ```bash
+          # 1. 首先运行登录工具获取 cookie
+          ./xiaohongshu-login-darwin-arm64
+
+          # 2. 然后启动 MCP 服务
+          ./xiaohongshu-mcp-darwin-arm64
+
+          # 或指定参数
+          ./xiaohongshu-mcp-darwin-arm64 -headless=false
+          ```
+
+          ### ⚠️ 注意事项
+
+          - 首次运行时会自动下载无头浏览器（约 150MB），请确保网络连接正常
+          - 后续运行无需重复下载浏览器
+          - 登录工具生成的 cookie 保存在 `~/.xiaohongshu/cookies.json`
+
+          ### 📊 构建信息
+
+          - **Commit**: ${{ github.sha }}
+          - **Go Version**: 1.24
+          - **Build Time**: ${{ github.event.repository.updated_at }}
+        files: |
+          xiaohongshu-mcp-darwin-arm64
+          xiaohongshu-mcp-darwin-amd64
+          xiaohongshu-mcp-windows-amd64.exe
+          xiaohongshu-mcp-linux-amd64
+          xiaohongshu-login-darwin-arm64
+          xiaohongshu-login-darwin-amd64
+          xiaohongshu-login-windows-amd64.exe
+          xiaohongshu-login-linux-amd64

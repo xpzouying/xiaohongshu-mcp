@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__get-library-docs",
+      "Bash(go mod:*)",
+      "Bash(go build:*)",
+      "Bash(go get:*)",
+      "Bash(go list:*)",
+      "Bash(go test:*)",
+      "Bash(rmdir:*)",
+      "Bash(rm:*)",
+      "Bash(gofmt:*)",
+      "Bash(goimports:*)",
+      "Bash(chmod:*)",
+      "Bash(true)",
+      "Bash(go vet:*)",
+      "Bash(golangci-lint run:*)",
+      "WebSearch",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_click",
+      "mcp__playwright__browser_tab_select",
+      "Bash(gh pr merge:*)",
+      "Bash(gh release list:*)",
+      "Bash(awk:*)",
+      "Bash(CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o test-xiaohongshu-mcp-linux-amd64 .)",
+      "Bash(tar:*)",
+      "mcp__playwright__browser_type",
+      "mcp__playwright__browser_close",
+      "Bash(git remote:*)"
+    ],
+    "deny": []
+  }
+}

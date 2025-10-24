@@ -1,0 +1,158 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - 'README.md'
+      - 'README_EN.md'
+      - 'CLAUDE.md'
+      - '.all-contributorsrc'
+      - '.gitignore'
+      - '.dockerignore'
+      - 'Dockerfile'
+      - '.claude/**'
+      - '.cursor/**'
+      - '.github/**'
+      - '.vscode/**'
+      - 'assets/**'
+      - 'configs/**'
+      - 'cookies/**'
+      - 'docker/**'
+      - 'deploy/**'
+      - 'docs/**'
+      - 'donate/**'
+      - 'examples/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # 只在推送到 main 时运行，或手动触发
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch')
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.24'
+
+    - name: Generate release name
+      id: version
+      run: |
+        TIMESTAMP=$(date +%Y.%m.%d.%H%M)
+        COMMIT_SHA=$(git rev-parse --short HEAD)
+        VERSION="v${TIMESTAMP}-${COMMIT_SHA}"
+        echo "version=${VERSION}" >> $GITHUB_OUTPUT
+        echo "Generated version: ${VERSION}"
+
+    - name: Build for multiple platforms
+      run: |
+        # 主程序构建
+        # 禁用 CGO 以生成静态链接的二进制文件，避免 GLIBC 依赖问题
+        # macOS ARM64 (Apple Silicon)
+        CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -o xiaohongshu-mcp-darwin-arm64 .
+        CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -o xiaohongshu-login-darwin-arm64 ./cmd/login
+
+        # macOS Intel
+        CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -o xiaohongshu-mcp-darwin-amd64 .
+        CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -o xiaohongshu-login-darwin-amd64 ./cmd/login
+
+        # Windows x64
+        CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o xiaohongshu-mcp-windows-amd64.exe .
+        CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o xiaohongshu-login-windows-amd64.exe ./cmd/login
+
+        # Linux x64
+        CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o xiaohongshu-mcp-linux-amd64 .
+        CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o xiaohongshu-login-linux-amd64 ./cmd/login
+
+    - name: Package binaries
+      run: |
+        # 创建压缩包
+        # macOS ARM64
+        tar czf xiaohongshu-mcp-darwin-arm64.tar.gz xiaohongshu-mcp-darwin-arm64 xiaohongshu-login-darwin-arm64
+
+        # macOS Intel
+        tar czf xiaohongshu-mcp-darwin-amd64.tar.gz xiaohongshu-mcp-darwin-amd64 xiaohongshu-login-darwin-amd64
+
+        # Windows x64
+        zip xiaohongshu-mcp-windows-amd64.zip xiaohongshu-mcp-windows-amd64.exe xiaohongshu-login-windows-amd64.exe
+
+        # Linux x64
+        tar czf xiaohongshu-mcp-linux-amd64.tar.gz xiaohongshu-mcp-linux-amd64 xiaohongshu-login-linux-amd64
+
+    - name: Clean up old releases
+      run: |
+        # 获取所有自动构建的 releases (v开头的时间戳格式)
+        RELEASES=$(gh release list --limit 100 | grep -E '^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}\.[0-9]{4}-' | awk '{print $3}' | tail -n +11)
+
+        # 删除超过 10 个的旧 releases 和对应的 tags
+        for release in $RELEASES; do
+          echo "Deleting old release: $release"
+          gh release delete "$release" --yes --cleanup-tag
+        done
+      env:
+        GH_TOKEN: ${{ github.token }}
+      continue-on-error: true
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ steps.version.outputs.version }}
+        name: Release ${{ steps.version.outputs.version }}
+        draft: false
+        prerelease: false
+        body: |
+          ## 🔧 自动构建版本
+
+          **注意：这是自动构建的预发布版本，用于测试。正式版本请等待手动发布。**
+
+          ### 📦 下载说明
+
+          选择适合您系统的压缩包下载：
+          - **macOS Apple Silicon (M1/M2/M3)**: `xiaohongshu-mcp-darwin-arm64.tar.gz`
+          - **macOS Intel**: `xiaohongshu-mcp-darwin-amd64.tar.gz`
+          - **Windows x64**: `xiaohongshu-mcp-windows-amd64.zip`
+          - **Linux x64**: `xiaohongshu-mcp-linux-amd64.tar.gz`
+
+          每个压缩包包含：
+          - `xiaohongshu-mcp-*`: MCP 服务主程序
+          - `xiaohongshu-login-*`: 登录工具
+
+          ### 🔧 使用方法
+
+          ```bash
+          # 1. 解压文件（macOS/Linux）
+          tar xzf xiaohongshu-mcp-darwin-arm64.tar.gz
+
+          # 或 Windows
+          # 解压 xiaohongshu-mcp-windows-amd64.zip
+
+          # 2. 运行登录工具
+          ./xiaohongshu-login-darwin-arm64
+
+          # 3. 启动 MCP 服务
+          ./xiaohongshu-mcp-darwin-arm64
+          ```
+
+          ### 🐳 Docker 镜像
+
+          Docker 镜像需要手动触发构建，请到 Actions 页面运行 "Docker Release" workflow。
+
+          ### 📊 构建信息
+
+          - **Commit**: ${{ github.sha }}
+          - **Branch**: main
+          - **Build Time**: ${{ steps.version.outputs.version }}
+        files: |
+          xiaohongshu-mcp-darwin-arm64.tar.gz
+          xiaohongshu-mcp-darwin-amd64.tar.gz
+          xiaohongshu-mcp-windows-amd64.zip
+          xiaohongshu-mcp-linux-amd64.tar.gz

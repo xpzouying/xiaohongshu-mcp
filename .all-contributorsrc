@@ -1,0 +1,167 @@
+{
+  "files": [
+    "README.md"
+  ],
+  "imageSize": 100,
+  "commit": false,
+  "commitType": "docs",
+  "commitConvention": "angular",
+  "contributors": [
+    {
+      "login": "xpzouying",
+      "name": "zy",
+      "avatar_url": "https://avatars.githubusercontent.com/u/3946563?v=4",
+      "profile": "https://haha.ai",
+      "contributions": [
+        "code",
+        "ideas",
+        "doc",
+        "design",
+        "maintenance",
+        "infra",
+        "review"
+      ]
+    },
+    {
+      "login": "esperyong",
+      "name": "clearwater",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1271815?v=4",
+      "profile": "http://www.hwbuluo.com",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "laryzhong",
+      "name": "Zhongpeng",
+      "avatar_url": "https://avatars.githubusercontent.com/u/47939471?v=4",
+      "profile": "https://github.com/laryzhong",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "DTDucas",
+      "name": "Duong Tran",
+      "avatar_url": "https://avatars.githubusercontent.com/u/105262836?v=4",
+      "profile": "https://github.com/DTDucas",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "Angiin",
+      "name": "Angiin",
+      "avatar_url": "https://avatars.githubusercontent.com/u/17389304?v=4",
+      "profile": "https://github.com/Angiin",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "muhenan",
+      "name": "Henan Mu",
+      "avatar_url": "https://avatars.githubusercontent.com/u/43441941?v=4",
+      "profile": "https://github.com/muhenan",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "chengazhen",
+      "name": "Journey",
+      "avatar_url": "https://avatars.githubusercontent.com/u/52627267?v=4",
+      "profile": "https://github.com/chengazhen",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "eveyuyi",
+      "name": "Eve Yu",
+      "avatar_url": "https://avatars.githubusercontent.com/u/69026872?v=4",
+      "profile": "https://github.com/eveyuyi",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "CooperGuo",
+      "name": "CooperGuo",
+      "avatar_url": "https://avatars.githubusercontent.com/u/183056602?v=4",
+      "profile": "https://github.com/CooperGuo",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "BiboyQG",
+      "name": "Banghao Chi",
+      "avatar_url": "https://avatars.githubusercontent.com/u/125724218?v=4",
+      "profile": "https://biboyqg.github.io/",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "varz1",
+      "name": "varz1",
+      "avatar_url": "https://avatars.githubusercontent.com/u/60377372?v=4",
+      "profile": "https://github.com/varz1",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "Meloyg",
+      "name": "Melo Y Guan",
+      "avatar_url": "https://avatars.githubusercontent.com/u/62586556?v=4",
+      "profile": "https://google.meloguan.site",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "lmxdawn",
+      "name": "lmxdawn",
+      "avatar_url": "https://avatars.githubusercontent.com/u/21293193?v=4",
+      "profile": "https://github.com/lmxdawn",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "haikow",
+      "name": "haikow",
+      "avatar_url": "https://avatars.githubusercontent.com/u/22428382?v=4",
+      "profile": "https://github.com/haikow",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "a67793581",
+      "name": "Carlo",
+      "avatar_url": "https://avatars.githubusercontent.com/u/18513362?v=4",
+      "profile": "https://carlo-blog.aiju.fun/",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "hrz394943230",
+      "name": "hrz",
+      "avatar_url": "https://avatars.githubusercontent.com/u/28583005?v=4",
+      "profile": "https://github.com/hrz394943230",
+      "contributions": [
+        "code"
+      ]
+    }
+  ],
+  "contributorsPerLine": 7,
+  "skipCi": true,
+  "repoType": "github",
+  "repoHost": "https://github.com",
+  "projectName": "xiaohongshu-mcp",
+  "projectOwner": "xpzouying"
+}
