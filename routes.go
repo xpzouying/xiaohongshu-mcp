@@ -35,6 +35,16 @@ func setupRoutes(appServer *AppServer) *gin.Engine {
 	router.Any("/mcp", gin.WrapH(mcpHandler))
 	router.Any("/mcp/*path", gin.WrapH(mcpHandler))
 
+	// sse端点
+	sseMcpHandler := mcp.NewSSEHandler(
+		func(request *http.Request) *mcp.Server {
+			return appServer.mcpServer
+		},
+		&mcp.SSEOptions{},
+	)
+	router.Any("/sse", gin.WrapH(sseMcpHandler))
+	router.Any("/sse/*path", gin.WrapH(sseMcpHandler))
+
 	// API 路由组
 	api := router.Group("/api/v1")
 	{
