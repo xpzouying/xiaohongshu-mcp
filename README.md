@@ -33,6 +33,8 @@ MCP for 小红书/xiaohongshu.com。
 
 <img src="donate/wechat@2x.png" alt="WeChat Pay QR" width="260" />
 
+## 项目简介
+
 **主要功能**
 
 > 💡 **提示：** 点击下方功能标题可展开查看视频演示
