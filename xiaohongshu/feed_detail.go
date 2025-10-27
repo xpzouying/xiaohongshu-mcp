@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/go-rod/rod"
+	"github.com/sirupsen/logrus"
+	"github.com/xpzouying/xiaohongshu-mcp/errors"
 )
 
 // FeedDetailAction 表示 Feed 详情页动作
@@ -26,39 +28,37 @@ func (f *FeedDetailAction) GetFeedDetail(ctx context.Context, feedID, xsecToken 
 	// 构建详情页 URL
 	url := makeFeedDetailURL(feedID, xsecToken)
 
+	logrus.Infof("打开 feed 详情页: %s", url)
+
 	// 导航到详情页
 	page.MustNavigate(url)
 	page.MustWaitDOMStable()
 	time.Sleep(1 * time.Second)
 
-	// 获取 window.__INITIAL_STATE__ 并转换为 JSON 字符串
 	result := page.MustEval(`() => {
-		if (window.__INITIAL_STATE__) {
-			return JSON.stringify(window.__INITIAL_STATE__);
+		if (window.__INITIAL_STATE__ &&
+		    window.__INITIAL_STATE__.note &&
+		    window.__INITIAL_STATE__.note.noteDetailMap) {
+			const noteDetailMap = window.__INITIAL_STATE__.note.noteDetailMap;
+			return JSON.stringify(noteDetailMap);
 		}
 		return "";
 	}`).String()
 
 	if result == "" {
-		return nil, fmt.Errorf("__INITIAL_STATE__ not found")
+		return nil, errors.ErrNoFeedDetail
 	}
 
-	// 定义响应结构并直接反序列化
-	var initialState struct {
-		Note struct {
-			NoteDetailMap map[string]struct {
-				Note     FeedDetail  `json:"note"`
-				Comments CommentList `json:"comments"`
-			} `json:"noteDetailMap"`
-		} `json:"note"`
+	var noteDetailMap map[string]struct {
+		Note     FeedDetail  `json:"note"`
+		Comments CommentList `json:"comments"`
 	}
 
-	if err := json.Unmarshal([]byte(result), &initialState); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal __INITIAL_STATE__: %w", err)
+	if err := json.Unmarshal([]byte(result), &noteDetailMap); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal noteDetailMap: %w", err)
 	}
 
-	// 从 noteDetailMap 中获取对应 feedID 的数据
-	noteDetail, exists := initialState.Note.NoteDetailMap[feedID]
+	noteDetail, exists := noteDetailMap[feedID]
 	if !exists {
 		return nil, fmt.Errorf("feed %s not found in noteDetailMap", feedID)
 	}

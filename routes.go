@@ -44,10 +44,12 @@ func setupRoutes(appServer *AppServer) *gin.Engine {
 		api.POST("/publish_video", appServer.publishVideoHandler)
 		api.GET("/feeds/list", appServer.listFeedsHandler)
 		api.GET("/feeds/search", appServer.searchFeedsHandler)
+		api.POST("/feeds/search", appServer.searchFeedsHandler)
 		api.POST("/feeds/detail", appServer.getFeedDetailHandler)
 		api.POST("/user/profile", appServer.userProfileHandler)
 		api.POST("/feeds/comment", appServer.postCommentHandler)
 		api.POST("/feeds/comment/reply", appServer.replyCommentHandler)
+		api.GET("/user/me", appServer.myProfileHandler)
 	}
 
 	return router

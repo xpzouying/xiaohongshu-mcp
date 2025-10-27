@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"time"
+
 	"github.com/go-rod/rod"
 	"github.com/mattn/go-runewidth"
 	"github.com/sirupsen/logrus"
@@ -13,8 +16,6 @@ import (
 	"github.com/xpzouying/xiaohongshu-mcp/cookies"
 	"github.com/xpzouying/xiaohongshu-mcp/pkg/downloader"
 	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
-	"os"
-	"time"
 )
 
 // XiaohongshuService 小红书业务服务
@@ -181,6 +182,7 @@ func (s *XiaohongshuService) PublishContent(ctx context.Context, req *PublishReq
 
 	// 执行发布
 	if err := s.publishContent(ctx, content); err != nil {
+		logrus.Errorf("发布内容失败: title=%s %v", content.Title, err)
 		return nil, err
 	}
 
@@ -284,6 +286,7 @@ func (s *XiaohongshuService) ListFeeds(ctx context.Context) (*FeedsListResponse,
 	// 获取 Feeds 列表
 	feeds, err := action.GetFeedsList(ctx)
 	if err != nil {
+		logrus.Errorf("获取 Feeds 列表失败: %v", err)
 		return nil, err
 	}
 
@@ -295,7 +298,7 @@ func (s *XiaohongshuService) ListFeeds(ctx context.Context) (*FeedsListResponse,
 	return response, nil
 }
 
-func (s *XiaohongshuService) SearchFeeds(ctx context.Context, keyword string) (*FeedsListResponse, error) {
+func (s *XiaohongshuService) SearchFeeds(ctx context.Context, keyword string, filters ...xiaohongshu.FilterOption) (*FeedsListResponse, error) {
 	b := newBrowser()
 	defer b.Close()
 
@@ -304,7 +307,7 @@ func (s *XiaohongshuService) SearchFeeds(ctx context.Context, keyword string) (*
 
 	action := xiaohongshu.NewSearchAction(page)
 
-	feeds, err := action.Search(ctx, keyword)
+	feeds, err := action.Search(ctx, keyword, filters...)
 	if err != nil {
 		return nil, err
 	}
@@ -483,4 +486,39 @@ func saveCookies(page *rod.Page) error {
 
 	cookieLoader := cookies.NewLoadCookie(cookies.GetCookiesFilePath())
 	return cookieLoader.SaveCookies(data)
+}
+
+// withBrowserPage 执行需要浏览器页面的操作的通用函数
+func withBrowserPage(fn func(*rod.Page) error) error {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	return fn(page)
+}
+
+// GetMyProfile 获取当前登录用户的个人信息
+func (s *XiaohongshuService) GetMyProfile(ctx context.Context) (*UserProfileResponse, error) {
+	var result *xiaohongshu.UserProfileResponse
+	var err error
+
+	err = withBrowserPage(func(page *rod.Page) error {
+		action := xiaohongshu.NewUserProfileAction(page)
+		result, err = action.GetMyProfileViaSidebar(ctx)
+		return err
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UserProfileResponse{
+		UserBasicInfo: result.UserBasicInfo,
+		Interactions:  result.Interactions,
+		Feeds:         result.Feeds,
+	}
+
+	return response, nil
 }

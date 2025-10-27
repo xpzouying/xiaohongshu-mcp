@@ -1,7 +1,7 @@
 # xiaohongshu-mcp
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-14-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-16-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 MCP for 小红书/xiaohongshu.com。
@@ -9,6 +9,8 @@ MCP for 小红书/xiaohongshu.com。
 - 我的博客文章：[haha.ai/xiaohongshu-mcp](https://www.haha.ai/xiaohongshu-mcp)
 
 **遇到任何问题，务必要先看 [各种疑难杂症](https://github.com/xpzouying/xiaohongshu-mcp/issues/56)**。
+
+上面的 **疑难杂症** 列表后，还是解决不了你的部署问题，那么强烈推荐使用我写的另外一个工具：[xpzouying/x-mcp](https://github.com/xpzouying/x-mcp)，这个工具不需要你进行部署，只需要通过浏览器插件就能驱动你的 MCP，对于非技术同学来说更加友好。
 
 ## Star History
 
@@ -190,6 +192,7 @@ https://github.com/user-attachments/assets/cc385b6c-422c-489b-a5fc-63e92c695b80
 **小红书基础运营知识**
 
 - **标题：（非常重要）小红书要求标题不超过 20 个字**
+- **正文：（非常重要）：正文不能超过 1000 个字**
 - 当前支持图文发送以及视频发送：从推荐的角度看，图文的流量会比视频以及纯文字的更好。
 - （低优先级）可以考虑纯文字的支持。1. 个人感觉纯文字会大大增加运营的复杂度；2. 纯文字在我的使用场景的价值较低。
 - Tags：现已支持。添加合适的Tags能带来更多的流量。
@@ -736,9 +739,13 @@ Cline 是一个强大的 AI 编程助手，支持 MCP 协议集成。
 
 <!-- 两列排布：飞书二群 | 微信群 -->
 
-| 【飞书二群】：扫码进入                                                                                                    | 【微信群 8 群】：扫码进入                                                                                                  |
+| 【飞书3群】：扫码进入                                                                                                    | 【微信群 9 群】：扫码进入                                                                                                  |
 | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| <img src="https://github.com/user-attachments/assets/ca1f5d6e-b1bf-4c15-9975-ff75f339ec9b" alt="qrcode_2qun" width="300"> | <img src="https://github.com/user-attachments/assets/69b8169f-a3f7-42bc-b197-86c907b69ea0" alt="WechatIMG119" width="300"> |
+| <img src="https://github.com/user-attachments/assets/9a0ec41a-cb65-4f4e-a0f7-31658a49512d" alt="qrcode_2qun" width="300"> | <img src="https://github.com/user-attachments/assets/ffddf1f9-3f80-4eb7-9078-5fc357675414" alt="WechatIMG119" width="300"> |
+
+
+
+
 
 
 ## 🙏 致谢贡献者 ✨
@@ -767,6 +774,10 @@ Cline 是一个强大的 AI 编程助手，支持 MCP 协议集成。
       <td align="center" valign="top" width="14.28%"><a href="https://google.meloguan.site"><img src="https://avatars.githubusercontent.com/u/62586556?v=4?s=100" width="100px;" alt="Melo Y Guan"/><br /><sub><b>Melo Y Guan</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=Meloyg" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/lmxdawn"><img src="https://avatars.githubusercontent.com/u/21293193?v=4?s=100" width="100px;" alt="lmxdawn"/><br /><sub><b>lmxdawn</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=lmxdawn" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/haikow"><img src="https://avatars.githubusercontent.com/u/22428382?v=4?s=100" width="100px;" alt="haikow"/><br /><sub><b>haikow</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=haikow" title="Code">💻</a></td>
+    </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://carlo-blog.aiju.fun/"><img src="https://avatars.githubusercontent.com/u/18513362?v=4?s=100" width="100px;" alt="Carlo"/><br /><sub><b>Carlo</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=a67793581" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/hrz394943230"><img src="https://avatars.githubusercontent.com/u/28583005?v=4?s=100" width="100px;" alt="hrz"/><br /><sub><b>hrz</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=hrz394943230" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>
