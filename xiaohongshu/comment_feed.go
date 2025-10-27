@@ -83,6 +83,7 @@ func (f *CommentFeedAction) PostComment(ctx context.Context, feedID, xsecToken, 
 	logrus.Infof("Comment posted successfully to feed: %s", feedID)
 	return nil
 }
+
 // ReplyToComment 回复指定评论
 func (f *CommentFeedAction) ReplyToComment(ctx context.Context, feedID, xsecToken, commentID, userID, content string) error {
 	page := f.page.Context(ctx).Timeout(60 * time.Second)
@@ -91,16 +92,16 @@ func (f *CommentFeedAction) ReplyToComment(ctx context.Context, feedID, xsecToke
 	page.MustNavigate(url)
 	page.MustWaitDOMStable()
 	time.Sleep(3 * time.Second) // 增加等待时间确保页面完全加载
-	
+
 	// 等待评论容器加载
 	waitForCommentsContainer(page)
-	
+
 	// 确保评论区域可见
 	ensureCommentsVisible(page)
-	
+
 	// 额外等待确保评论内容加载完成
 	time.Sleep(2 * time.Second)
-	
+
 	// 尝试多次查找评论元素
 	var commentEl *rod.Element
 	var err error
@@ -114,15 +115,15 @@ func (f *CommentFeedAction) ReplyToComment(ctx context.Context, feedID, xsecToke
 		ensureCommentsVisible(page)
 		scrollComments(page) // 每次尝试后滚动
 	}
-	
+
 	if err != nil {
 		return fmt.Errorf("无法找到评论: %w", err)
 	}
-	
+
 	// 滚动到评论位置
 	_, _ = commentEl.Eval(`() => { try { this.scrollIntoView({behavior: "instant", block: "center"}); } catch (e) {} return true }`)
 	time.Sleep(1 * time.Second) // 增加等待时间
-	
+
 	// 尝试多次点击回复按钮
 	var replyBtn *rod.Element
 	for attempt := 0; attempt < 5; attempt++ { // 增加尝试次数
@@ -135,47 +136,47 @@ func (f *CommentFeedAction) ReplyToComment(ctx context.Context, feedID, xsecToke
 		logrus.Warnf("Attempt %d: Failed to click reply button: %v", attempt+1, err)
 		time.Sleep(1 * time.Second) // 增加等待时间
 	}
-	
+
 	if err != nil || replyBtn == nil {
 		return fmt.Errorf("无法点击回复按钮")
 	}
-	
+
 	time.Sleep(2 * time.Second) // 增加等待时间确保回复输入框出现
-	
+
 	// 查找回复输入框
 	inputEl, err := findReplyInput(page, commentEl)
 	if err != nil {
 		return fmt.Errorf("无法找到回复输入框: %w", err)
 	}
-	
+
 	// 聚焦并输入内容
 	if _, evalErr := inputEl.Eval(`() => { try { this.focus(); } catch (e) {} return true }`); evalErr != nil {
 		logrus.Warnf("focus reply input failed: %v", evalErr)
 	}
-	
+
 	inputEl.MustInput(content)
 	time.Sleep(500 * time.Millisecond) // 增加等待时间
-	
+
 	// 查找并点击提交按钮
 	submitBtn, err := findSubmitButton(page)
 	if err != nil {
 		return fmt.Errorf("无法找到提交按钮: %w", err)
 	}
-	
+
 	if !tryClickChainForComment(submitBtn) {
 		return fmt.Errorf("点击回复提交按钮失败")
 	}
-	
+
 	time.Sleep(3 * time.Second) // 增加等待时间确保回复提交完成
 	return nil
 }
 
 func findCommentElement(page *rod.Page, commentID, userID string) (*rod.Element, error) {
 	var lastErr error
-	
+
 	// 首先尝试确保评论区域可见
 	ensureCommentsVisible(page)
-	
+
 	for attempt := 0; attempt < 20; attempt++ { // 增加尝试次数
 		logrus.Infof("查找评论，尝试次数: %d", attempt+1)
 		el, err := locateCommentElement(page, commentID, userID)
@@ -186,7 +187,7 @@ func findCommentElement(page *rod.Page, commentID, userID string) (*rod.Element,
 		if err != nil {
 			lastErr = err
 		}
-		
+
 		// 每3次尝试后进行一次更彻底的滚动
 		if attempt%3 == 0 {
 			// 更彻底的滚动策略
@@ -200,7 +201,7 @@ func findCommentElement(page *rod.Page, commentID, userID string) (*rod.Element,
 		}
 		time.Sleep(800 * time.Millisecond) // 增加等待时间
 	}
-	
+
 	if lastErr != nil {
 		return nil, lastErr
 	}
@@ -208,20 +209,6 @@ func findCommentElement(page *rod.Page, commentID, userID string) (*rod.Element,
 }
 
 func locateCommentElement(page *rod.Page, commentID, userID string) (*rod.Element, error) {
-	// 首先在comments-container内查找
-	if commentsContainer, err := page.Element(".comments-container"); err == nil && commentsContainer != nil {
-		if commentID != "" {
-			if el, err := locateCommentElementByCommentIDInContainer(commentsContainer, commentID); err == nil && el != nil {
-				return el, nil
-			}
-		}
-		if userID != "" {
-			if el, err := locateCommentElementByUserIDInContainer(commentsContainer, userID); err == nil && el != nil {
-				return el, nil
-			}
-		}
-	}
-	
 	// 如果在comments-container内没有找到，尝试在整个页面查找
 	if commentID != "" {
 		if el, err := locateCommentElementByCommentID(page, commentID); err == nil && el != nil {
@@ -233,7 +220,7 @@ func locateCommentElement(page *rod.Page, commentID, userID string) (*rod.Elemen
 			return el, nil
 		}
 	}
-	
+
 	identifier := buildIdentifier(commentID, userID)
 	if identifier == "" {
 		return nil, fmt.Errorf("未提供评论标识")
@@ -245,27 +232,13 @@ func locateCommentElementByCommentID(page *rod.Page, commentID string) (*rod.Ele
 	if commentID == "" {
 		return nil, fmt.Errorf("评论ID为空")
 	}
-	
+
 	// 首先尝试直接通过ID查找（根据HTML结构中的id="comment-68d9df3e0000000002015818"）
 	idSelector := fmt.Sprintf("#comment-%s", commentID)
 	if el, err := page.Element(idSelector); err == nil && el != nil {
 		return el, nil
 	}
-	
-	// 尝试其他data属性
-	selectors := []string{
-		fmt.Sprintf(`[data-comment-id="%s"]`, commentID),
-		fmt.Sprintf(`[data-comment_id="%s"]`, commentID),
-		fmt.Sprintf(`[data-commentid="%s"]`, commentID),
-		fmt.Sprintf(`[data-id="%s"]`, commentID),
-		fmt.Sprintf(`[comment-id="%s"]`, commentID),
-	}
-	for _, selector := range selectors {
-		if el, err := page.Element(selector); err == nil && el != nil {
-			return el, nil
-		}
-	}
-	
+
 	return nil, fmt.Errorf("未找到评论ID: %s", commentID)
 }
 
@@ -273,16 +246,11 @@ func locateCommentElementByUserID(page *rod.Page, userID string) (*rod.Element, 
 	if userID == "" {
 		return nil, fmt.Errorf("用户ID为空")
 	}
-	
+
 	selectors := []string{
 		fmt.Sprintf(`[data-user-id="%s"]`, userID),
-		fmt.Sprintf(`[data-user_id="%s"]`, userID),
-		fmt.Sprintf(`[data-userid="%s"]`, userID),
-		fmt.Sprintf(`[data-uid="%s"]`, userID),
-		fmt.Sprintf(`a[data-user-id="%s"]`, userID),
-		fmt.Sprintf(`a[href*="%s"]`, userID),
 	}
-	
+
 	for _, selector := range selectors {
 		if el, err := page.Element(selector); err == nil && el != nil {
 			// 使用JavaScript查找父级评论元素
@@ -302,68 +270,8 @@ func locateCommentElementByUserID(page *rod.Page, userID string) (*rod.Element, 
 			return el, nil
 		}
 	}
-	
+
 	return nil, fmt.Errorf("未找到用户ID: %s", userID)
-}
-
-// 在指定容器内查找评论元素
-func locateCommentElementByCommentIDInContainer(container *rod.Element, commentID string) (*rod.Element, error) {
-	if commentID == "" {
-		return nil, fmt.Errorf("评论ID为空")
-	}
-	
-	// 首先尝试直接通过ID查找
-	idSelector := fmt.Sprintf("#comment-%s", commentID)
-	if el, err := container.Element(idSelector); err == nil && el != nil {
-		return el, nil
-	}
-	
-	// 尝试其他data属性
-	selectors := []string{
-		fmt.Sprintf(`[data-comment-id="%s"]`, commentID),
-		fmt.Sprintf(`[data-comment_id="%s"]`, commentID),
-		fmt.Sprintf(`[data-commentid="%s"]`, commentID),
-		fmt.Sprintf(`[data-id="%s"]`, commentID),
-		fmt.Sprintf(`[comment-id="%s"]`, commentID),
-	}
-	for _, selector := range selectors {
-		if el, err := container.Element(selector); err == nil && el != nil {
-			return el, nil
-		}
-	}
-	
-	return nil, fmt.Errorf("在容器内未找到评论ID: %s", commentID)
-}
-
-// 在指定容器内通过用户ID查找评论元素
-func locateCommentElementByUserIDInContainer(container *rod.Element, userID string) (*rod.Element, error) {
-	if userID == "" {
-		return nil, fmt.Errorf("用户ID为空")
-	}
-	
-	selectors := []string{
-		fmt.Sprintf(`[data-user-id="%s"]`, userID),
-		fmt.Sprintf(`[data-user_id="%s"]`, userID),
-		fmt.Sprintf(`[data-userid="%s"]`, userID),
-		fmt.Sprintf(`[data-uid="%s"]`, userID),
-		fmt.Sprintf(`a[data-user-id="%s"]`, userID),
-		fmt.Sprintf(`a[href*="%s"]`, userID),
-	}
-	
-	for _, selector := range selectors {
-		if el, err := container.Element(selector); err == nil && el != nil {
-			// 找到用户链接，返回其父级评论元素
-			if parent, err := el.Element(".comment-item"); err == nil && parent != nil {
-				return parent, nil
-			}
-			if parent, err := el.Element(".comment"); err == nil && parent != nil {
-				return parent, nil
-			}
-			return el, nil
-		}
-	}
-	
-	return nil, fmt.Errorf("在容器内未找到用户ID: %s", userID)
 }
 
 // 等待评论容器加载完成
@@ -393,7 +301,7 @@ func waitForCommentsContainer(page *rod.Page) {
 		
 		return checkContainer();
 	}`
-	
+
 	page.Eval(jsCode)
 	time.Sleep(2 * time.Second) // 等待检查完成
 }
@@ -426,7 +334,7 @@ func ensureCommentsVisible(page *rod.Page) {
 		
 		return false;
 	}`
-	
+
 	page.Eval(jsCode)
 	time.Sleep(1 * time.Second)
 }
@@ -464,7 +372,7 @@ func scrollComments(page *rod.Page) bool {
 // performFullScroll 执行更彻底的滚动策略
 func performFullScroll(page *rod.Page) {
 	logrus.Infof("执行彻底滚动策略")
-	
+
 	// 策略1: 滚动到评论容器的不同位置
 	scrollPositionsJS := `() => {
 		const commentsContainer = document.querySelector('.comments-container');
@@ -493,11 +401,11 @@ func performFullScroll(page *rod.Page) {
 		
 		return true;
 	}`
-	
+
 	if _, err := page.Eval(scrollPositionsJS); err != nil {
 		logrus.Warnf("彻底滚动失败: %v", err)
 	}
-	
+
 }
 
 func buildIdentifier(commentID, userID string) string {
@@ -510,57 +418,33 @@ func buildIdentifier(commentID, userID string) string {
 	return userID
 }
 
+// 选取当前层主的回复按钮
 func findReplyButton(commentEl *rod.Element) (*rod.Element, error) {
-	logrus.Infof("开始查找回复按钮...")
-	
-	// 在right区域内查找interactions
-	right, err := commentEl.Element(".right")
-	if err != nil {
-		logrus.Errorf("未找到.right区域")
-		return nil, fmt.Errorf("未找到.right区域")
+	if commentEl == nil {
+		return nil, fmt.Errorf("评论元素为空")
 	}
-	
-	interactions, err := right.Element(".interactions")
-	if err != nil {
-		logrus.Errorf("未找到.interactions区域")
-		return nil, fmt.Errorf("未找到.interactions区域")
+
+	selector := ".right .interactions .reply"
+	btn, err := commentEl.Element(selector)
+	if err != nil || btn == nil {
+		logrus.Warnf("未找到回复按钮，选择器: %s, err: %v", selector, err)
+		return nil, fmt.Errorf("未找到回复按钮")
 	}
-	
-	// 选择器列表
-	selectors := []string{
-		".reply",                           // 回复容器（最通用）
-		":nth-child(2)",                    // 第二个子元素（单评论）
-		".reply-icon",                      // 回复图标
-		".reds-icon.reply-icon",            // 带类的回复图标
-		".reply.icon-container",            // 回复图标容器
-	}
-	
-	// 在interactions区域内查找
-	for _, selector := range selectors {
-		if el, err := interactions.Element(selector); err == nil && el != nil {
-			logrus.Infof("通过选择器 %s 找到回复按钮", selector)
-			return el, nil
-		}
-	}
-	
-	logrus.Errorf("未找到回复按钮")
-	return nil, fmt.Errorf("未找到回复按钮")
+
+	logrus.Infof("通过选择器 %s 找到回复按钮", selector)
+	return btn, nil
 }
 
 // verifyClickSuccess 验证点击是否真的成功（检查是否出现了回复输入框）
 func verifyClickSuccess(clickedEl *rod.Element) bool {
 	// 获取页面实例
 	page := clickedEl.Page()
-	
+
 	// 检查是否出现了回复输入框
 	selectors := []string{
 		"div.input-box div.content-edit p.content-input",
-		"div.input-box [contenteditable='true']",
-		"[contenteditable='true']",
-		"textarea",
-		"input[type='text']",
 	}
-	
+
 	for _, selector := range selectors {
 		if el, err := page.Element(selector); err == nil && el != nil {
 			// 检查元素是否可见
@@ -570,35 +454,6 @@ func verifyClickSuccess(clickedEl *rod.Element) bool {
 			}
 		}
 	}
-	
-	// 使用JavaScript检查是否有新的输入框出现
-	jsCode := `() => {
-		// 查找所有可编辑元素
-		const editables = document.querySelectorAll('[contenteditable="true"], textarea, input[type="text"]');
-		for (const el of editables) {
-			// 检查元素是否可见
-			const rect = el.getBoundingClientRect();
-			if (rect.width > 0 && rect.height > 0) {
-				// 检查元素是否在视口中
-				const inViewport = rect.top >= 0 && rect.left >= 0 && 
-					rect.bottom <= window.innerHeight && 
-					rect.right <= window.innerWidth;
-				if (inViewport) {
-					console.log('找到可见的输入元素:', el);
-					return true;
-				}
-			}
-		}
-		return false;
-	}`
-	
-	if result, err := page.Eval(jsCode); err == nil && result != nil {
-		if result.Value.Bool() {
-			logrus.Infof("JavaScript验证成功：找到可见的输入元素")
-			return true
-		}
-	}
-	
 	logrus.Infof("验证失败：没有找到回复输入框")
 	return false
 }
@@ -615,24 +470,8 @@ func findReplyInput(page *rod.Page, commentEl *rod.Element) (*rod.Element, error
 		return el, nil
 	}
 	selectors := []string{
-		"div.input-box div.content-edit p.content-input",  // 原有选择器
-		"div.input-box [contenteditable='true']",         // 通用输入框
-		"[contenteditable='true']",                        // 任何可编辑元素
-		"textarea",                                        // 备用textarea
-		"input[type='text']",                             // 备用text输入框
-		"[data-role='reply-input'] [contenteditable='true']",
+		"div.input-box div.content-edit p.content-input", // 原有选择器
 	}
-	for _, selector := range selectors {
-		if el, err := page.Element(selector); err == nil && el != nil {
-			return el, nil
-		}
-	}
-	// 尝试在评论内部寻找可编辑区域
-	if el, err := commentEl.Element("[contenteditable='true']"); err == nil && el != nil {
-		return el, nil
-	}
-	// 最后尝试：等待一下再查找，可能是动态加载的
-	time.Sleep(1 * time.Second)
 	for _, selector := range selectors {
 		if el, err := page.Element(selector); err == nil && el != nil {
 			return el, nil
@@ -646,21 +485,28 @@ func tryClickChainForComment(el *rod.Element) bool {
 		logrus.Errorf("要点击的元素为空")
 		return false
 	}
-	
+
 	// 获取元素信息用于调试
 	text, _ := el.Text()
-	class, _ := el.Attribute("class")
-	tag, _ := el.Describe(0, false)
-	logrus.Infof("准备点击元素 - 文本: '%s', 类: '%s', 标签: %s", text, class, tag)
-	
+	classAttr, _ := el.Attribute("class")
+	class := ""
+	if classAttr != nil {
+		class = *classAttr
+	}
+	tagName := ""
+	if desc, err := el.Describe(0, false); err == nil && desc != nil {
+		tagName = desc.NodeName
+	}
+	logrus.Infof("准备点击元素 - 文本: '%s', 类: '%s', 标签: %s", text, class, tagName)
+
 	// 检查元素是否可见和可点击
 	visible, _ := el.Visible()
 	logrus.Infof("元素可见性: %v", visible)
-	
+
 	// 滚动到元素位置
 	_, _ = el.Eval(`() => { try { this.scrollIntoView({behavior: "instant", block: "center"}); } catch (e) {} return true }`)
 	time.Sleep(500 * time.Millisecond)
-	
+
 	// 只使用直接点击方式
 	clickMethods := []struct {
 		name string
@@ -675,13 +521,13 @@ func tryClickChainForComment(el *rod.Element) bool {
 			return true
 		}},
 	}
-	
+
 	for i, method := range clickMethods {
 		logrus.Infof("尝试点击方法 %d: %s", i+1, method.name)
 		if method.fn(el) {
 			// 点击后等待一下，检查是否有反应
 			time.Sleep(1 * time.Second)
-			
+
 			// 验证点击是否真的成功（检查是否出现了回复输入框）
 			success := verifyClickSuccess(el)
 			if success {
@@ -693,7 +539,7 @@ func tryClickChainForComment(el *rod.Element) bool {
 			}
 		}
 	}
-	
+
 	logrus.Errorf("所有点击方法都失败")
 	return false
 }
@@ -701,12 +547,6 @@ func tryClickChainForComment(el *rod.Element) bool {
 func findSubmitButton(page *rod.Page) (*rod.Element, error) {
 	selectors := []string{
 		"div.bottom button.submit",
-		"button.submit",
-		"button.reds-button",
-		"button[type='submit']",
-		"button:contains('回复')",
-		"button:contains('发布')",
-		"button:contains('发送')",
 	}
 	for _, selector := range selectors {
 		if el, err := page.Element(selector); err == nil && el != nil {
@@ -715,23 +555,6 @@ func findSubmitButton(page *rod.Page) (*rod.Element, error) {
 				return el, nil
 			}
 		}
-	}
-	// 使用JS查找包含特定文本的按钮
-	jsCode := `() => {
-		const buttons = document.querySelectorAll('button');
-		for (const btn of buttons) {
-			const text = btn.textContent || btn.innerText || '';
-			if (text.includes('回复') || text.includes('发布') || text.includes('发送')) {
-				const disabled = btn.getAttribute('disabled');
-				if (!disabled) {
-					return btn;
-				}
-			}
-		}
-		return null;
-	}`
-	if el, err := page.ElementByJS(rod.Eval(jsCode)); err == nil && el != nil {
-		return el, nil
 	}
 	return nil, fmt.Errorf("未找到回复发布按钮")
 }
