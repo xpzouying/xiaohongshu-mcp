@@ -101,6 +101,9 @@ func withPanicRecovery[T any](
 ) func(context.Context, *mcp.CallToolRequest, T) (*mcp.CallToolResult, any, error) {
 
 	return func(ctx context.Context, req *mcp.CallToolRequest, args T) (result *mcp.CallToolResult, resp any, err error) {
+
+		logrus.Infof("Handling call to tool %s, args %+v", toolName, args)
+
 		defer func() {
 			if r := recover(); r != nil {
 				logrus.WithFields(logrus.Fields{
