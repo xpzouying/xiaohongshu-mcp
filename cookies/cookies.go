@@ -10,6 +10,7 @@ import (
 type Cookier interface {
 	LoadCookies() ([]byte, error)
 	SaveCookies(data []byte) error
+	DeleteCookies() error
 }
 
 type localCookie struct {
@@ -40,6 +41,15 @@ func (c *localCookie) LoadCookies() ([]byte, error) {
 // SaveCookies 保存 cookies 到文件中。
 func (c *localCookie) SaveCookies(data []byte) error {
 	return os.WriteFile(c.path, data, 0644)
+}
+
+// DeleteCookies 删除 cookies 文件。
+func (c *localCookie) DeleteCookies() error {
+	if _, err := os.Stat(c.path); os.IsNotExist(err) {
+		// 文件不存在，返回 nil（认为已经删除）
+		return nil
+	}
+	return os.Remove(c.path)
 }
 
 // GetCookiesFilePath 获取 cookies 文件路径。

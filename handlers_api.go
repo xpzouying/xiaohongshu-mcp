@@ -3,6 +3,7 @@ package main
 import (
 	"net/http"
 
+	"github.com/xpzouying/xiaohongshu-mcp/cookies"
 	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
 
 	"github.com/gin-gonic/gin"
@@ -61,6 +62,22 @@ func (s *AppServer) getLoginQrcodeHandler(c *gin.Context) {
 	}
 
 	respondSuccess(c, result, "获取登录二维码成功")
+}
+
+// deleteCookiesHandler 删除 cookies，重置登录状态
+func (s *AppServer) deleteCookiesHandler(c *gin.Context) {
+	err := s.xiaohongshuService.DeleteCookies(c.Request.Context())
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "DELETE_COOKIES_FAILED",
+			"删除 cookies 失败", err.Error())
+		return
+	}
+
+	cookiePath := cookies.GetCookiesFilePath()
+	respondSuccess(c, map[string]interface{}{
+		"cookie_path": cookiePath,
+		"message":     "Cookies 已成功删除，登录状态已重置。下次操作时需要重新登录。",
+	}, "删除 cookies 成功")
 }
 
 // publishHandler 发布内容
