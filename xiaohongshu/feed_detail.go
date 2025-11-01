@@ -35,214 +35,195 @@ func (f *FeedDetailAction) GetFeedDetail(ctx context.Context, feedID, xsecToken 
 	page.MustWaitDOMStable()
 	time.Sleep(1 * time.Second)
 
-	var domCommentsPayload string
 	if loadAllComments {
-		scrollToEndJS := `() => {
-			const END_SELECTOR = '.end-container';
-			const DELTA_MIN = 520;
-			const MAX_ATTEMPTS = 60;
-			const WAIT_AFTER_SCROLL = 420;
+		scrollAllCommentsJS := `() => {
+		const INTERVAL_MS = 900;
+		const STAGNANT_LIMIT = 8;
+		const NO_CHANGE_SCROLL_LIMIT = 3;
+		const DELTA_MIN = 480;
+		const SCROLL_TIMEOUT = 900;
+		const MAX_ATTEMPTS = 200;
 
-			const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-			const scrollRoot = document.scrollingElement || document.documentElement || document.body;
-
-			const reachedEnd = () => {
-				const endEl = document.querySelector(END_SELECTOR);
-				if (!endEl) return false;
-				const text = (endEl.textContent || '').toUpperCase();
-				if (text.includes('THE END')) return true;
-				const rect = endEl.getBoundingClientRect();
-				return rect.top >= 0 && rect.top <= (window.innerHeight || document.documentElement.clientHeight || 0);
-			};
-
-			const collectCandidates = () => {
-				const container = document.querySelector('.comments-container');
-				const set = new Set();
-
-				const push = (node) => {
-					if (node && node instanceof HTMLElement) {
-						set.add(node);
-					}
-				};
-
-				push(document.body);
-				push(document.documentElement);
-				push(scrollRoot);
-
-				if (container) {
-					let current = container;
-					while (current) {
-						push(current);
-						if (current === document.body || current === document.documentElement) {
-							break;
-						}
-						current = current.parentElement;
-					}
-					container.querySelectorAll('.comments-el, .list-container, [data-v-4a19279a][name="list"]').forEach(push);
-				}
-
-				const ranked = Array.from(set).map((node) => {
-					const style = window.getComputedStyle(node);
-					const scrollable = node.scrollHeight - node.clientHeight > 40;
-					const hasScroll = /auto|scroll|overlay/i.test(style.overflowY || '');
-					const weight =
-						(node === scrollRoot ? 800 : 0) +
-						(container && node === container ? 1200 : 0) +
-						(container && node.contains && node.contains(container) ? 600 : 0) +
-						(hasScroll ? 300 : 0) +
-						(scrollable ? 300 : 0) -
-						(node === document.body || node === document.documentElement ? 80 : 0);
-					return { node, weight };
-				}).sort((a, b) => b.weight - a.weight);
-
-				return ranked.slice(0, 8).map((item) => item.node);
-			};
-
-			const metrics = (el) => {
-				if (!el || el === document || el === window) {
-					const root = scrollRoot;
-					return {
-						top: root.scrollTop,
-						max: Math.max(root.scrollHeight - root.clientHeight, 0),
-						client: root.clientHeight || window.innerHeight
-					};
-				}
+		const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+		const scrollRoot = () => document.scrollingElement || document.documentElement || document.body;
+		const getContainer = () => document.querySelector('.comments-container');
+		const getCommentCount = (container) =>
+			container ? container.querySelectorAll('.comment-item, .comment-item-sub, .comment').length : 0;
+		const getTotalCount = (container) => {
+			if (!container) return null;
+			const text = (container.querySelector('.total')?.textContent || '').replace(/\s+/g, '');
+			const match = text.match(/共(\d+)条评论/);
+			return match ? parseInt(match[1], 10) : null;
+		};
+		const getScrollMetrics = (el) => {
+			if (!el) {
+				return { top: 0, max: 0, client: window.innerHeight };
+			}
+			if (el === window || el === document || el === document.body || el === document.documentElement) {
+				const root = scrollRoot();
 				return {
-					top: el.scrollTop,
-					max: Math.max(el.scrollHeight - el.clientHeight, 0),
-					client: el.clientHeight
+					top: root.scrollTop,
+					max: Math.max(root.scrollHeight - root.clientHeight, 0),
+					client: root.clientHeight || window.innerHeight
 				};
+			}
+			return {
+				top: el.scrollTop,
+				max: Math.max(el.scrollHeight - el.clientHeight, 0),
+				client: el.clientHeight
 			};
-
-			const setScrollTop = (el, value) => {
-				if (!el) return;
-				if (el === document.body || el === document.documentElement || el === scrollRoot || el === document || el === window) {
-					scrollRoot.scrollTop = value;
-				} else {
-					el.scrollTop = value;
-				}
-			};
-
-			const dispatchWheel = (el, delta) => {
-				if (!el) return;
-				try {
-					el.dispatchEvent(new Event('scroll', { bubbles: true }));
-					if (typeof WheelEvent === 'function' && delta !== 0) {
-						const wheel = new WheelEvent('wheel', { deltaY: delta, bubbles: true, cancelable: true });
-						el.dispatchEvent(wheel);
-					}
-				} catch (err) {
-					console.debug('dispatchWheel error', err);
-				}
-			};
-
-			const waitForMove = (el, beforeTop) => {
-				let tries = 0;
-				return new Promise((resolve) => {
-					const tick = () => {
-						tries++;
-						const now = metrics(el).top;
-						if (Math.abs(now - beforeTop) >= 6 || tries >= 6) {
-							resolve(Math.abs(now - beforeTop) >= 6);
-							return;
-						}
-						setTimeout(tick, 60);
-					};
-					setTimeout(tick, 60);
+		};
+		const setScrollTop = (el, value) => {
+			if (!el) return;
+			if (el === window || el === document || el === document.body || el === document.documentElement) {
+				const root = scrollRoot();
+				root.scrollTop = value;
+				window.scrollTo(0, value);
+				return;
+			}
+			el.scrollTop = value;
+		};
+		const dispatchWheel = (el, delta) => {
+			if (!el) return;
+			try {
+				const wheel = new WheelEvent('wheel', {
+					deltaY: delta,
+					bubbles: true,
+					cancelable: true
 				});
-			};
-
-			const scrollOnce = async (node) => {
-				const before = metrics(node);
-				const delta = Math.max(before.client * 0.85, DELTA_MIN);
-				const desired = before.max > 0 ? Math.min(before.top + delta, before.max) : before.top + delta;
-				const applied = Math.max(0, desired - before.top);
-				setScrollTop(node, desired);
-				dispatchWheel(node, applied);
-				const moved = await waitForMove(node, before.top);
-				if (!moved && node !== scrollRoot) {
-					const rootBefore = metrics(scrollRoot).top;
-					setScrollTop(scrollRoot, rootBefore + applied);
-					dispatchWheel(scrollRoot, applied);
-					return waitForMove(scrollRoot, rootBefore);
-				}
-				return moved;
-			};
-
-			return (async () => {
-				for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-					const candidates = collectCandidates();
-					for (const node of candidates) {
-						const moved = await scrollOnce(node);
-						if (moved) {
-							await sleep(WAIT_AFTER_SCROLL);
-							break;
-						}
+				el.dispatchEvent(wheel);
+				el.dispatchEvent(new Event('scroll', { bubbles: true }));
+			} catch (err) {
+				console.debug('dispatchWheel error', err);
+			}
+		};
+		let cachedTarget = null;
+		const collectCandidates = () => {
+			const container = getContainer();
+			const candidatesSet = new Set();
+			if (container) {
+				let current = container;
+				while (current) {
+					if (current instanceof HTMLElement) {
+						candidatesSet.add(current);
 					}
-					if (reachedEnd()) {
-						return JSON.stringify({ status: 'end', attempts: attempt + 1 });
-					}
+					current = current.parentElement;
 				}
-				return JSON.stringify({ status: 'timeout' });
-			})().catch((err) => JSON.stringify({ status: 'error', message: err && err.message ? err.message : String(err) }));
-		}`
+				container.querySelectorAll('*').forEach((node) => {
+					if (node instanceof HTMLElement) {
+						candidatesSet.add(node);
+					}
+				});
+			}
+			[document.body, document.documentElement].forEach((node) => {
+				if (node instanceof HTMLElement) {
+					candidatesSet.add(node);
+				}
+			});
+			const candidates = [];
+			candidatesSet.forEach((node) => {
+				const style = window.getComputedStyle(node);
+				const overflowY = style.overflowY;
+				const scrollable = node.scrollHeight - node.clientHeight > 40;
+				const hasScrollStyle = /auto|scroll|overlay/i.test(overflowY);
+				const weight =
+					(node.contains(container) ? 1000 : 0) +
+					(node === container ? 800 : 0) +
+					(hasScrollStyle ? 400 : 0) +
+					(scrollable ? 300 : 0) -
+					(node === document.body || node === document.documentElement ? 50 : 0);
+				if (scrollable || hasScrollStyle || node === document.body || node === document.documentElement) {
+					candidates.push({ node, weight });
+				}
+			});
+			candidates.sort((a, b) => b.weight - a.weight);
+			return candidates.map((candidate) => candidate.node);
+		};
+		const findScrollTarget = () => {
+			if (cachedTarget && cachedTarget.isConnected) {
+				return cachedTarget;
+			}
+			const candidates = collectCandidates();
+			cachedTarget = candidates.find((node) => {
+				const metrics = getScrollMetrics(node);
+				return metrics.max > 30 || metrics.client > 0;
+			}) || scrollRoot();
+			return cachedTarget;
+		};
+		const performScroll = (target) => {
+			const scrollTarget = target || findScrollTarget();
+			if (!scrollTarget) {
+				window.scrollBy(0, window.innerHeight * 0.8);
+				return;
+			}
+			const metrics = getScrollMetrics(scrollTarget);
+			const beforeTop = metrics.top;
+			const desired = metrics.max > 0 ? Math.min(metrics.top + Math.max(metrics.client * 0.85, DELTA_MIN), metrics.max) : metrics.top + Math.max(metrics.client * 0.85, DELTA_MIN);
+			const applied = Math.max(0, desired - metrics.top);
+			setScrollTop(scrollTarget, desired);
+			dispatchWheel(scrollTarget, applied);
+			const afterTop = getScrollMetrics(scrollTarget).top;
+			if (Math.abs(afterTop - beforeTop) < 5 && scrollTarget !== scrollRoot()) {
+				const root = scrollRoot();
+				const rootBefore = root.scrollTop;
+				root.scrollTop = rootBefore + applied;
+				window.scrollBy(0, applied);
+				dispatchWheel(root, applied);
+			}
+		};
+		return (async () => {
+			let lastCount = 0;
+			let stagnantChecks = 0;
+			let noScrollChangeCount = 0;
+			for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+				const container = getContainer();
+				if (!container) {
+					await sleep(300);
+					continue;
+				}
+				const total = getTotalCount(container);
+				const count = getCommentCount(container);
+				if (total && count >= total) {
+					return { status: 'complete', reason: 'total', attempts: attempt + 1, count, total };
+				}
+				if (count === lastCount) {
+					stagnantChecks += 1;
+				} else {
+					lastCount = count;
+					stagnantChecks = 0;
+				}
+				if (stagnantChecks >= STAGNANT_LIMIT) {
+					return { status: 'complete', reason: 'stagnant', attempts: attempt + 1, count, total };
+				}
+				const target = findScrollTarget();
+				const beforeTop = getScrollMetrics(target).top;
+				performScroll(target);
+				await sleep(SCROLL_TIMEOUT);
+				const afterTop = getScrollMetrics(target).top;
+				if (Math.abs(afterTop - beforeTop) < 5) {
+					noScrollChangeCount += 1;
+				} else {
+					noScrollChangeCount = 0;
+				}
+				if (noScrollChangeCount >= NO_CHANGE_SCROLL_LIMIT) {
+					return { status: 'complete', reason: 'no-scroll-change', attempts: attempt + 1, count, total };
+				}
+				if (INTERVAL_MS > SCROLL_TIMEOUT) {
+					await sleep(INTERVAL_MS - SCROLL_TIMEOUT);
+				}
+			}
+			return { status: 'timeout' };
+		})()
+			.then((res) => JSON.stringify(res))
+			.catch((err) => JSON.stringify({ status: 'error', message: err && err.message ? err.message : String(err) }));
+	}`
 
-		if res, err := page.Eval(scrollToEndJS); err != nil {
+		if res, err := page.Eval(scrollAllCommentsJS); err != nil {
 			logrus.Warnf("加载全部评论失败: %v", err)
 		} else if res != nil {
-			logrus.Infof("评论滚动结果: %v", res.Value)
-		}
-
-		collectCommentsJS := `() => {
-			try {
-				const container = document.querySelector('.comments-container');
-				if (!container) {
-					return JSON.stringify({ list: [], reachedEnd: false, error: 'comments container not found' });
-				}
-
-				const items = Array.from(container.querySelectorAll('.comment-item'));
-				const seen = new Set();
-				const list = [];
-
-				const textContent = (node) => (node && node.textContent ? node.textContent.trim() : '');
-
-				for (const item of items) {
-					let rawId = item.getAttribute('id') || '';
-					if (!rawId && item.dataset) {
-						rawId = item.dataset.commentId || item.dataset.id || '';
-					}
-					const commentId = rawId.replace(/^comment-/, '') || rawId;
-					if (!commentId || seen.has(commentId)) {
-						continue;
-					}
-					seen.add(commentId);
-
-					const contentEl = item.querySelector('.comment-content, .content, .content-text, .text, .word');
-					const nicknameEl = item.querySelector('.user-name, .nickname, .name, .author-name, .title');
-					const userNode = item.querySelector('[data-user-id]');
-					const likeEl = item.querySelector('.like .count, .interaction .like span, .interaction-bar .like span, [class*="like"] span');
-
-					list.push({
-						id: commentId,
-						content: textContent(contentEl),
-						nickname: textContent(nicknameEl),
-						userId: userNode ? (userNode.getAttribute('data-user-id') || '') : '',
-						likeCount: textContent(likeEl),
-					});
-				}
-
-				const endEl = document.querySelector('.end-container');
-				const reachedEnd = !!(endEl && (endEl.textContent || '').toUpperCase().includes('THE END'));
-				return JSON.stringify({ list, reachedEnd });
-			} catch (err) {
-				return JSON.stringify({ list: [], reachedEnd: false, error: err && err.message ? err.message : String(err) });
+			if str := res.Value.Str(); str != "" {
+				logrus.Infof("评论滚动结果: %s", str)
 			}
-		}`
-
-		if res, err := page.Eval(collectCommentsJS); err != nil {
-			logrus.Warnf("收集评论失败: %v", err)
-		} else if res != nil {
-			domCommentsPayload = res.Value.Str()
 		}
 	}
 
@@ -272,47 +253,6 @@ func (f *FeedDetailAction) GetFeedDetail(ctx context.Context, feedID, xsecToken 
 	noteDetail, exists := noteDetailMap[feedID]
 	if !exists {
 		return nil, fmt.Errorf("feed %s not found in noteDetailMap", feedID)
-	}
-
-	if loadAllComments && domCommentsPayload != "" {
-		var payload struct {
-			List []struct {
-				ID        string `json:"id"`
-				Content   string `json:"content"`
-				Nickname  string `json:"nickname"`
-				UserID    string `json:"userId"`
-				LikeCount string `json:"likeCount"`
-			}
-			ReachedEnd bool   `json:"reachedEnd"`
-			Error      string `json:"error"`
-		}
-
-		if err := json.Unmarshal([]byte(domCommentsPayload), &payload); err != nil {
-			logrus.Warnf("解析 DOM 评论数据失败: %v", err)
-		} else if payload.Error != "" {
-			logrus.Warnf("DOM 评论数据返回错误: %s", payload.Error)
-		} else if len(payload.List) > 0 {
-			comments := make([]Comment, 0, len(payload.List))
-			for _, item := range payload.List {
-				comments = append(comments, Comment{
-					ID:        item.ID,
-					NoteID:    feedID,
-					Content:   item.Content,
-					LikeCount: item.LikeCount,
-					UserInfo: User{
-						UserID:   item.UserID,
-						Nickname: item.Nickname,
-						NickName: item.Nickname,
-					},
-					SubComments:     nil,
-					SubCommentCount: "0",
-				})
-			}
-
-			noteDetail.Comments.List = comments
-			noteDetail.Comments.Cursor = ""
-			noteDetail.Comments.HasMore = !payload.ReachedEnd
-		}
 	}
 
 	return &FeedDetailResponse{
