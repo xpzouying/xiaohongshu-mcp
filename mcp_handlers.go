@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/sirupsen/logrus"
-	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/sirupsen/logrus"
+	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
 )
 
 // MCP 工具处理函数
@@ -306,9 +308,23 @@ func (s *AppServer) handleGetFeedDetail(ctx context.Context, args map[string]any
 		}
 	}
 
-	logrus.Infof("MCP: 获取Feed详情 - Feed ID: %s", feedID)
+	loadAll := false
+	if raw, ok := args["load_all_comments"]; ok {
+		switch v := raw.(type) {
+		case bool:
+			loadAll = v
+		case string:
+			if parsed, err := strconv.ParseBool(v); err == nil {
+				loadAll = parsed
+			}
+		case float64:
+			loadAll = v != 0
+		}
+	}
 
-	result, err := s.xiaohongshuService.GetFeedDetail(ctx, feedID, xsecToken)
+	logrus.Infof("MCP: 获取Feed详情 - Feed ID: %s, loadAllComments=%v", feedID, loadAll)
+
+	result, err := s.xiaohongshuService.GetFeedDetail(ctx, feedID, xsecToken, loadAll)
 	if err != nil {
 		return &MCPToolResult{
 			Content: []MCPContent{{

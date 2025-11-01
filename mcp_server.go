@@ -45,8 +45,9 @@ type FilterOption struct {
 
 // FeedDetailArgs 获取Feed详情的参数
 type FeedDetailArgs struct {
-	FeedID    string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
-	XsecToken string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
+	FeedID          string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
+	XsecToken       string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
+	LoadAllComments bool   `json:"load_all_comments,omitempty" jsonschema:"是否加载全部评论（默认false，仅返回首批评论）"`
 }
 
 // UserProfileArgs 获取用户主页的参数
@@ -213,8 +214,9 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		},
 		withPanicRecovery("get_feed_detail", func(ctx context.Context, req *mcp.CallToolRequest, args FeedDetailArgs) (*mcp.CallToolResult, any, error) {
 			argsMap := map[string]interface{}{
-				"feed_id":    args.FeedID,
-				"xsec_token": args.XsecToken,
+				"feed_id":           args.FeedID,
+				"xsec_token":        args.XsecToken,
+				"load_all_comments": args.LoadAllComments,
 			}
 			result := appServer.handleGetFeedDetail(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil

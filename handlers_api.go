@@ -165,7 +165,7 @@ func (s *AppServer) getFeedDetailHandler(c *gin.Context) {
 	}
 
 	// 获取 Feed 详情
-	result, err := s.xiaohongshuService.GetFeedDetail(c.Request.Context(), req.FeedID, req.XsecToken)
+	result, err := s.xiaohongshuService.GetFeedDetail(c.Request.Context(), req.FeedID, req.XsecToken, req.LoadAllComments)
 	if err != nil {
 		respondError(c, http.StatusInternalServerError, "GET_FEED_DETAIL_FAILED",
 			"获取Feed详情失败", err.Error())
