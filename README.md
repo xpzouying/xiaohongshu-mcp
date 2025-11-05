@@ -6,6 +6,7 @@
 
 [![已捐赠](https://img.shields.io/badge/Donated-CNY%20200.00-brightgreen?style=flat-square)](./DONATIONS.md)
 [![获得赞赏](https://img.shields.io/badge/Received-CNY%20179.92-blue?style=flat-square)](./DONATIONS.md)
+[![Docker Pulls](https://img.shields.io/docker/pulls/xpzouying/xiaohongshu-mcp?style=flat-square&logo=docker)](https://hub.docker.com/r/xpzouying/xiaohongshu-mcp)
 
 MCP for 小红书/xiaohongshu.com。
 
