@@ -27,14 +27,28 @@ jobs:
         username: xpzouying
         password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-    - name: Build and push Docker image
+    - name: Build and push Docker image (AMD64)
       uses: docker/build-push-action@v5
       with:
         context: .
+        file: ./Dockerfile
         push: true
         platforms: linux/amd64
         tags: |
           xpzouying/xiaohongshu-mcp:${{ github.event.inputs.version }}
           xpzouying/xiaohongshu-mcp:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Build and push Docker image (ARM64)
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile.arm64
+        push: true
+        platforms: linux/arm64
+        tags: |
+          xpzouying/xiaohongshu-mcp:${{ github.event.inputs.version }}-arm64
+          xpzouying/xiaohongshu-mcp:latest-arm64
         cache-from: type=gha
         cache-to: type=gha,mode=max
