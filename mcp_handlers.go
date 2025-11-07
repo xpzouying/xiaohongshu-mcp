@@ -4,10 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/sirupsen/logrus"
-	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
 	"strings"
 	"time"
+
+	"github.com/sirupsen/logrus"
+	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
 )
 
 // MCP 工具处理函数
@@ -531,4 +532,68 @@ func (s *AppServer) handlePostComment(ctx context.Context, args map[string]inter
 			Text: resultText,
 		}},
 	}
+}
+
+func (s *AppServer) handleGetMyProfile(ctx context.Context) *MCPToolResult {
+	myProfile, err := s.xiaohongshuService.GetMyProfile(ctx)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "获取我的个人信息失败: " + err.Error(),
+			}},
+			IsError: true,
+		}
+	}
+
+	jsonData, err := json.MarshalIndent(myProfile, "", "  ")
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: fmt.Sprintf("获取我的个人信息，但序列化失败: %v", err),
+			}},
+			IsError: true,
+		}
+	}
+
+	return &MCPToolResult{
+		Content: []MCPContent{{
+			Type: "text",
+			Text: string(jsonData),
+		}},
+	}
+}
+
+func (s *AppServer) handleListMyFeeds(ctx context.Context) *MCPToolResult {
+	myProfile, err := s.xiaohongshuService.GetMyProfile(ctx)
+
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "获取我的个人信息失败: " + err.Error(),
+			}},
+			IsError: true,
+		}
+	}
+
+	jsonData, err := json.MarshalIndent(myProfile.Feeds, "", "  ")
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: fmt.Sprintf("获取我的个人信息，但序列化失败: %v", err),
+			}},
+			IsError: true,
+		}
+	}
+
+	return &MCPToolResult{
+		Content: []MCPContent{{
+			Type: "text",
+			Text: string(jsonData),
+		}},
+	}
+
 }
