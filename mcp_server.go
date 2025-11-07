@@ -309,7 +309,31 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	logrus.Infof("Registered %d MCP tools", 12)
+	// 工具13: 获取个人信息
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "get_my_profile",
+			Description: "获取当前登录用户的个人信息 (需要已登录)",
+		},
+		withPanicRecovery("get_my_profile", func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleGetMyProfile(ctx)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	// 工具14: 获取自己的第一页笔记
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "list_my_feeds",
+			Description: "获取当前登录用户的第一页笔记列表 (需要已登录)",
+		},
+		withPanicRecovery("list_my_feeds", func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleListMyFeeds(ctx)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	logrus.Infof("Registered %d MCP tools", 14)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式
