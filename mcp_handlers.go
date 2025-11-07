@@ -34,7 +34,7 @@ func (s *AppServer) handleCheckLoginStatus(ctx context.Context) *MCPToolResult {
 	if status.IsLoggedIn {
 		resultText = fmt.Sprintf("✅ 已登录\n用户名: %s\n\n你可以使用其他功能了。", status.Username)
 	} else {
-		resultText = fmt.Sprint("❌ 未登录\n\n请使用 get_login_qrcode 工具获取二维码进行登录。")
+		resultText = "❌ 未登录\n\n请使用 get_login_qrcode 工具获取二维码进行登录。"
 	}
 
 	return &MCPToolResult{
