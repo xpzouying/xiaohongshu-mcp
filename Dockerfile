@@ -28,7 +28,7 @@ RUN apt-get update && apt-get install -y ca-certificates wget gnupg && \
 
 # 2. 添加 Google Chrome APT 源并安装 Chrome（更稳定的无头浏览器）
 RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/googlechrome-linux-keyring.gpg && \
-    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/googlechrome-linux-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list
+    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/googlechrome-linux-keyring.gpg] https://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list
 
 # 3. 安装 Google Chrome + 依赖（无头模式运行 rod）
 RUN apt-get update && apt-get install -y --no-install-recommends \
