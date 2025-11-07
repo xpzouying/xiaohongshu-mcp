@@ -35,7 +35,7 @@ func (s *AppServer) handleCheckLoginStatus(ctx context.Context) *MCPToolResult {
 	} else {
 		resultText = fmt.Sprintf("❌ 未登录\n\n请使用 get_login_qrcode 工具获取二维码进行登录。")
 	}
-	
+
 	return &MCPToolResult{
 		Content: []MCPContent{{
 			Type: "text",
@@ -115,6 +115,7 @@ func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]in
 	content, _ := args["content"].(string)
 	imagePathsInterface, _ := args["images"].([]interface{})
 	tagsInterface, _ := args["tags"].([]interface{})
+	productsInterface, _ := args["products"].([]interface{})
 
 	var imagePaths []string
 	for _, path := range imagePathsInterface {
@@ -130,14 +131,22 @@ func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]in
 		}
 	}
 
-	logrus.Infof("MCP: 发布内容 - 标题: %s, 图片数量: %d, 标签数量: %d", title, len(imagePaths), len(tags))
+	var products []string
+	for _, product := range productsInterface {
+		if productStr, ok := product.(string); ok {
+			products = append(products, productStr)
+		}
+	}
+
+	logrus.Infof("MCP: 发布内容 - 标题: %s, 图片数量: %d, 标签数量: %d, 商品数量: %d", title, len(imagePaths), len(tags), len(products))
 
 	// 构建发布请求
 	req := &PublishRequest{
-		Title:   title,
-		Content: content,
-		Images:  imagePaths,
-		Tags:    tags,
+		Title:    title,
+		Content:  content,
+		Images:   imagePaths,
+		Tags:     tags,
+		Products: products,
 	}
 
 	// 执行发布

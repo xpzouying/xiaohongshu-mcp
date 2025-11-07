@@ -20,6 +20,7 @@ type PublishImageContent struct {
 	Title      string
 	Content    string
 	Tags       []string
+	Products   []string
 	ImagePaths []string
 }
 
@@ -67,7 +68,13 @@ func (p *PublishAction) Publish(ctx context.Context, content PublishImageContent
 		tags = tags[:10]
 	}
 
-	logrus.Infof("发布内容: title=%s, images=%v, tags=%v", content.Title, len(content.ImagePaths), tags)
+	logrus.Infof("发布内容: title=%s, images=%d, tags=%v, products=%d", content.Title, len(content.ImagePaths), tags, len(content.Products))
+
+	if len(content.Products) > 0 {
+		if err := addProducts(page, content.Products); err != nil {
+			return errors.Wrap(err, "选择商品失败")
+		}
+	}
 
 	if err := submitPublish(page, content.Title, content.Content, tags); err != nil {
 		return errors.Wrap(err, "小红书发布失败")
@@ -167,15 +174,15 @@ func getTabElement(page *rod.Page, tabname string) (*rod.Element, bool, error) {
 
 func isElementBlocked(elem *rod.Element) (bool, error) {
 	result, err := elem.Eval(`() => {
-		const rect = this.getBoundingClientRect();
-		if (rect.width === 0 || rect.height === 0) {
-			return true;
-		}
-		const x = rect.left + rect.width / 2;
-		const y = rect.top + rect.height / 2;
-		const target = document.elementFromPoint(x, y);
-		return !(target === this || this.contains(target));
-	}`)
+        const rect = this.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) {
+            return true;
+        }
+        const x = rect.left + rect.width / 2;
+        const y = rect.top + rect.height / 2;
+        const target = document.elementFromPoint(x, y);
+        return !(target === this || this.contains(target));
+    }`)
 	if err != nil {
 		return false, err
 	}
@@ -263,6 +270,194 @@ func submitPublish(page *rod.Page, title, content string, tags []string) error {
 	time.Sleep(3 * time.Second)
 
 	return nil
+}
+
+func addProducts(page *rod.Page, productKeywords []string) error {
+	keywords := make([]string, 0, len(productKeywords))
+	for _, keyword := range productKeywords {
+		trimmed := strings.TrimSpace(keyword)
+		if trimmed != "" {
+			keywords = append(keywords, trimmed)
+		}
+	}
+
+	if len(keywords) == 0 {
+		return nil
+	}
+
+	addButton, err := findAddProductButton(page)
+	if err != nil {
+		return errors.Wrap(err, "未找到添加商品入口")
+	}
+
+	if err := addButton.ScrollIntoView(); err != nil {
+		logrus.Debugf("滚动到添加商品按钮失败: %v", err)
+	}
+	if err := addButton.Click(proto.InputMouseButtonLeft, 1); err != nil {
+		return errors.Wrap(err, "点击添加商品按钮失败")
+	}
+
+	modal, err := page.Timeout(10 * time.Second).Element("div.multi-goods-selector-modal")
+	if err != nil {
+		return errors.Wrap(err, "打开商品选择弹窗失败")
+	}
+
+	searchInput, err := modal.Timeout(10 * time.Second).Element("input[placeholder='搜索商品ID 或 商品名称']")
+	if err != nil {
+		return errors.Wrap(err, "未找到商品搜索输入框")
+	}
+
+	for _, keyword := range keywords {
+		if err := inputProductSearchKeyword(searchInput, keyword); err != nil {
+			return errors.Wrapf(err, "搜索商品失败: %s", keyword)
+		}
+
+		card, err := findProductCard(modal, keyword)
+		if err != nil {
+			return errors.Wrapf(err, "未找到匹配商品: %s", keyword)
+		}
+
+		if err := ensureProductSelected(card); err != nil {
+			return errors.Wrapf(err, "选择商品失败: %s", keyword)
+		}
+
+		logrus.Infof("已选中商品: %s", keyword)
+	}
+
+	saveButton, err := modal.ElementR("div.d-modal-footer button", "保存")
+	if err != nil {
+		return errors.Wrap(err, "未找到商品保存按钮")
+	}
+
+	if err := saveButton.Click(proto.InputMouseButtonLeft, 1); err != nil {
+		return errors.Wrap(err, "点击保存商品按钮失败")
+	}
+
+	if err := waitForModalClose(page); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func findAddProductButton(page *rod.Page) (*rod.Element, error) {
+	selectors := []string{
+		"div.multi-good-select-empty-btn button",
+		"div.multi-good-select-add-btn button",
+	}
+
+	for _, selector := range selectors {
+		elem, err := page.Element(selector)
+		if err == nil {
+			return elem, nil
+		}
+	}
+
+	return page.ElementR("button", "添加商品")
+}
+
+func inputProductSearchKeyword(input *rod.Element, keyword string) error {
+	if _, err := input.Eval(`(el) => {
+        el.focus();
+        el.value = '';
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+    }`); err != nil {
+		return err
+	}
+
+	if _, err := input.Eval(`(el, value) => {
+        el.focus();
+        el.value = value;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+    }`, keyword); err != nil {
+		return err
+	}
+
+	time.Sleep(500 * time.Millisecond)
+
+	return nil
+}
+
+func findProductCard(modal *rod.Element, keyword string) (*rod.Element, error) {
+	deadline := time.Now().Add(10 * time.Second)
+	lowerKeyword := strings.ToLower(keyword)
+
+	for time.Now().Before(deadline) {
+		cards, err := modal.Elements(".good-card-container")
+		if err != nil || len(cards) == 0 {
+			time.Sleep(300 * time.Millisecond)
+			continue
+		}
+
+		for _, card := range cards {
+			nameElem, err := card.Element(".sku-name")
+			if err != nil {
+				continue
+			}
+
+			name, err := nameElem.Text()
+			if err != nil {
+				continue
+			}
+
+			if strings.Contains(strings.ToLower(name), lowerKeyword) {
+				return card, nil
+			}
+		}
+
+		time.Sleep(300 * time.Millisecond)
+	}
+
+	return nil, errors.Errorf("未找到商品: %s", keyword)
+}
+
+func ensureProductSelected(card *rod.Element) error {
+	checkboxInput, err := card.Element("input[type='checkbox']")
+	if err != nil {
+		return errors.Wrap(err, "未找到商品选择框")
+	}
+
+	if res, err := checkboxInput.Eval("() => this.checked"); err == nil {
+		if checked := res.Value.Bool(); checked {
+			return nil
+		}
+	}
+
+	checkboxArea, err := card.Element(".d-checkbox-main")
+	if err != nil {
+		return errors.Wrap(err, "未找到商品选择区域")
+	}
+
+	if err := checkboxArea.Click(proto.InputMouseButtonLeft, 1); err != nil {
+		return errors.Wrap(err, "点击商品选择区域失败")
+	}
+
+	timeout := time.Now().Add(3 * time.Second)
+	for time.Now().Before(timeout) {
+		res, err := checkboxInput.Eval("() => this.checked")
+		if err == nil {
+			if checked := res.Value.Bool(); checked {
+				return nil
+			}
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	return errors.New("商品复选框未选中")
+}
+
+func waitForModalClose(page *rod.Page) error {
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		has, _, err := page.Has("div.multi-goods-selector-modal")
+		if err == nil && !has {
+			return nil
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	return errors.New("关闭商品选择弹窗超时")
 }
 
 // 查找内容输入框 - 使用Race方法处理两种样式

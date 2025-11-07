@@ -28,10 +28,11 @@ func NewXiaohongshuService() *XiaohongshuService {
 
 // PublishRequest 发布请求
 type PublishRequest struct {
-	Title   string   `json:"title" binding:"required"`
-	Content string   `json:"content" binding:"required"`
-	Images  []string `json:"images" binding:"required,min=1"`
-	Tags    []string `json:"tags,omitempty"`
+	Title    string   `json:"title" binding:"required"`
+	Content  string   `json:"content" binding:"required"`
+	Images   []string `json:"images" binding:"required,min=1"`
+	Tags     []string `json:"tags,omitempty"`
+	Products []string `json:"products,omitempty"`
 }
 
 // LoginStatusResponse 登录状态响应
@@ -184,6 +185,7 @@ func (s *XiaohongshuService) PublishContent(ctx context.Context, req *PublishReq
 		Title:      req.Title,
 		Content:    req.Content,
 		Tags:       req.Tags,
+		Products:   req.Products,
 		ImagePaths: imagePaths,
 	}
 
