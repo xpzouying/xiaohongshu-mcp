@@ -357,19 +357,19 @@ func findAddProductButton(page *rod.Page) (*rod.Element, error) {
 }
 
 func inputProductSearchKeyword(input *rod.Element, keyword string) error {
-	if _, err := input.Eval(`(el) => {
-        el.focus();
-        el.value = '';
-        el.dispatchEvent(new Event('input', { bubbles: true }));
+	if _, err := input.Eval(`() => {
+        this.focus();
+        this.value = '';
+        this.dispatchEvent(new Event('input', { bubbles: true }));
     }`); err != nil {
 		return err
 	}
 
-	if _, err := input.Eval(`(el, value) => {
-        el.focus();
-        el.value = value;
-        el.dispatchEvent(new Event('input', { bubbles: true }));
-        el.dispatchEvent(new Event('change', { bubbles: true }));
+	if _, err := input.Eval(`(value) => {
+        this.focus();
+        this.value = value;
+        this.dispatchEvent(new Event('input', { bubbles: true }));
+        this.dispatchEvent(new Event('change', { bubbles: true }));
     }`, keyword); err != nil {
 		return err
 	}
