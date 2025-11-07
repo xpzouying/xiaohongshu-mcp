@@ -426,6 +426,26 @@ func ensureProductSelected(card *rod.Element) error {
 		return errors.Wrap(err, "未找到商品选择框")
 	}
 
+	// 检查输入框是否为空元素（只有children但没有实际内容）
+	if res, err := checkboxInput.Eval(`() => {
+        if (!this) return false;
+        const children = this.children;
+        if (children && children.length > 0) {
+            for (let i = 0; i < children.length; i++) {
+                const child = children[i];
+                if (child && (child.textContent || child.innerHTML)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }`); err == nil {
+		if !res.Value.Bool() {
+			logrus.Warn("检测到空的选择框元素，跳过此商品")
+			return nil
+		}
+	}
+
 	if res, err := checkboxInput.Eval("() => this.checked"); err == nil && res.Value.Bool() {
 		return nil
 	}
@@ -435,28 +455,43 @@ func ensureProductSelected(card *rod.Element) error {
 	}
 	time.Sleep(100 * time.Millisecond)
 
-	checkboxArea, err := card.Element(".d-checkbox-main")
+	// 尝试多种选择区域选择器
+	checkboxArea, err := findCheckboxArea(card)
 	if err != nil {
-		return errors.Wrap(err, "未找到商品选择区域")
+		logrus.Warnf("未找到商品选择区域: %v", err)
 	}
 
 	strategies := []func() error{
 		func() error {
-			return checkboxArea.Timeout(3*time.Second).Click(proto.InputMouseButtonLeft, 1)
+			if checkboxArea != nil {
+				return checkboxArea.Timeout(3*time.Second).Click(proto.InputMouseButtonLeft, 1)
+			}
+			return nil
 		},
 		func() error {
-			_, err := checkboxArea.Eval(`() => this.click()`)
-			return err
-		},
-		func() error {
+			// 直接点击复选框元素
 			_, err := checkboxInput.Eval(`() => this.click()`)
 			return err
 		},
 		func() error {
+			// 查找可见的复选框指示器并点击
+			indicators, err := card.Elements(".d-checkbox-indicator")
+			if err == nil && len(indicators) > 0 {
+				visibleIndicator, err := findVisibleElement(indicators)
+				if err == nil && visibleIndicator != nil {
+					_, err := visibleIndicator.Eval(`() => this.click()`)
+					return err
+				}
+			}
+			return errors.New("未找到可见的复选框指示器")
+		},
+		func() error {
+			// 强制设置复选框状态
 			_, err := checkboxInput.Eval(`() => {
                 this.checked = true
                 this.dispatchEvent(new Event('input', { bubbles: true }))
                 this.dispatchEvent(new Event('change', { bubbles: true }))
+                return true
             }`)
 			return err
 		},
@@ -476,14 +511,14 @@ func ensureProductSelected(card *rod.Element) error {
 				continue
 			}
 
-			time.Sleep(150 * time.Millisecond)
+			time.Sleep(200 * time.Millisecond)
 
 			if res, err := checkboxInput.Eval("() => this.checked"); err == nil && res.Value.Bool() {
 				return nil
 			}
 		}
 
-		time.Sleep(150 * time.Millisecond)
+		time.Sleep(200 * time.Millisecond)
 	}
 
 	if lastErr != nil {
@@ -491,6 +526,40 @@ func ensureProductSelected(card *rod.Element) error {
 	}
 
 	return errors.New("商品复选框未选中")
+}
+
+// findCheckboxArea 查找商品选择区域，支持多种选择器
+func findCheckboxArea(card *rod.Element) (*rod.Element, error) {
+	selectors := []string{
+		".d-checkbox-main",
+		".multi-good-item-right",
+		".good-card-select",
+		".product-select-area",
+		".d-checkbox",
+		"input[type='checkbox']",
+	}
+
+	for _, selector := range selectors {
+		elem, err := card.Element(selector)
+		if err == nil && elem != nil {
+			// 检查元素是否可见
+			if isElementVisible(elem) {
+				return elem, nil
+			}
+		}
+	}
+
+	return nil, errors.New("未找到任何可用的选择区域")
+}
+
+// findVisibleElement 查找可见的元素
+func findVisibleElement(elems []*rod.Element) (*rod.Element, error) {
+	for _, elem := range elems {
+		if isElementVisible(elem) {
+			return elem, nil
+		}
+	}
+	return nil, errors.New("未找到可见元素")
 }
 
 func waitForProductListLoad(modal *rod.Element) error {
