@@ -595,3 +595,37 @@ func (s *AppServer) handleGetMyProfile(ctx context.Context) *MCPToolResult {
 		}},
 	}
 }
+
+// mcp：获取当前登录用户的第一页feed列表
+func (s *AppServer) handleListMyFeeds(ctx context.Context) *MCPToolResult {
+	myProfile, err := s.xiaohongshuService.GetMyProfile(ctx)
+
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "获取我的个人信息失败: " + err.Error(),
+			}},
+			IsError: true,
+		}
+	}
+
+	jsonData, err := json.MarshalIndent(myProfile.Feeds, "", "  ")
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: fmt.Sprintf("获取我的个人信息，但序列化失败: %v", err),
+			}},
+			IsError: true,
+		}
+	}
+
+	return &MCPToolResult{
+		Content: []MCPContent{{
+			Type: "text",
+			Text: string(jsonData),
+		}},
+	}
+
+}
