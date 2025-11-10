@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
+	"time"
+
 	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/xiaohongshu-mcp/cookies"
 	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
-	"strings"
-	"time"
 )
 
 // MCP 工具处理函数
@@ -35,7 +36,7 @@ func (s *AppServer) handleCheckLoginStatus(ctx context.Context) *MCPToolResult {
 	} else {
 		resultText = fmt.Sprintf("❌ 未登录\n\n请使用 get_login_qrcode 工具获取二维码进行登录。")
 	}
-	
+
 	return &MCPToolResult{
 		Content: []MCPContent{{
 			Type: "text",
@@ -559,6 +560,37 @@ func (s *AppServer) handlePostComment(ctx context.Context, args map[string]inter
 		Content: []MCPContent{{
 			Type: "text",
 			Text: resultText,
+		}},
+	}
+}
+
+func (s *AppServer) handleGetMyProfile(ctx context.Context) *MCPToolResult {
+	myProfile, err := s.xiaohongshuService.GetMyProfile(ctx)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "获取我的个人信息失败: " + err.Error(),
+			}},
+			IsError: true,
+		}
+	}
+
+	jsonData, err := json.MarshalIndent(myProfile, "", "  ")
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: fmt.Sprintf("获取我的个人信息，但序列化失败: %v", err),
+			}},
+			IsError: true,
+		}
+	}
+
+	return &MCPToolResult{
+		Content: []MCPContent{{
+			Type: "text",
+			Text: string(jsonData),
 		}},
 	}
 }
