@@ -421,17 +421,20 @@ func findProductCard(modal *rod.Element, keyword string) (*rod.Element, error) {
 }
 
 func ensureProductSelected(card *rod.Element) error {
-	checkboxInput, err := card.Element("input[type='checkbox']")
-	if err != nil {
-		return errors.Wrap(err, "未找到商品选择框")
-	}
-
-	// 检查是否已选中
+	// 工具函数：查询checkbox是否已选中
 	isChecked := func() bool {
-		if res, err := checkboxInput.Eval("() => this.checked"); err == nil && res.Value.Bool() {
-			return true
+		result, err := card.Eval(`() => {
+            const checkbox = this.querySelector('input[type="checkbox"]');
+            return checkbox ? checkbox.checked : false;
+        }`)
+		if err != nil {
+			logrus.Debugf("读取checkbox状态失败: %v", err)
+			return false
 		}
-		return false
+		if result == nil {
+			return false
+		}
+		return result.Value.Bool()
 	}
 
 	if isChecked() {
@@ -442,105 +445,72 @@ func ensureProductSelected(card *rod.Element) error {
 	if err := card.ScrollIntoView(); err != nil {
 		logrus.Debugf("滚动商品卡片失败: %v", err)
 	}
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 
-	// 策略1：优先点击 .d-checkbox-indicator
-	if indicator, err := card.Element("span.d-checkbox-indicator"); err == nil && indicator != nil {
-		logrus.Debug("尝试点击 .d-checkbox-indicator")
-		if err := indicator.Click(proto.InputMouseButtonLeft, 1); err != nil {
-			logrus.Debugf("点击 .d-checkbox-indicator 失败: %v", err)
-		} else {
-			time.Sleep(300 * time.Millisecond)
-			if isChecked() {
-				logrus.Info("成功通过点击 .d-checkbox-indicator 选中商品")
-				return nil
-			}
+	// 尝试点击checkbox indicator（等效于控制台手动执行）
+	clickBySelector := func(selector string) bool {
+		result, err := card.Eval(`(selector) => {
+            const target = this.querySelector(selector);
+            if (!target) {
+                return false;
+            }
+            target.click();
+            return true;
+        }`, selector)
+		if err != nil {
+			logrus.Debugf("点击 %s 失败: %v", selector, err)
+			return false
 		}
-
-		// 兜底再执行一次 JS click
-		if _, err := indicator.Eval(`() => this.click()`); err == nil {
-			time.Sleep(300 * time.Millisecond)
-			if isChecked() {
-				logrus.Info("成功通过 JS 点击 .d-checkbox-indicator 选中商品")
-				return nil
-			}
+		if result == nil {
+			return false
 		}
+		return result.Value.Bool()
 	}
 
-	// 策略2：点击 .d-checkbox 容器
-	if checkboxContainer, err := card.Element(".d-checkbox"); err == nil && checkboxContainer != nil {
-		logrus.Debug("尝试点击 .d-checkbox 容器")
-		if err := checkboxContainer.Click(proto.InputMouseButtonLeft, 1); err == nil {
-			time.Sleep(300 * time.Millisecond)
-			if isChecked() {
-				logrus.Info("成功通过点击 .d-checkbox 容器选中商品")
-				return nil
-			}
-		}
-	}
-
-	// 策略3：通过 JS 点击 .d-checkbox-simulator
-	if simulators, err := card.Elements(".d-checkbox-simulator"); err == nil && len(simulators) > 0 {
-		logrus.Debug("尝试点击 .d-checkbox-simulator")
-		for _, sim := range simulators {
-			if _, err := sim.Eval(`() => this.click()`); err == nil {
-				time.Sleep(300 * time.Millisecond)
-				if isChecked() {
-					logrus.Info("成功通过点击 .d-checkbox-simulator 选中商品")
-					return nil
-				}
-			}
-		}
-	}
-
-	// 策略4：直接点击商品卡片
-	logrus.Debug("尝试直接点击商品卡片")
-	if err := card.Click(proto.InputMouseButtonLeft, 1); err == nil {
-		time.Sleep(300 * time.Millisecond)
-		if isChecked() {
-			logrus.Info("成功通过点击商品卡片选中商品")
+	if clickBySelector("span.d-checkbox-indicator") {
+		if waitForCheckboxState(isChecked, true, 2*time.Second) {
+			logrus.Info("成功通过 .d-checkbox-indicator 选中商品")
 			return nil
 		}
 	}
 
-	// 策略5：通过 JS 强制触发点击事件
-	if checkboxContainer, err := card.Element(".d-checkbox"); err == nil && checkboxContainer != nil {
-		logrus.Debug("尝试通过 JS 强制触发点击")
-		if _, err := checkboxContainer.Eval(`() => {
-            this.click();
-            const event = new MouseEvent('click', {
-                bubbles: true,
-                cancelable: true,
-                view: window
-            });
-            this.dispatchEvent(event);
-        }`); err == nil {
-			time.Sleep(300 * time.Millisecond)
-			if isChecked() {
-				logrus.Info("成功通过 JS 强制触发点击选中商品")
-				return nil
-			}
+	if clickBySelector(".d-checkbox-simulator") {
+		if waitForCheckboxState(isChecked, true, 2*time.Second) {
+			logrus.Info("成功通过 .d-checkbox-simulator 选中商品")
+			return nil
 		}
 	}
 
-	// 策略6：最后手段直接设置状态
-	logrus.Warn("尝试最后手段：强制设置 checkbox 状态")
-	if _, err := checkboxInput.Eval(`() => {
-        this.checked = true;
-        this.dispatchEvent(new Event('input', { bubbles: true }));
-        this.dispatchEvent(new Event('change', { bubbles: true }));
-        if (this.parentElement) {
-            this.parentElement.click();
+	// 兜底策略：直接设置checkbox状态并触发事件
+	result, err := card.Eval(`() => {
+        const checkbox = this.querySelector('input[type="checkbox"]');
+        if (!checkbox) {
+            return false;
         }
-    }`); err == nil {
-		time.Sleep(300 * time.Millisecond)
-		if isChecked() {
+        checkbox.checked = true;
+        checkbox.dispatchEvent(new Event('input', { bubbles: true }));
+        checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+        return true;
+    }`)
+	if err == nil && result != nil && result.Value.Bool() {
+		if waitForCheckboxState(isChecked, true, 2*time.Second) {
 			logrus.Info("成功通过强制设置状态选中商品")
 			return nil
 		}
 	}
 
 	return errors.New("无法选中商品，尝试了所有策略均失败")
+}
+
+func waitForCheckboxState(checkFunc func() bool, expect bool, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if checkFunc() == expect {
+			return true
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return false
 }
 
 func waitForProductListLoad(modal *rod.Element) error {
