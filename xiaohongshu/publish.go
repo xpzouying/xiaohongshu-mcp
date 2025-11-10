@@ -447,56 +447,73 @@ func ensureProductSelected(card *rod.Element) error {
 	}
 	time.Sleep(200 * time.Millisecond)
 
-	// 尝试点击checkbox indicator（等效于控制台手动执行）
-	clickBySelector := func(selector string) bool {
-		result, err := card.Eval(`(selector) => {
-            const target = this.querySelector(selector);
+	type attempt struct {
+		name   string
+		script string
+	}
+
+	attempts := []attempt{
+		{
+			name: "点击 .d-checkbox-indicator",
+			script: `() => {
+            const indicator = this.querySelector('span.d-checkbox-indicator');
+            if (!indicator) {
+                return false;
+            }
+            indicator.click();
+            return true;
+        }`,
+		},
+		{
+			name: "点击 .d-checkbox-simulator 或内部 indicator",
+			script: `() => {
+            const simulator = this.querySelector('.d-checkbox-simulator');
+            const indicator = simulator ? simulator.querySelector('.d-checkbox-indicator') : null;
+            const target = indicator || simulator;
             if (!target) {
                 return false;
             }
             target.click();
             return true;
-        }`, selector)
+        }`,
+		},
+		{
+			name: "设置 aria-checked 并触发事件",
+			script: `() => {
+            const simulator = this.querySelector('.d-checkbox-simulator');
+            if (!simulator) {
+                return false;
+            }
+            simulator.setAttribute('aria-checked', 'true');
+            simulator.click();
+            const checkbox = this.querySelector('input[type="checkbox"]');
+            if (checkbox) {
+                checkbox.checked = true;
+                checkbox.dispatchEvent(new Event('input', { bubbles: true }));
+                checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            return true;
+        }`,
+		},
+	}
+
+	for _, item := range attempts {
+		result, err := card.Eval(item.script)
 		if err != nil {
-			logrus.Debugf("点击 %s 失败: %v", selector, err)
-			return false
+			logrus.Debugf("%s 失败: %v", item.name, err)
+			continue
 		}
-		if result == nil {
-			return false
+		if result == nil || !result.Value.Bool() {
+			logrus.Debugf("%s 未生效", item.name)
+			continue
 		}
-		return result.Value.Bool()
-	}
 
-	if clickBySelector("span.d-checkbox-indicator") {
 		if waitForCheckboxState(isChecked, true, 2*time.Second) {
-			logrus.Info("成功通过 .d-checkbox-indicator 选中商品")
+			logrus.Infof("成功通过 %s 选中商品", item.name)
 			return nil
 		}
-	}
 
-	if clickBySelector(".d-checkbox-simulator") {
-		if waitForCheckboxState(isChecked, true, 2*time.Second) {
-			logrus.Info("成功通过 .d-checkbox-simulator 选中商品")
-			return nil
-		}
-	}
-
-	// 兜底策略：直接设置checkbox状态并触发事件
-	result, err := card.Eval(`() => {
-        const checkbox = this.querySelector('input[type="checkbox"]');
-        if (!checkbox) {
-            return false;
-        }
-        checkbox.checked = true;
-        checkbox.dispatchEvent(new Event('input', { bubbles: true }));
-        checkbox.dispatchEvent(new Event('change', { bubbles: true }));
-        return true;
-    }`)
-	if err == nil && result != nil && result.Value.Bool() {
-		if waitForCheckboxState(isChecked, true, 2*time.Second) {
-			logrus.Info("成功通过强制设置状态选中商品")
-			return nil
-		}
+		logrus.Debugf("%s 未在预期时间内生效", item.name)
 	}
 
 	return errors.New("无法选中商品，尝试了所有策略均失败")
