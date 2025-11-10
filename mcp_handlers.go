@@ -564,6 +564,7 @@ func (s *AppServer) handlePostComment(ctx context.Context, args map[string]inter
 	}
 }
 
+// mcp: 获取我的个人信息
 func (s *AppServer) handleGetMyProfile(ctx context.Context) *MCPToolResult {
 	myProfile, err := s.xiaohongshuService.GetMyProfile(ctx)
 	if err != nil {
