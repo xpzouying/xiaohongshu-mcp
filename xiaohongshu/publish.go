@@ -320,12 +320,8 @@ func addProducts(page *rod.Page, productKeywords []string) error {
 			return errors.Wrapf(err, "搜索商品失败: %s", keyword)
 		}
 
-		card, err := findProductCard(modal, keyword)
-		if err != nil {
-			return errors.Wrapf(err, "未找到匹配商品: %s", keyword)
-		}
-
-		if err := ensureProductSelected(card); err != nil {
+		// 直接通过 JavaScript 在 modal 上完成查找和勾选，避免元素引用失效
+		if err := selectProductByKeyword(modal, keyword); err != nil {
 			return errors.Wrapf(err, "选择商品失败: %s", keyword)
 		}
 
@@ -382,152 +378,70 @@ func inputProductSearchKeyword(input *rod.Element, keyword string) error {
 		return err
 	}
 
-	time.Sleep(500 * time.Millisecond)
+	// 等待搜索结果加载和DOM稳定
+	time.Sleep(1 * time.Second)
 
 	return nil
 }
 
-func findProductCard(modal *rod.Element, keyword string) (*rod.Element, error) {
-	deadline := time.Now().Add(10 * time.Second)
+func selectProductByKeyword(modal *rod.Element, keyword string) error {
 	lowerKeyword := strings.ToLower(keyword)
 
-	for time.Now().Before(deadline) {
-		cards, err := modal.Elements(".good-card-container")
-		if err != nil || len(cards) == 0 {
-			time.Sleep(300 * time.Millisecond)
-			continue
+	// 通过 JavaScript 原子操作完成查找和勾选，避免元素引用失效
+	result, err := modal.Eval(`(keyword) => {
+		const cards = this.querySelectorAll('.good-card-container');
+
+		for (let card of cards) {
+			const nameElem = card.querySelector('.sku-name');
+			if (!nameElem) continue;
+
+			const name = nameElem.textContent || '';
+			if (!name.toLowerCase().includes(keyword)) continue;
+
+			// 找到匹配的商品，检查是否已选中
+			const checkbox = card.querySelector('input[type="checkbox"]');
+			if (checkbox && checkbox.checked) {
+				return { success: true, alreadyChecked: true };
+			}
+
+			// 查找并点击复选框容器
+			const checkboxContainer = card.querySelector('.d-checkbox');
+			if (!checkboxContainer) {
+				return { success: false, error: '未找到复选框容器' };
+			}
+
+			checkboxContainer.click();
+			return { success: true, alreadyChecked: false };
 		}
 
-		for _, card := range cards {
-			nameElem, err := card.Element(".sku-name")
-			if err != nil {
-				continue
-			}
+		return { success: false, error: '未找到匹配商品' };
+	}`, lowerKeyword)
 
-			name, err := nameElem.Text()
-			if err != nil {
-				continue
-			}
-
-			if strings.Contains(strings.ToLower(name), lowerKeyword) {
-				return card, nil
-			}
-		}
-
-		time.Sleep(300 * time.Millisecond)
+	if err != nil {
+		return errors.Wrap(err, "执行选择脚本失败")
 	}
 
-	return nil, errors.Errorf("未找到商品: %s", keyword)
-}
+	// 获取返回的对象
+	success := result.Value.Get("success").Bool()
 
-func ensureProductSelected(card *rod.Element) error {
-	// 工具函数：查询checkbox是否已选中
-	isChecked := func() bool {
-		result, err := card.Eval(`() => {
-            const checkbox = this.querySelector('input[type="checkbox"]');
-            return checkbox ? checkbox.checked : false;
-        }`)
-		if err != nil {
-			logrus.Debugf("读取checkbox状态失败: %v", err)
-			return false
+	if !success {
+		errorMsg := result.Value.Get("error").Str()
+		if errorMsg == "" {
+			errorMsg = "未知错误"
 		}
-		if result == nil {
-			return false
-		}
-		return result.Value.Bool()
+		return errors.New(errorMsg)
 	}
 
-	if isChecked() {
+	alreadyChecked := result.Value.Get("alreadyChecked").Bool()
+	if alreadyChecked {
+		logrus.Debugf("商品已选中: %s", keyword)
 		return nil
 	}
 
-	// 滚动到可见区域
-	if err := card.ScrollIntoView(); err != nil {
-		logrus.Debugf("滚动商品卡片失败: %v", err)
-	}
-	time.Sleep(200 * time.Millisecond)
+	// 等待勾选状态生效
+	time.Sleep(300 * time.Millisecond)
 
-	type attempt struct {
-		name   string
-		script string
-	}
-
-	attempts := []attempt{
-		{
-			name: "点击 .d-checkbox-indicator",
-			script: `() => {
-            const indicator = this.querySelector('span.d-checkbox-indicator');
-            if (!indicator) {
-                return false;
-            }
-            indicator.click();
-            return true;
-        }`,
-		},
-		{
-			name: "点击 .d-checkbox-simulator 或内部 indicator",
-			script: `() => {
-            const simulator = this.querySelector('.d-checkbox-simulator');
-            const indicator = simulator ? simulator.querySelector('.d-checkbox-indicator') : null;
-            const target = indicator || simulator;
-            if (!target) {
-                return false;
-            }
-            target.click();
-            return true;
-        }`,
-		},
-		{
-			name: "设置 aria-checked 并触发事件",
-			script: `() => {
-            const simulator = this.querySelector('.d-checkbox-simulator');
-            if (!simulator) {
-                return false;
-            }
-            simulator.setAttribute('aria-checked', 'true');
-            simulator.click();
-            const checkbox = this.querySelector('input[type="checkbox"]');
-            if (checkbox) {
-                checkbox.checked = true;
-                checkbox.dispatchEvent(new Event('input', { bubbles: true }));
-                checkbox.dispatchEvent(new Event('change', { bubbles: true }));
-            }
-            return true;
-        }`,
-		},
-	}
-
-	for _, item := range attempts {
-		result, err := card.Eval(item.script)
-		if err != nil {
-			logrus.Debugf("%s 失败: %v", item.name, err)
-			continue
-		}
-		if result == nil || !result.Value.Bool() {
-			logrus.Debugf("%s 未生效", item.name)
-			continue
-		}
-
-		if waitForCheckboxState(isChecked, true, 2*time.Second) {
-			logrus.Infof("成功通过 %s 选中商品", item.name)
-			return nil
-		}
-
-		logrus.Debugf("%s 未在预期时间内生效", item.name)
-	}
-
-	return errors.New("无法选中商品，尝试了所有策略均失败")
-}
-
-func waitForCheckboxState(checkFunc func() bool, expect bool, timeout time.Duration) bool {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if checkFunc() == expect {
-			return true
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-	return false
+	return nil
 }
 
 func waitForProductListLoad(modal *rod.Element) error {
