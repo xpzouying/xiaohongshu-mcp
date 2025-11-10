@@ -321,6 +321,18 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
+	// 工具14： 获取当前登录账号的Feed列表
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "list_my_feeds",
+			Description: "获取当前登录用户的第一页笔记列表 (需要已登录)",
+		},
+		withPanicRecovery("list_my_feeds", func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleListMyFeeds(ctx)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
 	logrus.Infof("Registered %d MCP tools", 13)
 }
 
