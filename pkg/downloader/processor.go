@@ -22,27 +22,67 @@ func NewImageProcessor() *ImageProcessor {
 // 支持两种输入格式：
 // 1. URL格式 (http/https开头) - 自动下载到本地
 // 2. 本地文件路径 - 直接使用
+// 保持原始图片顺序
 func (p *ImageProcessor) ProcessImages(images []string) ([]string, error) {
-	var localPaths []string
-	var urlsToDownload []string
+	// 记录每个位置的图片类型和URL索引
+	type imageInfo struct {
+		isURL     bool
+		localPath string
+		urlIndex  int // 如果是URL，记录在urlsToDownload中的索引
+	}
 
-	// 分离URL和本地路径
+	imageInfos := make([]imageInfo, 0, len(images))
+	urlsToDownload := make([]string, 0)
+	urlIndexMap := make(map[string]int) // URL -> urlsToDownload中的索引
+
+	// 第一遍遍历：收集URL和本地路径，保持顺序
 	for _, image := range images {
 		if IsImageURL(image) {
-			urlsToDownload = append(urlsToDownload, image)
+			// 检查URL是否已经存在（去重）
+			if idx, exists := urlIndexMap[image]; exists {
+				imageInfos = append(imageInfos, imageInfo{
+					isURL:    true,
+					urlIndex: idx,
+				})
+			} else {
+				// 新URL，添加到下载列表
+				idx := len(urlsToDownload)
+				urlsToDownload = append(urlsToDownload, image)
+				urlIndexMap[image] = idx
+				imageInfos = append(imageInfos, imageInfo{
+					isURL:    true,
+					urlIndex: idx,
+				})
+			}
 		} else {
-			// 本地路径直接添加
-			localPaths = append(localPaths, image)
+			// 本地路径直接记录
+			imageInfos = append(imageInfos, imageInfo{
+				isURL:     false,
+				localPath: image,
+			})
 		}
 	}
 
 	// 批量下载URL图片
+	downloadedPaths := make([]string, len(urlsToDownload))
 	if len(urlsToDownload) > 0 {
-		downloadedPaths, err := p.downloader.DownloadImages(urlsToDownload)
+		paths, err := p.downloader.DownloadImages(urlsToDownload)
 		if err != nil {
 			return nil, fmt.Errorf("failed to download images: %w", err)
 		}
-		localPaths = append(localPaths, downloadedPaths...)
+		copy(downloadedPaths, paths)
+	}
+
+	// 按原始顺序组装结果
+	localPaths := make([]string, 0, len(images))
+	for _, info := range imageInfos {
+		if info.isURL {
+			if info.urlIndex < len(downloadedPaths) {
+				localPaths = append(localPaths, downloadedPaths[info.urlIndex])
+			}
+		} else {
+			localPaths = append(localPaths, info.localPath)
+		}
 	}
 
 	if len(localPaths) == 0 {
