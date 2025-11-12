@@ -22,27 +22,23 @@ func NewImageProcessor() *ImageProcessor {
 // 支持两种输入格式：
 // 1. URL格式 (http/https开头) - 自动下载到本地
 // 2. 本地文件路径 - 直接使用
+// 保持原始图片顺序，如果下载失败直接返回错误
 func (p *ImageProcessor) ProcessImages(images []string) ([]string, error) {
-	var localPaths []string
-	var urlsToDownload []string
+	localPaths := make([]string, 0, len(images))
 
-	// 分离URL和本地路径
+	// 按顺序处理每张图片
 	for _, image := range images {
 		if IsImageURL(image) {
-			urlsToDownload = append(urlsToDownload, image)
+			// URL图片：立即下载，失败直接返回错误
+			localPath, err := p.downloader.DownloadImage(image)
+			if err != nil {
+				return nil, fmt.Errorf("下载图片失败 %s: %w", image, err)
+			}
+			localPaths = append(localPaths, localPath)
 		} else {
-			// 本地路径直接添加
+			// 本地路径直接使用
 			localPaths = append(localPaths, image)
 		}
-	}
-
-	// 批量下载URL图片
-	if len(urlsToDownload) > 0 {
-		downloadedPaths, err := p.downloader.DownloadImages(urlsToDownload)
-		if err != nil {
-			return nil, fmt.Errorf("failed to download images: %w", err)
-		}
-		localPaths = append(localPaths, downloadedPaths...)
 	}
 
 	if len(localPaths) == 0 {
