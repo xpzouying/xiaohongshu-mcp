@@ -43,6 +43,8 @@ func (f *FeedDetailAction) GetFeedDetail(ctx context.Context, feedID, xsecToken 
 		const DELTA_MIN = 480;
 		const SCROLL_TIMEOUT = 900;
 		const MAX_ATTEMPTS = 200;
+		const CLICK_MORE_INTERVAL = 2; // 每滚动2次检查一次"更多"按钮
+		const CLICK_WAIT_TIME = 300; // 点击后等待时间
 
 		const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 		const scrollRoot = () => document.scrollingElement || document.documentElement || document.body;
@@ -97,6 +99,77 @@ func (f *FeedDetailAction) GetFeedDetail(ctx context.Context, feedID, xsecToken 
 				console.debug('dispatchWheel error', err);
 			}
 		};
+		
+		// 点击所有"更多"按钮 - 使用多种策略确保不遗漏
+		const clickShowMoreButtons = () => {
+			// 尝试多个可能的选择器
+			const selectors = [
+				'.show-more',
+				'.show-more-btn',
+				'[class*="show-more"]',
+				'[class*="showMore"]',
+				'button:has-text("更多")',
+				'span:has-text("更多")',
+				'div:has-text("更多")'
+			];
+			
+			const clickedElements = new Set();
+			let clickedCount = 0;
+			
+			selectors.forEach((selector) => {
+				try {
+					const elements = document.querySelectorAll(selector);
+					elements.forEach((el) => {
+						// 避免重复点击同一个元素
+						if (clickedElements.has(el)) return;
+						
+						// 检查元素文本是否包含"更多"或者是否有相关class
+						const text = el.textContent || '';
+						const className = el.className || '';
+						const shouldClick = text.includes('更多') || 
+						                   className.includes('show-more') || 
+						                   className.includes('showMore');
+						
+						if (!shouldClick) return;
+						
+						// 检查元素是否可见（放宽条件，不要求完全在视口内）
+						const rect = el.getBoundingClientRect();
+						const style = window.getComputedStyle(el);
+						const isVisible = (
+							rect.height > 0 &&
+							rect.width > 0 &&
+							style.display !== 'none' &&
+							style.visibility !== 'hidden' &&
+							style.opacity !== '0' &&
+							rect.top < window.innerHeight + 500 && // 允许元素在视口下方500px内
+							rect.bottom > -500 // 允许元素在视口上方500px内
+						);
+						
+						if (isVisible) {
+							try {
+								// 尝试多种点击方式
+								el.click();
+								
+								// 如果是嵌套元素，也尝试点击父元素
+								if (el.parentElement && el.parentElement.classList.contains('show-more')) {
+									el.parentElement.click();
+								}
+								
+								clickedElements.add(el);
+								clickedCount++;
+							} catch (err) {
+								console.debug('点击失败', err);
+							}
+						}
+					});
+				} catch (err) {
+					console.debug('选择器错误: ' + selector, err);
+				}
+			});
+			
+			return clickedCount;
+		};
+
 		let cachedTarget = null;
 		const collectCandidates = () => {
 			const container = getContainer();
@@ -175,16 +248,45 @@ func (f *FeedDetailAction) GetFeedDetail(ctx context.Context, feedID, xsecToken 
 			let lastCount = 0;
 			let stagnantChecks = 0;
 			let noScrollChangeCount = 0;
+			let totalClickedButtons = 0;
+			
 			for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
 				const container = getContainer();
 				if (!container) {
 					await sleep(300);
 					continue;
 				}
+				
+				// 每隔一定次数检查并点击"更多"按钮
+				if (attempt % CLICK_MORE_INTERVAL === 0) {
+					const clicked = clickShowMoreButtons();
+					if (clicked > 0) {
+						totalClickedButtons += clicked;
+						console.log('点击了 ' + clicked + ' 个"更多"按钮，累计: ' + totalClickedButtons);
+						await sleep(CLICK_WAIT_TIME); // 等待内容展开
+						
+						// 点击后再次检查是否有新的"更多"按钮出现
+						await sleep(200);
+						const clicked2 = clickShowMoreButtons();
+						if (clicked2 > 0) {
+							totalClickedButtons += clicked2;
+							console.log('二次检查点击了 ' + clicked2 + ' 个"更多"按钮');
+							await sleep(CLICK_WAIT_TIME);
+						}
+					}
+				}
+				
 				const total = getTotalCount(container);
 				const count = getCommentCount(container);
 				if (total && count >= total) {
-					return { status: 'complete', reason: 'total', attempts: attempt + 1, count, total };
+					return { 
+						status: 'complete', 
+						reason: 'total', 
+						attempts: attempt + 1, 
+						count, 
+						total,
+						clickedButtons: totalClickedButtons
+					};
 				}
 				if (count === lastCount) {
 					stagnantChecks += 1;
@@ -193,7 +295,14 @@ func (f *FeedDetailAction) GetFeedDetail(ctx context.Context, feedID, xsecToken 
 					stagnantChecks = 0;
 				}
 				if (stagnantChecks >= STAGNANT_LIMIT) {
-					return { status: 'complete', reason: 'stagnant', attempts: attempt + 1, count, total };
+					return { 
+						status: 'complete', 
+						reason: 'stagnant', 
+						attempts: attempt + 1, 
+						count, 
+						total,
+						clickedButtons: totalClickedButtons
+					};
 				}
 				const target = findScrollTarget();
 				const beforeTop = getScrollMetrics(target).top;
@@ -206,13 +315,23 @@ func (f *FeedDetailAction) GetFeedDetail(ctx context.Context, feedID, xsecToken 
 					noScrollChangeCount = 0;
 				}
 				if (noScrollChangeCount >= NO_CHANGE_SCROLL_LIMIT) {
-					return { status: 'complete', reason: 'no-scroll-change', attempts: attempt + 1, count, total };
+					return { 
+						status: 'complete', 
+						reason: 'no-scroll-change', 
+						attempts: attempt + 1, 
+						count, 
+						total,
+						clickedButtons: totalClickedButtons
+					};
 				}
 				if (INTERVAL_MS > SCROLL_TIMEOUT) {
 					await sleep(INTERVAL_MS - SCROLL_TIMEOUT);
 				}
 			}
-			return { status: 'timeout' };
+			return { 
+				status: 'timeout',
+				clickedButtons: totalClickedButtons
+			};
 		})()
 			.then((res) => JSON.stringify(res))
 			.catch((err) => JSON.stringify({ status: 'error', message: err && err.message ? err.message : String(err) }));
