@@ -165,6 +165,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "flippancy",
+      "name": "flippancy",
+      "avatar_url": "https://avatars.githubusercontent.com/u/6467703?v=4",
+      "profile": "https://github.com/flippancy",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

@@ -1,7 +1,7 @@
 # xiaohongshu-mcp
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-17-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-18-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 [![已捐赠](https://img.shields.io/badge/Donated-CNY%20200.00-brightgreen?style=flat-square)](./DONATIONS.md)
@@ -739,6 +739,43 @@ Cline 是一个强大的 AI 编程助手，支持 MCP 协议集成。
 
 <img src="./assets/publish_result.jpeg" alt="xiaohongshu-mcp 发布结果" width="300">
 
+### 2.5. 💬 MCP 使用常见问题解答
+
+---
+
+**Q:** 为什么检查登录用户名显示 `xiaghgngshu-mcp`？  
+**A:** 用户名是写死的。
+
+---
+
+**Q:** 显示发布成功后，但实际上没有显示？  
+**A:** 排查步骤如下：  
+1. 使用 **非无头模式** 重新发布一次。  
+2. 更换 **不同的内容** 重新发布。  
+3. 登录网页版小红书，查看账号是否被 **风控限制网页版发布**。  
+4. 检查 **图片大小** 是否过大。  
+5. 确认 **图片路径中没有中文字符**。  
+6. 若使用网络图片地址，请确认 **图片链接可正常访问**。
+
+---
+
+**Q:** 在设备上运行 MCP 程序出现闪退如何解决？  
+**A:**  
+1. 建议 **从源码安装**。  
+2. 或使用 **Docker 安装 xiaohongshu-mcp**，教程参考：  
+   - [使用 Docker 安装 xiaohongshu-mcp](https://github.com/xpzouying/xiaohongshu-mcp#:~:text=%E6%96%B9%E5%BC%8F%E4%B8%89%EF%BC%9A%E4%BD%BF%E7%94%A8%20Docker%20%E5%AE%B9%E5%99%A8%EF%BC%88%E6%9C%80%E7%AE%80%E5%8D%95%EF%BC%89)  
+   - [X-MCP 项目页面](https://github.com/xpzouying/x-mcp/)
+
+---
+
+**Q:** 使用 `http://localhost:18060/mcp` 进行 MCP 验证时提示无法连接？  
+**A:**  
+- 在 **Docker 环境** 下，请使用  
+  👉 [http://host.docker.internal:18060/mcp](http://host.docker.internal:18060/mcp)  
+- 在 **非 Docker 环境** 下，请使用 **本机 IPv4 地址** 访问。
+
+---
+
 ## 3. 🌟 实战案例展示 (Community Showcases)
 
 > 💡 **强烈推荐查看**：这些都是社区贡献者的真实使用案例，包含详细的配置步骤和实战经验！
@@ -762,8 +799,7 @@ Cline 是一个强大的 AI 编程助手，支持 MCP 协议集成。
 
 | 【飞书 3 群】：扫码进入                                                                                                   | 【微信群 10 群】：扫码进入                                                                                                  |
 | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| <img src="https://github.com/user-attachments/assets/9a0ec41a-cb65-4f4e-a0f7-31658a49512d" alt="qrcode_2qun" width="300"> | <img src="https://github.com/user-attachments/assets/a5f8fc69-e37a-4404-a611-4a601ba0b42f" alt="WechatIMG119" width="300"> |
-
+| <img src="https://github.com/user-attachments/assets/9a0ec41a-cb65-4f4e-a0f7-31658a49512d" alt="qrcode_2qun" width="300"> | <img src="https://github.com/user-attachments/assets/b6a35560-5073-43be-9c65-2b2186136190" alt="WechatIMG119" width="300"> |
 
 
 
@@ -798,6 +834,7 @@ Cline 是一个强大的 AI 编程助手，支持 MCP 协议集成。
       <td align="center" valign="top" width="14.28%"><a href="https://carlo-blog.aiju.fun/"><img src="https://avatars.githubusercontent.com/u/18513362?v=4?s=100" width="100px;" alt="Carlo"/><br /><sub><b>Carlo</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=a67793581" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/hrz394943230"><img src="https://avatars.githubusercontent.com/u/28583005?v=4?s=100" width="100px;" alt="hrz"/><br /><sub><b>hrz</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=hrz394943230" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/ctrlz526"><img src="https://avatars.githubusercontent.com/u/143257420?v=4?s=100" width="100px;" alt="Ctrlz"/><br /><sub><b>Ctrlz</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=ctrlz526" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/flippancy"><img src="https://avatars.githubusercontent.com/u/6467703?v=4?s=100" width="100px;" alt="flippancy"/><br /><sub><b>flippancy</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=flippancy" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>
