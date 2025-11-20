@@ -34,9 +34,9 @@ type MCPContent struct {
 
 // FeedDetailRequest Feed详情页请求
 type FeedDetailRequest struct {
-       FeedID          string `json:"feed_id" binding:"required"`
-       XsecToken       string `json:"xsec_token" binding:"required"`
-       LoadAllComments bool   `json:"load_all_comments,omitempty"`
+	FeedID          string `json:"feed_id" binding:"required"`
+	XsecToken       string `json:"xsec_token" binding:"required"`
+	LoadAllComments bool   `json:"load_all_comments,omitempty"`
 }
 
 // FeedDetailResponse Feed详情响应
@@ -57,24 +57,6 @@ type PostCommentResponse struct {
 	FeedID  string `json:"feed_id"`
 	Success bool   `json:"success"`
 	Message string `json:"message"`
-}
-
-// ReplyCommentRequest 回复评论请求
-type ReplyCommentRequest struct {
-	FeedID    string `json:"feed_id" binding:"required"`
-	XsecToken string `json:"xsec_token" binding:"required"`
-	CommentID string `json:"comment_id" binding:"required_without=UserID"`
-	UserID    string `json:"user_id" binding:"required_without=CommentID"`
-	Content   string `json:"content" binding:"required"`
-}
-
-// ReplyCommentResponse 回复评论响应
-type ReplyCommentResponse struct {
-	FeedID          string `json:"feed_id"`
-	TargetCommentID string `json:"target_comment_id,omitempty"`
-	TargetUserID    string `json:"target_user_id,omitempty"`
-	Success         bool   `json:"success"`
-	Message         string `json:"message"`
 }
 
 // UserProfileRequest 用户主页请求

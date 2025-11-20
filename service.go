@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"time"
+
 	"github.com/go-rod/rod"
 	"github.com/mattn/go-runewidth"
 	"github.com/sirupsen/logrus"
@@ -13,8 +16,6 @@ import (
 	"github.com/xpzouying/xiaohongshu-mcp/cookies"
 	"github.com/xpzouying/xiaohongshu-mcp/pkg/downloader"
 	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
-	"os"
-	"time"
 )
 
 // XiaohongshuService 小红书业务服务
@@ -441,29 +442,6 @@ func (s *XiaohongshuService) UnfavoriteFeed(ctx context.Context, feedID, xsecTok
 		return nil, err
 	}
 	return &ActionResult{FeedID: feedID, Success: true, Message: "取消收藏成功或未收藏"}, nil
-}
-
-// ReplyCommentToFeed 回复指定评论
-func (s *XiaohongshuService) ReplyCommentToFeed(ctx context.Context, feedID, xsecToken, commentID, userID, content string) (*ReplyCommentResponse, error) {
-	b := newBrowser()
-	defer b.Close()
-
-	page := b.NewPage()
-	defer page.Close()
-
-	action := xiaohongshu.NewCommentFeedAction(page)
-
-	if err := action.ReplyToComment(ctx, feedID, xsecToken, commentID, userID, content); err != nil {
-		return nil, err
-	}
-
-	return &ReplyCommentResponse{
-		FeedID:          feedID,
-		TargetCommentID: commentID,
-		TargetUserID:    userID,
-		Success:         true,
-		Message:         "评论回复成功",
-	}, nil
 }
 
 func newBrowser() *headless_browser.Browser {

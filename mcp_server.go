@@ -33,8 +33,9 @@ type SearchFeedsArgs struct {
 
 // FeedDetailArgs 获取Feed详情的参数
 type FeedDetailArgs struct {
-	FeedID    string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
-	XsecToken string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
+	FeedID          string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
+	XsecToken       string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
+	LoadAllComments bool   `json:"load_all_comments,omitempty" jsonschema:"是否加载全部评论（默认false，仅返回首批评论）"`
 }
 
 // UserProfileArgs 获取用户主页的参数
@@ -50,15 +51,6 @@ type PostCommentArgs struct {
 	Content   string `json:"content" jsonschema:"评论内容"`
 }
 
-// ReplyCommentArgs 回复评论的参数
-type ReplyCommentArgs struct {
-	FeedID    string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
-	XsecToken string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
-	CommentID string `json:"comment_id,omitempty" jsonschema:"目标评论ID，从评论列表获取"`
-	UserID    string `json:"user_id,omitempty" jsonschema:"目标评论用户ID，从评论列表获取"`
-	Content   string `json:"content" jsonschema:"回复内容"`
-}
-
 // LikeFeedArgs 点赞参数
 type LikeFeedArgs struct {
 	FeedID    string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
@@ -68,8 +60,8 @@ type LikeFeedArgs struct {
 
 // FavoriteFeedArgs 收藏参数
 type FavoriteFeedArgs struct {
-	FeedID    string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
-	XsecToken string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
+	FeedID     string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
+	XsecToken  string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
 	Unfavorite bool   `json:"unfavorite,omitempty" jsonschema:"是否取消收藏，true为取消收藏，false或未设置则为收藏"`
 }
 
@@ -172,8 +164,9 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		},
 		func(ctx context.Context, req *mcp.CallToolRequest, args FeedDetailArgs) (*mcp.CallToolResult, any, error) {
 			argsMap := map[string]interface{}{
-				"feed_id":    args.FeedID,
-				"xsec_token": args.XsecToken,
+				"feed_id":           args.FeedID,
+				"xsec_token":        args.XsecToken,
+				"load_all_comments": args.LoadAllComments,
 			}
 			result := appServer.handleGetFeedDetail(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
@@ -209,32 +202,6 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				"content":    args.Content,
 			}
 			result := appServer.handlePostComment(ctx, argsMap)
-			return convertToMCPResult(result), nil, nil
-		},
-	)
-
-	// 工具 9: 回复评论
-	mcp.AddTool(server,
-		&mcp.Tool{
-			Name:        "reply_comment_in_feed",
-			Description: "回复小红书笔记下的指定评论",
-		},
-		func(ctx context.Context, req *mcp.CallToolRequest, args ReplyCommentArgs) (*mcp.CallToolResult, any, error) {
-			if args.CommentID == "" && args.UserID == "" {
-				return &mcp.CallToolResult{
-					IsError: true,
-					Content: []mcp.Content{&mcp.TextContent{Text: "缺少 comment_id 或 user_id"}},
-				}, nil, nil
-			}
-
-			argsMap := map[string]interface{}{
-				"feed_id":    args.FeedID,
-				"xsec_token": args.XsecToken,
-				"comment_id": args.CommentID,
-				"user_id":    args.UserID,
-				"content":    args.Content,
-			}
-			result := appServer.handleReplyComment(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
 		},
 	)
