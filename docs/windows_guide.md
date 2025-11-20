@@ -30,3 +30,107 @@
 ```
 
 祝大家使用 xiaohongshu-mcp 服务愉快哦~
+
+# xiaohongshu-mcp Windows11快速搭建
+
+## 1.  下载最新构建版本
+
+[github.com](https://github.com/xpzouying/xiaohongshu-mcp/releases)
+
+如果当前系统为Windows 则选择 xiaohongshu-mcp-windows-amd64.zip 下载
+
+![](https://wdcdn.qpic.cn/MTY4ODg1NTIyMTY1ODI2NQ_597379_Dw_WBLdYI-KsFlXm_1760067122?w=1137&h=633&type=image/png)
+
+下载完解压文件
+
+![](https://wdcdn.qpic.cn/MTY4ODg1NTIyMTY1ODI2NQ_806026_wozodlNLyXADgJzQ_1760067150?w=1097&h=437&type=image/png)
+
+在当前文件夹中右键打开终端
+
+![](https://wdcdn.qpic.cn/MTY4ODg1NTIyMTY1ODI2NQ_24479_igFOK7Lf332tlvkM_1760067218?w=1090&h=622&type=image/png)
+
+先运行登录命令程序
+
+```
+./xiaohongshu-login-windows-amd64.exe
+```
+
+![](https://wdcdn.qpic.cn/MTY4ODg1NTIyMTY1ODI2NQ_557435_MEWWz-JeHubKmkhc_1760067518?w=1709&h=810&type=image/png)
+
+等待下载完
+
+## 2.  解决Windows 11 报病毒问题
+
+在运行之前的程序后会报病毒，如下图
+
+![](https://wdcdn.qpic.cn/MTY4ODg1NTIyMTY1ODI2NQ_79147_lDOh7CnkzJEWiROM_1760067634?w=1761&h=518&type=image/png)
+
+这时候我们需要打开Windows 安全中心（Windows 11 版本演示）
+
+![](https://wdcdn.qpic.cn/MTY4ODg1NTIyMTY1ODI2NQ_436678__HrwxQPD57zZvW5h_1760067781?w=1424&h=932&type=image/png)
+
+点击进入管理设置后，查看最下方的排除项
+
+![](https://wdcdn.qpic.cn/MTY4ODg1NTIyMTY1ODI2NQ_936924_6OPZpwjyICV7NlGc_1760067974?w=1166&h=916&type=image/png)
+
+把之前的错误程序的路径添加进去，如下图
+
+要改成你当前报错的实际路径
+
+![](https://wdcdn.qpic.cn/MTY4ODg1NTIyMTY1ODI2NQ_871687_NBwGzTWJ1RHTQgBQ_1760068159?w=1901&h=439&type=image/png)
+
+![](https://wdcdn.qpic.cn/MTY4ODg1NTIyMTY1ODI2NQ_710523_eExonqwWf2gSc5RD_1760068191?w=1838&h=658&type=image/png)
+
+总结解决路径办法
+
+解决步骤：
+
+1. 打开 Windows 安全中心（Windows Security）。
+
+2. 点击 病毒和威胁防护（Virus & threat protection）。
+
+3. 在“病毒和威胁防护设置”下，点击 管理设置（Manage settings）。
+
+4. 向下滚动，找到并点击 添加或删除排除项（Add or remove exclusions）。
+
+5. 点击 添加排除项（Add an exclusion）。
+
+6. 选择 文件夹（Folder）。
+
+7. 导航到以下路径并选择该文件夹：
+
+```
+C:\Users\你的用户(当前电脑)\AppData\Local\Temp\leakless-amd64-adb80298fa6a3af7ced8b1c9b5f18007
+```
+
+8.  . 确认添加排除项。
+
+## 3.  启动程序
+
+```
+./xiaohongshu-login-windows-amd64.exe
+```
+
+![](https://wdcdn.qpic.cn/MTY4ODg1NTIyMTY1ODI2NQ_986235_Vn-u3F7LZXOsYE6c_1760078263?w=1118&h=346&type=image/png)
+
+![](https://wdcdn.qpic.cn/MTY4ODg1NTIyMTY1ODI2NQ_215347_jIpS7bT7J6nQPIDs_1760078324?w=901&h=830&type=image/png)
+
+登录小红书
+
+启动MCP服务
+
+```
+./xiaohongshu-mcp-windows-amd64.exe
+```
+
+![](https://wdcdn.qpic.cn/MTY4ODg1NTIyMTY1ODI2NQ_66988_0r6LHv0FuL9Aidlv_1760094345?w=970&h=291&type=image/png)
+
+## 4.  MCP 验证
+
+```
+npx @modelcontextprotocol/inspector
+```
+
+![](https://wdcdn.qpic.cn/MTY4ODg1NTIyMTY1ODI2NQ_861647_Lo0xw1oXyLKD5A2Y_1760165693?w=1074&h=452&type=image/png)
+
+![](https://wdcdn.qpic.cn/MTY4ODg1NTIyMTY1ODI2NQ_260079_5FFeEfMTVXaLGXoz_1760165797?w=1905&h=937&type=image/png)

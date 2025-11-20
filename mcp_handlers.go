@@ -4,9 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strconv" // Added for parsing boolean from string
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/sirupsen/logrus"
+	"github.com/xpzouying/xiaohongshu-mcp/cookies"
+	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
 
 	"github.com/sirupsen/logrus"
 )
@@ -28,7 +32,14 @@ func (s *AppServer) handleCheckLoginStatus(ctx context.Context) *MCPToolResult {
 		}
 	}
 
-	resultText := fmt.Sprintf("登录状态检查成功: %+v", status)
+	// 根据 IsLoggedIn 判断并返回友好的提示
+	var resultText string
+	if status.IsLoggedIn {
+		resultText = fmt.Sprintf("✅ 已登录\n用户名: %s\n\n你可以使用其他功能了。", status.Username)
+	} else {
+		resultText = fmt.Sprintf("❌ 未登录\n\n请使用 get_login_qrcode 工具获取二维码进行登录。")
+	}
+
 	return &MCPToolResult{
 		Content: []MCPContent{{
 			Type: "text",
@@ -75,6 +86,28 @@ func (s *AppServer) handleGetLoginQrcode(ctx context.Context) *MCPToolResult {
 		},
 	}
 	return &MCPToolResult{Content: contents}
+}
+
+// handleDeleteCookies 处理删除 cookies 请求，用于登录重置
+func (s *AppServer) handleDeleteCookies(ctx context.Context) *MCPToolResult {
+	logrus.Info("MCP: 删除 cookies，重置登录状态")
+
+	err := s.xiaohongshuService.DeleteCookies(ctx)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "删除 cookies 失败: " + err.Error()}},
+			IsError: true,
+		}
+	}
+
+	cookiePath := cookies.GetCookiesFilePath()
+	resultText := fmt.Sprintf("Cookies 已成功删除，登录状态已重置。\n\n删除的文件路径: %s\n\n下次操作时，需要重新登录。", cookiePath)
+	return &MCPToolResult{
+		Content: []MCPContent{{
+			Type: "text",
+			Text: resultText,
+		}},
+	}
 }
 
 // handlePublishContent 处理发布内容
@@ -225,12 +258,10 @@ func (s *AppServer) handleListFeeds(ctx context.Context) *MCPToolResult {
 }
 
 // handleSearchFeeds 处理搜索Feeds
-func (s *AppServer) handleSearchFeeds(ctx context.Context, args map[string]interface{}) *MCPToolResult {
+func (s *AppServer) handleSearchFeeds(ctx context.Context, args SearchFeedsArgs) *MCPToolResult {
 	logrus.Info("MCP: 搜索Feeds")
 
-	// 解析参数
-	keyword, ok := args["keyword"].(string)
-	if !ok || keyword == "" {
+	if args.Keyword == "" {
 		return &MCPToolResult{
 			Content: []MCPContent{{
 				Type: "text",
@@ -240,9 +271,18 @@ func (s *AppServer) handleSearchFeeds(ctx context.Context, args map[string]inter
 		}
 	}
 
-	logrus.Infof("MCP: 搜索Feeds - 关键词: %s", keyword)
+	logrus.Infof("MCP: 搜索Feeds - 关键词: %s", args.Keyword)
 
-	result, err := s.xiaohongshuService.SearchFeeds(ctx, keyword)
+	// 将 MCP 的 FilterOption 转换为 xiaohongshu.FilterOption
+	filter := xiaohongshu.FilterOption{
+		SortBy:      args.Filters.SortBy,
+		NoteType:    args.Filters.NoteType,
+		PublishTime: args.Filters.PublishTime,
+		SearchScope: args.Filters.SearchScope,
+		Location:    args.Filters.Location,
+	}
+
+	result, err := s.xiaohongshuService.SearchFeeds(ctx, args.Keyword, filter)
 	if err != nil {
 		return &MCPToolResult{
 			Content: []MCPContent{{

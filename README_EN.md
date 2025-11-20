@@ -1,18 +1,41 @@
 # xiaohongshu-mcp
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-
-[![All Contributors](https://img.shields.io/badge/all_contributors-6-orange.svg?style=flat-square)](#contributors-)
-
+[![All Contributors](https://img.shields.io/badge/all_contributors-17-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
+
+[![Donated](https://img.shields.io/badge/Donated-CNY%20200.00-brightgreen?style=flat-square)](./DONATIONS.md)
+[![Received](https://img.shields.io/badge/Received-CNY%20179.92-blue?style=flat-square)](./DONATIONS.md)
+[![Docker Pulls](https://img.shields.io/docker/pulls/xpzouying/xiaohongshu-mcp?style=flat-square&logo=docker)](https://hub.docker.com/r/xpzouying/xiaohongshu-mcp)
 
 MCP for RedNote (Xiaohongshu) platform.
 
 - My blog article: [haha.ai/xiaohongshu-mcp](https://www.haha.ai/xiaohongshu-mcp)
 
+**If you encounter any issues, be sure to check [Common Issues and Solutions](https://github.com/xpzouying/xiaohongshu-mcp/issues/56) first.**
+
+After checking the **Common Issues** list, if you still can't resolve your deployment problems, we strongly recommend using another tool I've created: [xpzouying/x-mcp](https://github.com/xpzouying/x-mcp). This tool doesn't require deployment - you only need a browser extension to drive your MCP, making it more user-friendly for non-technical users.
+
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=xpzouying/xiaohongshu-mcp&type=Timeline)](https://www.star-history.com/#xpzouying/xiaohongshu-mcp&Timeline)
+
+## Appreciation and Support
+
+All donations received for this project will be used for charitable giving. For all charitable donation records, please refer to [DONATIONS.md](./DONATIONS.md).
+
+**When donating, please note "MCP" and your name.**
+If you need to correct/withdraw your name attribution, please open an Issue or contact via email.
+
+**Alipay (QR code not displayed):**
+
+Donate via Alipay to **xpzouying@gmail.com**.
+
+**WeChat:**
+
+<img src="donate/wechat@2x.png" alt="WeChat Pay QR" width="260" />
+
+## Project Overview
 
 **Main Features**
 
@@ -190,9 +213,10 @@ Get RedNote user's personal profile information, including basic user informatio
 **RedNote Basic Operation Knowledge**
 
 - **Title: (Very Important) RedNote requires titles to not exceed 20 characters**
-- Currently only supports image-text posting: From a recommendation perspective, image-text posts get better traffic than pure text.
-- (Low priority) Video and pure text support can be considered. 1. I personally feel these two would greatly increase operation complexity; 2. These two types have low value in my use scenarios.
-- Tags: Will be supported soon.
+- **Content: (Very Important) Content cannot exceed 1000 characters**
+- Currently supports both image-text and video posting: From a recommendation perspective, image-text posts get better traffic than video or pure text.
+- (Low priority) Pure text support can be considered. 1. I personally feel pure text would greatly increase operation complexity; 2. Pure text has low value in my use scenarios.
+- Tags: Now supported. Adding appropriate tags can bring more traffic.
 - According to my practical experience, RedNote should allow **50 posts** per day.
 - **(Very Important) RedNote does not allow the same account to login on multiple web platforms**. If you login to the current xiaohongshu-mcp, don't login to that account on other web platforms, otherwise it will "kick out" the current MCP account login. You can use the mobile app to check current account information.
 
@@ -718,6 +742,8 @@ Use xiaohongshu-mcp's video publishing feature.
 
 1. **[n8n Complete Integration Tutorial](./examples/n8n/README.md)** - Workflow automation platform integration
 2. **[Cherry Studio Complete Configuration Tutorial](./examples/cherrystudio/README.md)** - Perfect AI client integration
+3. **[Claude Code + Kimi K2 Integration Tutorial](./examples/claude-code/claude-code-kimi-k2.md)** - If Claude Code's barrier is too high, then integrate with Kimi domestic LLM!
+4. **[AnythingLLM Complete Guide](./examples/anythingLLM/readme.md)** - AnythingLLM is an all-in-one multimodal AI client that supports workflow definition, multiple LLMs, and plugin extensions.
 
 > 🎯 **Tip**: Click the links above to view detailed step-by-step tutorials for quick setup of various integration solutions!
 >
@@ -725,38 +751,13 @@ Use xiaohongshu-mcp's video publishing feature.
 
 ## 4. RedNote MCP Community Group
 
-Since the project has just started, there will be many issues. Let's create a group to discuss problems together and contribute to the open source project. ~~Scan my WeChat QR code to join the technical discussion group~~.
+**Important: Before asking questions in the group, please make sure to read the README documentation thoroughly and check Issues first.**
 
-Due to too many people adding WeChat, WeChat banned my account for being "in an unsafe network environment." (Not sure if it's because of too many people, possibly triggering WeChat's telecom fraud safety detection. Tried: 1. Real-name verification; 2. Bank card binding; 3. Manual appeal; none worked.)
+<!-- Two-column layout: Feishu Group 3 | WeChat Group 10 -->
 
-Switched to Feishu group, scan QR code to join directly
-
-<details>
-<summary>【Feishu Group 1】Full</summary>
-
-![1757903591605_副本](https://github.com/user-attachments/assets/63ad53b9-6e5d-4117-ba61-90a223494501)
-
-</details>
-
-<details>
-  <summary>【WeChat Group 1】Full </summary>
-
-  <img src="https://github.com/user-attachments/assets/34c51c3a-d5fd-4086-9d37-a5a5284264c9" alt="WechatIMG119" width="300">
-
-</details>
-
-<details>
-  <summary>【WeChat Group 2】Full </summary>
-
-  <img src="https://github.com/user-attachments/assets/d2c0340c-33e7-4d19-a9f5-cd581b63bd56" alt="WechatIMG119" width="300">
-
-</details>
-
-<!-- Two-column layout: Feishu Group 2 | WeChat Group 3 -->
-
-| 【Feishu Group 2】: Scan to join                                                                                          | 【WeChat Group 3】: Scan to join                                                                                           |
-| ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| <img src="https://github.com/user-attachments/assets/ca1f5d6e-b1bf-4c15-9975-ff75f339ec9b" alt="qrcode_2qun" width="300"> | <img src="https://github.com/user-attachments/assets/7665056d-be56-4bf3-a9f3-77f967079929" alt="WechatIMG119" width="300"> |
+| 【Feishu Group 3】: Scan to join                                                                                           | 【WeChat Group 10】: Scan to join                                                                                           |
+| -------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| <img src="https://github.com/user-attachments/assets/9a0ec41a-cb65-4f4e-a0f7-31658a49512d" alt="qrcode_2qun" width="300"> | <img src="https://github.com/user-attachments/assets/a5f8fc69-e37a-4404-a611-4a601ba0b42f" alt="WechatIMG119" width="300"> |
 
 ## 🙏 Thanks to Contributors ✨
 
@@ -774,6 +775,21 @@ Thanks to all friends who have contributed to this project! (In no particular or
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/DTDucas"><img src="https://avatars.githubusercontent.com/u/105262836?v=4?s=100" width="100px;" alt="Duong Tran"/><br /><sub><b>Duong Tran</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=DTDucas" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/Angiin"><img src="https://avatars.githubusercontent.com/u/17389304?v=4?s=100" width="100px;" alt="Angiin"/><br /><sub><b>Angiin</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=Angiin" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/muhenan"><img src="https://avatars.githubusercontent.com/u/43441941?v=4?s=100" width="100px;" alt="Henan Mu"/><br /><sub><b>Henan Mu</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=muhenan" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/chengazhen"><img src="https://avatars.githubusercontent.com/u/52627267?v=4?s=100" width="100px;" alt="Journey"/><br /><sub><b>Journey</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=chengazhen" title="Code">💻</a></td>
+    </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/eveyuyi"><img src="https://avatars.githubusercontent.com/u/69026872?v=4?s=100" width="100px;" alt="Eve Yu"/><br /><sub><b>Eve Yu</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=eveyuyi" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/CooperGuo"><img src="https://avatars.githubusercontent.com/u/183056602?v=4?s=100" width="100px;" alt="CooperGuo"/><br /><sub><b>CooperGuo</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=CooperGuo" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://biboyqg.github.io/"><img src="https://avatars.githubusercontent.com/u/125724218?v=4?s=100" width="100px;" alt="Banghao Chi"/><br /><sub><b>Banghao Chi</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=BiboyQG" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/varz1"><img src="https://avatars.githubusercontent.com/u/60377372?v=4?s=100" width="100px;" alt="varz1"/><br /><sub><b>varz1</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=varz1" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://google.meloguan.site"><img src="https://avatars.githubusercontent.com/u/62586556?v=4?s=100" width="100px;" alt="Melo Y Guan"/><br /><sub><b>Melo Y Guan</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=Meloyg" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/lmxdawn"><img src="https://avatars.githubusercontent.com/u/21293193?v=4?s=100" width="100px;" alt="lmxdawn"/><br /><sub><b>lmxdawn</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=lmxdawn" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/haikow"><img src="https://avatars.githubusercontent.com/u/22428382?v=4?s=100" width="100px;" alt="haikow"/><br /><sub><b>haikow</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=haikow" title="Code">💻</a></td>
+    </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://carlo-blog.aiju.fun/"><img src="https://avatars.githubusercontent.com/u/18513362?v=4?s=100" width="100px;" alt="Carlo"/><br /><sub><b>Carlo</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=a67793581" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/hrz394943230"><img src="https://avatars.githubusercontent.com/u/28583005?v=4?s=100" width="100px;" alt="hrz"/><br /><sub><b>hrz</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=hrz394943230" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/ctrlz526"><img src="https://avatars.githubusercontent.com/u/143257420?v=4?s=100" width="100px;" alt="Ctrlz"/><br /><sub><b>Ctrlz</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=ctrlz526" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>

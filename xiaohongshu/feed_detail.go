@@ -9,6 +9,8 @@ import (
 	"github.com/go-rod/rod"
 	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/xiaohongshu-mcp/errors"
+	"github.com/sirupsen/logrus"
+	"github.com/xpzouying/xiaohongshu-mcp/errors"
 )
 
 // FeedDetailAction 表示 Feed 详情页动作
@@ -27,6 +29,8 @@ func (f *FeedDetailAction) GetFeedDetail(ctx context.Context, feedID, xsecToken 
 
 	// 构建详情页 URL
 	url := makeFeedDetailURL(feedID, xsecToken)
+
+	logrus.Infof("打开 feed 详情页: %s", url)
 
 	logrus.Infof("打开 feed 详情页: %s", url)
 
@@ -401,14 +405,23 @@ func (f *FeedDetailAction) GetFeedDetail(ctx context.Context, feedID, xsecToken 
 		    window.__INITIAL_STATE__.note.noteDetailMap) {
 			const noteDetailMap = window.__INITIAL_STATE__.note.noteDetailMap;
 			return JSON.stringify(noteDetailMap);
+		if (window.__INITIAL_STATE__ &&
+		    window.__INITIAL_STATE__.note &&
+		    window.__INITIAL_STATE__.note.noteDetailMap) {
+			const noteDetailMap = window.__INITIAL_STATE__.note.noteDetailMap;
+			return JSON.stringify(noteDetailMap);
 		}
 		return "";
 	}`).String()
 
 	if result == "" {
 		return nil, errors.ErrNoFeedDetail
+		return nil, errors.ErrNoFeedDetail
 	}
 
+	var noteDetailMap map[string]struct {
+		Note     FeedDetail  `json:"note"`
+		Comments CommentList `json:"comments"`
 	var noteDetailMap map[string]struct {
 		Note     FeedDetail  `json:"note"`
 		Comments CommentList `json:"comments"`
@@ -416,8 +429,11 @@ func (f *FeedDetailAction) GetFeedDetail(ctx context.Context, feedID, xsecToken 
 
 	if err := json.Unmarshal([]byte(result), &noteDetailMap); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal noteDetailMap: %w", err)
+	if err := json.Unmarshal([]byte(result), &noteDetailMap); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal noteDetailMap: %w", err)
 	}
 
+	noteDetail, exists := noteDetailMap[feedID]
 	noteDetail, exists := noteDetailMap[feedID]
 	if !exists {
 		return nil, fmt.Errorf("feed %s not found in noteDetailMap", feedID)
