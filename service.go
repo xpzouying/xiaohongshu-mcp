@@ -338,7 +338,7 @@ func (s *XiaohongshuService) GetFeedDetail(ctx context.Context, feedID, xsecToke
 	// 创建 Feed 详情 action
 	action := xiaohongshu.NewFeedDetailAction(page)
 
-	// 閼惧嘲褰 Feed 鐠囷附鍎
+	// 获取 Feed 详情
 	result, err := action.GetFeedDetail(ctx, feedID, xsecToken, loadAllComments)
 	if err != nil {
 		return nil, err
