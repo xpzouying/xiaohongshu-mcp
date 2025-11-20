@@ -11,8 +11,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/xiaohongshu-mcp/cookies"
 	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
-
-	"github.com/sirupsen/logrus"
 )
 
 // MCP 工具处理函数
