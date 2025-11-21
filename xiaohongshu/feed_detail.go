@@ -35,8 +35,7 @@ func (f *FeedDetailAction) GetFeedDetail(ctx context.Context, feedID, xsecToken 
 	page.MustWaitDOMStable()
 	time.Sleep(1 * time.Second)
 
-	// === 新增：提前检测「笔记暂时无法浏览」或类似不可访问页面 ===
-	// 2025年11月实测，小红书有多种不可访问提示，以下是目前最常见的几种文案和结构
+	// === 检测「笔记暂时无法浏览」或类似不可访问页面 ===
 	unavailableResult := page.MustEval(`() => {
 		const wrapper = document.querySelector('.access-wrapper, .error-wrapper, .not-found-wrapper, .blocked-wrapper');
 		if (!wrapper) return null;
@@ -84,6 +83,7 @@ func (f *FeedDetailAction) GetFeedDetail(ctx context.Context, feedID, xsecToken 
 		}
 	}
 
+	// === 加载全部评论（简化版本）===
 	if loadAllComments {
 		scrollAllCommentsJS := `() => {
 		const INTERVAL_MS = 900;
@@ -149,70 +149,33 @@ func (f *FeedDetailAction) GetFeedDetail(ctx context.Context, feedID, xsecToken 
 			}
 		};
 		
-		// 点击所有"更多"按钮 - 使用多种策略确保不遗漏
+		// 简化的点击"更多"按钮函数 - 只使用 .show-more 选择器
 		const clickShowMoreButtons = () => {
-			// 尝试多个可能的选择器
-			const selectors = [
-				'.show-more',
-				'.show-more-btn',
-				'[class*="show-more"]',
-				'[class*="showMore"]',
-				'button:has-text("更多")',
-				'span:has-text("更多")',
-				'div:has-text("更多")'
-			];
-			
-			const clickedElements = new Set();
 			let clickedCount = 0;
 			
-			selectors.forEach((selector) => {
+			const elements = document.querySelectorAll('.show-more');
+			
+			elements.forEach((el) => {
 				try {
-					const elements = document.querySelectorAll(selector);
-					elements.forEach((el) => {
-						// 避免重复点击同一个元素
-						if (clickedElements.has(el)) return;
-						
-						// 检查元素文本是否包含"更多"或者是否有相关class
-						const text = el.textContent || '';
-						const className = el.className || '';
-						const shouldClick = text.includes('更多') || 
-						                   className.includes('show-more') || 
-						                   className.includes('showMore');
-						
-						if (!shouldClick) return;
-						
-						// 检查元素是否可见（放宽条件，不要求完全在视口内）
-						const rect = el.getBoundingClientRect();
-						const style = window.getComputedStyle(el);
-						const isVisible = (
-							rect.height > 0 &&
-							rect.width > 0 &&
-							style.display !== 'none' &&
-							style.visibility !== 'hidden' &&
-							style.opacity !== '0' &&
-							rect.top < window.innerHeight + 500 && // 允许元素在视口下方500px内
-							rect.bottom > -500 // 允许元素在视口上方500px内
-						);
-						
-						if (isVisible) {
-							try {
-								// 尝试多种点击方式
-								el.click();
-								
-								// 如果是嵌套元素，也尝试点击父元素
-								if (el.parentElement && el.parentElement.classList.contains('show-more')) {
-									el.parentElement.click();
-								}
-								
-								clickedElements.add(el);
-								clickedCount++;
-							} catch (err) {
-								console.debug('点击失败', err);
-							}
-						}
-					});
+					// 检查元素是否可见
+					const rect = el.getBoundingClientRect();
+					const style = window.getComputedStyle(el);
+					const isVisible = (
+						rect.height > 0 &&
+						rect.width > 0 &&
+						style.display !== 'none' &&
+						style.visibility !== 'hidden' &&
+						style.opacity !== '0' &&
+						rect.top < window.innerHeight + 500 && // 允许元素在视口下方500px内
+						rect.bottom > -500 // 允许元素在视口上方500px内
+					);
+					
+					if (isVisible) {
+						el.click();
+						clickedCount++;
+					}
 				} catch (err) {
-					console.debug('选择器错误: ' + selector, err);
+					console.debug('点击失败', err);
 				}
 			});
 			
@@ -293,6 +256,7 @@ func (f *FeedDetailAction) GetFeedDetail(ctx context.Context, feedID, xsecToken 
 				dispatchWheel(root, applied);
 			}
 		};
+		
 		return (async () => {
 			let lastCount = 0;
 			let stagnantChecks = 0;
@@ -395,6 +359,7 @@ func (f *FeedDetailAction) GetFeedDetail(ctx context.Context, feedID, xsecToken 
 		}
 	}
 
+	// === 提取笔记详情数据 ===
 	result := page.MustEval(`() => {
 		if (window.__INITIAL_STATE__ &&
 		    window.__INITIAL_STATE__.note &&
