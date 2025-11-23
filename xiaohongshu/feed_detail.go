@@ -35,6 +35,56 @@ func (f *FeedDetailAction) GetFeedDetail(ctx context.Context, feedID, xsecToken 
 	page.MustWaitDOMStable()
 	time.Sleep(1 * time.Second)
 
+	// === 检测「笔记暂时无法浏览」或类似不可访问页面 ===
+	unavailableResult := page.MustEval(`() => {
+		const wrapper = document.querySelector('.access-wrapper, .error-wrapper, .not-found-wrapper, .blocked-wrapper');
+		if (!wrapper) return null;
+
+		const text = wrapper.textContent || '';
+		const keywords = [
+			'当前笔记暂时无法浏览',
+			'该内容因违规已被删除',
+			'该笔记已被删除',
+			'内容不存在',
+			'笔记不存在',
+			'已失效',
+			'私密笔记',
+			'仅作者可见',
+			'因用户设置，你无法查看',
+			'因违规无法查看',
+			'这是一片荒地点击评论'
+		];
+
+		for (const kw of keywords) {
+			if (text.includes(kw)) {
+				return kw.trim();
+			}
+		}
+		return null;
+	}`)
+
+	// The result is a gson.JSON object. We need to get its raw JSON representation to check for "null".
+	rawJSON, err := unavailableResult.MarshalJSON()
+	if err != nil {
+		logrus.Errorf("无法解析页面状态检查的结果: %v", err)
+		return nil, fmt.Errorf("无法解析页面状态检查的结果: %w", err)
+	}
+
+	if string(rawJSON) != "null" {
+		var reason string
+		// JS 返回的字符串会被 JSON 编码，所以需要 Unmarshal
+		if err := json.Unmarshal(rawJSON, &reason); err == nil {
+			logrus.Warnf("笔记不可访问: %s", reason)
+			return nil, fmt.Errorf("笔记不可访问: %s", reason)
+		} else {
+			// 如果解析失败，直接使用原始值
+			rawReason := string(rawJSON)
+			logrus.Warnf("笔记不可访问，且无法解析原因: %s", rawReason)
+			return nil, fmt.Errorf("笔记不可访问，无法解析原因: %s", rawReason)
+		}
+	}
+
+	// === 加载全部评论（简化版本）===
 	if loadAllComments {
 		scrollAllCommentsJS := `() => {
 		const INTERVAL_MS = 900;
@@ -100,70 +150,33 @@ func (f *FeedDetailAction) GetFeedDetail(ctx context.Context, feedID, xsecToken 
 			}
 		};
 		
-		// 点击所有"更多"按钮 - 使用多种策略确保不遗漏
+		// 简化的点击"更多"按钮函数 - 只使用 .show-more 选择器
 		const clickShowMoreButtons = () => {
-			// 尝试多个可能的选择器
-			const selectors = [
-				'.show-more',
-				'.show-more-btn',
-				'[class*="show-more"]',
-				'[class*="showMore"]',
-				'button:has-text("更多")',
-				'span:has-text("更多")',
-				'div:has-text("更多")'
-			];
-			
-			const clickedElements = new Set();
 			let clickedCount = 0;
 			
-			selectors.forEach((selector) => {
+			const elements = document.querySelectorAll('.show-more');
+			
+			elements.forEach((el) => {
 				try {
-					const elements = document.querySelectorAll(selector);
-					elements.forEach((el) => {
-						// 避免重复点击同一个元素
-						if (clickedElements.has(el)) return;
-						
-						// 检查元素文本是否包含"更多"或者是否有相关class
-						const text = el.textContent || '';
-						const className = el.className || '';
-						const shouldClick = text.includes('更多') || 
-						                   className.includes('show-more') || 
-						                   className.includes('showMore');
-						
-						if (!shouldClick) return;
-						
-						// 检查元素是否可见（放宽条件，不要求完全在视口内）
-						const rect = el.getBoundingClientRect();
-						const style = window.getComputedStyle(el);
-						const isVisible = (
-							rect.height > 0 &&
-							rect.width > 0 &&
-							style.display !== 'none' &&
-							style.visibility !== 'hidden' &&
-							style.opacity !== '0' &&
-							rect.top < window.innerHeight + 500 && // 允许元素在视口下方500px内
-							rect.bottom > -500 // 允许元素在视口上方500px内
-						);
-						
-						if (isVisible) {
-							try {
-								// 尝试多种点击方式
-								el.click();
-								
-								// 如果是嵌套元素，也尝试点击父元素
-								if (el.parentElement && el.parentElement.classList.contains('show-more')) {
-									el.parentElement.click();
-								}
-								
-								clickedElements.add(el);
-								clickedCount++;
-							} catch (err) {
-								console.debug('点击失败', err);
-							}
-						}
-					});
+					// 检查元素是否可见
+					const rect = el.getBoundingClientRect();
+					const style = window.getComputedStyle(el);
+					const isVisible = (
+						rect.height > 0 &&
+						rect.width > 0 &&
+						style.display !== 'none' &&
+						style.visibility !== 'hidden' &&
+						style.opacity !== '0' &&
+						rect.top < window.innerHeight + 500 && // 允许元素在视口下方500px内
+						rect.bottom > -500 // 允许元素在视口上方500px内
+					);
+					
+					if (isVisible) {
+						el.click();
+						clickedCount++;
+					}
 				} catch (err) {
-					console.debug('选择器错误: ' + selector, err);
+					console.debug('点击失败', err);
 				}
 			});
 			
@@ -244,6 +257,7 @@ func (f *FeedDetailAction) GetFeedDetail(ctx context.Context, feedID, xsecToken 
 				dispatchWheel(root, applied);
 			}
 		};
+		
 		return (async () => {
 			let lastCount = 0;
 			let stagnantChecks = 0;
@@ -346,6 +360,7 @@ func (f *FeedDetailAction) GetFeedDetail(ctx context.Context, feedID, xsecToken 
 		}
 	}
 
+	// === 提取笔记详情数据 ===
 	result := page.MustEval(`() => {
 		if (window.__INITIAL_STATE__ &&
 		    window.__INITIAL_STATE__.note &&
