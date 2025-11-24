@@ -34,10 +34,11 @@ type MCPContent struct {
 	Data     string `json:"data"`
 }
 
-// FeedDetailRequest Feed详情请求
+// FeedDetailRequest Feed详情页请求
 type FeedDetailRequest struct {
-	FeedID    string `json:"feed_id" binding:"required"`
-	XsecToken string `json:"xsec_token" binding:"required"`
+	FeedID          string `json:"feed_id" binding:"required"`
+	XsecToken       string `json:"xsec_token" binding:"required"`
+	LoadAllComments bool   `json:"load_all_comments,omitempty"`
 }
 
 type SearchFeedsRequest struct {
