@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/rand"
+	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/go-rod/rod"
@@ -11,6 +14,28 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/xiaohongshu-mcp/errors"
 )
+
+// CommentLoadConfig 评论加载配置
+type CommentLoadConfig struct {
+	// 是否点击"更多回复"按钮
+	ClickMoreReplies bool
+	// 回复数量阈值，超过这个数量的"更多"按钮将被跳过（0表示不跳过任何）
+	MaxRepliesThreshold int
+	// 最大加载评论数（comment-item数量），0表示加载所有
+	MaxCommentItems int
+	// 滚动速度等级: slow(慢速), normal(正常), fast(快速)
+	ScrollSpeed string
+}
+
+// DefaultCommentLoadConfig 默认配置
+func DefaultCommentLoadConfig() CommentLoadConfig {
+	return CommentLoadConfig{
+		ClickMoreReplies:    false, // 默认不点击"更多回复"
+		MaxRepliesThreshold: 10,    // 默认超过10条回复就跳过
+		MaxCommentItems:     0,     // 默认加载所有评论
+		ScrollSpeed:         "normal",
+	}
+}
 
 // FeedDetailAction 表示 Feed 详情页动作
 type FeedDetailAction struct {
@@ -23,12 +48,19 @@ func NewFeedDetailAction(page *rod.Page) *FeedDetailAction {
 }
 
 // GetFeedDetail 获取 Feed 详情页数据
-func (f *FeedDetailAction) GetFeedDetail(ctx context.Context, feedID, xsecToken string, loadAllComments bool) (*FeedDetailResponse, error) {
-	page := f.page.Context(ctx).Timeout(5 * time.Minute)
+func (f *FeedDetailAction) GetFeedDetail(ctx context.Context, feedID, xsecToken string, loadAllComments bool, config CommentLoadConfig) (*FeedDetailResponse, error) {
+	return f.GetFeedDetailWithConfig(ctx, feedID, xsecToken, loadAllComments, config)
+}
+
+// GetFeedDetailWithConfig 获取 Feed 详情页数据（带配置）
+func (f *FeedDetailAction) GetFeedDetailWithConfig(ctx context.Context, feedID, xsecToken string, loadAllComments bool, config CommentLoadConfig) (*FeedDetailResponse, error) {
+	page := f.page.Context(ctx).Timeout(10 * time.Minute)
 
 	// 构建详情页 URL
 	url := makeFeedDetailURL(feedID, xsecToken)
 	logrus.Infof("打开 feed 详情页: %s", url)
+	logrus.Infof("配置: 点击更多=%v, 回复阈值=%d, 最大评论数=%d, 滚动速度=%s",
+		config.ClickMoreReplies, config.MaxRepliesThreshold, config.MaxCommentItems, config.ScrollSpeed)
 
 	// 导航到详情页
 	page.MustNavigate(url)
@@ -42,7 +74,7 @@ func (f *FeedDetailAction) GetFeedDetail(ctx context.Context, feedID, xsecToken 
 
 	// 加载全部评论
 	if loadAllComments {
-		if err := f.loadAllComments(page); err != nil {
+		if err := f.loadAllCommentsWithConfig(page, config); err != nil {
 			logrus.Warnf("加载全部评论失败: %v", err)
 		}
 	}
@@ -99,23 +131,28 @@ func checkPageAccessible(page *rod.Page) error {
 	return nil
 }
 
-// loadAllComments 加载所有评论
-func (f *FeedDetailAction) loadAllComments(page *rod.Page) error {
+// loadAllCommentsWithConfig 加载所有评论（带配置）
+func (f *FeedDetailAction) loadAllCommentsWithConfig(page *rod.Page, config CommentLoadConfig) error {
+	maxAttempts := 500
+	if config.MaxCommentItems > 0 {
+		// 如果设置了最大评论数，减少尝试次数
+		maxAttempts = config.MaxCommentItems * 3
+	}
+
 	const (
-		maxAttempts          = 500
-		scrollInterval       = 600 * time.Millisecond
-		clickMoreInterval    = 1  // 每次滚动都检查"更多"按钮
-		stagnantLimit        = 20 // 增加停滞容忍度
-		noScrollChangeLimit  = 15 // 增加滚动停滞容忍度
-		minScrollDelta       = 10 // 最小有效滚动距离
-		aggressiveClickEvery = 5  // 每5次尝试进行一次激进点击
+		stagnantLimit       = 20
+		noScrollChangeLimit = 15
+		minScrollDelta      = 10
 	)
 
-	logrus.Info("开始加载所有评论...")
+	// 获取滚动间隔（根据速度）
+	scrollInterval := getScrollInterval(config.ScrollSpeed)
+
+	logrus.Info("开始加载评论...")
 
 	// 先滚动到评论区
 	scrollToCommentsArea(page)
-	time.Sleep(1 * time.Second)
+	humanDelay()
 
 	var (
 		lastCount           = 0
@@ -123,6 +160,7 @@ func (f *FeedDetailAction) loadAllComments(page *rod.Page) error {
 		stagnantChecks      = 0
 		noScrollChangeCount = 0
 		totalClickedButtons = 0
+		skippedButtons      = 0
 		attempt             = 0
 	)
 
@@ -132,36 +170,42 @@ func (f *FeedDetailAction) loadAllComments(page *rod.Page) error {
 		// === 1. 检查是否到达底部 ===
 		if checkEndContainer(page) {
 			logrus.Infof("✓ 检测到 'THE END' 元素，已滑动到底部")
-			// 到底部后再做最后一轮点击
-			finalClicked := clickShowMoreButtons(page)
-			totalClickedButtons += finalClicked
-			if finalClicked > 0 {
-				logrus.Infof("底部最后点击了 %d 个按钮", finalClicked)
-				time.Sleep(1 * time.Second)
-			}
+			humanDelay()
 
 			currentCount := getCommentCount(page)
-			logrus.Infof("✓ 加载完成: %d 条评论, 尝试次数: %d, 点击按钮: %d",
-				currentCount, attempt+1, totalClickedButtons)
+			logrus.Infof("✓ 加载完成: %d 条评论, 尝试次数: %d, 点击: %d, 跳过: %d",
+				currentCount, attempt+1, totalClickedButtons, skippedButtons)
 			return nil
 		}
 
-		// === 2. 每次都点击"更多"按钮 ===
-		if attempt%clickMoreInterval == 0 {
-			clicked := clickShowMoreButtons(page)
-			if clicked > 0 {
-				totalClickedButtons += clicked
-				logrus.Infof("点击了 %d 个'更多'按钮，累计: %d", clicked, totalClickedButtons)
-				time.Sleep(500 * time.Millisecond)
+		// === 2. 获取当前评论数 ===
+		currentCount := getCommentCount(page)
 
-				// 多轮检查
-				for round := 0; round < 2; round++ {
-					time.Sleep(300 * time.Millisecond)
-					clicked2 := clickShowMoreButtons(page)
-					if clicked2 > 0 {
+		// === 3. 点击"更多"按钮（人性化：每隔几次尝试才点击一次） ===
+		if config.ClickMoreReplies && attempt%3 == 0 {
+			clicked, skipped := clickShowMoreButtonsSmart(page, config.MaxRepliesThreshold)
+			if clicked > 0 || skipped > 0 {
+				totalClickedButtons += clicked
+				skippedButtons += skipped
+				logrus.Infof("点击'更多': %d 个, 跳过: %d 个, 累计点击: %d, 累计跳过: %d",
+					clicked, skipped, totalClickedButtons, skippedButtons)
+
+				// 点击后等待更长时间，模拟人阅读新内容（800-1500ms）
+				readTime := time.Duration(800+rand.Intn(700)) * time.Millisecond
+				time.Sleep(readTime)
+
+				// 多轮检查（但减少轮数，避免太频繁）
+				for round := 0; round < 1; round++ {
+					// 等待一段时间再检查（模拟人继续浏览）
+					time.Sleep(time.Duration(500+rand.Intn(500)) * time.Millisecond)
+					clicked2, skipped2 := clickShowMoreButtonsSmart(page, config.MaxRepliesThreshold)
+					if clicked2 > 0 || skipped2 > 0 {
 						totalClickedButtons += clicked2
-						logrus.Infof("第 %d 轮再次点击了 %d 个按钮", round+2, clicked2)
-						time.Sleep(500 * time.Millisecond)
+						skippedButtons += skipped2
+						logrus.Infof("第 %d 轮: 点击 %d, 跳过 %d", round+2, clicked2, skipped2)
+						// 再次等待阅读时间
+						readTime2 := time.Duration(600+rand.Intn(600)) * time.Millisecond
+						time.Sleep(readTime2)
 					} else {
 						break
 					}
@@ -169,101 +213,256 @@ func (f *FeedDetailAction) loadAllComments(page *rod.Page) error {
 			}
 		}
 
-		// === 4. 获取当前评论数量 ===
-		currentCount := getCommentCount(page)
+		// === 4. 获取评论数量 ===
 		totalCount := getTotalCommentCount(page)
-
 		logrus.Debugf("当前评论: %d, 目标: %d", currentCount, totalCount)
-
-		// 检查是否已加载所有评论（但继续滚动到底部确认）
-		if totalCount > 0 && currentCount >= totalCount {
-			logrus.Infof("评论数量已达标: %d/%d，继续滚动到底部确认...", currentCount, totalCount)
-			// 不要立即返回，继续滚动到底部
-		}
 
 		// === 5. 检查评论数量变化 ===
 		if currentCount != lastCount {
-			logrus.Infof("✓ 评论数量增加: %d -> %d (+%d)", lastCount, currentCount, currentCount-lastCount)
+			logrus.Infof("✓ 评论增加: %d -> %d (+%d)", lastCount, currentCount, currentCount-lastCount)
 			lastCount = currentCount
-			stagnantChecks = 0 // 重置停滞计数
+			stagnantChecks = 0
 		} else {
 			stagnantChecks++
 			if stagnantChecks%5 == 0 {
-				logrus.Debugf("评论数量停滞 %d 次", stagnantChecks)
+				logrus.Debugf("评论停滞 %d 次", stagnantChecks)
 			}
 		}
 
-		// 只有在严重停滞时才考虑退出
+		// === 5.1 检查是否已达到目标评论数（在评论数停滞时）===
+		if config.MaxCommentItems > 0 && currentCount >= config.MaxCommentItems {
+			// 达到目标且停滞2次，确认加载完成
+			if stagnantChecks >= 2 {
+				logrus.Infof("✓ 已达到目标评论数: %d/%d (停滞%d次), 停止加载",
+					currentCount, config.MaxCommentItems, stagnantChecks)
+				return nil
+			}
+			// 刚达到目标，继续滚动确认
+			if stagnantChecks > 0 {
+				logrus.Debugf("已达目标数 %d/%d，再确认 %d 次...",
+					currentCount, config.MaxCommentItems, 2-stagnantChecks)
+			}
+		}
+
+		// === 6. 停滞处理 ===
 		if stagnantChecks >= stagnantLimit {
-			logrus.Infof("评论数量长期停滞，尝试最后冲刺...")
-			// 最后冲刺：大幅滚动 + 点击
-			finalPush(page)
-			finalClicked := clickShowMoreButtons(page)
-			totalClickedButtons += finalClicked
+			logrus.Infof("评论停滞，尝试最后冲刺...")
+			finalPush(page, config.ScrollSpeed)
 
 			if checkEndContainer(page) {
-				logrus.Infof("✓ 最终到达底部，评论数: %d, 点击按钮: %d",
-					currentCount, totalClickedButtons)
+				logrus.Infof("✓ 到达底部，评论数: %d", currentCount)
 				return nil
 			}
 
-			// 还没到底部，继续
-			logrus.Infof("未到底部，重置停滞计数，继续加载...")
+			logrus.Infof("未到底部，重置停滞计数")
 			stagnantChecks = 0
 		}
 
-		// === 6. 执行滚动 ===
-		_, scrollDelta, currentScrollTop := scrollWithMouse(page)
+		// === 7. 执行人性化滚动 ===
+		// 先滚动到最后一个评论（触发懒加载的关键！）
+		if currentCount > 0 {
+			scrollToLastComment(page)
+			time.Sleep(time.Duration(300+rand.Intn(200)) * time.Millisecond)
+		}
+		
+		_, scrollDelta, currentScrollTop := humanScroll(page, config.ScrollSpeed)
 
-		// === 7. 检查滚动变化 ===
+		// === 8. 检查滚动变化 ===
 		if scrollDelta < minScrollDelta || currentScrollTop == lastScrollTop {
 			noScrollChangeCount++
 			if noScrollChangeCount%5 == 0 {
-				logrus.Debugf("滚动停滞 %d 次，尝试大幅滚动", noScrollChangeCount)
-				// 尝试更大幅度滚动
-				largeScroll(page)
-				time.Sleep(300 * time.Millisecond)
+				logrus.Debugf("滚动停滞 %d 次", noScrollChangeCount)
+				largeScroll(page, config.ScrollSpeed)
+				humanDelay()
 			}
 		} else {
 			noScrollChangeCount = 0
 			lastScrollTop = currentScrollTop
 		}
 
-		// 只有严重滚动停滞时才考虑结束
+		// === 9. 滚动停滞处理 ===
 		if noScrollChangeCount >= noScrollChangeLimit {
-			logrus.Infof("滚动严重停滞，尝试最后冲刺...")
-			finalPush(page)
+			logrus.Infof("滚动停滞，最后冲刺...")
+			finalPush(page, config.ScrollSpeed)
 
 			if checkEndContainer(page) {
-				currentCount := getCommentCount(page)
-				logrus.Infof("✓ 最终到达底部，评论数: %d, 点击按钮: %d",
-					currentCount, totalClickedButtons)
+				logrus.Infof("✓ 到达底部，评论数: %d", currentCount)
 				return nil
 			}
 
-			// 重置计数继续
-			logrus.Infof("未到底部，重置滚动计数，继续加载...")
+			logrus.Infof("重置滚动计数")
 			noScrollChangeCount = 0
 			lastScrollTop = 0
 		}
 
-		// === 8. 等待内容加载 ===
+		// === 10. 等待内容加载 ===
 		time.Sleep(scrollInterval)
 	}
 
-	// === 9. 达到最大尝试次数，做最后的冲刺 ===
-	logrus.Infof("达到最大尝试次数 %d，执行最后冲刺...", maxAttempts)
-	finalPush(page)
-	finalClicked := clickShowMoreButtons(page)
-	totalClickedButtons += finalClicked
+	// === 11. 最后冲刺 ===
+	logrus.Infof("达到最大尝试次数，最后冲刺...")
+	finalPush(page, config.ScrollSpeed)
 
 	currentCount := getCommentCount(page)
 	hasEnd := checkEndContainer(page)
 
-	logrus.Infof("✓ 加载结束: %d 条评论, 总点击按钮: %d, 到达底部: %v",
-		currentCount, totalClickedButtons, hasEnd)
+	logrus.Infof("✓ 加载结束: %d 条评论, 点击: %d, 跳过: %d, 到达底部: %v",
+		currentCount, totalClickedButtons, skippedButtons, hasEnd)
 
 	return nil
+}
+
+// getScrollInterval 根据速度获取滚动间隔
+func getScrollInterval(speed string) time.Duration {
+	switch speed {
+	case "slow":
+		return time.Duration(1200+rand.Intn(300)) * time.Millisecond
+	case "fast":
+		return time.Duration(300+rand.Intn(100)) * time.Millisecond
+	default: // normal
+		return time.Duration(600+rand.Intn(200)) * time.Millisecond
+	}
+}
+
+// humanDelay 人性化延迟
+func humanDelay() {
+	delay := time.Duration(300+rand.Intn(400)) * time.Millisecond
+	time.Sleep(delay)
+}
+
+// clickShowMoreButtonsSmart 智能点击"更多"按钮（根据回复数量判断，人性化操作）
+func clickShowMoreButtonsSmart(page *rod.Page, maxRepliesThreshold int) (clicked, skipped int) {
+	elements, err := page.Elements(".show-more")
+	if err != nil {
+		return 0, 0
+	}
+
+	// 正则表达式：匹配"展开 X 条回复"
+	replyCountRegex := regexp.MustCompile(`展开\s*(\d+)\s*条回复`)
+
+	// 限制每次最多点击的按钮数量（模拟人不会一次性点击太多）
+	maxClickPerRound := 3 + rand.Intn(3) // 每次3-5个
+	clickedInRound := 0
+
+	for _, el := range elements {
+		// 限制单次点击数量
+		if clickedInRound >= maxClickPerRound {
+			break
+		}
+
+		// 检查元素是否可见
+		visible, err := el.Visible()
+		if err != nil || !visible {
+			continue
+		}
+
+		// 检查是否在 DOM 中
+		box, err := el.Shape()
+		if err != nil || len(box.Quads) == 0 {
+			continue
+		}
+
+		// 获取按钮文本
+		text, err := el.Text()
+		if err != nil {
+			continue
+		}
+
+		// 判断是否需要跳过
+		shouldSkip := false
+		if maxRepliesThreshold > 0 {
+			matches := replyCountRegex.FindStringSubmatch(text)
+			if len(matches) > 1 {
+				replyCount, err := strconv.Atoi(matches[1])
+				if err == nil && replyCount > maxRepliesThreshold {
+					shouldSkip = true
+					logrus.Debugf("跳过'%s'（回复数 %d > 阈值 %d）", text, replyCount, maxRepliesThreshold)
+				}
+			}
+		}
+
+		if shouldSkip {
+			skipped++
+			continue
+		}
+
+		// === 人性化点击流程 ===
+		// 1. 先滚动到元素附近（模拟人看到按钮）
+		el.MustEval(`() => {
+			try {
+				this.scrollIntoView({behavior: 'smooth', block: 'center'});
+			} catch (e) {}
+		}`)
+
+		// 2. 等待滚动完成 + 模拟人看到按钮后的反应时间（300-800ms）
+		reactionTime := time.Duration(300+rand.Intn(500)) * time.Millisecond
+		time.Sleep(reactionTime)
+
+		// 3. 模拟鼠标移动到按钮上（悬停效果）
+		box, _ = el.Shape()
+		if len(box.Quads) > 0 {
+			// 计算按钮中心点
+			x := float64(box.Quads[0][0]+box.Quads[0][4]) / 2
+			y := float64(box.Quads[0][1]+box.Quads[0][5]) / 2
+			page.Mouse.MustMoveTo(x, y)
+			// 悬停时间（模拟人确认要点击）
+			time.Sleep(time.Duration(100+rand.Intn(200)) * time.Millisecond)
+		}
+
+		// 4. 点击元素
+		if err := el.Click(proto.InputMouseButtonLeft, 1); err == nil {
+			clicked++
+			clickedInRound++
+			logrus.Debugf("点击了'%s'", text)
+
+			// 5. 点击后的延迟（模拟人阅读新内容的时间，500-1200ms）
+			readTime := time.Duration(500+rand.Intn(700)) * time.Millisecond
+			time.Sleep(readTime)
+		}
+	}
+
+	return clicked, skipped
+}
+
+// humanScroll 人性化滚动
+func humanScroll(page *rod.Page, speed string) (bool, int, int) {
+	beforeTop := getScrollTop(page)
+	viewportHeight := page.MustEval(`() => window.innerHeight`).Int()
+
+	// 根据速度调整滚动距离
+	var scrollRatio float64
+	switch speed {
+	case "slow":
+		scrollRatio = 0.5 + rand.Float64()*0.2 // 50%-70%
+	case "fast":
+		scrollRatio = 0.9 + rand.Float64()*0.2 // 90%-110%
+	default: // normal
+		scrollRatio = 0.7 + rand.Float64()*0.2 // 70%-90%
+	}
+
+	scrollDelta := float64(viewportHeight) * scrollRatio
+	if scrollDelta < 400 {
+		scrollDelta = 400
+	}
+
+	// 添加随机波动
+	scrollDelta += float64(rand.Intn(100) - 50)
+
+	// 使用JS的 scrollBy 方法进行滚动
+	page.MustEval(`(delta) => { window.scrollBy(0, delta); }`, scrollDelta)
+
+	// 等待滚动完成
+	time.Sleep(time.Duration(100+rand.Intn(100)) * time.Millisecond)
+
+	afterTop := getScrollTop(page)
+	actualDelta := afterTop - beforeTop
+	scrolled := actualDelta > 5
+
+	if scrolled {
+		logrus.Debugf("滚动: %d -> %d (Δ%d)", beforeTop, afterTop, actualDelta)
+	}
+
+	return scrolled, actualDelta, afterTop
 }
 
 // scrollToCommentsArea 滚动到评论区
@@ -277,80 +476,59 @@ func scrollToCommentsArea(page *rod.Page) {
 	}`)
 }
 
-// finalPush 最后冲刺：大幅滚动到底部
-func finalPush(page *rod.Page) {
-	logrus.Info("执行最后冲刺滚动...")
+// scrollToLastComment 滚动到最后一个评论（触发懒加载的关键）
+func scrollToLastComment(page *rod.Page) {
+	page.MustEval(`() => {
+		const container = document.querySelector('.comments-container');
+		if (!container) return;
+		
+		// 查找最后一个主评论
+		const comments = container.querySelectorAll('.parent-comment');
+		if (comments.length > 0) {
+			const lastComment = comments[comments.length - 1];
+			// 滚动到最后一个评论，让它出现在视口中间偏下位置
+			lastComment.scrollIntoView({behavior: 'smooth', block: 'center'});
+		}
+	}`)
+}
 
-	for i := 0; i < 20; i++ {
-		// 检查是否已经到底部
+// finalPush 最后冲刺：大幅滚动到底部
+func finalPush(page *rod.Page, speed string) {
+	logrus.Info("执行最后冲刺...")
+
+	for i := 0; i < 15; i++ {
 		if checkEndContainer(page) {
-			logrus.Debug("已到底部，停止冲刺")
 			return
 		}
 
 		beforeTop := getScrollTop(page)
+		largeScroll(page, speed)
 
-		// 大幅滚动
-		largeScroll(page)
-		time.Sleep(200 * time.Millisecond)
-
-		// 点击出现的按钮
-		clicked := clickShowMoreButtons(page)
-		if clicked > 0 {
-			time.Sleep(500 * time.Millisecond)
-		}
+		// 人性化延迟
+		time.Sleep(time.Duration(200+rand.Intn(200)) * time.Millisecond)
 
 		afterTop := getScrollTop(page)
-
-		// 如果滚动没变化，尝试JS滚动
 		if afterTop == beforeTop {
-			page.MustEval(`() => {
-				window.scrollTo(0, document.body.scrollHeight);
-			}`)
-			time.Sleep(300 * time.Millisecond)
+			page.MustEval(`() => window.scrollTo(0, document.body.scrollHeight)`)
+			time.Sleep(time.Duration(300+rand.Intn(200)) * time.Millisecond)
 		}
 	}
 }
 
 // largeScroll 大幅度滚动
-func largeScroll(page *rod.Page) {
-	// 方法1: Mouse.Scroll 大幅度滚动
-	page.Mouse.Scroll(0, 2000, 5)
-	time.Sleep(100 * time.Millisecond)
-}
-
-// scrollWithMouse 使用 Mouse 模拟滚轮滚动
-func scrollWithMouse(page *rod.Page) (bool, int, int) {
-	beforeTop := getScrollTop(page)
-
-	// 获取视口高度
-	viewportHeight := page.MustEval(`() => window.innerHeight`).Int()
-
-	// 计算滚动距离（每次滚动视口高度的 80%）
-	scrollDelta := float64(viewportHeight) * 0.8
-	if scrollDelta < 500 {
-		scrollDelta = 500
+func largeScroll(page *rod.Page, speed string) {
+	var scrollDelta float64
+	switch speed {
+	case "slow":
+		scrollDelta = 1000 + float64(rand.Intn(500))
+	case "fast":
+		scrollDelta = 3000 + float64(rand.Intn(1000))
+	default: // normal
+		scrollDelta = 2000 + float64(rand.Intn(500))
 	}
 
-	// 使用 Mouse.Scroll 模拟滚轮滚动
-	err := page.Mouse.Scroll(0, scrollDelta, 5)
-	if err != nil {
-		logrus.Warnf("鼠标滚动失败: %v", err)
-		return false, 0, beforeTop
-	}
-
-	// 等待滚动完成
-	time.Sleep(150 * time.Millisecond)
-
-	afterTop := getScrollTop(page)
-	actualDelta := afterTop - beforeTop
-	scrolled := actualDelta > 5
-
-	if scrolled {
-		logrus.Debugf("滚动: %d -> %d (Δ%d)", beforeTop, afterTop, actualDelta)
-	}
-
-	return scrolled, actualDelta, afterTop
+	page.MustEval(`(delta) => { window.scrollBy(0, delta); }`, scrollDelta)
+	time.Sleep(time.Duration(100+rand.Intn(50)) * time.Millisecond)
 }
 
 // getScrollTop 获取当前滚动位置
@@ -361,44 +539,12 @@ func getScrollTop(page *rod.Page) int {
 	return result.Int()
 }
 
-// clickShowMoreButtons 点击所有可见的"更多"按钮
-func clickShowMoreButtons(page *rod.Page) int {
-	elements, err := page.Elements(".show-more")
-	if err != nil {
-		return 0
-	}
-
-	clickedCount := 0
-
-	for _, el := range elements {
-		// 检查元素是否可见
-		visible, err := el.Visible()
-		if err != nil || !visible {
-			continue
-		}
-
-		// 检查是否在 DOM 中
-		box, err := el.Shape()
-		if err != nil || len(box.Quads) == 0 {
-			continue
-		}
-
-		// 点击元素
-		if err := el.Click(proto.InputMouseButtonLeft, 1); err == nil {
-			clickedCount++
-			time.Sleep(150 * time.Millisecond)
-		}
-	}
-
-	return clickedCount
-}
-
 // getCommentCount 获取当前评论数量
 func getCommentCount(page *rod.Page) int {
 	result := page.MustEval(`() => {
 		const container = document.querySelector('.comments-container');
 		if (!container) return 0;
-		return container.querySelectorAll('.comment-item, .comment-item-sub, .comment').length;
+		return container.querySelectorAll('.parent-comment').length;
 	}`)
 	return result.Int()
 }

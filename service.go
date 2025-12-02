@@ -322,6 +322,11 @@ func (s *XiaohongshuService) SearchFeeds(ctx context.Context, keyword string, fi
 
 // GetFeedDetail 获取Feed详情
 func (s *XiaohongshuService) GetFeedDetail(ctx context.Context, feedID, xsecToken string, loadAllComments bool) (*FeedDetailResponse, error) {
+	return s.GetFeedDetailWithConfig(ctx, feedID, xsecToken, loadAllComments, xiaohongshu.DefaultCommentLoadConfig())
+}
+
+// GetFeedDetailWithConfig 使用配置获取Feed详情
+func (s *XiaohongshuService) GetFeedDetailWithConfig(ctx context.Context, feedID, xsecToken string, loadAllComments bool, config xiaohongshu.CommentLoadConfig) (*FeedDetailResponse, error) {
 	b := newBrowser()
 	defer b.Close()
 
@@ -332,7 +337,7 @@ func (s *XiaohongshuService) GetFeedDetail(ctx context.Context, feedID, xsecToke
 	action := xiaohongshu.NewFeedDetailAction(page)
 
 	// 获取 Feed 详情
-	result, err := action.GetFeedDetail(ctx, feedID, xsecToken, loadAllComments)
+	result, err := action.GetFeedDetailWithConfig(ctx, feedID, xsecToken, loadAllComments, config)
 	if err != nil {
 		return nil, err
 	}
