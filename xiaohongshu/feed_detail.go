@@ -85,11 +85,15 @@ func (f *FeedDetailAction) GetFeedDetailWithConfig(ctx context.Context, feedID, 
 
 // checkPageAccessible 检查页面是否可访问
 func checkPageAccessible(page *rod.Page) error {
+	// 等待页面稳定，确保错误提示已加载
+	time.Sleep(500 * time.Millisecond)
+	
 	unavailableResult := page.MustEval(`() => {
 		const wrapper = document.querySelector('.access-wrapper, .error-wrapper, .not-found-wrapper, .blocked-wrapper');
 		if (!wrapper) return null;
 
-		const text = wrapper.textContent || '';
+		// 获取所有文本内容（包括子元素）
+		const text = wrapper.textContent || wrapper.innerText || '';
 		const keywords = [
 			'当前笔记暂时无法浏览',
 			'该内容因违规已被删除',
@@ -105,9 +109,15 @@ func checkPageAccessible(page *rod.Page) error {
 
 		for (const kw of keywords) {
 			if (text.includes(kw)) {
-				return kw.trim();
+				return kw;
 			}
 		}
+		
+		// 如果找到了 wrapper 但没有匹配关键词，返回完整文本用于调试
+		if (text.trim()) {
+			return '未知错误: ' + text.trim();
+		}
+		
 		return null;
 	}`)
 
