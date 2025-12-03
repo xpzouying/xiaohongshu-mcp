@@ -45,9 +45,13 @@ type FilterOption struct {
 
 // FeedDetailArgs 获取Feed详情的参数
 type FeedDetailArgs struct {
-	FeedID          string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
-	XsecToken       string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
-	LoadAllComments bool   `json:"load_all_comments,omitempty" jsonschema:"是否加载全部评论（默认false，仅返回首批评论）"`
+	FeedID              string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
+	XsecToken           string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
+	LoadAllComments     bool   `json:"load_all_comments,omitempty" jsonschema:"是否加载全部评论（默认false，仅返回首批评论）"`
+	ClickMoreReplies    bool   `json:"click_more_replies,omitempty" jsonschema:"是否点击'更多回复'按钮 (默认: false)"`
+	MaxRepliesThreshold int    `json:"max_replies_threshold,omitempty" jsonschema:"回复数量阈值，超过此数量的'更多'按钮将被跳过 (0表示不跳过任何, 默认: 10)"`
+	MaxCommentItems     int    `json:"max_comment_items,omitempty" jsonschema:"最大加载评论数（0表示加载所有, 默认: 0）"`
+	ScrollSpeed         string `json:"scroll_speed,omitempty" jsonschema:"滚动速度: 'slow'|'normal'|'fast' (默认: 'normal')"`
 }
 
 // UserProfileArgs 获取用户主页的参数
@@ -217,9 +221,13 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		},
 		withPanicRecovery("get_feed_detail", func(ctx context.Context, req *mcp.CallToolRequest, args FeedDetailArgs) (*mcp.CallToolResult, any, error) {
 			argsMap := map[string]interface{}{
-				"feed_id":           args.FeedID,
-				"xsec_token":        args.XsecToken,
-				"load_all_comments": args.LoadAllComments,
+				"feed_id":               args.FeedID,
+				"xsec_token":            args.XsecToken,
+				"load_all_comments":     args.LoadAllComments,
+				"click_more_replies":    args.ClickMoreReplies,
+				"max_replies_threshold": args.MaxRepliesThreshold,
+				"max_comment_items":     args.MaxCommentItems,
+				"scroll_speed":          args.ScrollSpeed,
 			}
 			result := appServer.handleGetFeedDetail(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
