@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/avast/retry-go/v4"
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/proto"
 	"github.com/sirupsen/logrus"
@@ -82,8 +83,24 @@ func (f *FeedDetailAction) GetFeedDetailWithConfig(ctx context.Context, feedID, 
 	logrus.Infof("配置: 点击更多=%v, 回复阈值=%d, 最大评论数=%d, 滚动速度=%s",
 		config.ClickMoreReplies, config.MaxRepliesThreshold, config.MaxCommentItems, config.ScrollSpeed)
 	
-	page.MustNavigate(url)
-	page.MustWaitDOMStable()
+	// 使用retry-go处理页面导航和DOM稳定等待
+	err := retry.Do(
+		func() error {
+			page.MustNavigate(url)
+			page.MustWaitDOMStable()
+			return nil
+		},
+		retry.Attempts(3),
+		retry.Delay(500*time.Millisecond),
+		retry.MaxJitter(1000*time.Millisecond),
+		retry.OnRetry(func(n uint, err error) {
+			logrus.Debugf("页面导航重试 #%d: %v", n, err)
+		}),
+	)
+	if err != nil {
+		logrus.Errorf("页面导航失败: %v", err)
+		return nil, err
+	}
 	sleepRandom(1000, 1000)
 	
 	if err := checkPageAccessible(page); err != nil {
@@ -384,31 +401,56 @@ func shouldSkipButton(text string, threshold int, regex *regexp.Regexp) bool {
 }
 
 func clickElementWithHumanBehavior(page *rod.Page, el *rod.Element, text string) bool {
-	// 滚动到元素
-	el.MustEval(`() => {
-		try {
-			this.scrollIntoView({behavior: 'smooth', block: 'center'});
-		} catch (e) {}
-	}`)
+	var clickSuccess bool
 	
-	sleepRandom(reactionTimeRange.min, reactionTimeRange.max)
+	// 使用retry-go进行点击操作重试
+	err := retry.Do(
+		func() error {
+			// 滚动到元素
+			el.MustEval(`() => {
+				try {
+					this.scrollIntoView({behavior: 'smooth', block: 'center'});
+				} catch (e) {}
+			}`)
+			
+			sleepRandom(reactionTimeRange.min, reactionTimeRange.max)
+			
+			// 鼠标悬停
+			if box, err := el.Shape(); err == nil && len(box.Quads) > 0 {
+				x := float64(box.Quads[0][0]+box.Quads[0][4]) / 2
+				y := float64(box.Quads[0][1]+box.Quads[0][5]) / 2
+				page.Mouse.MustMoveTo(x, y)
+				sleepRandom(hoverTimeRange.min, hoverTimeRange.max)
+			}
+			
+			// 点击
+			if err := el.Click(proto.InputMouseButtonLeft, 1); err != nil {
+				return err // 返回错误以触发重试
+			}
+			
+			// 模拟人类阅读时间
+			sleepRandom(readTimeRange.min, readTimeRange.max)
+			clickSuccess = true
+			return nil
+		},
+		retry.Attempts(3),
+		retry.Delay(100*time.Millisecond),
+		retry.MaxJitter(200*time.Millisecond),
+		retry.OnRetry(func(n uint, err error) {
+			logrus.Debugf("点击重试 #%d: %s, 错误: %v", n, text, err)
+		}),
+	)
 	
-	// 鼠标悬停
-	if box, err := el.Shape(); err == nil && len(box.Quads) > 0 {
-		x := float64(box.Quads[0][0]+box.Quads[0][4]) / 2
-		y := float64(box.Quads[0][1]+box.Quads[0][5]) / 2
-		page.Mouse.MustMoveTo(x, y)
-		sleepRandom(hoverTimeRange.min, hoverTimeRange.max)
+	if err != nil {
+		logrus.Debugf("点击失败 '%s': %v", text, err)
+		return false
 	}
 	
-	// 点击
-	if err := el.Click(proto.InputMouseButtonLeft, 1); err == nil {
+	if clickSuccess {
 		logrus.Debugf("点击了'%s'", text)
-		sleepRandom(readTimeRange.min, readTimeRange.max)
-		return true
 	}
 	
-	return false
+	return clickSuccess
 }
 
 // ========== 滚动相关 ==========
@@ -507,38 +549,130 @@ func scrollToLastComment(page *rod.Page) {
 // ========== DOM 查询 ==========
 
 func getScrollTop(page *rod.Page) int {
-	return page.MustEval(`() => {
-		return window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
-	}`).Int()
+	var result int
+	
+	// 使用retry-go来处理可能的DOM查询失败
+	err := retry.Do(
+		func() error {
+			evalResult := page.MustEval(`() => {
+				return window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+			}`)
+			
+			result = evalResult.Int()
+			return nil
+		},
+		retry.Attempts(3),
+		retry.Delay(100*time.Millisecond),
+		retry.MaxJitter(200*time.Millisecond),
+		retry.OnRetry(func(n uint, err error) {
+			logrus.Debugf("获取滚动位置重试 #%d: %v", n, err)
+		}),
+	)
+	
+	if err != nil {
+		logrus.Warnf("获取滚动位置失败: %v", err)
+		return 0 // 失败时返回0
+	}
+	
+	return result
 }
 
 func getCommentCount(page *rod.Page) int {
-	return page.MustEval(`() => {
-		const container = document.querySelector('.comments-container');
-		if (!container) return 0;
-		return container.querySelectorAll('.parent-comment').length;
-	}`).Int()
+	var result int
+	
+	// 使用retry-go来处理可能的DOM查询失败
+	err := retry.Do(
+		func() error {
+			evalResult := page.MustEval(`() => {
+				const container = document.querySelector('.comments-container');
+				if (!container) return 0;
+				return container.querySelectorAll('.parent-comment').length;
+			}`)
+			
+			result = evalResult.Int()
+			return nil
+		},
+		retry.Attempts(3),
+		retry.Delay(100*time.Millisecond),
+		retry.MaxJitter(200*time.Millisecond),
+		retry.OnRetry(func(n uint, err error) {
+			logrus.Debugf("获取评论计数重试 #%d: %v", n, err)
+		}),
+	)
+	
+	if err != nil {
+		logrus.Warnf("获取评论计数失败: %v", err)
+		return 0 // 失败时返回0
+	}
+	
+	return result
 }
 
 func getTotalCommentCount(page *rod.Page) int {
-	return page.MustEval(`() => {
-		const container = document.querySelector('.comments-container');
-		if (!container) return 0;
-		const totalEl = container.querySelector('.total');
-		if (!totalEl) return 0;
-		const text = (totalEl.textContent || '').replace(/\s+/g, '');
-		const match = text.match(/共(\d+)条评论/);
-		return match ? parseInt(match[1], 10) : 0;
-	}`).Int()
+	var result int
+	
+	// 使用retry-go来处理可能的DOM查询失败
+	err := retry.Do(
+		func() error {
+			evalResult := page.MustEval(`() => {
+				const container = document.querySelector('.comments-container');
+				if (!container) return 0;
+				const totalEl = container.querySelector('.total');
+				if (!totalEl) return 0;
+				const text = (totalEl.textContent || '').replace(/\s+/g, '');
+				const match = text.match(/共(\d+)条评论/);
+				return match ? parseInt(match[1], 10) : 0;
+			}`)
+			
+			result = evalResult.Int()
+			return nil
+		},
+		retry.Attempts(3),
+		retry.Delay(100*time.Millisecond),
+		retry.MaxJitter(200*time.Millisecond),
+		retry.OnRetry(func(n uint, err error) {
+			logrus.Debugf("获取总评论计数重试 #%d: %v", n, err)
+		}),
+	)
+	
+	if err != nil {
+		logrus.Warnf("获取总评论计数失败: %v", err)
+		return 0 // 失败时返回0
+	}
+	
+	return result
 }
 
 func checkEndContainer(page *rod.Page) bool {
-	return page.MustEval(`() => {
-		const endContainer = document.querySelector('.end-container');
-		if (!endContainer) return false;
-		const text = (endContainer.textContent || '').trim().toUpperCase();
-		return text.includes('THE END') || text.includes('THEEND');
-	}`).Bool()
+	var result bool
+	
+	// 使用retry-go来处理可能的DOM查询失败
+	err := retry.Do(
+		func() error {
+			evalResult := page.MustEval(`() => {
+				const endContainer = document.querySelector('.end-container');
+				if (!endContainer) return false;
+				const text = (endContainer.textContent || '').trim().toUpperCase();
+				return text.includes('THE END') || text.includes('THEEND');
+			}`)
+			
+			result = evalResult.Bool()
+			return nil
+		},
+		retry.Attempts(3),
+		retry.Delay(100*time.Millisecond),
+		retry.MaxJitter(200*time.Millisecond),
+		retry.OnRetry(func(n uint, err error) {
+			logrus.Debugf("检查结束容器重试 #%d: %v", n, err)
+		}),
+	)
+	
+	if err != nil {
+		logrus.Warnf("检查结束容器失败: %v", err)
+		return false // 失败时返回false
+	}
+	
+	return result
 }
 
 // ========== 页面检查 ==========
@@ -546,68 +680,111 @@ func checkEndContainer(page *rod.Page) bool {
 func checkPageAccessible(page *rod.Page) error {
 	time.Sleep(500 * time.Millisecond)
 	
-	unavailableResult := page.MustEval(`() => {
-		const wrapper = document.querySelector('.access-wrapper, .error-wrapper, .not-found-wrapper, .blocked-wrapper');
-		if (!wrapper) return null;
-		
-		const text = wrapper.textContent || wrapper.innerText || '';
-		const keywords = [
-			'当前笔记暂时无法浏览',
-			'该内容因违规已被删除',
-			'该笔记已被删除',
-			'内容不存在',
-			'笔记不存在',
-			'已失效',
-			'私密笔记',
-			'仅作者可见',
-			'因用户设置，你无法查看',
-			'因违规无法查看'
-		];
-		
-		for (const kw of keywords) {
-			if (text.includes(kw)) {
-				return kw;
+	// 使用retry-go来处理可能的DOM查询失败
+	err := retry.Do(
+		func() error {
+			result := page.MustEval(`() => {
+				const wrapper = document.querySelector('.access-wrapper, .error-wrapper, .not-found-wrapper, .blocked-wrapper');
+				if (!wrapper) return null;
+				
+				const text = wrapper.textContent || wrapper.innerText || '';
+				const keywords = [
+					'当前笔记暂时无法浏览',
+					'该内容因违规已被删除',
+					'该笔记已被删除',
+					'内容不存在',
+					'笔记不存在',
+					'已失效',
+					'私密笔记',
+					'仅作者可见',
+					'因用户设置，你无法查看',
+					'因违规无法查看'
+				];
+				
+				for (const kw of keywords) {
+					if (text.includes(kw)) {
+						return kw;
+					}
+				}
+				
+				if (text.trim()) {
+					return '未知错误: ' + text.trim();
+				}
+				return null;
+			}`)
+			
+			rawJSON, marshalErr := result.MarshalJSON()
+			if marshalErr != nil {
+				return fmt.Errorf("无法序列化页面状态检查结果: %w", marshalErr)
 			}
-		}
-		
-		if (text.trim()) {
-			return '未知错误: ' + text.trim();
-		}
-		return null;
-	}`)
+			
+			if string(rawJSON) != "null" {
+				var reason string
+				if unmarshalErr := json.Unmarshal(rawJSON, &reason); unmarshalErr == nil {
+					logrus.Warnf("笔记不可访问: %s", reason)
+					return fmt.Errorf("笔记不可访问: %s", reason)
+				}
+				
+				rawReason := string(rawJSON)
+				logrus.Warnf("笔记不可访问，且无法解析原因: %s", rawReason)
+				return fmt.Errorf("笔记不可访问，无法解析原因: %s", rawReason)
+			}
+			
+			return nil
+		},
+		retry.Attempts(3),
+		retry.Delay(200*time.Millisecond),
+		retry.MaxJitter(300*time.Millisecond),
+		retry.OnRetry(func(n uint, err error) {
+			logrus.Debugf("页面可访问性检查重试 #%d: %v", n, err)
+		}),
+	)
 	
-	rawJSON, err := unavailableResult.MarshalJSON()
-	if err != nil {
-		logrus.Errorf("无法解析页面状态检查的结果: %v", err)
-		return fmt.Errorf("无法解析页面状态检查的结果: %w", err)
+	// If the error is nil, it means no access issue was found
+	if err == nil {
+		return nil // Page is accessible
 	}
 	
-	if string(rawJSON) != "null" {
-		var reason string
-		if err := json.Unmarshal(rawJSON, &reason); err == nil {
-			logrus.Warnf("笔记不可访问: %s", reason)
-			return fmt.Errorf("笔记不可访问: %s", reason)
-		}
-		rawReason := string(rawJSON)
-		logrus.Warnf("笔记不可访问，且无法解析原因: %s", rawReason)
-		return fmt.Errorf("笔记不可访问，无法解析原因: %s", rawReason)
-	}
-	
-	return nil
+	// Return the original error from the retry operation
+	return err
 }
 
 // ========== 数据提取 ==========
 
 func (f *FeedDetailAction) extractFeedDetail(page *rod.Page, feedID string) (*FeedDetailResponse, error) {
-	result := page.MustEval(`() => {
-		if (window.__INITIAL_STATE__ &&
-			window.__INITIAL_STATE__.note &&
-			window.__INITIAL_STATE__.note.noteDetailMap) {
-			const noteDetailMap = window.__INITIAL_STATE__.note.noteDetailMap;
-			return JSON.stringify(noteDetailMap);
-		}
-		return "";
-	}`).String()
+	var result string
+	
+	// 使用retry-go来处理可能的DOM查询失败
+	err := retry.Do(
+		func() error {
+			evalResult := page.MustEval(`() => {
+				if (window.__INITIAL_STATE__ &&
+					window.__INITIAL_STATE__.note &&
+					window.__INITIAL_STATE__.note.noteDetailMap) {
+					const noteDetailMap = window.__INITIAL_STATE__.note.noteDetailMap;
+					return JSON.stringify(noteDetailMap);
+				}
+				return "";
+			}`).String()
+			
+			if evalResult != "" {
+				result = evalResult
+				return nil
+			}
+			return fmt.Errorf("无法获取初始状态数据")
+		},
+		retry.Attempts(3),
+		retry.Delay(200*time.Millisecond),
+		retry.MaxJitter(300*time.Millisecond),
+		retry.OnRetry(func(n uint, err error) {
+			logrus.Debugf("提取Feed详情重试 #%d: %v", n, err)
+		}),
+	)
+	
+	if err != nil {
+		logrus.Errorf("提取Feed详情失败: %v", err)
+		return nil, fmt.Errorf("提取Feed详情失败: %w", err)
+	}
 	
 	if result == "" {
 		return nil, errors.ErrNoFeedDetail
