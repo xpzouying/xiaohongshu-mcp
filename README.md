@@ -4,8 +4,8 @@
 [![All Contributors](https://img.shields.io/badge/all_contributors-18-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
-[![已捐赠](https://img.shields.io/badge/Donated-CNY%20200.00-brightgreen?style=flat-square)](./DONATIONS.md)
-[![获得赞赏](https://img.shields.io/badge/Received-CNY%20179.92-blue?style=flat-square)](./DONATIONS.md)
+[![已捐赠](https://img.shields.io/badge/Donated-CNY%20600.00-brightgreen?style=flat-square)](./DONATIONS.md)
+[![获得赞赏](https://img.shields.io/badge/Received-CNY%20469.78-blue?style=flat-square)](./DONATIONS.md)
 [![Docker Pulls](https://img.shields.io/docker/pulls/xpzouying/xiaohongshu-mcp?style=flat-square&logo=docker)](https://hub.docker.com/r/xpzouying/xiaohongshu-mcp)
 
 MCP for 小红书/xiaohongshu.com。
@@ -797,10 +797,9 @@ Cline 是一个强大的 AI 编程助手，支持 MCP 协议集成。
 
 <!-- 两列排布：飞书二群 | 微信群 -->
 
-| 【飞书 3 群】：扫码进入                                                                                                   | 【微信群 10 群】：扫码进入                                                                                                  |
+| 【飞书 3 群】：扫码进入                                                                                                   | 【微信群 11 群】：扫码进入                                                                                                  |
 | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| <img src="https://github.com/user-attachments/assets/9a0ec41a-cb65-4f4e-a0f7-31658a49512d" alt="qrcode_2qun" width="300"> | <img src="https://github.com/user-attachments/assets/b6a35560-5073-43be-9c65-2b2186136190" alt="WechatIMG119" width="300"> |
-
+| <img src="https://github.com/user-attachments/assets/9a0ec41a-cb65-4f4e-a0f7-31658a49512d" alt="qrcode_2qun" width="300"> | <img src="https://github.com/user-attachments/assets/29c28520-31a9-42cd-ab80-899c0e0c5742" alt="WechatIMG119" width="300"> |
 
 
 ## 🙏 致谢贡献者 ✨
