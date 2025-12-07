@@ -237,13 +237,6 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				"max_replies_threshold": args.MaxRepliesThreshold,
 				"max_comment_items":     args.MaxCommentItems,
 				"scroll_speed":          args.ScrollSpeed,
-				"feed_id":               args.FeedID,
-				"xsec_token":            args.XsecToken,
-				"load_all_comments":     args.LoadAllComments,
-				"click_more_replies":    args.ClickMoreReplies,
-				"max_replies_threshold": args.MaxRepliesThreshold,
-				"max_comment_items":     args.MaxCommentItems,
-				"scroll_speed":          args.ScrollSpeed,
 			}
 			result := appServer.handleGetFeedDetail(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
