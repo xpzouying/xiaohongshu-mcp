@@ -46,10 +46,24 @@ type CommentLoadConfig struct {
 	ScrollSpeed string `json:"scroll_speed,omitempty"`
 }
 
+// CommentLoadConfig 评论加载配置
+type CommentLoadConfig struct {
+	// 是否点击"更多回复"按钮
+	ClickMoreReplies bool `json:"click_more_replies,omitempty"`
+	// 回复数量阈值，超过这个数量的"更多"按钮将被跳过（0表示不跳过任何）
+	MaxRepliesThreshold int `json:"max_replies_threshold,omitempty"`
+	// 最大加载评论数（comment-item数量），0表示加载所有
+	MaxCommentItems int `json:"max_comment_items,omitempty"`
+	// 滚动速度等级: slow(慢速), normal(正常), fast(快速)
+	ScrollSpeed string `json:"scroll_speed,omitempty"`
+}
+
 // FeedDetailRequest Feed详情请求
 type FeedDetailRequest struct {
 	FeedID          string             `json:"feed_id" binding:"required"`
 	XsecToken       string             `json:"xsec_token" binding:"required"`
+	LoadAllComments bool               `json:"load_all_comments,omitempty"`
+	CommentConfig   *CommentLoadConfig `json:"comment_config,omitempty"`
 	LoadAllComments bool               `json:"load_all_comments,omitempty"`
 	CommentConfig   *CommentLoadConfig `json:"comment_config,omitempty"`
 }

@@ -1,8 +1,12 @@
 # xiaohongshu-mcp
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-16-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-18-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
+
+[![已捐赠](https://img.shields.io/badge/Donated-CNY%20600.00-brightgreen?style=flat-square)](./DONATIONS.md)
+[![获得赞赏](https://img.shields.io/badge/Received-CNY%20469.78-blue?style=flat-square)](./DONATIONS.md)
+[![Docker Pulls](https://img.shields.io/docker/pulls/xpzouying/xiaohongshu-mcp?style=flat-square&logo=docker)](https://hub.docker.com/r/xpzouying/xiaohongshu-mcp)
 
 MCP for 小红书/xiaohongshu.com。
 
@@ -15,6 +19,23 @@ MCP for 小红书/xiaohongshu.com。
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=xpzouying/xiaohongshu-mcp&type=Timeline)](https://www.star-history.com/#xpzouying/xiaohongshu-mcp&Timeline)
+
+## 赞赏支持
+
+本项目所有的赞赏都会用于慈善捐赠。所有的慈善捐赠记录，请参考 [DONATIONS.md](./DONATIONS.md)。
+
+**捐赠时，请备注 MCP 以及名字。**
+如需更正/撤回署名，请开 Issue 或通过邮箱联系。
+
+**支付宝（不展示二维码）：**
+
+通过支付宝向 **xpzouying@gmail.com** 赞赏。
+
+**微信：**
+
+<img src="donate/wechat@2x.png" alt="WeChat Pay QR" width="260" />
+
+## 项目简介
 
 **主要功能**
 
@@ -195,7 +216,7 @@ https://github.com/user-attachments/assets/cc385b6c-422c-489b-a5fc-63e92c695b80
 - **正文：（非常重要）：正文不能超过 1000 个字**
 - 当前支持图文发送以及视频发送：从推荐的角度看，图文的流量会比视频以及纯文字的更好。
 - （低优先级）可以考虑纯文字的支持。1. 个人感觉纯文字会大大增加运营的复杂度；2. 纯文字在我的使用场景的价值较低。
-- Tags：现已支持。添加合适的Tags能带来更多的流量。
+- Tags：现已支持。添加合适的 Tags 能带来更多的流量。
 - 根据本人实操，小红书每天的发帖量应该是 **50 篇**。
 - **（非常重要）小红书的同一个账号不允许在多个网页端登录**，如果你登录了当前 xiaohongshu-mcp 后，就不要再在其他的网页端登录该账号，否则就会把当前 MCP 的账号“踢出登录”。你可以使用移动 App 端进行查看当前账号信息。
 
@@ -327,6 +348,7 @@ docker build -t xpzouying/xiaohongshu-mcp .
 **4. 配置说明**
 
 Docker 版本会自动：
+
 - 配置 Chrome 浏览器和中文字体
 - 挂载 `./data` 用于存储 cookies
 - 挂载 `./images` 用于存储发布的图片
@@ -717,6 +739,43 @@ Cline 是一个强大的 AI 编程助手，支持 MCP 协议集成。
 
 <img src="./assets/publish_result.jpeg" alt="xiaohongshu-mcp 发布结果" width="300">
 
+### 2.5. 💬 MCP 使用常见问题解答
+
+---
+
+**Q:** 为什么检查登录用户名显示 `xiaghgngshu-mcp`？  
+**A:** 用户名是写死的。
+
+---
+
+**Q:** 显示发布成功后，但实际上没有显示？  
+**A:** 排查步骤如下：  
+1. 使用 **非无头模式** 重新发布一次。  
+2. 更换 **不同的内容** 重新发布。  
+3. 登录网页版小红书，查看账号是否被 **风控限制网页版发布**。  
+4. 检查 **图片大小** 是否过大。  
+5. 确认 **图片路径中没有中文字符**。  
+6. 若使用网络图片地址，请确认 **图片链接可正常访问**。
+
+---
+
+**Q:** 在设备上运行 MCP 程序出现闪退如何解决？  
+**A:**  
+1. 建议 **从源码安装**。  
+2. 或使用 **Docker 安装 xiaohongshu-mcp**，教程参考：  
+   - [使用 Docker 安装 xiaohongshu-mcp](https://github.com/xpzouying/xiaohongshu-mcp#:~:text=%E6%96%B9%E5%BC%8F%E4%B8%89%EF%BC%9A%E4%BD%BF%E7%94%A8%20Docker%20%E5%AE%B9%E5%99%A8%EF%BC%88%E6%9C%80%E7%AE%80%E5%8D%95%EF%BC%89)  
+   - [X-MCP 项目页面](https://github.com/xpzouying/x-mcp/)
+
+---
+
+**Q:** 使用 `http://localhost:18060/mcp` 进行 MCP 验证时提示无法连接？  
+**A:**  
+- 在 **Docker 环境** 下，请使用  
+  👉 [http://host.docker.internal:18060/mcp](http://host.docker.internal:18060/mcp)  
+- 在 **非 Docker 环境** 下，请使用 **本机 IPv4 地址** 访问。
+
+---
+
 ## 3. 🌟 实战案例展示 (Community Showcases)
 
 > 💡 **强烈推荐查看**：这些都是社区贡献者的真实使用案例，包含详细的配置步骤和实战经验！
@@ -736,16 +795,11 @@ Cline 是一个强大的 AI 编程助手，支持 MCP 协议集成。
 
 **重要：在群里问问题之前，请一定要先仔细看完 README 文档以及查看 Issues。**
 
-
 <!-- 两列排布：飞书二群 | 微信群 -->
 
-| 【飞书3群】：扫码进入                                                                                                    | 【微信群 9 群】：扫码进入                                                                                                  |
+| 【飞书 3 群】：扫码进入                                                                                                   | 【微信群 11 群】：扫码进入                                                                                                  |
 | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| <img src="https://github.com/user-attachments/assets/9a0ec41a-cb65-4f4e-a0f7-31658a49512d" alt="qrcode_2qun" width="300"> | <img src="https://github.com/user-attachments/assets/ffddf1f9-3f80-4eb7-9078-5fc357675414" alt="WechatIMG119" width="300"> |
-
-
-
-
+| <img src="https://github.com/user-attachments/assets/9a0ec41a-cb65-4f4e-a0f7-31658a49512d" alt="qrcode_2qun" width="300"> | <img src="https://github.com/user-attachments/assets/29c28520-31a9-42cd-ab80-899c0e0c5742" alt="WechatIMG119" width="300"> |
 
 
 ## 🙏 致谢贡献者 ✨
@@ -778,6 +832,8 @@ Cline 是一个强大的 AI 编程助手，支持 MCP 协议集成。
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://carlo-blog.aiju.fun/"><img src="https://avatars.githubusercontent.com/u/18513362?v=4?s=100" width="100px;" alt="Carlo"/><br /><sub><b>Carlo</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=a67793581" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/hrz394943230"><img src="https://avatars.githubusercontent.com/u/28583005?v=4?s=100" width="100px;" alt="hrz"/><br /><sub><b>hrz</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=hrz394943230" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/ctrlz526"><img src="https://avatars.githubusercontent.com/u/143257420?v=4?s=100" width="100px;" alt="Ctrlz"/><br /><sub><b>Ctrlz</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=ctrlz526" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/flippancy"><img src="https://avatars.githubusercontent.com/u/6467703?v=4?s=100" width="100px;" alt="flippancy"/><br /><sub><b>flippancy</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=flippancy" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>
@@ -794,15 +850,3 @@ Cline 是一个强大的 AI 编程助手，支持 MCP 协议集成。
 | [<img src="https://avatars.githubusercontent.com/wanpengxie" width="100px;"><br>@wanpengxie](https://github.com/wanpengxie) |
 
 本项目遵循 [all-contributors](https://github.com/all-contributors/all-contributors) 规范。欢迎任何形式的贡献！
-
-## 赞赏支持
-
-欢迎请作者喝杯咖啡～（随缘支持，感谢！）
-
-**支付宝（不展示二维码）：**
-
-通过支付宝向 **xpzouying@gmail.com** 赞赏。
-
-**微信：**
-
-<img src="donate/wechat@2x.png" alt="WeChat Pay QR" width="260" />

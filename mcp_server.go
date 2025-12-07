@@ -167,7 +167,19 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	// 工具 3: 发布内容
+	// 工具 3: 删除 cookies（登录重置）
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "delete_cookies",
+			Description: "删除 cookies 文件，重置登录状态。删除后需要重新登录。",
+		},
+		withPanicRecovery("delete_cookies", func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleDeleteCookies(ctx)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	// 工具 4: 发布内容
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "publish_content",
@@ -186,7 +198,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	// 工具 4: 获取Feed列表
+	// 工具 5: 获取Feed列表
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "list_feeds",
@@ -198,7 +210,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	// 工具 5: 搜索内容
+	// 工具 6: 搜索内容
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "search_feeds",
@@ -210,7 +222,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	// 工具 6: 获取Feed详情
+	// 工具 7: 获取Feed详情
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "get_feed_detail",
@@ -225,13 +237,20 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				"max_replies_threshold": args.MaxRepliesThreshold,
 				"max_comment_items":     args.MaxCommentItems,
 				"scroll_speed":          args.ScrollSpeed,
+				"feed_id":               args.FeedID,
+				"xsec_token":            args.XsecToken,
+				"load_all_comments":     args.LoadAllComments,
+				"click_more_replies":    args.ClickMoreReplies,
+				"max_replies_threshold": args.MaxRepliesThreshold,
+				"max_comment_items":     args.MaxCommentItems,
+				"scroll_speed":          args.ScrollSpeed,
 			}
 			result := appServer.handleGetFeedDetail(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
 		}),
 	)
 
-	// 工具 7: 获取用户主页
+	// 工具 8: 获取用户主页
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "user_profile",
@@ -247,7 +266,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	// 工具 8: 发表评论
+	// 工具 9: 发表评论
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "post_comment_to_feed",
@@ -264,7 +283,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	// 工具 9: 回复评论
+	// 工具 10: 回复评论
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "reply_comment_in_feed",
@@ -290,7 +309,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		},
 	)
 
-	// 工具 10: 发布视频（仅本地文件）
+	// 工具 11: 发布视频（仅本地文件）
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "publish_with_video",
@@ -308,7 +327,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	// 工具 11: 点赞笔记
+	// 工具 12: 点赞笔记
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "like_feed",
@@ -325,7 +344,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	// 工具 12: 收藏笔记
+	// 工具 13: 收藏笔记
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "favorite_feed",
@@ -342,7 +361,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	logrus.Infof("Registered %d MCP tools", 11)
+	logrus.Infof("Registered %d MCP tools", 12)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式

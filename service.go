@@ -86,6 +86,13 @@ type UserProfileResponse struct {
 	Feeds         []xiaohongshu.Feed             `json:"feeds"`
 }
 
+// DeleteCookies 删除 cookies 文件，用于登录重置
+func (s *XiaohongshuService) DeleteCookies(ctx context.Context) error {
+	cookiePath := cookies.GetCookiesFilePath()
+	cookieLoader := cookies.NewLoadCookie(cookiePath)
+	return cookieLoader.DeleteCookies()
+}
+
 // CheckLoginStatus 检查登录状态
 func (s *XiaohongshuService) CheckLoginStatus(ctx context.Context) (*LoginStatusResponse, error) {
 	b := newBrowser()

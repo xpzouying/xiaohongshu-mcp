@@ -8,7 +8,12 @@ import (
 	"strings"
 	"time"
 
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/sirupsen/logrus"
+	"github.com/xpzouying/xiaohongshu-mcp/cookies"
 	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
 )
 
@@ -29,7 +34,14 @@ func (s *AppServer) handleCheckLoginStatus(ctx context.Context) *MCPToolResult {
 		}
 	}
 
-	resultText := fmt.Sprintf("登录状态检查成功: %+v", status)
+	// 根据 IsLoggedIn 判断并返回友好的提示
+	var resultText string
+	if status.IsLoggedIn {
+		resultText = fmt.Sprintf("✅ 已登录\n用户名: %s\n\n你可以使用其他功能了。", status.Username)
+	} else {
+		resultText = fmt.Sprintf("❌ 未登录\n\n请使用 get_login_qrcode 工具获取二维码进行登录。")
+	}
+
 	return &MCPToolResult{
 		Content: []MCPContent{{
 			Type: "text",
@@ -76,6 +88,28 @@ func (s *AppServer) handleGetLoginQrcode(ctx context.Context) *MCPToolResult {
 		},
 	}
 	return &MCPToolResult{Content: contents}
+}
+
+// handleDeleteCookies 处理删除 cookies 请求，用于登录重置
+func (s *AppServer) handleDeleteCookies(ctx context.Context) *MCPToolResult {
+	logrus.Info("MCP: 删除 cookies，重置登录状态")
+
+	err := s.xiaohongshuService.DeleteCookies(ctx)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "删除 cookies 失败: " + err.Error()}},
+			IsError: true,
+		}
+	}
+
+	cookiePath := cookies.GetCookiesFilePath()
+	resultText := fmt.Sprintf("Cookies 已成功删除，登录状态已重置。\n\n删除的文件路径: %s\n\n下次操作时，需要重新登录。", cookiePath)
+	return &MCPToolResult{
+		Content: []MCPContent{{
+			Type: "text",
+			Text: resultText,
+		}},
+	}
 }
 
 // handlePublishContent 处理发布内容
@@ -367,7 +401,67 @@ func (s *AppServer) handleGetFeedDetail(ctx context.Context, args map[string]any
 	}
 
 	logrus.Infof("MCP: 获取Feed详情 - Feed ID: %s, loadAllComments=%v, config=%+v", feedID, loadAll, config)
+	loadAll := false
+	if raw, ok := args["load_all_comments"]; ok {
+		switch v := raw.(type) {
+		case bool:
+			loadAll = v
+		case string:
+			if parsed, err := strconv.ParseBool(v); err == nil {
+				loadAll = parsed
+			}
+		case float64:
+			loadAll = v != 0
+		}
+	}
 
+	// 解析评论配置参数，如果未提供则使用默认值
+	config := xiaohongshu.DefaultCommentLoadConfig()
+
+	if raw, ok := args["click_more_replies"]; ok {
+		switch v := raw.(type) {
+		case bool:
+			config.ClickMoreReplies = v
+		case string:
+			if parsed, err := strconv.ParseBool(v); err == nil {
+				config.ClickMoreReplies = parsed
+			}
+		}
+	}
+
+	if raw, ok := args["max_replies_threshold"]; ok {
+		switch v := raw.(type) {
+		case float64:
+			config.MaxRepliesThreshold = int(v)
+		case string:
+			if parsed, err := strconv.Atoi(v); err == nil {
+				config.MaxRepliesThreshold = parsed
+			}
+		case int:
+			config.MaxRepliesThreshold = v
+		}
+	}
+
+	if raw, ok := args["max_comment_items"]; ok {
+		switch v := raw.(type) {
+		case float64:
+			config.MaxCommentItems = int(v)
+		case string:
+			if parsed, err := strconv.Atoi(v); err == nil {
+				config.MaxCommentItems = parsed
+			}
+		case int:
+			config.MaxCommentItems = v
+		}
+	}
+
+	if raw, ok := args["scroll_speed"].(string); ok && raw != "" {
+		config.ScrollSpeed = raw
+	}
+
+	logrus.Infof("MCP: 获取Feed详情 - Feed ID: %s, loadAllComments=%v, config=%+v", feedID, loadAll, config)
+
+	result, err := s.xiaohongshuService.GetFeedDetailWithConfig(ctx, feedID, xsecToken, loadAll, config)
 	result, err := s.xiaohongshuService.GetFeedDetailWithConfig(ctx, feedID, xsecToken, loadAll, config)
 	if err != nil {
 		return &MCPToolResult{
