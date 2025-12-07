@@ -3,6 +3,7 @@ module github.com/xpzouying/xiaohongshu-mcp
 go 1.24.0
 
 require (
+	github.com/avast/retry-go/v4 v4.7.0
 	github.com/gin-gonic/gin v1.10.1
 	github.com/go-rod/rod v0.116.2
 	github.com/h2non/filetype v1.1.3
@@ -15,7 +16,6 @@ require (
 )
 
 require (
-	github.com/avast/retry-go/v4 v4.7.0 // indirect
 	github.com/bytedance/sonic v1.11.6 // indirect
 	github.com/bytedance/sonic/loader v0.1.1 // indirect
 	github.com/cloudwego/base64x v0.1.4 // indirect

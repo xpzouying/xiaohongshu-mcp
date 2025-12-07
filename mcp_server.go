@@ -47,10 +47,10 @@ type FilterOption struct {
 type FeedDetailArgs struct {
 	FeedID              string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
 	XsecToken           string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
-	LoadAllComments     bool   `json:"load_all_comments,omitempty" jsonschema:"是否加载全部评论（默认false，仅返回首批评论）"`
+	LoadAllComments     bool   `json:"load_all_comments,omitempty" jsonschema:"是否加载全部评论（默认false，仅返回首批前十条一级评论）"`
 	ClickMoreReplies    bool   `json:"click_more_replies,omitempty" jsonschema:"是否点击'更多回复'按钮 (默认: false)"`
 	MaxRepliesThreshold int    `json:"max_replies_threshold,omitempty" jsonschema:"回复数量阈值，超过此数量的'更多'按钮将被跳过 (0表示不跳过任何, 默认: 10)"`
-	MaxCommentItems     int    `json:"max_comment_items,omitempty" jsonschema:"最大加载评论数（0表示加载所有, 默认: 0）"`
+	MaxCommentItems     int    `json:"max_comment_items,omitempty" jsonschema:"最大加载一级评论数（0表示加载所有一级评论, 默认: 0）"`
 	ScrollSpeed         string `json:"scroll_speed,omitempty" jsonschema:"滚动速度: 'slow'|'normal'|'fast' (默认: 'normal')"`
 }
 
@@ -65,6 +65,15 @@ type PostCommentArgs struct {
 	FeedID    string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
 	XsecToken string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
 	Content   string `json:"content" jsonschema:"评论内容"`
+}
+
+// ReplyCommentArgs 回复评论的参数
+type ReplyCommentArgs struct {
+	FeedID    string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
+	XsecToken string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
+	CommentID string `json:"comment_id,omitempty" jsonschema:"目标评论ID，从评论列表获取"`
+	UserID    string `json:"user_id,omitempty" jsonschema:"目标评论用户ID，从评论列表获取"`
+	Content   string `json:"content" jsonschema:"回复内容"`
 }
 
 // LikeFeedArgs 点赞参数
@@ -267,7 +276,33 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	// 工具 10: 发布视频（仅本地文件）
+	// 工具 10: 回复评论
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "reply_comment_in_feed",
+			Description: "回复小红书笔记下的指定评论",
+		},
+		func(ctx context.Context, req *mcp.CallToolRequest, args ReplyCommentArgs) (*mcp.CallToolResult, any, error) {
+			if args.CommentID == "" && args.UserID == "" {
+				return &mcp.CallToolResult{
+					IsError: true,
+					Content: []mcp.Content{&mcp.TextContent{Text: "缺少 comment_id 或 user_id"}},
+				}, nil, nil
+			}
+
+			argsMap := map[string]interface{}{
+				"feed_id":    args.FeedID,
+				"xsec_token": args.XsecToken,
+				"comment_id": args.CommentID,
+				"user_id":    args.UserID,
+				"content":    args.Content,
+			}
+			result := appServer.handleReplyComment(ctx, argsMap)
+			return convertToMCPResult(result), nil, nil
+		},
+	)
+
+	// 工具 11: 发布视频（仅本地文件）
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "publish_with_video",
@@ -285,7 +320,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	// 工具 11: 点赞笔记
+	// 工具 12: 点赞笔记
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "like_feed",
@@ -302,7 +337,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	// 工具 12: 收藏笔记
+	// 工具 13: 收藏笔记
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "favorite_feed",

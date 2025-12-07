@@ -622,3 +622,77 @@ func (s *AppServer) handlePostComment(ctx context.Context, args map[string]inter
 		}},
 	}
 }
+
+// handleReplyComment 处理回复评论
+func (s *AppServer) handleReplyComment(ctx context.Context, args map[string]interface{}) *MCPToolResult {
+	logrus.Info("MCP: 回复评论")
+
+	// 解析参数
+	feedID, ok := args["feed_id"].(string)
+	if !ok || feedID == "" {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "回复评论失败: 缺少feed_id参数",
+			}},
+			IsError: true,
+		}
+	}
+
+	xsecToken, ok := args["xsec_token"].(string)
+	if !ok || xsecToken == "" {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "回复评论失败: 缺少xsec_token参数",
+			}},
+			IsError: true,
+		}
+	}
+
+	commentID, _ := args["comment_id"].(string)
+	userID, _ := args["user_id"].(string)
+	if commentID == "" && userID == "" {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "回复评论失败: 缺少comment_id或user_id参数",
+			}},
+			IsError: true,
+		}
+	}
+
+	content, ok := args["content"].(string)
+	if !ok || content == "" {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "回复评论失败: 缺少content参数",
+			}},
+			IsError: true,
+		}
+	}
+
+	logrus.Infof("MCP: 回复评论 - Feed ID: %s, Comment ID: %s, User ID: %s, 内容长度: %d", feedID, commentID, userID, len(content))
+
+	// 回复评论
+	result, err := s.xiaohongshuService.ReplyCommentToFeed(ctx, feedID, xsecToken, commentID, userID, content)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "回复评论失败: " + err.Error(),
+			}},
+			IsError: true,
+		}
+	}
+
+	// 返回成功结果
+	responseText := fmt.Sprintf("评论回复成功 - Feed ID: %s, Comment ID: %s, User ID: %s", result.FeedID, result.TargetCommentID, result.TargetUserID)
+	return &MCPToolResult{
+		Content: []MCPContent{{
+			Type: "text",
+			Text: responseText,
+		}},
+	}
+}
