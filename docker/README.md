@@ -20,7 +20,16 @@ docker pull xpzouying/xiaohongshu-mcp
 
 Docker Hub 地址：[https://hub.docker.com/r/xpzouying/xiaohongshu-mcp](https://hub.docker.com/r/xpzouying/xiaohongshu-mcp)
 
-### 1.2 自己构建镜像（可选）
+### 1.2 从阿里云镜像源拉取（国内用户推荐）
+
+国内用户可以使用阿里云容器镜像服务，拉取速度更快：
+
+```bash
+# 拉取最新镜像
+docker pull crpi-hocnvtkomt7w9v8t.cn-beijing.personal.cr.aliyuncs.com/xpzouying/xiaohongshu-mcp
+```
+
+### 1.3 自己构建镜像（可选）
 
 在有项目的Dockerfile的目录运行
 
@@ -33,6 +42,12 @@ docker build -t xpzouying/xiaohongshu-mcp .
 <img width="2576" height="874" alt="image" src="https://github.com/user-attachments/assets/fe7e87f1-623f-409f-8b54-e11d380fc7b8" />
 
 ## 2. 手动 Docker Compose
+
+> **国内用户提示**：如需使用阿里云镜像源，请修改 `docker-compose.yml` 文件，注释掉 Docker Hub 镜像行，取消阿里云镜像行的注释：
+> ```yaml
+> # image: xpzouying/xiaohongshu-mcp
+> image: crpi-hocnvtkomt7w9v8t.cn-beijing.personal.cr.aliyuncs.com/xpzouying/xiaohongshu-mcp
+> ```
 
 ```bash
 # 注意：在 docker-compose.yml 文件的同一个目录，或者手动指定 docker-compose.yml。
