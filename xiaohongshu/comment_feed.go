@@ -202,21 +202,18 @@ func findCommentElement(page *rod.Page, commentID, userID string) (*rod.Element,
 		// === 4. 先滚动到最后一个评论（触发懒加载）===
 		if currentCount > 0 {
 			logrus.Infof("滚动到最后一个评论（共 %d 条）", currentCount)
-			_, err := page.Eval(`() => {
-				const container = document.querySelector('.comments-container');
-				if (!container) return false;
-				
-				// 查找最后一个评论
-				const comments = container.querySelectorAll('.parent-comment, .comment-item, .comment');
-				if (comments.length > 0) {
-					const lastComment = comments[comments.length - 1];
-					lastComment.scrollIntoView({behavior: 'smooth', block: 'center'});
-					return true;
+			
+			// 使用 Go 获取所有评论元素
+			elements, err := page.Timeout(2 * time.Second).Elements(".parent-comment, .comment-item, .comment")
+			if err == nil && len(elements) > 0 {
+				// 滚动到最后一个评论
+				lastComment := elements[len(elements)-1]
+				err := lastComment.ScrollIntoView()
+				if err != nil {
+					logrus.Warnf("滚动到最后一个评论失败: %v", err)
 				}
-				return false;
-			}`)
-			if err != nil {
-				logrus.Warnf("滚动到最后一个评论失败: %v", err)
+			} else {
+				logrus.Warnf("未找到评论元素: %v", err)
 			}
 			time.Sleep(300 * time.Millisecond)
 		}
