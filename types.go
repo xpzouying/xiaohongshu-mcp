@@ -40,7 +40,7 @@ type CommentLoadConfig struct {
 	ClickMoreReplies bool `json:"click_more_replies,omitempty"`
 	// 回复数量阈值，超过这个数量的"更多"按钮将被跳过（0表示不跳过任何）
 	MaxRepliesThreshold int `json:"max_replies_threshold,omitempty"`
-	// 最大加载评论数（comment-item数量），0表示加载所有
+	// 最大加载评论数（.parent-comment数量），0表示加载所有
 	MaxCommentItems int `json:"max_comment_items,omitempty"`
 	// 滚动速度等级: slow(慢速), normal(正常), fast(快速)
 	ScrollSpeed string `json:"scroll_speed,omitempty"`
