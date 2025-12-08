@@ -157,6 +157,11 @@ func (cl *commentLoader) load() error {
 	scrollToCommentsArea(cl.page)
 	sleepRandom(humanDelayRange.min, humanDelayRange.max)
 
+	// 检查是否没有评论
+	if cl.checkNoComments() {
+		return nil
+	}
+
 	for cl.stats.attempts = 0; cl.stats.attempts < maxAttempts; cl.stats.attempts++ {
 		logrus.Debugf("=== 尝试 %d/%d ===", cl.stats.attempts+1, maxAttempts)
 
@@ -190,6 +195,14 @@ func (cl *commentLoader) calculateMaxAttempts() int {
 		return cl.config.MaxCommentItems * 3
 	}
 	return defaultMaxAttempts
+}
+
+func (cl *commentLoader) checkNoComments() bool {
+	if checkNoCommentsArea(cl.page) {
+		logrus.Infof("✓ 检测到无评论区域（这是一片荒地），跳过加载")
+		return true
+	}
+	return false
 }
 
 func (cl *commentLoader) checkComplete() bool {
@@ -675,6 +688,25 @@ func getTotalCommentCount(page *rod.Page) int {
 	}
 
 	return result
+}
+
+func checkNoCommentsArea(page *rod.Page) bool {
+	// 查找无评论区域
+	noCommentsEl, err := page.Timeout(2 * time.Second).Element(".no-comments-text")
+	if err != nil {
+		// 未找到无评论元素，说明有评论或评论区正常
+		return false
+	}
+
+	// 获取文本内容
+	text, err := noCommentsEl.Text()
+	if err != nil {
+		return false
+	}
+
+	// 检查是否包含"这是一片荒地"等关键词
+	text = strings.TrimSpace(text)
+	return strings.Contains(text, "这是一片荒地")
 }
 
 func checkEndContainer(page *rod.Page) bool {
