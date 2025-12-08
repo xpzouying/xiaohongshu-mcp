@@ -59,10 +59,11 @@ type PublishResponse struct {
 
 // PublishVideoRequest 发布视频请求（仅支持本地单个视频文件）
 type PublishVideoRequest struct {
-	Title   string   `json:"title" binding:"required"`
-	Content string   `json:"content" binding:"required"`
-	Video   string   `json:"video" binding:"required"`
-	Tags    []string `json:"tags,omitempty"`
+	Title    string   `json:"title" binding:"required"`
+	Content  string   `json:"content" binding:"required"`
+	Video    string   `json:"video" binding:"required"`
+	Tags     []string `json:"tags,omitempty"`
+	Products []string `json:"products,omitempty"`
 }
 
 // PublishVideoResponse 发布视频响应
@@ -248,6 +249,7 @@ func (s *XiaohongshuService) PublishVideo(ctx context.Context, req *PublishVideo
 		Title:     req.Title,
 		Content:   req.Content,
 		Tags:      req.Tags,
+		Products:  req.Products,
 		VideoPath: req.Video,
 	}
 

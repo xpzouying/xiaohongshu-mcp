@@ -180,11 +180,19 @@ func (s *AppServer) handlePublishVideo(ctx context.Context, args map[string]inte
 	content, _ := args["content"].(string)
 	videoPath, _ := args["video"].(string)
 	tagsInterface, _ := args["tags"].([]interface{})
+	productsInterface, _ := args["products"].([]interface{})
 
 	var tags []string
 	for _, tag := range tagsInterface {
 		if tagStr, ok := tag.(string); ok {
 			tags = append(tags, tagStr)
+		}
+	}
+
+	var products []string
+	for _, product := range productsInterface {
+		if productStr, ok := product.(string); ok {
+			products = append(products, productStr)
 		}
 	}
 
@@ -198,14 +206,15 @@ func (s *AppServer) handlePublishVideo(ctx context.Context, args map[string]inte
 		}
 	}
 
-	logrus.Infof("MCP: 发布视频 - 标题: %s, 标签数量: %d", title, len(tags))
+	logrus.Infof("MCP: 发布视频 - 标题: %s, 标签数量: %d, 商品数量: %d", title, len(tags), len(products))
 
 	// 构建发布请求
 	req := &PublishVideoRequest{
-		Title:   title,
-		Content: content,
-		Video:   videoPath,
-		Tags:    tags,
+		Title:    title,
+		Content:  content,
+		Video:    videoPath,
+		Tags:     tags,
+		Products: products,
 	}
 
 	// 执行发布

@@ -17,6 +17,7 @@ type PublishVideoContent struct {
 	Title     string
 	Content   string
 	Tags      []string
+	Products  []string
 	VideoPath string
 }
 
@@ -46,6 +47,13 @@ func (p *PublishAction) PublishVideo(ctx context.Context, content PublishVideoCo
 
 	if err := uploadVideo(page, content.VideoPath); err != nil {
 		return errors.Wrap(err, "小红书上传视频失败")
+	}
+
+	// 添加商品（如果有）
+	if len(content.Products) > 0 {
+		if err := addProducts(page, content.Products); err != nil {
+			return errors.Wrap(err, "选择商品失败")
+		}
 	}
 
 	if err := submitPublishVideo(page, content.Title, content.Content, content.Tags); err != nil {
