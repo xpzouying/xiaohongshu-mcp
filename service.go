@@ -330,7 +330,12 @@ func (s *XiaohongshuService) SearchFeeds(ctx context.Context, keyword string, fi
 }
 
 // GetFeedDetail 获取Feed详情
-func (s *XiaohongshuService) GetFeedDetail(ctx context.Context, feedID, xsecToken string) (*FeedDetailResponse, error) {
+func (s *XiaohongshuService) GetFeedDetail(ctx context.Context, feedID, xsecToken string, loadAllComments bool) (*FeedDetailResponse, error) {
+	return s.GetFeedDetailWithConfig(ctx, feedID, xsecToken, loadAllComments, xiaohongshu.DefaultCommentLoadConfig())
+}
+
+// GetFeedDetailWithConfig 使用配置获取Feed详情
+func (s *XiaohongshuService) GetFeedDetailWithConfig(ctx context.Context, feedID, xsecToken string, loadAllComments bool, config xiaohongshu.CommentLoadConfig) (*FeedDetailResponse, error) {
 	b := newBrowser()
 	defer b.Close()
 
@@ -341,7 +346,7 @@ func (s *XiaohongshuService) GetFeedDetail(ctx context.Context, feedID, xsecToke
 	action := xiaohongshu.NewFeedDetailAction(page)
 
 	// 获取 Feed 详情
-	result, err := action.GetFeedDetail(ctx, feedID, xsecToken)
+	result, err := action.GetFeedDetailWithConfig(ctx, feedID, xsecToken, loadAllComments, config)
 	if err != nil {
 		return nil, err
 	}
@@ -453,6 +458,29 @@ func (s *XiaohongshuService) UnfavoriteFeed(ctx context.Context, feedID, xsecTok
 		return nil, err
 	}
 	return &ActionResult{FeedID: feedID, Success: true, Message: "取消收藏成功或未收藏"}, nil
+}
+
+// ReplyCommentToFeed 回复指定评论
+func (s *XiaohongshuService) ReplyCommentToFeed(ctx context.Context, feedID, xsecToken, commentID, userID, content string) (*ReplyCommentResponse, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewCommentFeedAction(page)
+
+	if err := action.ReplyToComment(ctx, feedID, xsecToken, commentID, userID, content); err != nil {
+		return nil, err
+	}
+
+	return &ReplyCommentResponse{
+		FeedID:          feedID,
+		TargetCommentID: commentID,
+		TargetUserID:    userID,
+		Success:         true,
+		Message:         "评论回复成功",
+	}, nil
 }
 
 func newBrowser() *headless_browser.Browser {

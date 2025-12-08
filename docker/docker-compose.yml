@@ -1,7 +1,15 @@
 services:
   xiaohongshu-mcp:
+<<<<<<< HEAD
     image: ghcr.io/puyujian/xiaohongshu-mcp:latest
     container_name: xiaohongshu-mcp-dingding
+=======
+    # Docker Hub 镜像（默认）
+    image: xpzouying/xiaohongshu-mcp
+    # 阿里云镜像源（国内用户推荐，拉取更快）
+    # image: crpi-hocnvtkomt7w9v8t.cn-beijing.personal.cr.aliyuncs.com/xpzouying/xiaohongshu-mcp
+    container_name: xiaohongshu-mcp
+>>>>>>> cb1ce2284ffd85893528231e5a9d9d8925a293cf
     restart: unless-stopped
     tty: true
     volumes:

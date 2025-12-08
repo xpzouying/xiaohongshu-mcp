@@ -181,8 +181,23 @@ func (s *AppServer) getFeedDetailHandler(c *gin.Context) {
 		return
 	}
 
-	// 获取 Feed 详情
-	result, err := s.xiaohongshuService.GetFeedDetail(c.Request.Context(), req.FeedID, req.XsecToken)
+	var result *FeedDetailResponse
+	var err error
+
+	if req.CommentConfig != nil {
+		// 使用配置参数
+		config := xiaohongshu.CommentLoadConfig{
+			ClickMoreReplies:    req.CommentConfig.ClickMoreReplies,
+			MaxRepliesThreshold: req.CommentConfig.MaxRepliesThreshold,
+			MaxCommentItems:     req.CommentConfig.MaxCommentItems,
+			ScrollSpeed:         req.CommentConfig.ScrollSpeed,
+		}
+		result, err = s.xiaohongshuService.GetFeedDetailWithConfig(c.Request.Context(), req.FeedID, req.XsecToken, req.LoadAllComments, config)
+	} else {
+		// 使用默认配置
+		result, err = s.xiaohongshuService.GetFeedDetail(c.Request.Context(), req.FeedID, req.XsecToken, req.LoadAllComments)
+	}
+
 	if err != nil {
 		respondError(c, http.StatusInternalServerError, "GET_FEED_DETAIL_FAILED",
 			"获取Feed详情失败", err.Error())
@@ -228,6 +243,26 @@ func (s *AppServer) postCommentHandler(c *gin.Context) {
 	if err != nil {
 		respondError(c, http.StatusInternalServerError, "POST_COMMENT_FAILED",
 			"发表评论失败", err.Error())
+		return
+	}
+
+	c.Set("account", "ai-report")
+	respondSuccess(c, result, result.Message)
+}
+
+// replyCommentHandler 回复指定评论
+func (s *AppServer) replyCommentHandler(c *gin.Context) {
+	var req ReplyCommentRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
+			"请求参数错误", err.Error())
+		return
+	}
+
+	result, err := s.xiaohongshuService.ReplyCommentToFeed(c.Request.Context(), req.FeedID, req.XsecToken, req.CommentID, req.UserID, req.Content)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "REPLY_COMMENT_FAILED",
+			"回复评论失败", err.Error())
 		return
 	}
 
