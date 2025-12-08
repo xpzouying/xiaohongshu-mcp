@@ -42,3 +42,13 @@ test_*.sh
 
 # Cookies files (contain sensitive login information)
 cookies.json
+xmb/docker-compose.yml
+docker/docker-compose.yml
+dandan/docker-compose.yml
+cookies1.json
+.gitignore
+docker/docker-compose.yml
+juhuacha/docker-compose.yml
+docker/docker-compose.yml
+docker/docker-compose.yml
+docker/docker-compose.yml

@@ -1,7 +1,7 @@
 services:
   xiaohongshu-mcp:
-    image: xpzouying/xiaohongshu-mcp
-    container_name: xiaohongshu-mcp
+    image: ghcr.io/puyujian/xiaohongshu-mcp:latest
+    container_name: xiaohongshu-mcp-dingding
     restart: unless-stopped
     tty: true
     volumes:
