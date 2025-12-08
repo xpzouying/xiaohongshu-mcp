@@ -4,8 +4,8 @@
 [![All Contributors](https://img.shields.io/badge/all_contributors-18-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
-[![已捐赠](https://img.shields.io/badge/Donated-CNY%20600.00-brightgreen?style=flat-square)](./DONATIONS.md)
-[![获得赞赏](https://img.shields.io/badge/Received-CNY%20469.78-blue?style=flat-square)](./DONATIONS.md)
+[![善款已捐](https://img.shields.io/badge/善款已捐-CNY%20600.00-brightgreen?style=flat-square)](./DONATIONS.md)
+[![爱心汇聚](https://img.shields.io/badge/爱心汇聚-CNY%20499.77-blue?style=flat-square)](./DONATIONS.md)
 [![Docker Pulls](https://img.shields.io/docker/pulls/xpzouying/xiaohongshu-mcp?style=flat-square&logo=docker)](https://hub.docker.com/r/xpzouying/xiaohongshu-mcp)
 
 MCP for 小红书/xiaohongshu.com。
