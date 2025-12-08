@@ -247,19 +247,16 @@ func (cl *commentLoader) updateState(currentCount int) {
 }
 
 func (cl *commentLoader) shouldStopAtTarget(currentCount int) bool {
-	if cl.config.MaxCommentItems <= 0 || currentCount < cl.config.MaxCommentItems {
+	// 如果未设置最大评论数，或者还未达到目标，继续加载
+	if cl.config.MaxCommentItems <= 0 {
 		return false
 	}
 
-	if cl.state.stagnantChecks >= stagnantCheckThreshold {
-		logrus.Infof("✓ 已达到目标评论数: %d/%d (停滞%d次), 停止加载",
-			currentCount, cl.config.MaxCommentItems, cl.state.stagnantChecks)
+	// 如果已达到或超过目标评论数，立即停止
+	if currentCount >= cl.config.MaxCommentItems {
+		logrus.Infof("✓ 已达到目标评论数: %d/%d, 停止加载",
+			currentCount, cl.config.MaxCommentItems)
 		return true
-	}
-
-	if cl.state.stagnantChecks > 0 {
-		logrus.Debugf("已达目标数 %d/%d，再确认 %d 次...",
-			currentCount, cl.config.MaxCommentItems, stagnantCheckThreshold-cl.state.stagnantChecks)
 	}
 
 	return false
