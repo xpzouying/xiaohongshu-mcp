@@ -45,13 +45,13 @@ type FilterOption struct {
 
 // FeedDetailArgs 获取Feed详情的参数
 type FeedDetailArgs struct {
-	FeedID              string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
-	XsecToken           string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
-	LoadAllComments     bool   `json:"load_all_comments,omitempty" jsonschema:"是否加载全部评论（默认false，仅返回首批前十条一级评论）"`
-	ClickMoreReplies    bool   `json:"click_more_replies,omitempty" jsonschema:"是否点击'更多回复'按钮 (默认: false)"`
-	MaxRepliesThreshold int    `json:"max_replies_threshold,omitempty" jsonschema:"回复数量阈值，超过此数量的'更多'按钮将被跳过 (0表示不跳过任何, 默认: 10)"`
-	MaxCommentItems     int    `json:"max_comment_items,omitempty" jsonschema:"最大加载一级评论数（0表示加载所有一级评论, 默认: 0）"`
-	ScrollSpeed         string `json:"scroll_speed,omitempty" jsonschema:"滚动速度: 'slow'|'normal'|'fast' (默认: 'normal')"`
+	FeedID              string  `json:"feed_id" jsonschema:"required,小红书笔记ID，从Feed列表获取"`
+	XsecToken           string  `json:"xsec_token" jsonschema:"required,访问令牌，从Feed列表的xsecToken字段获取"`
+	LoadAllComments     bool    `json:"load_all_comments,omitempty" jsonschema:"是否加载全部评论。false=仅返回前10条一级评论（默认），true=滚动加载更多评论"`
+	MaxCommentItems     *int    `json:"max_comment_items,omitempty" jsonschema:"【仅当load_all_comments=true时生效】限制加载的一级评论数量。例如：20表示最多加载20条一级评论，0表示加载所有评论直到底部"`
+	ClickMoreReplies    bool    `json:"click_more_replies,omitempty" jsonschema:"【仅当load_all_comments=true时生效】是否展开评论的二级回复。true=点击'更多回复'按钮展开子评论，false=不展开（默认）"`
+	MaxRepliesThreshold *int    `json:"max_replies_threshold,omitempty" jsonschema:"【仅当click_more_replies=true时生效】跳过回复数过多的评论。例如：10表示跳过超过10条回复的评论，避免加载时间过长。0表示不跳过任何评论"`
+	ScrollSpeed         *string `json:"scroll_speed,omitempty" jsonschema:"【仅当load_all_comments=true时生效】滚动速度，可选值：'slow'（慢速）、'normal'（正常，默认）、'fast'（快速）"`
 }
 
 // UserProfileArgs 获取用户主页的参数
@@ -226,18 +226,32 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "get_feed_detail",
-			Description: "获取小红书笔记详情，返回笔记内容、图片、作者信息、互动数据（点赞/收藏/分享数）及评论列表",
+			Description: "获取小红书笔记详情，返回笔记内容、图片、作者信息、互动数据（点赞/收藏/分享数）及评论列表。默认返回前10条一级评论，如需更多评论请设置load_all_comments=true",
 		},
 		withPanicRecovery("get_feed_detail", func(ctx context.Context, req *mcp.CallToolRequest, args FeedDetailArgs) (*mcp.CallToolResult, any, error) {
 			argsMap := map[string]interface{}{
-				"feed_id":               args.FeedID,
-				"xsec_token":            args.XsecToken,
-				"load_all_comments":     args.LoadAllComments,
-				"click_more_replies":    args.ClickMoreReplies,
-				"max_replies_threshold": args.MaxRepliesThreshold,
-				"max_comment_items":     args.MaxCommentItems,
-				"scroll_speed":          args.ScrollSpeed,
+				"feed_id":           args.FeedID,
+				"xsec_token":        args.XsecToken,
+				"load_all_comments": args.LoadAllComments,
 			}
+
+			// 只有当 load_all_comments=true 时，才处理其他参数
+			if args.LoadAllComments {
+				argsMap["click_more_replies"] = args.ClickMoreReplies
+
+				if args.MaxCommentItems != nil {
+					argsMap["max_comment_items"] = *args.MaxCommentItems
+				}
+
+				if args.MaxRepliesThreshold != nil {
+					argsMap["max_replies_threshold"] = *args.MaxRepliesThreshold
+				}
+
+				if args.ScrollSpeed != nil {
+					argsMap["scroll_speed"] = *args.ScrollSpeed
+				}
+			}
+
 			result := appServer.handleGetFeedDetail(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
 		}),
