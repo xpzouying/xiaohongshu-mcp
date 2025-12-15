@@ -270,6 +270,26 @@ func (s *AppServer) replyCommentHandler(c *gin.Context) {
 	respondSuccess(c, result, result.Message)
 }
 
+// batchReplyCommentsHandler 批量回复多个评论
+func (s *AppServer) batchReplyCommentsHandler(c *gin.Context) {
+	var req BatchReplyRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
+			"请求参数错误", err.Error())
+		return
+	}
+
+	result, err := s.xiaohongshuService.BatchReplyToComments(c.Request.Context(), req.FeedID, req.XsecToken, req.Targets)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "BATCH_REPLY_FAILED",
+			"批量回复失败", err.Error())
+		return
+	}
+
+	c.Set("account", "ai-report")
+	respondSuccess(c, result, result.Message)
+}
+
 // healthHandler 健康检查
 func healthHandler(c *gin.Context) {
 	respondSuccess(c, map[string]any{

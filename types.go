@@ -97,6 +97,23 @@ type ReplyCommentResponse struct {
 	Message         string `json:"message"`
 }
 
+// BatchReplyRequest 批量回复请求
+type BatchReplyRequest struct {
+	FeedID    string                    `json:"feed_id" binding:"required"`
+	XsecToken string                    `json:"xsec_token" binding:"required"`
+	Targets   []xiaohongshu.ReplyTarget `json:"targets" binding:"required"`
+}
+
+// BatchReplyResponse 批量回复响应
+type BatchReplyResponse struct {
+	FeedID       string                         `json:"feed_id"`
+	TotalCount   int                            `json:"total_count"`
+	SuccessCount int                            `json:"success_count"`
+	FailedCount  int                            `json:"failed_count"`
+	Results      []xiaohongshu.BatchReplyResult `json:"results"`
+	Message      string                         `json:"message"`
+}
+
 // UserProfileRequest 用户主页请求
 type UserProfileRequest struct {
 	UserID    string `json:"user_id" binding:"required"`

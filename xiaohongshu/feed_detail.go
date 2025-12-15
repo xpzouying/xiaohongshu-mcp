@@ -538,10 +538,18 @@ func calculateScrollDelta(viewportHeight int, baseRatio float64) float64 {
 func scrollToCommentsArea(page *rod.Page) {
 	logrus.Info("滚动到评论区...")
 
-	// 先定位到评论区
-	if el, err := page.Timeout(2 * time.Second).Element(".comments-container"); err == nil {
-		el.MustScrollIntoView()
+	// 先定位到评论区（使用更长的超时时间，并处理错误）
+	el, err := page.Timeout(5 * time.Second).Element(".comments-container")
+	if err == nil {
+		// 使用 ScrollIntoView 而不是 MustScrollIntoView，避免 panic
+		err := el.ScrollIntoView()
+		if err != nil {
+			logrus.Warnf("滚动到评论区失败: %v", err)
+		}
+	} else {
+		logrus.Warnf("未找到评论区容器: %v", err)
 	}
+
 	// 等待滚动完成
 	time.Sleep(500 * time.Millisecond)
 
@@ -571,13 +579,16 @@ func smartScroll(page *rod.Page, delta float64) {
 
 func scrollToLastComment(page *rod.Page) {
 	// 获取所有主评论元素
-	elements, err := page.Timeout(2 * time.Second).Elements(".parent-comment")
+	elements, err := page.Timeout(3 * time.Second).Elements(".parent-comment")
 	if err != nil || len(elements) == 0 {
 		return
 	}
-	// 滚动到最后一个评论
+	// 滚动到最后一个评论（使用 ScrollIntoView 而不是 MustScrollIntoView）
 	lastComment := elements[len(elements)-1]
-	lastComment.MustScrollIntoView()
+	err = lastComment.ScrollIntoView()
+	if err != nil {
+		logrus.Debugf("滚动到最后一个评论失败: %v", err)
+	}
 }
 
 // ========== DOM 查询 ==========

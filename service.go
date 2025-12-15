@@ -481,6 +481,39 @@ func (s *XiaohongshuService) ReplyCommentToFeed(ctx context.Context, feedID, xse
 	}, nil
 }
 
+// BatchReplyToComments 批量回复多个评论
+func (s *XiaohongshuService) BatchReplyToComments(ctx context.Context, feedID, xsecToken string, targets []xiaohongshu.ReplyTarget) (*BatchReplyResponse, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewCommentFeedAction(page)
+
+	results := action.BatchReplyToComments(ctx, feedID, xsecToken, targets)
+
+	// 统计成功和失败数量
+	successCount := 0
+	failedCount := 0
+	for _, r := range results {
+		if r.Success {
+			successCount++
+		} else {
+			failedCount++
+		}
+	}
+
+	return &BatchReplyResponse{
+		FeedID:       feedID,
+		TotalCount:   len(results),
+		SuccessCount: successCount,
+		FailedCount:  failedCount,
+		Results:      results,
+		Message:      fmt.Sprintf("批量回复完成: 成功 %d/%d", successCount, len(results)),
+	}, nil
+}
+
 func newBrowser() *headless_browser.Browser {
 	return browser.NewBrowser(configs.IsHeadless(), browser.WithBinPath(configs.GetBinPath()))
 }

@@ -50,6 +50,7 @@ func setupRoutes(appServer *AppServer) *gin.Engine {
 		api.POST("/user/profile", appServer.userProfileHandler)
 		api.POST("/feeds/comment", appServer.postCommentHandler)
 		api.POST("/feeds/comment/reply", appServer.replyCommentHandler)
+		api.POST("/feeds/comment/batch-reply", appServer.batchReplyCommentsHandler)
 		api.GET("/user/me", appServer.myProfileHandler)
 	}
 
