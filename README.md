@@ -797,9 +797,9 @@ Cline 是一个强大的 AI 编程助手，支持 MCP 协议集成。
 
 <!-- 两列排布：飞书二群 | 微信群 -->
 
-| 【飞书 3 群】：扫码进入                                                                                                   | 【微信群 11 群】：扫码进入                                                                                                  |
+| 【飞书 3 群】：扫码进入                                                                                                   | 【微信群 12 群】：扫码进入                                                                                                  |
 | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| <img src="https://github.com/user-attachments/assets/9a0ec41a-cb65-4f4e-a0f7-31658a49512d" alt="qrcode_2qun" width="300"> | <img src="https://github.com/user-attachments/assets/29c28520-31a9-42cd-ab80-899c0e0c5742" alt="WechatIMG119" width="300"> |
+| <img src="https://github.com/user-attachments/assets/9a0ec41a-cb65-4f4e-a0f7-31658a49512d" alt="qrcode_2qun" width="300"> | <img src="https://github.com/user-attachments/assets/cb26beaa-4bda-4bd5-a806-457f641c45c7" alt="WechatIMG119" width="300"> |
 
 
 ## 🙏 致谢贡献者 ✨
