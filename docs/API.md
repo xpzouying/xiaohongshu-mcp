@@ -130,7 +130,8 @@ Content-Type: application/json
     "http://example.com/image1.jpg",
     "http://example.com/image2.jpg"
   ],
-  "tags": ["标签1", "标签2"]
+  "tags": ["标签1", "标签2"],
+  "products": ["商品ID1", "商品ID2"]
 }
 ```
 
@@ -139,6 +140,7 @@ Content-Type: application/json
 - `content` (string, required): 笔记内容
 - `images` (array, required): 图片URL数组，至少包含一张图片
 - `tags` (array, optional): 标签数组
+- `products` (array, optional): 商品ID数组，用于关联商品到笔记
 
 **响应**
 ```json
@@ -171,7 +173,8 @@ Content-Type: application/json
   "title": "视频标题",
   "content": "视频内容描述",
   "video": "/Users/username/Videos/video.mp4",
-  "tags": ["标签1", "标签2"]
+  "tags": ["标签1", "标签2"],
+  "products": ["商品ID1", "商品ID2"]
 }
 ```
 
@@ -180,6 +183,7 @@ Content-Type: application/json
 - `content` (string, required): 视频内容描述
 - `video` (string, required): 本地视频文件绝对路径
 - `tags` (array, optional): 标签数组
+- `products` (array, optional): 商品ID数组，用于关联商品到视频
 
 **响应**
 ```json
@@ -200,6 +204,7 @@ Content-Type: application/json
 - 仅支持本地视频文件路径，不支持 HTTP 链接
 - 视频处理时间较长，请耐心等待
 - 建议视频文件大小不超过 1GB
+- `products` 参数用于关联已上架的商品到视频内容
 
 ---
 

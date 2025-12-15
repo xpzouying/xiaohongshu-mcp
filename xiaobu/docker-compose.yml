@@ -1,7 +1,7 @@
 services:
   xiaohongshu-mcp:
     image: ghcr.io/puyujian/xiaohongshu-mcp:latest
-    container_name: xiaohongshu-mcp-dingding
+    container_name: xiaohongshu-mcp-xiaobu
     restart: unless-stopped
     tty: true
     volumes:
@@ -11,4 +11,4 @@ services:
       - ROD_BROWSER_BIN=/usr/bin/google-chrome
       - COOKIES_PATH=/app/data/cookies.json
     ports:
-      - "18060:18060"
+      - "18064:18060"
