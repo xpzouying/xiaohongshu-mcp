@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>xiaohongshu-mcp 多用户管理</title>
+  <style>
+    :root { --bg:#0b1020; --card:#121a33; --text:#e8ecff; --muted:#9aa6d6; --ok:#22c55e; --bad:#ef4444; --line:#243057; --btn:#2b3a6a; }
+    body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "PingFang SC", "Microsoft YaHei", Arial; background:var(--bg); color:var(--text); }
+    .wrap { max-width: 1100px; margin: 18px auto; padding: 0 14px; }
+    .row { display:flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+    h1 { font-size: 18px; margin: 0 0 12px; }
+    .muted { color: var(--muted); font-size: 12px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 10px 8px; border-bottom: 1px solid var(--line); font-size: 13px; vertical-align: top; }
+    th { text-align: left; color: var(--muted); font-weight: 600; }
+    .badge { display:inline-flex; align-items:center; gap:6px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); font-size: 12px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; display:inline-block; }
+    .dot.ok { background: var(--ok); }
+    .dot.bad { background: var(--bad); }
+    button { background: var(--btn); border: 1px solid var(--line); color: var(--text); padding: 6px 10px; border-radius: 8px; cursor: pointer; font-size: 12px; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    input { background: #0e1630; border: 1px solid var(--line); color: var(--text); padding: 8px 10px; border-radius: 8px; font-size: 13px; width: 240px; }
+    .w120 { width: 120px; }
+    .w200 { width: 200px; }
+    .right { margin-left: auto; }
+    .err { color: #ffb4b4; font-size: 12px; white-space: pre-wrap; }
+    .link { color: #c7d2fe; text-decoration: none; }
+    .modal { position: fixed; inset: 0; display: none; background: rgba(0,0,0,.55); }
+    .modal.show { display: block; }
+    .modal .panel { width: min(560px, calc(100% - 24px)); margin: 10vh auto; }
+    .grid { display:grid; grid-template-columns: 140px 1fr; gap: 10px; align-items: center; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="row">
+        <div>
+          <h1>xiaohongshu-mcp 多用户管理</h1>
+          <div class="muted">通过 Web 界面管理多个用户进程</div>
+        </div>
+        <div class="right row">
+          <button id="btnAdd">添加用户</button>
+          <button id="btnRefresh">刷新</button>
+        </div>
+      </div>
+      <div class="muted" id="globalInfo"></div>
+      <div class="err" id="globalErr"></div>
+    </div>
+
+    <div class="card" style="margin-top: 12px;">
+      <table>
+        <thead>
+          <tr>
+            <th>用户</th>
+            <th>端口</th>
+            <th>代理</th>
+            <th>状态</th>
+            <th>链接</th>
+            <th>路径</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="modal" id="modal">
+    <div class="panel card">
+      <div class="row">
+        <h1 style="margin:0;">用户配置</h1>
+        <div class="right">
+          <button id="btnClose">关闭</button>
+        </div>
+      </div>
+      <div class="grid" style="margin-top: 12px;">
+        <div class="muted">id</div>
+        <input id="fId" placeholder="例如 u1" />
+        <div class="muted">port</div>
+        <input id="fPort" class="w120" placeholder="例如 18061" />
+        <div class="muted">proxy</div>
+        <input id="fProxy" class="w200" placeholder="例如 http://127.0.0.1:7890（可空）" />
+      </div>
+      <div class="row" style="margin-top: 12px;">
+        <button id="btnSave">保存</button>
+        <button id="btnCancel">取消</button>
+        <div class="right err" id="formErr"></div>
+      </div>
+      <div class="muted" style="margin-top: 8px;">说明：用户运行中不允许编辑/删除，请先停止。</div>
+    </div>
+  </div>
+
+  <script>
+    const API = '/api/admin/v1';
+    const tbody = document.getElementById('tbody');
+    const globalInfo = document.getElementById('globalInfo');
+    const globalErr = document.getElementById('globalErr');
+
+    const modal = document.getElementById('modal');
+    const fId = document.getElementById('fId');
+    const fPort = document.getElementById('fPort');
+    const fProxy = document.getElementById('fProxy');
+    const formErr = document.getElementById('formErr');
+    let editingId = null;
+
+    function esc(s) {
+      return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    async function api(method, path, body) {
+      const opt = { method, headers: {} };
+      if (body !== undefined) {
+        opt.headers['Content-Type'] = 'application/json';
+        opt.body = JSON.stringify(body);
+      }
+      const res = await fetch(API + path, opt);
+      if (!res.ok) {
+        let msg = '';
+        try { msg = (await res.json()).error || ''; } catch(e) {}
+        throw new Error(msg || (method + ' ' + path + ' 失败: HTTP ' + res.status));
+      }
+      return res.status === 204 || res.status === 201 ? null : await res.json();
+    }
+
+    function openModal(user) {
+      formErr.textContent = '';
+      modal.classList.add('show');
+      if (user) {
+        editingId = user.id;
+        fId.value = user.id;
+        fId.disabled = true;
+        fPort.value = user.port;
+        fProxy.value = user.proxy || '';
+      } else {
+        editingId = null;
+        fId.value = '';
+        fId.disabled = false;
+        fPort.value = '';
+        fProxy.value = '';
+      }
+    }
+    function closeModal() {
+      modal.classList.remove('show');
+    }
+
+    async function refresh() {
+      globalErr.textContent = '';
+      try {
+        const data = await api('GET', '/users');
+        globalInfo.textContent = `bin=${data.bin} headless=${data.headless} data_dir=${data.data_dir}  （每 2 秒刷新一次）`;
+        render(data.users || []);
+      } catch (e) {
+        globalErr.textContent = e.message;
+      }
+    }
+
+    function render(users) {
+      tbody.innerHTML = users.map(u => {
+        const badge = u.running
+          ? `<span class="badge"><span class="dot ${u.health_ok ? 'ok':'bad'}"></span>运行中 pid=${u.pid || '-'}${u.health_ok ? '' : '（health 异常）'}</span>`
+          : `<span class="badge"><span class="dot bad"></span>已停止</span>`;
+        const ops = u.running
+          ? `<button data-act="stop" data-id="${esc(u.id)}">停止</button>`
+          : `<button data-act="start" data-id="${esc(u.id)}">启动</button>`;
+        const dis = u.running ? 'disabled' : '';
+        const url = u.url ? `<a class="link" href="${esc(u.url)}" target="_blank">${esc(u.url)}</a>` : '-';
+        return `
+          <tr>
+            <td><b>${esc(u.id)}</b>${u.last_error ? `<div class="muted">last_error: ${esc(u.last_error)}</div>` : ''}</td>
+            <td>${esc(u.port)}</td>
+            <td class="muted">${esc(u.proxy || '')}</td>
+            <td>${badge}${u.started_at ? `<div class="muted">started_at: ${esc(u.started_at)}</div>` : ''}</td>
+            <td class="muted">${url}<div class="muted">/mcp /api/v1 /health</div></td>
+            <td class="muted">
+              cookies: ${esc(u.cookies_path)}<br/>
+              profile: ${esc(u.user_data_dir)}<br/>
+              log: ${esc(u.log_file)}
+            </td>
+            <td class="row" style="gap:8px;">
+              ${ops}
+              <button data-act="edit" data-id="${esc(u.id)}" ${dis}>编辑</button>
+              <button data-act="del" data-id="${esc(u.id)}" ${dis}>删除</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    tbody.addEventListener('click', async (ev) => {
+      const btn = ev.target.closest('button');
+      if (!btn) return;
+      const act = btn.dataset.act;
+      const id = btn.dataset.id;
+      if (!act || !id) return;
+
+      try {
+        if (act === 'start') await api('POST', `/users/${encodeURIComponent(id)}/start`);
+        if (act === 'stop') await api('POST', `/users/${encodeURIComponent(id)}/stop`);
+        if (act === 'del') {
+          if (!confirm(`确认删除用户 ${id}？`)) return;
+          await api('DELETE', `/users/${encodeURIComponent(id)}`);
+        }
+        if (act === 'edit') {
+          const data = await api('GET', '/users');
+          const u = (data.users || []).find(x => x.id === id);
+          if (!u) throw new Error('用户不存在');
+          openModal(u);
+          return;
+        }
+        await refresh();
+      } catch (e) {
+        alert(e.message);
+      }
+    });
+
+    document.getElementById('btnAdd').addEventListener('click', () => openModal(null));
+    document.getElementById('btnRefresh').addEventListener('click', refresh);
+    document.getElementById('btnClose').addEventListener('click', closeModal);
+    document.getElementById('btnCancel').addEventListener('click', closeModal);
+
+    document.getElementById('btnSave').addEventListener('click', async () => {
+      formErr.textContent = '';
+      const id = (fId.value || '').trim();
+      const port = parseInt((fPort.value || '').trim(), 10);
+      const proxy = (fProxy.value || '').trim();
+      try {
+        if (!id) throw new Error('id 不能为空');
+        if (!port || port <= 0) throw new Error('port 非法');
+        if (editingId) {
+          await api('PUT', `/users/${encodeURIComponent(editingId)}`, { port, proxy });
+        } else {
+          await api('POST', '/users', { id, port, proxy });
+        }
+        closeModal();
+        await refresh();
+      } catch (e) {
+        formErr.textContent = e.message;
+      }
+    });
+
+    refresh();
+    setInterval(refresh, 2000);
+  </script>
+</body>
+</html>

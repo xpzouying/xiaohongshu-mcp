@@ -10,7 +10,6 @@ import (
 	"github.com/go-rod/rod"
 	"github.com/mattn/go-runewidth"
 	"github.com/sirupsen/logrus"
-	"github.com/xpzouying/headless_browser"
 	"github.com/xpzouying/xiaohongshu-mcp/browser"
 	"github.com/xpzouying/xiaohongshu-mcp/configs"
 	"github.com/xpzouying/xiaohongshu-mcp/cookies"
@@ -485,8 +484,17 @@ func (s *XiaohongshuService) ReplyCommentToFeed(ctx context.Context, feedID, xse
 	}, nil
 }
 
-func newBrowser() *headless_browser.Browser {
-	return browser.NewBrowser(configs.IsHeadless(), browser.WithBinPath(configs.GetBinPath()))
+func newBrowser() *browser.Browser {
+	opts := []browser.Option{
+		browser.WithBinPath(configs.GetBinPath()),
+	}
+	if proxy := configs.GetProxy(); proxy != "" {
+		opts = append(opts, browser.WithProxy(proxy))
+	}
+	if userDataDir := configs.GetUserDataDir(); userDataDir != "" {
+		opts = append(opts, browser.WithUserDataDir(userDataDir))
+	}
+	return browser.NewBrowser(configs.IsHeadless(), opts...)
 }
 
 func saveCookies(page *rod.Page) error {

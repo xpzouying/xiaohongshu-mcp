@@ -40,6 +40,12 @@ func (c *localCookie) LoadCookies() ([]byte, error) {
 
 // SaveCookies 保存 cookies 到文件中。
 func (c *localCookie) SaveCookies(data []byte) error {
+	// 确保目录存在
+	if dir := filepath.Dir(c.path); dir != "" && dir != "." {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return errors.Wrap(err, "failed to create cookies directory")
+		}
+	}
 	return os.WriteFile(c.path, data, 0644)
 }
 
@@ -53,24 +59,14 @@ func (c *localCookie) DeleteCookies() error {
 }
 
 // GetCookiesFilePath 获取 cookies 文件路径。
-// 为了向后兼容，如果旧路径 /tmp/cookies.json 存在，则继续使用；
-// 否则使用当前目录下的 cookies.json
+// 优先级：1. COOKIES_PATH 环境变量 2. 当前目录 cookies.json
+// 注意：多用户场景下必须通过 COOKIES_PATH 指定独立路径
 func GetCookiesFilePath() string {
-	// 旧路径：/tmp/cookies.json
-	tmpDir := os.TempDir()
-	oldPath := filepath.Join(tmpDir, "cookies.json")
-
-	// 检查旧路径文件是否存在
-	if _, err := os.Stat(oldPath); err == nil {
-		// 文件存在，使用旧路径（向后兼容）
-		return oldPath
+	// 环境变量优先级最高（多用户场景必须）
+	if path := os.Getenv("COOKIES_PATH"); path != "" {
+		return path
 	}
 
-	path := os.Getenv("COOKIES_PATH") // 判断环境变量
-	if path == "" {
-		path = "cookies.json" // fallback，本地调试时用当前目录
-	}
-
-	// 文件不存在，使用新路径（当前目录）
-	return path
+	// fallback：当前目录（单用户本地调试）
+	return "cookies.json"
 }
