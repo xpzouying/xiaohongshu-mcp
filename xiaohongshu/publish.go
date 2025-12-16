@@ -38,7 +38,7 @@ func NewPublishImageAction(page *rod.Page) (*PublishAction, error) {
 	pp.MustNavigate(urlOfPublic).MustWaitIdle().MustWaitDOMStable()
 	time.Sleep(1 * time.Second)
 
-	if err := mustClickPublishTab(page, "上传图文"); err != nil {
+	if err := mustClickPublishTab(pp, "上传图文"); err != nil {
 		logrus.Errorf("点击上传图文 TAB 失败: %v", err)
 		return nil, err
 	}
@@ -244,6 +244,13 @@ func submitPublish(page *rod.Page, title, content string, tags []string) error {
 	titleElem := page.MustElement("div.d-input input")
 	titleElem.MustInput(title)
 
+	// 检查一下 title 的长度
+	time.Sleep(500 * time.Millisecond) // 等待页面渲染长度提示
+	if err := checkTitleMaxLength(page); err != nil {
+		return err
+	}
+	slog.Info("检查标题长度：通过")
+
 	time.Sleep(1 * time.Second)
 
 	if contentElem, ok := getContentElement(page); ok {
@@ -257,12 +264,70 @@ func submitPublish(page *rod.Page, title, content string, tags []string) error {
 
 	time.Sleep(1 * time.Second)
 
+	// 正文的长度的判定：
+	if err := checkContentMaxLength(page); err != nil {
+		return err
+	}
+	slog.Info("检查正文长度：通过")
+
 	submitButton := page.MustElement("div.submit div.d-button-content")
 	submitButton.MustClick()
 
 	time.Sleep(3 * time.Second)
 
 	return nil
+}
+
+// 检查标题是否超过最大长度
+func checkTitleMaxLength(page *rod.Page) error {
+	has, elem, err := page.Has(`div.title-container div.max_suffix`)
+	if err != nil {
+		return errors.Wrap(err, "检查标题长度元素失败")
+	}
+
+	// 元素不存在，说明标题没超长
+	if !has {
+		return nil
+	}
+
+	// 元素存在，说明标题超长
+	titleLength, err := elem.Text()
+	if err != nil {
+		return errors.Wrap(err, "获取标题长度文本失败")
+	}
+
+	return makeMaxLengthError(titleLength)
+}
+
+func checkContentMaxLength(page *rod.Page) error {
+	has, elem, err := page.Has(`div.edit-container div.length-error`)
+	if err != nil {
+		return errors.Wrap(err, "检查正文长度元素失败")
+	}
+
+	// 元素不存在，说明正文没超长
+	if !has {
+		return nil
+	}
+
+	// 元素存在，说明正文超长
+	contentLength, err := elem.Text()
+	if err != nil {
+		return errors.Wrap(err, "获取正文长度文本失败")
+	}
+
+	return makeMaxLengthError(contentLength)
+}
+
+func makeMaxLengthError(elemText string) error {
+	parts := strings.Split(elemText, "/")
+	if len(parts) != 2 {
+		return errors.Errorf("长度超过限制: %s", elemText)
+	}
+
+	currLen, maxLen := parts[0], parts[1]
+
+	return errors.Errorf("当前输入长度为%s，最大长度为%s", currLen, maxLen)
 }
 
 // 查找内容输入框 - 使用Race方法处理两种样式
