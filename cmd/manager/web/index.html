@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>xiaohongshu-mcp 多用户管理</title>
   <style>
-    :root { --bg:#0b1020; --card:#121a33; --text:#e8ecff; --muted:#9aa6d6; --ok:#22c55e; --bad:#ef4444; --line:#243057; --btn:#2b3a6a; }
+    :root { --bg:#0b1020; --card:#121a33; --text:#e8ecff; --muted:#9aa6d6; --ok:#22c55e; --bad:#ef4444; --line:#243057; --btn:#2b3a6a; --accent:#6366f1; }
     body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "PingFang SC", "Microsoft YaHei", Arial; background:var(--bg); color:var(--text); }
     .wrap { max-width: 1100px; margin: 18px auto; padding: 0 14px; }
     .row { display:flex; gap: 12px; flex-wrap: wrap; align-items: center; }
@@ -21,16 +21,47 @@
     .dot.bad { background: var(--bad); }
     button { background: var(--btn); border: 1px solid var(--line); color: var(--text); padding: 6px 10px; border-radius: 8px; cursor: pointer; font-size: 12px; }
     button:disabled { opacity: .5; cursor: not-allowed; }
-    input { background: #0e1630; border: 1px solid var(--line); color: var(--text); padding: 8px 10px; border-radius: 8px; font-size: 13px; width: 240px; }
+    button.primary { background: var(--accent); border-color: var(--accent); }
+    input, select, textarea { background: #0e1630; border: 1px solid var(--line); color: var(--text); padding: 8px 10px; border-radius: 8px; font-size: 13px; width: 240px; }
+    textarea { font-family: monospace; resize: vertical; }
     .w120 { width: 120px; }
     .w200 { width: 200px; }
+    .w100p { width: 100%; box-sizing: border-box; }
     .right { margin-left: auto; }
     .err { color: #ffb4b4; font-size: 12px; white-space: pre-wrap; }
     .link { color: #c7d2fe; text-decoration: none; }
-    .modal { position: fixed; inset: 0; display: none; background: rgba(0,0,0,.55); }
+    .modal { position: fixed; inset: 0; display: none; background: rgba(0,0,0,.55); overflow-y: auto; }
     .modal.show { display: block; }
-    .modal .panel { width: min(560px, calc(100% - 24px)); margin: 10vh auto; }
+    .modal .panel { width: min(800px, calc(100% - 24px)); margin: 5vh auto; }
     .grid { display:grid; grid-template-columns: 140px 1fr; gap: 10px; align-items: center; }
+    .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 12px; }
+    .tabs button { border: none; border-radius: 8px 8px 0 0; background: transparent; padding: 8px 16px; }
+    .tabs button.active { background: var(--btn); border: 1px solid var(--line); border-bottom: none; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .qr-container { text-align: center; padding: 20px; }
+    .qr-container img { max-width: 200px; border-radius: 8px; }
+    .status-row { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
+    .json-output { background: #0a0f1a; border: 1px solid var(--line); border-radius: 8px; padding: 12px; font-family: monospace; font-size: 12px; white-space: pre-wrap; word-break: break-all; max-height: 300px; overflow-y: auto; }
+    .tool-select { margin-bottom: 12px; }
+    .tool-desc { color: var(--muted); font-size: 12px; margin: 4px 0 12px; }
+    /* 动态表单样式 */
+    .tool-form { display: flex; flex-direction: column; gap: 10px; }
+    .tool-field { border: 1px solid var(--line); border-radius: 10px; padding: 10px; background: #0e1630; }
+    .tool-field-head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+    .tool-field-name { font-weight: 700; }
+    .tool-field-type { color: var(--muted); font-size: 11px; font-family: monospace; }
+    .tool-field-desc { color: var(--muted); font-size: 12px; margin-top: 4px; white-space: pre-wrap; }
+    .tool-field-ctrl { margin-top: 8px; }
+    .tool-field input, .tool-field select, .tool-field textarea { width: 100%; box-sizing: border-box; }
+    .tag { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); font-size: 12px; }
+    .tag.req { border-color: #7f1d1d; color: #fecaca; background: rgba(239, 68, 68, .10); }
+    .tag.opt { border-color: var(--line); color: var(--muted); background: rgba(154, 166, 214, .06); }
+    .switch { display: flex; align-items: center; gap: 10px; }
+    .switch input[type="checkbox"] { width: 18px; height: 18px; }
+    .preview-section { margin-top: 12px; }
+    .preview-title { margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+    .toggle-json { font-size: 11px; cursor: pointer; color: var(--accent); }
   </style>
 </head>
 <body>
@@ -68,6 +99,7 @@
     </div>
   </div>
 
+  <!-- 用户配置 Modal -->
   <div class="modal" id="modal">
     <div class="panel card">
       <div class="row">
@@ -93,18 +125,111 @@
     </div>
   </div>
 
+  <!-- 调试 Modal -->
+  <div class="modal" id="debugModal">
+    <div class="panel card">
+      <div class="row">
+        <h1 style="margin:0;">调试面板 - <span id="debugUserId"></span></h1>
+        <div class="right row">
+          <button id="btnDebugRefresh">刷新状态</button>
+          <button id="btnDebugClose">关闭</button>
+        </div>
+      </div>
+
+      <div class="status-row" id="debugStatus"></div>
+
+      <div class="tabs">
+        <button class="active" data-tab="login">登录</button>
+        <button data-tab="cookies">Cookies</button>
+        <button data-tab="mcp">MCP工具</button>
+      </div>
+
+      <!-- 登录 Tab -->
+      <div class="tab-content active" id="tab-login">
+        <div class="row" style="margin-bottom: 12px;">
+          <button id="btnGetQRCode" class="primary">获取登录二维码</button>
+          <span class="muted" id="loginStatusText">未检查</span>
+        </div>
+        <div class="qr-container" id="qrContainer" style="display:none;">
+          <img id="qrImage" src="" alt="登录二维码" />
+          <div class="muted" id="qrTimeout"></div>
+        </div>
+        <div class="err" id="loginErr"></div>
+      </div>
+
+      <!-- Cookies Tab -->
+      <div class="tab-content" id="tab-cookies">
+        <div class="row" style="margin-bottom: 12px;">
+          <button id="btnRefreshCookies">刷新Cookie状态</button>
+          <button id="btnClearCookies" style="background:#dc2626;">清除Cookies</button>
+        </div>
+        <div id="cookieInfo" class="json-output">点击"刷新Cookie状态"查看</div>
+        <div class="err" id="cookieErr"></div>
+      </div>
+
+      <!-- MCP工具 Tab -->
+      <div class="tab-content" id="tab-mcp">
+        <div class="tool-select">
+          <div class="row" style="margin-bottom: 8px;">
+            <button id="btnLoadTools">加载工具列表</button>
+          </div>
+          <select id="toolSelect" class="w100p" style="margin-bottom: 8px;">
+            <option value="">-- 请先加载工具列表 --</option>
+          </select>
+          <div class="tool-desc" id="toolDesc"></div>
+        </div>
+        <!-- 动态生成的参数表单 -->
+        <div class="row" style="margin-bottom: 8px;">
+          <div class="muted">参数（根据 Schema 自动生成）</div>
+          <div class="right row" style="gap:8px;">
+            <button id="btnResetToolArgs">重置默认值</button>
+            <span class="toggle-json" id="toggleJsonMode">切换到JSON模式</span>
+          </div>
+        </div>
+        <div id="toolArgsForm" class="tool-form"></div>
+        <textarea id="toolArgsJson" class="w100p" rows="6" style="display:none; font-family:monospace;" placeholder='{"key": "value"}'></textarea>
+        <div class="err" id="toolArgsErr"></div>
+        <!-- JSON预览 -->
+        <div class="preview-section">
+          <div class="preview-title">
+            <span class="muted">将提交的 JSON:</span>
+          </div>
+          <div id="toolArgsPreview" class="json-output" style="max-height:150px;">请选择工具</div>
+        </div>
+        <div class="row" style="margin: 12px 0;">
+          <button id="btnCallTool" class="primary">调用工具</button>
+          <span class="muted">超时: 30秒</span>
+        </div>
+        <div class="muted" style="margin-bottom: 4px;">结果:</div>
+        <div id="toolResult" class="json-output">调用结果将显示在这里</div>
+        <div class="err" id="mcpErr"></div>
+      </div>
+    </div>
+  </div>
+
   <script>
     const API = '/api/admin/v1';
     const tbody = document.getElementById('tbody');
     const globalInfo = document.getElementById('globalInfo');
     const globalErr = document.getElementById('globalErr');
 
+    // 用户配置 Modal
     const modal = document.getElementById('modal');
     const fId = document.getElementById('fId');
     const fPort = document.getElementById('fPort');
     const fProxy = document.getElementById('fProxy');
     const formErr = document.getElementById('formErr');
     let editingId = null;
+
+    // 调试 Modal
+    const debugModal = document.getElementById('debugModal');
+    let currentDebugUser = null;
+    let loginPollTimer = null;
+    let toolsCache = [];
+    // 动态表单相关状态
+    let currentTool = null;
+    let toolArgEls = new Map();  // 存储每个字段的input元素引用
+    let isJsonMode = false;      // 是否处于JSON编辑模式
 
     function esc(s) {
       return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -125,6 +250,7 @@
       return res.status === 204 || res.status === 201 ? null : await res.json();
     }
 
+    // 用户配置 Modal 函数
     function openModal(user) {
       formErr.textContent = '';
       modal.classList.add('show');
@@ -144,6 +270,663 @@
     }
     function closeModal() {
       modal.classList.remove('show');
+    }
+
+    // 调试 Modal 函数
+    function openDebugModal(user) {
+      currentDebugUser = user;
+      document.getElementById('debugUserId').textContent = user.id;
+      debugModal.classList.add('show');
+
+      // 清理之前的轮询定时器
+      if (loginPollTimer) {
+        clearInterval(loginPollTimer);
+        loginPollTimer = null;
+      }
+
+      // 重置状态
+      document.getElementById('qrContainer').style.display = 'none';
+      document.getElementById('loginErr').textContent = '';
+      document.getElementById('cookieErr').textContent = '';
+      document.getElementById('mcpErr').textContent = '';
+      document.getElementById('toolResult').textContent = '调用结果将显示在这里';
+      document.getElementById('toolSelect').innerHTML = '<option value="">-- 请先加载工具列表 --</option>';
+      document.getElementById('toolDesc').textContent = '';
+      toolsCache = [];
+      // 重置动态表单状态
+      currentTool = null;
+      toolArgEls = new Map();
+      isJsonMode = false;
+      document.getElementById('toolArgsForm').innerHTML = '';
+      document.getElementById('toolArgsJson').style.display = 'none';
+      document.getElementById('toolArgsErr').textContent = '';
+      document.getElementById('toolArgsPreview').textContent = '请选择工具';
+      document.getElementById('toggleJsonMode').textContent = '切换到JSON模式';
+
+      // 切换到第一个tab
+      switchTab('login');
+
+      // 刷新状态
+      refreshDebugStatus();
+    }
+
+    function closeDebugModal() {
+      debugModal.classList.remove('show');
+      currentDebugUser = null;
+      if (loginPollTimer) {
+        clearInterval(loginPollTimer);
+        loginPollTimer = null;
+      }
+    }
+
+    async function refreshDebugStatus() {
+      if (!currentDebugUser) return;
+      const statusEl = document.getElementById('debugStatus');
+      try {
+        const data = await api('GET', `/users/${encodeURIComponent(currentDebugUser.id)}/debug/summary`);
+        const runningBadge = data.user.running
+          ? `<span class="badge"><span class="dot ${data.user.health_ok ? 'ok' : 'bad'}"></span>运行中</span>`
+          : `<span class="badge"><span class="dot bad"></span>已停止</span>`;
+        const loginBadge = data.login.is_logged_in
+          ? `<span class="badge"><span class="dot ok"></span>已登录: ${esc(data.login.username)}</span>`
+          : `<span class="badge"><span class="dot bad"></span>未登录</span>`;
+        const cookieBadge = data.cookies.exists
+          ? `<span class="badge">Cookies: ${data.cookies.count}条</span>`
+          : `<span class="badge">无Cookies</span>`;
+        statusEl.innerHTML = runningBadge + loginBadge + cookieBadge;
+
+        document.getElementById('loginStatusText').textContent = data.login.is_logged_in ? '已登录' : '未登录';
+      } catch (e) {
+        statusEl.innerHTML = `<span class="err">${esc(e.message)}</span>`;
+      }
+    }
+
+    function switchTab(tabName) {
+      document.querySelectorAll('.tabs button').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tab === tabName);
+      });
+      document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.toggle('active', content.id === 'tab-' + tabName);
+      });
+    }
+
+    // 登录相关
+    async function getQRCode() {
+      if (!currentDebugUser) return;
+      const errEl = document.getElementById('loginErr');
+      const containerEl = document.getElementById('qrContainer');
+      const imgEl = document.getElementById('qrImage');
+      const timeoutEl = document.getElementById('qrTimeout');
+
+      errEl.textContent = '';
+      containerEl.style.display = 'none';
+
+      try {
+        const data = await api('GET', `/users/${encodeURIComponent(currentDebugUser.id)}/debug/login/qrcode`);
+        if (data.data && data.data.img) {
+          imgEl.src = data.data.img;
+          timeoutEl.textContent = `有效期: ${data.data.timeout || '未知'}`;
+          containerEl.style.display = 'block';
+
+          // 开始轮询登录状态
+          startLoginPoll();
+        } else if (data.data && data.data.is_logged_in) {
+          errEl.textContent = '已经登录，无需扫码';
+          refreshDebugStatus();
+        } else {
+          errEl.textContent = '获取二维码失败: ' + JSON.stringify(data);
+        }
+      } catch (e) {
+        errEl.textContent = e.message;
+      }
+    }
+
+    function startLoginPoll() {
+      if (loginPollTimer) clearInterval(loginPollTimer);
+      loginPollTimer = setInterval(async () => {
+        if (!currentDebugUser) {
+          clearInterval(loginPollTimer);
+          return;
+        }
+        try {
+          const data = await api('GET', `/users/${encodeURIComponent(currentDebugUser.id)}/debug/login/status`);
+          if (data.data && data.data.is_logged_in) {
+            clearInterval(loginPollTimer);
+            loginPollTimer = null;
+            document.getElementById('qrContainer').style.display = 'none';
+            document.getElementById('loginStatusText').textContent = '登录成功!';
+            refreshDebugStatus();
+          }
+        } catch (e) {
+          // 忽略轮询错误
+        }
+      }, 2000);
+    }
+
+    // Cookies相关
+    async function refreshCookies() {
+      if (!currentDebugUser) return;
+      const infoEl = document.getElementById('cookieInfo');
+      const errEl = document.getElementById('cookieErr');
+      errEl.textContent = '';
+
+      try {
+        const data = await api('GET', `/users/${encodeURIComponent(currentDebugUser.id)}/debug/cookies`);
+        infoEl.textContent = JSON.stringify(data, null, 2);
+      } catch (e) {
+        errEl.textContent = e.message;
+      }
+    }
+
+    async function clearCookies() {
+      if (!currentDebugUser) return;
+      if (!confirm('确认清除该用户的所有Cookies？这将导致需要重新登录。')) return;
+
+      const errEl = document.getElementById('cookieErr');
+      errEl.textContent = '';
+
+      try {
+        const data = await api('DELETE', `/users/${encodeURIComponent(currentDebugUser.id)}/debug/cookies`);
+        alert(data.message || '清除成功');
+        refreshCookies();
+        refreshDebugStatus();
+      } catch (e) {
+        errEl.textContent = e.message;
+      }
+    }
+
+    // MCP工具相关 - 辅助函数
+    function getPropType(prop) {
+      if (!prop) return 'string';
+      if (Array.isArray(prop.type)) return prop.type[0] || 'string';
+      return prop.type || 'string';
+    }
+
+    function safeStringify(v) {
+      try { return JSON.stringify(v); } catch (e) { return String(v); }
+    }
+
+    // 清空表单UI
+    function clearToolArgsUI(msg) {
+      toolArgEls = new Map();
+      document.getElementById('toolArgsForm').innerHTML = '';
+      document.getElementById('toolArgsErr').textContent = '';
+      document.getElementById('toolArgsPreview').textContent = msg || '';
+    }
+
+    // 从表单收集参数
+    function collectArgsFromForm(schema, strict) {
+      const args = {};
+      const errors = [];
+      const props = (schema && schema.type === 'object' && schema.properties) ? schema.properties : null;
+      const requiredSet = new Set(Array.isArray(schema?.required) ? schema.required : []);
+
+      if (!props) return { args, errors };
+
+      for (const [key, prop] of Object.entries(props)) {
+        const el = toolArgEls.get(key);
+        if (!el) continue;
+
+        const t = getPropType(prop);
+        const isRequired = requiredSet.has(key);
+        const hasEnum = Array.isArray(prop?.enum);
+
+        // enum 类型特殊处理 - 保持原始类型
+        if (hasEnum) {
+          const raw = (el.value ?? '').trim();
+          if (raw === '') {
+            if (isRequired) errors.push(`${key} 为必填参数`);
+            continue;
+          }
+          // 从原始enum中找到匹配的值，保持原始类型
+          const matchedVal = prop.enum.find(v => String(v) === raw);
+          if (matchedVal !== undefined) {
+            args[key] = matchedVal;
+          } else {
+            args[key] = raw; // fallback
+          }
+          continue;
+        }
+
+        // boolean 类型
+        if (t === 'boolean') {
+          const v = !!el.checked;
+          // 选填且为默认值时跳过
+          if (!isRequired && v === (prop?.default ?? false)) continue;
+          args[key] = v;
+          continue;
+        }
+
+        // integer/number 类型
+        if (t === 'integer' || t === 'number') {
+          const raw = (el.value ?? '').trim();
+          if (raw === '') {
+            if (isRequired) errors.push(`${key} 为必填参数`);
+            continue;
+          }
+          const n = Number(raw);
+          if (!Number.isFinite(n)) {
+            errors.push(`${key} 不是有效的数字`);
+            continue;
+          }
+          // integer需要额外校验是否为整数
+          if (t === 'integer' && !Number.isInteger(n)) {
+            errors.push(`${key} 必须是整数，不能是小数`);
+            continue;
+          }
+          // 校验范围约束
+          if (prop?.minimum !== undefined && n < prop.minimum) {
+            errors.push(`${key} 不能小于 ${prop.minimum}`);
+            continue;
+          }
+          if (prop?.maximum !== undefined && n > prop.maximum) {
+            errors.push(`${key} 不能大于 ${prop.maximum}`);
+            continue;
+          }
+          args[key] = n;
+          continue;
+        }
+
+        // object/array 类型 (需要解析JSON)
+        if (t === 'object' || t === 'array') {
+          const raw = (el.value ?? '').trim();
+          if (raw === '') {
+            if (isRequired) errors.push(`${key} 为必填参数`);
+            continue;
+          }
+          try {
+            const parsed = JSON.parse(raw);
+            if (t === 'object' && (typeof parsed !== 'object' || Array.isArray(parsed) || parsed === null)) {
+              errors.push(`${key} 需要是 JSON 对象（例如 {}）`);
+              continue;
+            }
+            if (t === 'array' && !Array.isArray(parsed)) {
+              errors.push(`${key} 需要是 JSON 数组（例如 []）`);
+              continue;
+            }
+            args[key] = parsed;
+          } catch (e) {
+            errors.push(`${key} 的 JSON 解析失败: ${e.message}`);
+          }
+          continue;
+        }
+
+        // string/enum 和其他类型
+        const raw = (el.value ?? '');
+        const val = raw.trim();
+        if (val === '') {
+          if (isRequired) errors.push(`${key} 为必填参数`);
+          continue;
+        }
+        // 校验字符串长度约束
+        if (prop?.minLength !== undefined && val.length < prop.minLength) {
+          errors.push(`${key} 长度不能小于 ${prop.minLength}`);
+          continue;
+        }
+        if (prop?.maxLength !== undefined && val.length > prop.maxLength) {
+          errors.push(`${key} 长度不能大于 ${prop.maxLength}`);
+          continue;
+        }
+        args[key] = val;
+      }
+
+      if (strict && errors.length) throw new Error(errors.join('\n'));
+      return { args, errors };
+    }
+
+    // 更新JSON预览
+    function updateToolArgsPreview() {
+      if (!currentTool) {
+        clearToolArgsUI('请选择工具');
+        return;
+      }
+      if (isJsonMode) {
+        // JSON模式：直接显示textarea内容
+        const jsonEl = document.getElementById('toolArgsJson');
+        try {
+          const parsed = JSON.parse(jsonEl.value || '{}');
+          document.getElementById('toolArgsPreview').textContent = JSON.stringify(parsed, null, 2);
+          document.getElementById('toolArgsErr').textContent = '';
+        } catch (e) {
+          document.getElementById('toolArgsErr').textContent = 'JSON格式错误: ' + e.message;
+        }
+        return;
+      }
+      const { args, errors } = collectArgsFromForm(currentTool.input_schema, false);
+      document.getElementById('toolArgsPreview').textContent = JSON.stringify(args, null, 2);
+      document.getElementById('toolArgsErr').textContent = errors.length ? errors.join('\n') : '';
+    }
+
+    // 填充默认值
+    function fillToolArgsDefaults(schema) {
+      const props = (schema && schema.type === 'object' && schema.properties) ? schema.properties : null;
+      if (!props) return;
+
+      for (const [key, prop] of Object.entries(props)) {
+        const el = toolArgEls.get(key);
+        if (!el) continue;
+
+        const t = getPropType(prop);
+        const def = prop?.default;
+
+        if (t === 'boolean') {
+          el.checked = def ?? false;
+        } else if (t === 'integer' || t === 'number') {
+          el.value = (def !== undefined && def !== null) ? String(def) : '';
+        } else if (t === 'object' || t === 'array') {
+          el.value = (def !== undefined) ? JSON.stringify(def, null, 2) : '';
+        } else {
+          el.value = (def !== undefined && def !== null) ? String(def) : '';
+        }
+      }
+    }
+
+    // 渲染动态表单
+    function renderToolArgsForm(schema) {
+      const formEl = document.getElementById('toolArgsForm');
+      const errEl = document.getElementById('toolArgsErr');
+      const previewEl = document.getElementById('toolArgsPreview');
+
+      toolArgEls = new Map();
+      formEl.innerHTML = '';
+      errEl.textContent = '';
+
+      // 检查schema是否有效
+      if (!schema || schema.type !== 'object' || !schema.properties || Object.keys(schema.properties).length === 0) {
+        formEl.innerHTML = '<div class="muted">该工具不需要参数</div>';
+        previewEl.textContent = '{}';
+        return;
+      }
+
+      // 检查是否有复杂的schema特性（anyOf/oneOf/allOf/$ref等）
+      const hasComplexFeatures = schema.anyOf || schema.oneOf || schema.allOf || schema.$ref ||
+        Object.values(schema.properties).some(p => p?.anyOf || p?.oneOf || p?.allOf || p?.$ref);
+      if (hasComplexFeatures) {
+        formEl.innerHTML = '<div class="muted" style="color:#fbbf24;">⚠️ 该工具的参数结构较复杂，建议使用"JSON模式"进行编辑</div>';
+      }
+
+      const requiredSet = new Set(Array.isArray(schema.required) ? schema.required : []);
+      const entries = Object.entries(schema.properties);
+      // 必填参数排在前面
+      entries.sort((a, b) => {
+        const ar = requiredSet.has(a[0]) ? 0 : 1;
+        const br = requiredSet.has(b[0]) ? 0 : 1;
+        if (ar !== br) return ar - br;
+        return a[0].localeCompare(b[0], 'zh-CN');
+      });
+
+      for (const [key, prop] of entries) {
+        const t = getPropType(prop);
+        const isRequired = requiredSet.has(key);
+        const hasEnum = Array.isArray(prop?.enum);
+
+        // 创建字段容器
+        const field = document.createElement('div');
+        field.className = 'tool-field';
+
+        // 头部：名称 + 标签
+        const head = document.createElement('div');
+        head.className = 'tool-field-head';
+
+        const nameEl = document.createElement('span');
+        nameEl.className = 'tool-field-name';
+        nameEl.textContent = key;
+
+        const typeEl = document.createElement('span');
+        typeEl.className = 'tool-field-type';
+        typeEl.textContent = hasEnum ? 'enum' : t;
+
+        const tag = document.createElement('span');
+        tag.className = 'tag ' + (isRequired ? 'req' : 'opt');
+        tag.textContent = isRequired ? '必填' : '选填';
+
+        head.appendChild(nameEl);
+        head.appendChild(typeEl);
+        head.appendChild(tag);
+        field.appendChild(head);
+
+        // 描述
+        const desc = document.createElement('div');
+        desc.className = 'tool-field-desc';
+        const parts = [];
+        if (prop?.description) parts.push(prop.description);
+        if (prop?.default !== undefined) parts.push(`默认值: ${safeStringify(prop.default)}`);
+        if (hasEnum) parts.push(`可选值: ${prop.enum.map(safeStringify).join(' | ')}`);
+        desc.textContent = parts.join('\n');
+        field.appendChild(desc);
+
+        // 输入控件
+        const ctrlWrap = document.createElement('div');
+        ctrlWrap.className = 'tool-field-ctrl';
+
+        let input;
+        if (hasEnum) {
+          // enum 类型使用下拉框
+          input = document.createElement('select');
+          const emptyOpt = document.createElement('option');
+          emptyOpt.value = '';
+          emptyOpt.textContent = '-- 请选择 --';
+          input.appendChild(emptyOpt);
+          for (const v of prop.enum) {
+            const opt = document.createElement('option');
+            opt.value = String(v);
+            opt.textContent = String(v);
+            input.appendChild(opt);
+          }
+          ctrlWrap.appendChild(input);
+        } else if (t === 'boolean') {
+          // boolean 使用开关
+          const wrap = document.createElement('div');
+          wrap.className = 'switch';
+          input = document.createElement('input');
+          input.type = 'checkbox';
+          const tip = document.createElement('span');
+          tip.className = 'muted';
+          tip.textContent = '开启 / 关闭';
+          wrap.appendChild(input);
+          wrap.appendChild(tip);
+          ctrlWrap.appendChild(wrap);
+        } else if (t === 'integer' || t === 'number') {
+          // 数字输入
+          input = document.createElement('input');
+          input.type = 'number';
+          input.step = (t === 'integer') ? '1' : 'any';
+          if (prop?.minimum !== undefined) input.min = String(prop.minimum);
+          if (prop?.maximum !== undefined) input.max = String(prop.maximum);
+          if (prop?.default !== undefined) input.placeholder = `默认: ${prop.default}`;
+          ctrlWrap.appendChild(input);
+        } else if (t === 'object' || t === 'array') {
+          // object/array 使用 textarea
+          input = document.createElement('textarea');
+          input.rows = 3;
+          input.placeholder = (t === 'array') ? '[]' : '{}';
+          input.style.fontFamily = 'monospace';
+          ctrlWrap.appendChild(input);
+        } else {
+          // string 和其他类型
+          input = document.createElement('input');
+          input.type = 'text';
+          if (prop?.default !== undefined) input.placeholder = `默认: ${prop.default}`;
+          if (prop?.minLength !== undefined) input.minLength = prop.minLength;
+          if (prop?.maxLength !== undefined) input.maxLength = prop.maxLength;
+          ctrlWrap.appendChild(input);
+        }
+
+        field.appendChild(ctrlWrap);
+        toolArgEls.set(key, input);
+
+        // 绑定实时更新
+        input.addEventListener('input', updateToolArgsPreview);
+        input.addEventListener('change', updateToolArgsPreview);
+
+        formEl.appendChild(field);
+      }
+
+      fillToolArgsDefaults(schema);
+      updateToolArgsPreview();
+    }
+
+    // 切换JSON模式
+    function toggleJsonMode() {
+      const formEl = document.getElementById('toolArgsForm');
+      const jsonEl = document.getElementById('toolArgsJson');
+      const toggleEl = document.getElementById('toggleJsonMode');
+
+      if (!currentTool) return;
+
+      if (isJsonMode) {
+        // 从JSON模式切换到表单模式
+        isJsonMode = false;
+        formEl.style.display = '';
+        jsonEl.style.display = 'none';
+        toggleEl.textContent = '切换到JSON模式';
+        // 先重置表单到默认值，再用JSON内容覆盖
+        fillToolArgsDefaults(currentTool.input_schema);
+        try {
+          const parsed = JSON.parse(jsonEl.value || '{}');
+          const schema = currentTool.input_schema;
+          if (schema?.properties) {
+            for (const [key, val] of Object.entries(parsed)) {
+              const el = toolArgEls.get(key);
+              if (!el) continue;
+              const prop = schema.properties[key];
+              const t = getPropType(prop);
+              if (t === 'boolean') {
+                el.checked = !!val;
+              } else if (t === 'object' || t === 'array') {
+                el.value = JSON.stringify(val, null, 2);
+              } else {
+                el.value = val !== undefined && val !== null ? String(val) : '';
+              }
+            }
+          }
+        } catch (e) { /* 忽略解析错误，保持默认值 */ }
+        updateToolArgsPreview();
+      } else {
+        // 从表单模式切换到JSON模式
+        isJsonMode = true;
+        formEl.style.display = 'none';
+        jsonEl.style.display = '';
+        toggleEl.textContent = '切换到表单模式';
+        // 将表单内容同步到JSON
+        const { args } = collectArgsFromForm(currentTool.input_schema, false);
+        jsonEl.value = JSON.stringify(args, null, 2);
+        updateToolArgsPreview();
+      }
+    }
+
+    // 根据schema生成默认值对象
+    function getDefaultArgs(schema) {
+      const args = {};
+      const props = (schema && schema.type === 'object' && schema.properties) ? schema.properties : null;
+      if (!props) return args;
+      for (const [key, prop] of Object.entries(props)) {
+        if (prop?.default !== undefined) {
+          args[key] = prop.default;
+        }
+      }
+      return args;
+    }
+
+    // 重置参数到默认值
+    function resetToolArgs() {
+      if (!currentTool) return;
+      if (isJsonMode) {
+        // JSON模式：生成默认值JSON
+        const defaultArgs = getDefaultArgs(currentTool.input_schema);
+        document.getElementById('toolArgsJson').value = JSON.stringify(defaultArgs, null, 2);
+      }
+      fillToolArgsDefaults(currentTool.input_schema);
+      updateToolArgsPreview();
+    }
+
+    async function loadTools() {
+      if (!currentDebugUser) return;
+      const selectEl = document.getElementById('toolSelect');
+      const errEl = document.getElementById('mcpErr');
+      errEl.textContent = '';
+
+      try {
+        const data = await api('GET', `/users/${encodeURIComponent(currentDebugUser.id)}/debug/mcp/tools`);
+        toolsCache = data.tools || [];
+        selectEl.innerHTML = '<option value="">-- 选择工具 --</option>';
+        toolsCache.forEach(tool => {
+          const opt = document.createElement('option');
+          opt.value = tool.name;
+          opt.textContent = tool.name;
+          selectEl.appendChild(opt);
+        });
+        currentTool = null;
+        clearToolArgsUI('请选择工具');
+      } catch (e) {
+        errEl.textContent = e.message;
+      }
+    }
+
+    function onToolSelect() {
+      const name = document.getElementById('toolSelect').value;
+      const descEl = document.getElementById('toolDesc');
+
+      const tool = toolsCache.find(t => t.name === name);
+      if (tool) {
+        currentTool = tool;
+        descEl.textContent = tool.description || '无描述';
+        // 重置模式为表单模式
+        isJsonMode = false;
+        document.getElementById('toolArgsForm').style.display = '';
+        document.getElementById('toolArgsJson').style.display = 'none';
+        document.getElementById('toggleJsonMode').textContent = '切换到JSON模式';
+        renderToolArgsForm(tool.input_schema);
+      } else {
+        currentTool = null;
+        descEl.textContent = '';
+        clearToolArgsUI('请选择工具');
+      }
+    }
+
+    async function callTool() {
+      if (!currentDebugUser) return;
+      const name = document.getElementById('toolSelect').value;
+      const resultEl = document.getElementById('toolResult');
+      const errEl = document.getElementById('mcpErr');
+
+      if (!name) {
+        errEl.textContent = '请选择工具';
+        return;
+      }
+
+      errEl.textContent = '';
+      document.getElementById('toolArgsErr').textContent = '';
+      resultEl.textContent = '调用中...';
+
+      let args = {};
+      try {
+        if (isJsonMode) {
+          args = JSON.parse(document.getElementById('toolArgsJson').value || '{}');
+        } else {
+          const tool = currentTool?.name === name ? currentTool : toolsCache.find(t => t.name === name);
+          if (!tool) throw new Error('工具不存在');
+          const out = collectArgsFromForm(tool.input_schema, true);
+          args = out.args;
+        }
+      } catch (e) {
+        document.getElementById('toolArgsErr').textContent = e.message;
+        errEl.textContent = '参数校验失败，请检查必填项与类型';
+        resultEl.textContent = '';
+        return;
+      }
+
+      try {
+        const data = await api('POST', `/users/${encodeURIComponent(currentDebugUser.id)}/debug/mcp/call`, {
+          name: name,
+          arguments: args,
+          timeout_ms: 30000
+        });
+        resultEl.textContent = JSON.stringify(data, null, 2);
+      } catch (e) {
+        errEl.textContent = e.message;
+        resultEl.textContent = '调用失败';
+      }
     }
 
     async function refresh() {
@@ -166,6 +949,7 @@
           ? `<button data-act="stop" data-id="${esc(u.id)}">停止</button>`
           : `<button data-act="start" data-id="${esc(u.id)}">启动</button>`;
         const dis = u.running ? 'disabled' : '';
+        const debugDis = u.running && u.health_ok ? '' : 'disabled';
         const url = u.url ? `<a class="link" href="${esc(u.url)}" target="_blank">${esc(u.url)}</a>` : '-';
         return `
           <tr>
@@ -181,6 +965,7 @@
             </td>
             <td class="row" style="gap:8px;">
               ${ops}
+              <button data-act="debug" data-id="${esc(u.id)}" class="primary" ${debugDis}>调试</button>
               <button data-act="edit" data-id="${esc(u.id)}" ${dis}>编辑</button>
               <button data-act="del" data-id="${esc(u.id)}" ${dis}>删除</button>
             </td>
@@ -210,12 +995,20 @@
           openModal(u);
           return;
         }
+        if (act === 'debug') {
+          const data = await api('GET', '/users');
+          const u = (data.users || []).find(x => x.id === id);
+          if (!u) throw new Error('用户不存在');
+          openDebugModal(u);
+          return;
+        }
         await refresh();
       } catch (e) {
         alert(e.message);
       }
     });
 
+    // 用户配置 Modal 事件
     document.getElementById('btnAdd').addEventListener('click', () => openModal(null));
     document.getElementById('btnRefresh').addEventListener('click', refresh);
     document.getElementById('btnClose').addEventListener('click', closeModal);
@@ -240,6 +1033,24 @@
         formErr.textContent = e.message;
       }
     });
+
+    // 调试 Modal 事件
+    document.getElementById('btnDebugClose').addEventListener('click', closeDebugModal);
+    document.getElementById('btnDebugRefresh').addEventListener('click', refreshDebugStatus);
+
+    document.querySelectorAll('.tabs button').forEach(btn => {
+      btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+    });
+
+    document.getElementById('btnGetQRCode').addEventListener('click', getQRCode);
+    document.getElementById('btnRefreshCookies').addEventListener('click', refreshCookies);
+    document.getElementById('btnClearCookies').addEventListener('click', clearCookies);
+    document.getElementById('btnLoadTools').addEventListener('click', loadTools);
+    document.getElementById('toolSelect').addEventListener('change', onToolSelect);
+    document.getElementById('btnResetToolArgs').addEventListener('click', resetToolArgs);
+    document.getElementById('toggleJsonMode').addEventListener('click', toggleJsonMode);
+    document.getElementById('toolArgsJson').addEventListener('input', updateToolArgsPreview);
+    document.getElementById('btnCallTool').addEventListener('click', callTool);
 
     refresh();
     setInterval(refresh, 2000);

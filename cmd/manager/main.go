@@ -59,6 +59,15 @@ func main() {
 		api.DELETE("/users/:id", app.DeleteUser)
 		api.POST("/users/:id/start", app.StartUser)
 		api.POST("/users/:id/stop", app.StopUser)
+
+		// 调试API
+		api.GET("/users/:id/debug/summary", app.GetDebugSummary)
+		api.GET("/users/:id/debug/login/qrcode", app.GetDebugLoginQRCode)
+		api.GET("/users/:id/debug/login/status", app.GetDebugLoginStatus)
+		api.GET("/users/:id/debug/cookies", app.GetDebugCookies)
+		api.DELETE("/users/:id/debug/cookies", app.DeleteDebugCookies)
+		api.GET("/users/:id/debug/mcp/tools", app.GetDebugMCPTools)
+		api.POST("/users/:id/debug/mcp/call", app.PostDebugMCPCall)
 	}
 
 	srv := &http.Server{
