@@ -52,3 +52,6 @@ juhuacha/docker-compose.yml
 docker/docker-compose.yml
 docker/docker-compose.yml
 docker/docker-compose.yml
+
+# Data directory (user data, not for version control)
+data/
