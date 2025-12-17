@@ -65,9 +65,11 @@ func main() {
 		api.GET("/users/:id/debug/login/qrcode", app.GetDebugLoginQRCode)
 		api.GET("/users/:id/debug/login/status", app.GetDebugLoginStatus)
 		api.GET("/users/:id/debug/cookies", app.GetDebugCookies)
+		api.POST("/users/:id/debug/cookies/import", app.ImportDebugCookies)
 		api.DELETE("/users/:id/debug/cookies", app.DeleteDebugCookies)
 		api.GET("/users/:id/debug/mcp/tools", app.GetDebugMCPTools)
 		api.POST("/users/:id/debug/mcp/call", app.PostDebugMCPCall)
+		api.GET("/users/:id/debug/logs", app.GetDebugLogs)
 	}
 
 	srv := &http.Server{

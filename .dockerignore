@@ -14,3 +14,11 @@ docker
 .DS_Store
 
 cookies.json
+cookies*.json
+
+# 数据目录（不打包到镜像）
+data/
+images/
+
+# Windows 可执行文件
+*.exe

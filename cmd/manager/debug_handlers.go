@@ -1,12 +1,15 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -222,6 +225,106 @@ func (a *App) GetDebugCookies(c *gin.Context) {
 	c.JSON(http.StatusOK, info)
 }
 
+// ImportDebugCookies 导入Cookies（用于从老版本迁移）
+func (a *App) ImportDebugCookies(c *gin.Context) {
+	const maxBodyBytes = 5 << 20 // 5MB
+
+	id := strings.TrimSpace(c.Param("id"))
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "id 不能为空"})
+		return
+	}
+
+	user, ok := a.store.GetUser(id)
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
+		return
+	}
+
+	// 读取请求体，限制大小
+	raw, err := io.ReadAll(io.LimitReader(c.Request.Body, maxBodyBytes+1))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "读取请求体失败"})
+		return
+	}
+	if len(raw) > maxBodyBytes {
+		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "文件过大（最大 5MB）"})
+		return
+	}
+
+	// 兼容带BOM的JSON
+	raw = bytes.TrimPrefix(raw, []byte("\xef\xbb\xbf"))
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求体不能为空（需要 JSON 数组）"})
+		return
+	}
+
+	// 验证JSON格式：必须是数组，元素必须是对象
+	var arr []map[string]any
+	if err := json.Unmarshal(raw, &arr); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效 JSON：需要 cookies 数组"})
+		return
+	}
+	for i, ck := range arr {
+		if ck == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("第 %d 条 cookie 不是对象", i+1)})
+			return
+		}
+		// 严格类型校验：name字段必须是非空字符串
+		name, ok := ck["name"].(string)
+		if !ok || strings.TrimSpace(name) == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("第 %d 条 cookie 缺少有效的 name 字段", i+1)})
+			return
+		}
+	}
+
+	// 获取cookie文件路径
+	dataDir := a.store.ResolveDataDir()
+	paths := a.proc.DerivePaths(dataDir, id, user.Port)
+
+	// 确保目录存在
+	if dir := filepath.Dir(paths.CookiesPath); dir != "" && dir != "." {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("创建目录失败: %v", err)})
+			return
+		}
+	}
+
+	// 序列化并保存（原子写入：先写临时文件再重命名）
+	normalized, err := json.Marshal(arr)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "JSON 序列化失败"})
+		return
+	}
+	tmpPath := paths.CookiesPath + ".tmp"
+	if err := os.WriteFile(tmpPath, normalized, 0644); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("保存 cookies 失败: %v", err)})
+		return
+	}
+	if err := os.Rename(tmpPath, paths.CookiesPath); err != nil {
+		_ = os.Remove(tmpPath) // 清理临时文件
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("保存 cookies 失败: %v", err)})
+		return
+	}
+
+	st := a.proc.GetStatus(id)
+	needRestart := st.Running
+	message := "Cookies 已导入并保存"
+	if needRestart {
+		message = "Cookies 已导入并保存，当前用户实例正在运行，需重启后生效"
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"imported":     true,
+		"count":        len(arr),
+		"cookie_path":  paths.CookiesPath,
+		"running":      st.Running,
+		"need_restart": needRestart,
+		"message":      message,
+	})
+}
+
 // DeleteDebugCookies 删除Cookie
 func (a *App) DeleteDebugCookies(c *gin.Context) {
 	id := strings.TrimSpace(c.Param("id"))
@@ -368,11 +471,17 @@ func (a *App) PostDebugMCPCall(c *gin.Context) {
 
 func (a *App) fetchLoginStatus(ctx context.Context, port int) DebugLoginInfo {
 	url := fmt.Sprintf("http://127.0.0.1:%d/api/v1/login/status", port)
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	// 登录状态检查需要启动浏览器并导航页面，增加超时到30秒
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	status, _, data, err := a.proxyGet(ctx, url, 5*time.Second)
-	if err != nil || status >= 400 {
+	status, _, data, err := a.proxyGet(ctx, url, 30*time.Second)
+	if err != nil {
+		fmt.Printf("[DEBUG] fetchLoginStatus 请求失败: port=%d err=%v\n", port, err)
+		return DebugLoginInfo{}
+	}
+	if status >= 400 {
+		fmt.Printf("[DEBUG] fetchLoginStatus 状态码异常: port=%d status=%d body=%s\n", port, status, string(data))
 		return DebugLoginInfo{}
 	}
 
@@ -385,12 +494,15 @@ func (a *App) fetchLoginStatus(ctx context.Context, port int) DebugLoginInfo {
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(data, &resp); err != nil {
+		fmt.Printf("[DEBUG] fetchLoginStatus JSON解析失败: port=%d err=%v body=%s\n", port, err, string(data))
 		return DebugLoginInfo{}
 	}
 	if !resp.Success {
+		fmt.Printf("[DEBUG] fetchLoginStatus success=false: port=%d body=%s\n", port, string(data))
 		return DebugLoginInfo{}
 	}
 
+	fmt.Printf("[DEBUG] fetchLoginStatus 成功: port=%d is_logged_in=%v username=%s\n", port, resp.Data.IsLoggedIn, resp.Data.Username)
 	return DebugLoginInfo{
 		IsLoggedIn: resp.Data.IsLoggedIn,
 		Username:   resp.Data.Username,
@@ -507,4 +619,162 @@ func (a *App) proxyRequest(ctx context.Context, method, url string, timeout time
 		contentType = "application/octet-stream"
 	}
 	return resp.StatusCode, contentType, body, nil
+}
+
+// LogsResponse 日志响应
+type LogsResponse struct {
+	LogFile    string `json:"log_file"`
+	Exists     bool   `json:"exists"`
+	SizeBytes  int64  `json:"size_bytes"`
+	Lines      int    `json:"lines"`
+	Content    string `json:"content"`
+	Truncated  bool   `json:"truncated"`
+	TotalLines int    `json:"total_lines"`
+}
+
+// GetDebugLogs 获取用户实例日志
+func (a *App) GetDebugLogs(c *gin.Context) {
+	id := strings.TrimSpace(c.Param("id"))
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "id 不能为空"})
+		return
+	}
+
+	user, ok := a.store.GetUser(id)
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
+		return
+	}
+
+	dataDir := a.store.ResolveDataDir()
+	paths := a.proc.DerivePaths(dataDir, id, user.Port)
+
+	resp := LogsResponse{
+		LogFile: paths.LogFile,
+	}
+
+	stat, err := os.Stat(paths.LogFile)
+	if os.IsNotExist(err) {
+		c.JSON(http.StatusOK, resp)
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("读取日志文件状态失败: %v", err)})
+		return
+	}
+
+	resp.Exists = true
+	resp.SizeBytes = stat.Size()
+
+	// 读取最后N行，默认200行，最大1000行
+	lines := 200
+	if linesParam := c.Query("lines"); linesParam != "" {
+		if n, err := strconv.Atoi(linesParam); err == nil && n > 0 {
+			if n > 1000 {
+				n = 1000
+			}
+			lines = n
+		}
+	}
+
+	content, totalLines, err := readLastLines(paths.LogFile, lines)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("读取日志失败: %v", err)})
+		return
+	}
+
+	resp.Content = content
+	resp.TotalLines = totalLines
+
+	// 处理大文件模式（totalLines=-1表示未知总行数）
+	if totalLines < 0 {
+		// 计算实际返回的行数
+		actualLines := strings.Count(content, "\n")
+		if len(content) > 0 && !strings.HasSuffix(content, "\n") {
+			actualLines++
+		}
+		resp.Lines = actualLines
+		resp.Truncated = true // 大文件模式始终标记为截断
+	} else {
+		resp.Lines = min(lines, totalLines)
+		resp.Truncated = totalLines > lines
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
+// readLastLines 读取文件最后N行
+// 对小文件直接读取，对大文件只读取末尾部分以避免OOM
+func readLastLines(filePath string, n int) (string, int, error) {
+	const smallFileThreshold = 2 * 1024 * 1024 // 2MB
+	const tailReadSize = 512 * 1024            // 大文件只读末尾512KB
+
+	file, err := os.Open(filePath)
+	if err != nil {
+		return "", 0, err
+	}
+	defer file.Close()
+
+	stat, err := file.Stat()
+	if err != nil {
+		return "", 0, err
+	}
+	fileSize := stat.Size()
+
+	var data []byte
+	var totalLines int
+	var isPartial bool
+
+	if fileSize <= smallFileThreshold {
+		// 小文件：直接读取全部
+		data, err = io.ReadAll(file)
+		if err != nil {
+			return "", 0, err
+		}
+	} else {
+		// 大文件：只读取末尾部分
+		isPartial = true
+		readSize := int64(tailReadSize)
+		if readSize > fileSize {
+			readSize = fileSize
+		}
+		_, err = file.Seek(-readSize, io.SeekEnd)
+		if err != nil {
+			return "", 0, err
+		}
+		data, err = io.ReadAll(file)
+		if err != nil {
+			return "", 0, err
+		}
+		// 跳过第一个不完整的行
+		if idx := bytes.IndexByte(data, '\n'); idx >= 0 && idx < len(data)-1 {
+			data = data[idx+1:]
+		}
+	}
+
+	allLines := strings.Split(string(data), "\n")
+
+	// 移除末尾空行
+	for len(allLines) > 0 && allLines[len(allLines)-1] == "" {
+		allLines = allLines[:len(allLines)-1]
+	}
+
+	totalLines = len(allLines)
+	if isPartial {
+		// 大文件无法准确统计总行数，返回-1表示未知
+		totalLines = -1
+	}
+
+	if len(allLines) <= n {
+		return strings.Join(allLines, "\n"), totalLines, nil
+	}
+
+	return strings.Join(allLines[len(allLines)-n:], "\n"), totalLines, nil
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

@@ -1,0 +1,23 @@
+services:
+  xiaohongshu-manager:
+    build:
+      context: .
+      dockerfile: Dockerfile.manager
+    container_name: xiaohongshu-manager
+    restart: unless-stopped
+    # 多实例场景建议增加共享内存，避免 Chrome 崩溃
+    shm_size: "1g"
+    # 优雅停止等待时间，确保子进程正常退出
+    stop_grace_period: 30s
+    volumes:
+      # 数据持久化：users.json、cookies、用户配置
+      - ./data:/app/data
+      # 本地图片发布目录
+      - ./images:/app/images
+    environment:
+      - ROD_BROWSER_BIN=/usr/bin/google-chrome
+    ports:
+      # 管理器 Web GUI 端口
+      - "18050:18050"
+      # 主程序实例端口段（根据用户数量调整）
+      - "18065-18160:18065-18160"

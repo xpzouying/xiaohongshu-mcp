@@ -142,6 +142,7 @@
         <button class="active" data-tab="login">登录</button>
         <button data-tab="cookies">Cookies</button>
         <button data-tab="mcp">MCP工具</button>
+        <button data-tab="logs">日志</button>
       </div>
 
       <!-- 登录 Tab -->
@@ -161,8 +162,11 @@
       <div class="tab-content" id="tab-cookies">
         <div class="row" style="margin-bottom: 12px;">
           <button id="btnRefreshCookies">刷新Cookie状态</button>
+          <button id="btnImportCookies" class="primary">导入Cookie</button>
           <button id="btnClearCookies" style="background:#dc2626;">清除Cookies</button>
+          <input id="cookieFileInput" type="file" accept="application/json,.json" style="display:none;" />
         </div>
+        <div class="muted" style="margin-bottom: 8px;">提示：可从老版本的 cookies.json 文件导入</div>
         <div id="cookieInfo" class="json-output">点击"刷新Cookie状态"查看</div>
         <div class="err" id="cookieErr"></div>
       </div>
@@ -204,6 +208,26 @@
         <div id="toolResult" class="json-output">调用结果将显示在这里</div>
         <div class="err" id="mcpErr"></div>
       </div>
+
+      <!-- 日志 Tab -->
+      <div class="tab-content" id="tab-logs">
+        <div class="row" style="margin-bottom: 12px;">
+          <button id="btnRefreshLogs" class="primary">刷新日志</button>
+          <label class="switch" style="margin-left: 12px;">
+            <input type="checkbox" id="autoRefreshLogs" />
+            <span class="muted">自动刷新 (3秒)</span>
+          </label>
+          <select id="logLines" class="w120" style="margin-left: 12px;">
+            <option value="100">最后100行</option>
+            <option value="200" selected>最后200行</option>
+            <option value="500">最后500行</option>
+            <option value="1000">最后1000行</option>
+          </select>
+        </div>
+        <div id="logInfo" class="muted" style="margin-bottom: 8px;"></div>
+        <pre id="logContent" class="json-output" style="max-height: 500px; white-space: pre-wrap; word-break: break-all;">点击"刷新日志"查看运行日志</pre>
+        <div class="err" id="logErr"></div>
+      </div>
     </div>
   </div>
 
@@ -225,6 +249,7 @@
     const debugModal = document.getElementById('debugModal');
     let currentDebugUser = null;
     let loginPollTimer = null;
+    let logRefreshTimer = null;
     let toolsCache = [];
     // 动态表单相关状态
     let currentTool = null;
@@ -283,12 +308,20 @@
         clearInterval(loginPollTimer);
         loginPollTimer = null;
       }
+      if (logRefreshTimer) {
+        clearInterval(logRefreshTimer);
+        logRefreshTimer = null;
+      }
 
       // 重置状态
       document.getElementById('qrContainer').style.display = 'none';
       document.getElementById('loginErr').textContent = '';
       document.getElementById('cookieErr').textContent = '';
       document.getElementById('mcpErr').textContent = '';
+      document.getElementById('logErr').textContent = '';
+      document.getElementById('logContent').textContent = '点击"刷新日志"查看运行日志';
+      document.getElementById('logInfo').textContent = '';
+      document.getElementById('autoRefreshLogs').checked = false;
       document.getElementById('toolResult').textContent = '调用结果将显示在这里';
       document.getElementById('toolSelect').innerHTML = '<option value="">-- 请先加载工具列表 --</option>';
       document.getElementById('toolDesc').textContent = '';
@@ -316,6 +349,10 @@
       if (loginPollTimer) {
         clearInterval(loginPollTimer);
         loginPollTimer = null;
+      }
+      if (logRefreshTimer) {
+        clearInterval(logRefreshTimer);
+        logRefreshTimer = null;
       }
     }
 
@@ -432,6 +469,93 @@
         refreshDebugStatus();
       } catch (e) {
         errEl.textContent = e.message;
+      }
+    }
+
+    // 导入Cookie文件
+    async function importCookiesFromFile(file) {
+      if (!currentDebugUser) return;
+      const errEl = document.getElementById('cookieErr');
+      const btnImport = document.getElementById('btnImportCookies');
+      errEl.textContent = '';
+
+      // 文件大小预检查（5MB）
+      const maxSize = 5 * 1024 * 1024;
+      if (file.size > maxSize) {
+        errEl.textContent = '文件过大（最大 5MB）';
+        return;
+      }
+
+      // 禁用按钮防止重复点击
+      btnImport.disabled = true;
+      btnImport.textContent = '导入中...';
+
+      try {
+        const text = await file.text();
+        const parsed = JSON.parse(text);
+        if (!Array.isArray(parsed)) {
+          throw new Error('Cookie 文件格式错误：根节点必须是 JSON 数组');
+        }
+
+        const resp = await api('POST', `/users/${encodeURIComponent(currentDebugUser.id)}/debug/cookies/import`, parsed);
+        alert(resp.message || '导入成功');
+        refreshCookies();
+        refreshDebugStatus();
+      } catch (e) {
+        errEl.textContent = e.message;
+      } finally {
+        btnImport.disabled = false;
+        btnImport.textContent = '导入Cookie';
+      }
+    }
+
+    function onCookieFileSelected(ev) {
+      const input = ev.target;
+      const file = input && input.files && input.files[0];
+      if (!file) return;
+      input.value = ''; // 允许重复选择同一文件
+      importCookiesFromFile(file);
+    }
+
+    // 日志相关
+    async function refreshLogs() {
+      if (!currentDebugUser) return;
+      const contentEl = document.getElementById('logContent');
+      const infoEl = document.getElementById('logInfo');
+      const errEl = document.getElementById('logErr');
+      const lines = document.getElementById('logLines').value;
+
+      errEl.textContent = '';
+
+      try {
+        const data = await api('GET', `/users/${encodeURIComponent(currentDebugUser.id)}/debug/logs?lines=${lines}`);
+        if (!data.exists) {
+          contentEl.textContent = '日志文件不存在';
+          infoEl.textContent = `路径: ${data.log_file}`;
+          return;
+        }
+        const sizeKB = (data.size_bytes / 1024).toFixed(2);
+        const totalInfo = data.total_lines >= 0 ? `总行数: ${data.total_lines}` : '大文件模式';
+        const truncInfo = data.truncated ? ` (显示最后${data.lines}行)` : '';
+        infoEl.textContent = `路径: ${data.log_file} | 大小: ${sizeKB} KB | ${totalInfo}${truncInfo}`;
+        contentEl.textContent = data.content || '(空日志)';
+        // 滚动到底部
+        contentEl.scrollTop = contentEl.scrollHeight;
+      } catch (e) {
+        errEl.textContent = e.message;
+      }
+    }
+
+    function toggleAutoRefreshLogs() {
+      const checked = document.getElementById('autoRefreshLogs').checked;
+      if (checked) {
+        refreshLogs();
+        logRefreshTimer = setInterval(refreshLogs, 3000);
+      } else {
+        if (logRefreshTimer) {
+          clearInterval(logRefreshTimer);
+          logRefreshTimer = null;
+        }
       }
     }
 
@@ -1044,7 +1168,14 @@
 
     document.getElementById('btnGetQRCode').addEventListener('click', getQRCode);
     document.getElementById('btnRefreshCookies').addEventListener('click', refreshCookies);
+    document.getElementById('btnImportCookies').addEventListener('click', () => {
+      const input = document.getElementById('cookieFileInput');
+      if (input) input.click();
+    });
+    document.getElementById('cookieFileInput').addEventListener('change', onCookieFileSelected);
     document.getElementById('btnClearCookies').addEventListener('click', clearCookies);
+    document.getElementById('btnRefreshLogs').addEventListener('click', refreshLogs);
+    document.getElementById('autoRefreshLogs').addEventListener('change', toggleAutoRefreshLogs);
     document.getElementById('btnLoadTools').addEventListener('click', loadTools);
     document.getElementById('toolSelect').addEventListener('change', onToolSelect);
     document.getElementById('btnResetToolArgs').addEventListener('click', resetToolArgs);
