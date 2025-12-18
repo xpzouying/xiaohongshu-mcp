@@ -1,6 +1,9 @@
 services:
   xiaohongshu-mcp:
+    # Docker Hub 镜像（默认）
     image: xpzouying/xiaohongshu-mcp
+    # 阿里云镜像源（国内用户推荐，拉取更快）
+    # image: crpi-hocnvtkomt7w9v8t.cn-beijing.personal.cr.aliyuncs.com/xpzouying/xiaohongshu-mcp
     container_name: xiaohongshu-mcp
     restart: unless-stopped
     tty: true

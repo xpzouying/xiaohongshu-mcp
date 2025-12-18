@@ -539,7 +539,7 @@ func scrollToCommentsArea(page *rod.Page) {
 	logrus.Info("滚动到评论区...")
 
 	// 先定位到评论区（使用更长的超时时间，并处理错误）
-	el, err := page.Timeout(5 * time.Second).Element(".comments-container")
+	el, err := page.Timeout(3 * time.Second).Element(".comments-container")
 	if err == nil {
 		// 使用 ScrollIntoView 而不是 MustScrollIntoView，避免 panic
 		err := el.ScrollIntoView()
