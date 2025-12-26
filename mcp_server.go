@@ -76,6 +76,20 @@ type ReplyCommentArgs struct {
 	Content   string `json:"content" jsonschema:"回复内容"`
 }
 
+// BatchReplyTarget 批量回复目标
+type BatchReplyTarget struct {
+	CommentID string `json:"comment_id,omitempty" jsonschema:"目标评论ID"`
+	UserID    string `json:"user_id,omitempty" jsonschema:"目标评论用户ID"`
+	Content   string `json:"content" jsonschema:"回复内容"`
+}
+
+// BatchReplyCommentsArgs 批量回复评论的参数
+type BatchReplyCommentsArgs struct {
+	FeedID    string             `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
+	XsecToken string             `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
+	Targets   []BatchReplyTarget `json:"targets" jsonschema:"回复目标列表，每个目标包含comment_id或user_id和回复内容"`
+}
+
 // LikeFeedArgs 点赞参数
 type LikeFeedArgs struct {
 	FeedID    string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
@@ -374,7 +388,34 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	logrus.Infof("Registered %d MCP tools", 12)
+	// 工具 14: 批量回复评论
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "batch_reply_comments",
+			Description: "批量回复小红书笔记下的多个评论。只需打开一次页面，高效回复多个用户。适合需要回复多条评论的场景",
+		},
+		withPanicRecovery("batch_reply_comments", func(ctx context.Context, req *mcp.CallToolRequest, args BatchReplyCommentsArgs) (*mcp.CallToolResult, any, error) {
+			// 转换 targets
+			targetsInterface := make([]interface{}, len(args.Targets))
+			for i, t := range args.Targets {
+				targetsInterface[i] = map[string]interface{}{
+					"comment_id": t.CommentID,
+					"user_id":    t.UserID,
+					"content":    t.Content,
+				}
+			}
+
+			argsMap := map[string]interface{}{
+				"feed_id":    args.FeedID,
+				"xsec_token": args.XsecToken,
+				"targets":    targetsInterface,
+			}
+			result := appServer.handleBatchReplyComments(ctx, argsMap)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	logrus.Infof("Registered %d MCP tools", 14)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式

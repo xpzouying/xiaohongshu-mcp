@@ -696,3 +696,110 @@ func (s *AppServer) handleReplyComment(ctx context.Context, args map[string]inte
 		}},
 	}
 }
+
+// handleBatchReplyComments 处理批量回复评论
+func (s *AppServer) handleBatchReplyComments(ctx context.Context, args map[string]interface{}) *MCPToolResult {
+	logrus.Info("MCP: 批量回复评论")
+
+	// 解析参数
+	feedID, ok := args["feed_id"].(string)
+	if !ok || feedID == "" {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "批量回复失败: 缺少feed_id参数",
+			}},
+			IsError: true,
+		}
+	}
+
+	xsecToken, ok := args["xsec_token"].(string)
+	if !ok || xsecToken == "" {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "批量回复失败: 缺少xsec_token参数",
+			}},
+			IsError: true,
+		}
+	}
+
+	targetsRaw, ok := args["targets"].([]interface{})
+	if !ok || len(targetsRaw) == 0 {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "批量回复失败: 缺少targets参数或targets为空",
+			}},
+			IsError: true,
+		}
+	}
+
+	// 转换 targets
+	var targets []xiaohongshu.ReplyTarget
+	for i, t := range targetsRaw {
+		targetMap, ok := t.(map[string]interface{})
+		if !ok {
+			return &MCPToolResult{
+				Content: []MCPContent{{
+					Type: "text",
+					Text: fmt.Sprintf("批量回复失败: targets[%d] 格式错误", i),
+				}},
+				IsError: true,
+			}
+		}
+
+		commentID, _ := targetMap["comment_id"].(string)
+		userID, _ := targetMap["user_id"].(string)
+		content, _ := targetMap["content"].(string)
+
+		if (commentID == "" && userID == "") || content == "" {
+			return &MCPToolResult{
+				Content: []MCPContent{{
+					Type: "text",
+					Text: fmt.Sprintf("批量回复失败: targets[%d] 缺少必要参数", i),
+				}},
+				IsError: true,
+			}
+		}
+
+		targets = append(targets, xiaohongshu.ReplyTarget{
+			CommentID: commentID,
+			UserID:    userID,
+			Content:   content,
+		})
+	}
+
+	logrus.Infof("MCP: 批量回复 - Feed ID: %s, 目标数量: %d", feedID, len(targets))
+
+	// 批量回复
+	result, err := s.xiaohongshuService.BatchReplyToComments(ctx, feedID, xsecToken, targets)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "批量回复失败: " + err.Error(),
+			}},
+			IsError: true,
+		}
+	}
+
+	// 格式化结果
+	jsonData, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: fmt.Sprintf("批量回复完成，但序列化失败: %v", err),
+			}},
+			IsError: true,
+		}
+	}
+
+	return &MCPToolResult{
+		Content: []MCPContent{{
+			Type: "text",
+			Text: string(jsonData),
+		}},
+	}
+}
