@@ -183,6 +183,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "triepod-ai",
+      "name": "Bryan Thompson",
+      "avatar_url": "https://avatars.githubusercontent.com/u/199543909?v=4",
+      "profile": "https://triepod.ai",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
