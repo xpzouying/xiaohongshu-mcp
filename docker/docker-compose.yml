@@ -6,6 +6,7 @@ services:
     # image: crpi-hocnvtkomt7w9v8t.cn-beijing.personal.cr.aliyuncs.com/xpzouying/xiaohongshu-mcp
     container_name: xiaohongshu-mcp
     restart: unless-stopped
+    init: true
     tty: true
     volumes:
       - ./data:/app/data
