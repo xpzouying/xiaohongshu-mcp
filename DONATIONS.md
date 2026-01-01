@@ -45,6 +45,10 @@
 | 2025-12-22 | G仔 | 49.99 | 赞赏码 |
 | 2025-12-25 | 未来可期 | 19.99 | 赞赏码 |
 
+![PixPin_2026-01-01_20-45-48](https://github.com/user-attachments/assets/b0d9721e-c250-4df3-a993-fda5c4d62e3f)
+![PixPin_2026-01-01_20-46-03](https://github.com/user-attachments/assets/bc2c8076-1ad4-41b6-b8f7-d2cdc1b5fa87)
+
+
 ### 2025-11
 
 **本月小结**
