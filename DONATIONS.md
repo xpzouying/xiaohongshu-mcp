@@ -45,7 +45,12 @@
 | 2025-12-22 | G仔 | 49.99 | 赞赏码 |
 | 2025-12-25 | 未来可期 | 19.99 | 赞赏码 |
 
-<img width="594" height="848" alt="PixPin_2026-01-01_20-45-48" src="https://github.com/user-attachments/assets/b0d9721e-c250-4df3-a993-fda5c4d62e3f" /> <img width="594" height="848" alt="PixPin_2026-01-01_20-46-03" src="https://github.com/user-attachments/assets/bc2c8076-1ad4-41b6-b8f7-d2cdc1b5fa87" />
+<table>
+  <tr>
+    <td><img height="400" alt="PixPin_2026-01-01_20-45-48" src="https://github.com/user-attachments/assets/b0d9721e-c250-4df3-a993-fda5c4d62e3f" /></td>
+    <td><img height="400" alt="PixPin_2026-01-01_20-46-03" src="https://github.com/user-attachments/assets/bc2c8076-1ad4-41b6-b8f7-d2cdc1b5fa87" /></td>
+  </tr>
+</table>
 
 
 ### 2025-11
