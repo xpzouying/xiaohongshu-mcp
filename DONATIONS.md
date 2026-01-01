@@ -8,8 +8,8 @@
 ## 摘要
 
 - 累计收到赞赏：￥ 869.97
-- 累计捐赠：￥ 600
-- 最近更新时间：2025-12-25
+- 累计捐赠：￥ 1100
+- 最近更新时间：2026-01-01
 
 ---
 
@@ -27,7 +27,7 @@
 **本月小结**
 
 - 收到赞赏合计：￥ 440.09
-- 捐出合计：暂未捐出，将于月底统一捐赠。
+- 捐出合计：¥ 500.00
 
 **收到的赞赏**
 | 日期 | 昵称 | 金额 | 备注 |
@@ -45,8 +45,12 @@
 | 2025-12-22 | G仔 | 49.99 | 赞赏码 |
 | 2025-12-25 | 未来可期 | 19.99 | 赞赏码 |
 
-![PixPin_2026-01-01_20-45-48](https://github.com/user-attachments/assets/b0d9721e-c250-4df3-a993-fda5c4d62e3f)
-![PixPin_2026-01-01_20-46-03](https://github.com/user-attachments/assets/bc2c8076-1ad4-41b6-b8f7-d2cdc1b5fa87)
+<table>
+  <tr>
+    <td><img height="400" alt="PixPin_2026-01-01_20-45-48" src="https://github.com/user-attachments/assets/b0d9721e-c250-4df3-a993-fda5c4d62e3f" /></td>
+    <td><img height="400" alt="PixPin_2026-01-01_20-46-03" src="https://github.com/user-attachments/assets/bc2c8076-1ad4-41b6-b8f7-d2cdc1b5fa87" /></td>
+  </tr>
+</table>
 
 
 ### 2025-11
@@ -56,7 +60,11 @@
 - 收到赞赏合计：￥ 249.96
 - 捐出合计：¥ 400.00。守望相助，驰援香江：为香港大浦火灾同胞筹集善款！
 
-<img width="594" height="848" alt="PixPin_2025-10-26_21-34-08" src="https://github.com/user-attachments/assets/2dc52a01-d14a-4eec-961f-406f1ef91889" />
+<table>
+  <tr>
+    <td><img height="400" alt="PixPin_2025-10-26_21-34-08" src="https://github.com/user-attachments/assets/2dc52a01-d14a-4eec-961f-406f1ef91889" /></td>
+  </tr>
+</table>
 
 
 **收到的赞赏**
@@ -75,7 +83,11 @@
 - 收到赞赏合计：￥ 109.93
 - 捐出合计：¥ 200.00。 9 月、10 月份一起汇总捐赠给「春蕾计划她们想上学」。
 
-<img width="594" height="848" alt="PixPin_2025-10-26_21-34-08" src="https://github.com/user-attachments/assets/8329275c-a328-410e-8744-9bc267661c31" />
+<table>
+  <tr>
+    <td><img height="400" alt="PixPin_2025-10-26_21-34-08" src="https://github.com/user-attachments/assets/8329275c-a328-410e-8744-9bc267661c31" /></td>
+  </tr>
+</table>
 
 
 **收到的赞赏**
