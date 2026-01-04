@@ -1,8 +1,11 @@
 package downloader
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"fmt"
+	"image"
+	"image/jpeg"
 	"io"
 	"net/http"
 	"net/url"
@@ -11,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gen2brain/avif"
 	"github.com/h2non/filetype"
 	"github.com/pkg/errors"
 )
@@ -69,6 +73,23 @@ func (d *ImageDownloader) DownloadImage(imageURL string) (string, error) {
 
 	if !filetype.IsImage(imageData) {
 		return "", errors.New("downloaded file is not a valid image")
+	}
+
+	// 如果是AVIF格式，转换为JPG
+	if kind.Extension == "avif" {
+		var img image.Image
+		img, err = avif.Decode(bytes.NewReader(imageData))
+		if err != nil {
+			return "", errors.Wrap(err, "failed to decode avif image")
+		}
+
+		var buf bytes.Buffer
+		if err = jpeg.Encode(&buf, img, &jpeg.Options{Quality: 90}); err != nil {
+			return "", errors.Wrap(err, "failed to encode image to jpeg")
+		}
+
+		imageData = buf.Bytes()
+		kind.Extension = "jpg"
 	}
 
 	// 生成唯一文件名
