@@ -4,6 +4,7 @@ go 1.24.0
 
 require (
 	github.com/avast/retry-go/v4 v4.7.0
+	github.com/gen2brain/avif v0.4.4
 	github.com/gin-gonic/gin v1.10.1
 	github.com/go-rod/rod v0.116.2
 	github.com/h2non/filetype v1.1.4-0.20250627091342-c2ab40a8a6f9
@@ -23,7 +24,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/ebitengine/purego v0.8.3 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.3 // indirect
-	github.com/gen2brain/avif v0.4.4 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
