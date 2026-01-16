@@ -14,10 +14,11 @@ import (
 
 // PublishVideoContent 发布视频内容
 type PublishVideoContent struct {
-	Title     string
-	Content   string
-	Tags      []string
-	VideoPath string
+	Title        string
+	Content      string
+	Tags         []string
+	VideoPath    string
+	ScheduleTime *time.Time // 定时发布时间，nil 表示立即发布
 }
 
 // NewPublishVideoAction 进入发布页并切换到“上传视频”
@@ -48,7 +49,7 @@ func (p *PublishAction) PublishVideo(ctx context.Context, content PublishVideoCo
 		return errors.Wrap(err, "小红书上传视频失败")
 	}
 
-	if err := submitPublishVideo(page, content.Title, content.Content, content.Tags); err != nil {
+	if err := submitPublishVideo(page, content.Title, content.Content, content.Tags, content.ScheduleTime); err != nil {
 		return errors.Wrap(err, "小红书发布失败")
 	}
 	return nil
@@ -116,7 +117,7 @@ func waitForPublishButtonClickable(page *rod.Page) (*rod.Element, error) {
 }
 
 // submitPublishVideo 填写标题、正文、标签并点击发布（等待按钮可点击后再提交）
-func submitPublishVideo(page *rod.Page, title, content string, tags []string) error {
+func submitPublishVideo(page *rod.Page, title, content string, tags []string, scheduleTime *time.Time) error {
 	// 标题
 	titleElem := page.MustElement("div.d-input input")
 	titleElem.MustInput(title)
@@ -131,6 +132,14 @@ func submitPublishVideo(page *rod.Page, title, content string, tags []string) er
 	}
 
 	time.Sleep(1 * time.Second)
+
+	// 处理定时发布
+	if scheduleTime != nil {
+		if err := setSchedulePublish(page, *scheduleTime); err != nil {
+			return errors.Wrap(err, "设置定时发布失败")
+		}
+		slog.Info("定时发布设置完成", "schedule_time", scheduleTime.Format("2006-01-02 15:04"))
+	}
 
 	// 等待发布按钮可点击
 	btn, err := waitForPublishButtonClickable(page)

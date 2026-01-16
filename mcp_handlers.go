@@ -132,14 +132,18 @@ func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]in
 		}
 	}
 
-	logrus.Infof("MCP: 发布内容 - 标题: %s, 图片数量: %d, 标签数量: %d", title, len(imagePaths), len(tags))
+	// 解析定时发布参数
+	scheduleAt, _ := args["schedule_at"].(string)
+
+	logrus.Infof("MCP: 发布内容 - 标题: %s, 图片数量: %d, 标签数量: %d, 定时: %s", title, len(imagePaths), len(tags), scheduleAt)
 
 	// 构建发布请求
 	req := &PublishRequest{
-		Title:   title,
-		Content: content,
-		Images:  imagePaths,
-		Tags:    tags,
+		Title:      title,
+		Content:    content,
+		Images:     imagePaths,
+		Tags:       tags,
+		ScheduleAt: scheduleAt,
 	}
 
 	// 执行发布
@@ -189,14 +193,18 @@ func (s *AppServer) handlePublishVideo(ctx context.Context, args map[string]inte
 		}
 	}
 
-	logrus.Infof("MCP: 发布视频 - 标题: %s, 标签数量: %d", title, len(tags))
+	// 解析定时发布参数
+	scheduleAt, _ := args["schedule_at"].(string)
+
+	logrus.Infof("MCP: 发布视频 - 标题: %s, 标签数量: %d, 定时: %s", title, len(tags), scheduleAt)
 
 	// 构建发布请求
 	req := &PublishVideoRequest{
-		Title:   title,
-		Content: content,
-		Video:   videoPath,
-		Tags:    tags,
+		Title:      title,
+		Content:    content,
+		Video:      videoPath,
+		Tags:       tags,
+		ScheduleAt: scheduleAt,
 	}
 
 	// 执行发布
