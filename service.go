@@ -28,10 +28,11 @@ func NewXiaohongshuService() *XiaohongshuService {
 
 // PublishRequest 发布请求
 type PublishRequest struct {
-	Title   string   `json:"title" binding:"required"`
-	Content string   `json:"content" binding:"required"`
-	Images  []string `json:"images" binding:"required,min=1"`
-	Tags    []string `json:"tags,omitempty"`
+	Title      string   `json:"title" binding:"required"`
+	Content    string   `json:"content" binding:"required"`
+	Images     []string `json:"images" binding:"required,min=1"`
+	Tags       []string `json:"tags,omitempty"`
+	ScheduleAt string   `json:"schedule_at,omitempty"` // 定时发布时间，ISO8601格式，为空则立即发布
 }
 
 // LoginStatusResponse 登录状态响应
@@ -58,10 +59,11 @@ type PublishResponse struct {
 
 // PublishVideoRequest 发布视频请求（仅支持本地单个视频文件）
 type PublishVideoRequest struct {
-	Title   string   `json:"title" binding:"required"`
-	Content string   `json:"content" binding:"required"`
-	Video   string   `json:"video" binding:"required"`
-	Tags    []string `json:"tags,omitempty"`
+	Title      string   `json:"title" binding:"required"`
+	Content    string   `json:"content" binding:"required"`
+	Video      string   `json:"video" binding:"required"`
+	Tags       []string `json:"tags,omitempty"`
+	ScheduleAt string   `json:"schedule_at,omitempty"` // 定时发布时间，ISO8601格式，为空则立即发布
 }
 
 // PublishVideoResponse 发布视频响应
@@ -179,12 +181,39 @@ func (s *XiaohongshuService) PublishContent(ctx context.Context, req *PublishReq
 		return nil, err
 	}
 
+	// 解析定时发布时间
+	var scheduleTime *time.Time
+	if req.ScheduleAt != "" {
+		t, err := time.Parse(time.RFC3339, req.ScheduleAt)
+		if err != nil {
+			return nil, fmt.Errorf("定时发布时间格式错误，请使用 ISO8601 格式: %v", err)
+		}
+
+		// 校验定时发布时间范围：1小时至14天
+		now := time.Now()
+		minTime := now.Add(1 * time.Hour)
+		maxTime := now.Add(14 * 24 * time.Hour)
+
+		if t.Before(minTime) {
+			return nil, fmt.Errorf("定时发布时间必须至少在1小时后，当前设置: %s，最早可选: %s",
+				t.Format("2006-01-02 15:04"), minTime.Format("2006-01-02 15:04"))
+		}
+		if t.After(maxTime) {
+			return nil, fmt.Errorf("定时发布时间不能超过14天，当前设置: %s，最晚可选: %s",
+				t.Format("2006-01-02 15:04"), maxTime.Format("2006-01-02 15:04"))
+		}
+
+		scheduleTime = &t
+		logrus.Infof("设置定时发布时间: %s", t.Format("2006-01-02 15:04"))
+	}
+
 	// 构建发布内容
 	content := xiaohongshu.PublishImageContent{
-		Title:      req.Title,
-		Content:    req.Content,
-		Tags:       req.Tags,
-		ImagePaths: imagePaths,
+		Title:        req.Title,
+		Content:      req.Content,
+		Tags:         req.Tags,
+		ImagePaths:   imagePaths,
+		ScheduleTime: scheduleTime,
 	}
 
 	// 执行发布
@@ -241,12 +270,39 @@ func (s *XiaohongshuService) PublishVideo(ctx context.Context, req *PublishVideo
 		return nil, fmt.Errorf("视频文件不存在或不可访问: %v", err)
 	}
 
+	// 解析定时发布时间
+	var scheduleTime *time.Time
+	if req.ScheduleAt != "" {
+		t, err := time.Parse(time.RFC3339, req.ScheduleAt)
+		if err != nil {
+			return nil, fmt.Errorf("定时发布时间格式错误，请使用 ISO8601 格式: %v", err)
+		}
+
+		// 校验定时发布时间范围：1小时至14天
+		now := time.Now()
+		minTime := now.Add(1 * time.Hour)
+		maxTime := now.Add(14 * 24 * time.Hour)
+
+		if t.Before(minTime) {
+			return nil, fmt.Errorf("定时发布时间必须至少在1小时后，当前设置: %s，最早可选: %s",
+				t.Format("2006-01-02 15:04"), minTime.Format("2006-01-02 15:04"))
+		}
+		if t.After(maxTime) {
+			return nil, fmt.Errorf("定时发布时间不能超过14天，当前设置: %s，最晚可选: %s",
+				t.Format("2006-01-02 15:04"), maxTime.Format("2006-01-02 15:04"))
+		}
+
+		scheduleTime = &t
+		logrus.Infof("设置定时发布时间: %s", t.Format("2006-01-02 15:04"))
+	}
+
 	// 构建发布内容
 	content := xiaohongshu.PublishVideoContent{
-		Title:     req.Title,
-		Content:   req.Content,
-		Tags:      req.Tags,
-		VideoPath: req.Video,
+		Title:        req.Title,
+		Content:      req.Content,
+		Tags:         req.Tags,
+		VideoPath:    req.Video,
+		ScheduleTime: scheduleTime,
 	}
 
 	// 执行发布
