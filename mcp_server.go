@@ -10,22 +10,27 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// Helper functions for annotation pointers
+func boolPtr(b bool) *bool { return &b }
+
 // MCP 工具参数结构体定义
 
 // PublishContentArgs 发布内容的参数
 type PublishContentArgs struct {
-	Title   string   `json:"title" jsonschema:"内容标题（小红书限制：最多20个中文字或英文单词）"`
-	Content string   `json:"content" jsonschema:"正文内容，不包含以#开头的标签内容，所有话题标签都用tags参数来生成和提供即可"`
-	Images  []string `json:"images" jsonschema:"图片路径列表（至少需要1张图片）。支持两种方式：1. HTTP/HTTPS图片链接（自动下载）；2. 本地图片绝对路径（推荐，如:/Users/user/image.jpg）"`
-	Tags    []string `json:"tags,omitempty" jsonschema:"话题标签列表（可选参数），如 [美食, 旅行, 生活]"`
+	Title      string   `json:"title" jsonschema:"内容标题（小红书限制：最多20个中文字或英文单词）"`
+	Content    string   `json:"content" jsonschema:"正文内容，不包含以#开头的标签内容，所有话题标签都用tags参数来生成和提供即可"`
+	Images     []string `json:"images" jsonschema:"图片路径列表（至少需要1张图片）。支持两种方式：1. HTTP/HTTPS图片链接（自动下载）；2. 本地图片绝对路径（推荐，如:/Users/user/image.jpg）"`
+	Tags       []string `json:"tags,omitempty" jsonschema:"话题标签列表（可选参数），如 [美食, 旅行, 生活]"`
+	ScheduleAt string   `json:"schedule_at,omitempty" jsonschema:"定时发布时间（可选），ISO8601格式如 2024-01-20T10:30:00+08:00，支持1小时至14天内。不填则立即发布"`
 }
 
 // PublishVideoArgs 发布视频的参数（仅支持本地单个视频文件）
 type PublishVideoArgs struct {
-	Title   string   `json:"title" jsonschema:"内容标题（小红书限制：最多20个中文字或英文单词）"`
-	Content string   `json:"content" jsonschema:"正文内容，不包含以#开头的标签内容，所有话题标签都用tags参数来生成和提供即可"`
-	Video   string   `json:"video" jsonschema:"本地视频绝对路径（仅支持单个视频文件，如:/Users/user/video.mp4）"`
-	Tags    []string `json:"tags,omitempty" jsonschema:"话题标签列表（可选参数），如 [美食, 旅行, 生活]"`
+	Title      string   `json:"title" jsonschema:"内容标题（小红书限制：最多20个中文字或英文单词）"`
+	Content    string   `json:"content" jsonschema:"正文内容，不包含以#开头的标签内容，所有话题标签都用tags参数来生成和提供即可"`
+	Video      string   `json:"video" jsonschema:"本地视频绝对路径（仅支持单个视频文件，如:/Users/user/video.mp4）"`
+	Tags       []string `json:"tags,omitempty" jsonschema:"话题标签列表（可选参数），如 [美食, 旅行, 生活]"`
+	ScheduleAt string   `json:"schedule_at,omitempty" jsonschema:"定时发布时间（可选），ISO8601格式如 2024-01-20T10:30:00+08:00，支持1小时至14天内。不填则立即发布"`
 }
 
 // SearchFeedsArgs 搜索内容的参数
@@ -45,13 +50,13 @@ type FilterOption struct {
 
 // FeedDetailArgs 获取Feed详情的参数
 type FeedDetailArgs struct {
-	FeedID              string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
-	XsecToken           string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
-	LoadAllComments     bool   `json:"load_all_comments,omitempty" jsonschema:"是否加载全部评论（默认false，仅返回首批评论）"`
-	ClickMoreReplies    bool   `json:"click_more_replies,omitempty" jsonschema:"是否点击'更多回复'按钮 (默认: false)"`
-	MaxRepliesThreshold int    `json:"max_replies_threshold,omitempty" jsonschema:"回复数量阈值，超过此数量的'更多'按钮将被跳过 (0表示不跳过任何, 默认: 10)"`
-	MaxCommentItems     int    `json:"max_comment_items,omitempty" jsonschema:"最大加载评论数（0表示加载所有, 默认: 0）"`
-	ScrollSpeed         string `json:"scroll_speed,omitempty" jsonschema:"滚动速度: 'slow'|'normal'|'fast' (默认: 'normal')"`
+	FeedID           string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
+	XsecToken        string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
+	LoadAllComments  bool   `json:"load_all_comments,omitempty" jsonschema:"是否加载全部评论。false仅返回前10条一级评论（默认），true滚动加载更多评论"`
+	Limit            int    `json:"limit,omitempty" jsonschema:"【仅当load_all_comments为true时生效】限制加载的一级评论数量。例如20表示最多加载20条，默认20"`
+	ClickMoreReplies bool   `json:"click_more_replies,omitempty" jsonschema:"【仅当load_all_comments为true时生效】是否展开二级回复。true展开子评论，false不展开（默认）"`
+	ReplyLimit       int    `json:"reply_limit,omitempty" jsonschema:"【仅当click_more_replies为true时生效】跳过回复数过多的评论。例如10表示跳过超过10条回复的，默认10"`
+	ScrollSpeed      string `json:"scroll_speed,omitempty" jsonschema:"【仅当load_all_comments为true时生效】滚动速度slow慢速、normal正常、fast快速"`
 }
 
 // UserProfileArgs 获取用户主页的参数
@@ -68,6 +73,15 @@ type PostCommentArgs struct {
 	FeedID    string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
 	XsecToken string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
 	Content   string `json:"content" jsonschema:"评论内容"`
+}
+
+// ReplyCommentArgs 回复评论的参数
+type ReplyCommentArgs struct {
+	FeedID    string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
+	XsecToken string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
+	CommentID string `json:"comment_id,omitempty" jsonschema:"目标评论ID，从评论列表获取"`
+	UserID    string `json:"user_id,omitempty" jsonschema:"目标评论用户ID，从评论列表获取"`
+	Content   string `json:"content" jsonschema:"回复内容"`
 }
 
 // LikeFeedArgs 点赞参数
@@ -142,6 +156,10 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		&mcp.Tool{
 			Name:        "check_login_status",
 			Description: "检查小红书登录状态",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Check Login Status",
+				ReadOnlyHint: true,
+			},
 		},
 		withPanicRecovery("check_login_status", func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, any, error) {
 			result := appServer.handleCheckLoginStatus(ctx)
@@ -154,6 +172,10 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		&mcp.Tool{
 			Name:        "get_login_qrcode",
 			Description: "获取登录二维码（返回 Base64 图片和超时时间）",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Get Login QR Code",
+				ReadOnlyHint: true,
+			},
 		},
 		withPanicRecovery("get_login_qrcode", func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, any, error) {
 			result := appServer.handleGetLoginQrcode(ctx)
@@ -166,6 +188,10 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		&mcp.Tool{
 			Name:        "delete_cookies",
 			Description: "删除 cookies 文件，重置登录状态。删除后需要重新登录。",
+			Annotations: &mcp.ToolAnnotations{
+				Title:           "Delete Cookies",
+				DestructiveHint: boolPtr(true),
+			},
 		},
 		withPanicRecovery("delete_cookies", func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, any, error) {
 			result := appServer.handleDeleteCookies(ctx)
@@ -178,14 +204,19 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		&mcp.Tool{
 			Name:        "publish_content",
 			Description: "发布小红书图文内容",
+			Annotations: &mcp.ToolAnnotations{
+				Title:           "Publish Content",
+				DestructiveHint: boolPtr(true),
+			},
 		},
 		withPanicRecovery("publish_content", func(ctx context.Context, req *mcp.CallToolRequest, args PublishContentArgs) (*mcp.CallToolResult, any, error) {
 			// 转换参数格式到现有的 handler
 			argsMap := map[string]interface{}{
-				"title":   args.Title,
-				"content": args.Content,
-				"images":  convertStringsToInterfaces(args.Images),
-				"tags":    convertStringsToInterfaces(args.Tags),
+				"title":       args.Title,
+				"content":     args.Content,
+				"images":      convertStringsToInterfaces(args.Images),
+				"tags":        convertStringsToInterfaces(args.Tags),
+				"schedule_at": args.ScheduleAt,
 			}
 			result := appServer.handlePublishContent(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
@@ -197,6 +228,10 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		&mcp.Tool{
 			Name:        "list_feeds",
 			Description: "获取首页 Feeds 列表",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "List Feeds",
+				ReadOnlyHint: true,
+			},
 		},
 		withPanicRecovery("list_feeds", func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, any, error) {
 			result := appServer.handleListFeeds(ctx)
@@ -209,6 +244,10 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		&mcp.Tool{
 			Name:        "search_feeds",
 			Description: "搜索小红书内容（需要已登录）",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Search Feeds",
+				ReadOnlyHint: true,
+			},
 		},
 		withPanicRecovery("search_feeds", func(ctx context.Context, req *mcp.CallToolRequest, args SearchFeedsArgs) (*mcp.CallToolResult, any, error) {
 			result := appServer.handleSearchFeeds(ctx, args)
@@ -220,18 +259,42 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "get_feed_detail",
-			Description: "获取小红书笔记详情，返回笔记内容、图片、作者信息、互动数据（点赞/收藏/分享数）及评论列表",
+			Description: "获取小红书笔记详情，返回笔记内容、图片、作者信息、互动数据（点赞/收藏/分享数）及评论列表。默认返回前10条一级评论，如需更多评论请设置load_all_comments=true",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Get Feed Detail",
+				ReadOnlyHint: true,
+			},
 		},
 		withPanicRecovery("get_feed_detail", func(ctx context.Context, req *mcp.CallToolRequest, args FeedDetailArgs) (*mcp.CallToolResult, any, error) {
 			argsMap := map[string]interface{}{
-				"feed_id":               args.FeedID,
-				"xsec_token":            args.XsecToken,
-				"load_all_comments":     args.LoadAllComments,
-				"click_more_replies":    args.ClickMoreReplies,
-				"max_replies_threshold": args.MaxRepliesThreshold,
-				"max_comment_items":     args.MaxCommentItems,
-				"scroll_speed":          args.ScrollSpeed,
+				"feed_id":           args.FeedID,
+				"xsec_token":        args.XsecToken,
+				"load_all_comments": args.LoadAllComments,
 			}
+
+			// 只有当 load_all_comments=true 时，才处理其他参数
+			if args.LoadAllComments {
+				argsMap["click_more_replies"] = args.ClickMoreReplies
+
+				// 设置评论数量限制，默认20
+				limit := args.Limit
+				if limit <= 0 {
+					limit = 20
+				}
+				argsMap["max_comment_items"] = limit
+
+				// 设置回复数量阈值，默认10
+				replyLimit := args.ReplyLimit
+				if replyLimit <= 0 {
+					replyLimit = 10
+				}
+				argsMap["max_replies_threshold"] = replyLimit
+
+				if args.ScrollSpeed != "" {
+					argsMap["scroll_speed"] = args.ScrollSpeed
+				}
+			}
+
 			result := appServer.handleGetFeedDetail(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
 		}),
@@ -242,6 +305,10 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		&mcp.Tool{
 			Name:        "user_profile",
 			Description: "获取指定的小红书用户主页，返回用户基本信息，关注、粉丝、获赞量及其笔记内容。支持自定义加载笔记数量和滚动速度。",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "User Profile",
+				ReadOnlyHint: true,
+			},
 		},
 		withPanicRecovery("user_profile", func(ctx context.Context, req *mcp.CallToolRequest, args UserProfileArgs) (*mcp.CallToolResult, any, error) {
 			argsMap := map[string]interface{}{
@@ -261,6 +328,10 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		&mcp.Tool{
 			Name:        "post_comment_to_feed",
 			Description: "发表评论到小红书笔记",
+			Annotations: &mcp.ToolAnnotations{
+				Title:           "Post Comment",
+				DestructiveHint: boolPtr(true),
+			},
 		},
 		withPanicRecovery("post_comment_to_feed", func(ctx context.Context, req *mcp.CallToolRequest, args PostCommentArgs) (*mcp.CallToolResult, any, error) {
 			argsMap := map[string]interface{}{
@@ -273,29 +344,68 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	// 工具 10: 发布视频（仅本地文件）
+	// 工具 10: 回复评论
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "reply_comment_in_feed",
+			Description: "回复小红书笔记下的指定评论",
+			Annotations: &mcp.ToolAnnotations{
+				Title:           "Reply Comment",
+				DestructiveHint: boolPtr(true),
+			},
+		},
+		func(ctx context.Context, req *mcp.CallToolRequest, args ReplyCommentArgs) (*mcp.CallToolResult, any, error) {
+			if args.CommentID == "" && args.UserID == "" {
+				return &mcp.CallToolResult{
+					IsError: true,
+					Content: []mcp.Content{&mcp.TextContent{Text: "缺少 comment_id 或 user_id"}},
+				}, nil, nil
+			}
+
+			argsMap := map[string]interface{}{
+				"feed_id":    args.FeedID,
+				"xsec_token": args.XsecToken,
+				"comment_id": args.CommentID,
+				"user_id":    args.UserID,
+				"content":    args.Content,
+			}
+			result := appServer.handleReplyComment(ctx, argsMap)
+			return convertToMCPResult(result), nil, nil
+		},
+	)
+
+	// 工具 11: 发布视频（仅本地文件）
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "publish_with_video",
 			Description: "发布小红书视频内容（仅支持本地单个视频文件）",
+			Annotations: &mcp.ToolAnnotations{
+				Title:           "Publish Video",
+				DestructiveHint: boolPtr(true),
+			},
 		},
 		withPanicRecovery("publish_with_video", func(ctx context.Context, req *mcp.CallToolRequest, args PublishVideoArgs) (*mcp.CallToolResult, any, error) {
 			argsMap := map[string]interface{}{
-				"title":   args.Title,
-				"content": args.Content,
-				"video":   args.Video,
-				"tags":    convertStringsToInterfaces(args.Tags),
+				"title":       args.Title,
+				"content":     args.Content,
+				"video":       args.Video,
+				"tags":        convertStringsToInterfaces(args.Tags),
+				"schedule_at": args.ScheduleAt,
 			}
 			result := appServer.handlePublishVideo(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
 		}),
 	)
 
-	// 工具 11: 点赞笔记
+	// 工具 12: 点赞笔记
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "like_feed",
 			Description: "为指定笔记点赞或取消点赞（如已点赞将跳过点赞，如未点赞将跳过取消点赞）",
+			Annotations: &mcp.ToolAnnotations{
+				Title:           "Like Feed",
+				DestructiveHint: boolPtr(true),
+			},
 		},
 		withPanicRecovery("like_feed", func(ctx context.Context, req *mcp.CallToolRequest, args LikeFeedArgs) (*mcp.CallToolResult, any, error) {
 			argsMap := map[string]interface{}{
@@ -308,11 +418,15 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	// 工具 12: 收藏笔记
+	// 工具 13: 收藏笔记
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "favorite_feed",
 			Description: "收藏指定笔记或取消收藏（如已收藏将跳过收藏，如未收藏将跳过取消收藏）",
+			Annotations: &mcp.ToolAnnotations{
+				Title:           "Favorite Feed",
+				DestructiveHint: boolPtr(true),
+			},
 		},
 		withPanicRecovery("favorite_feed", func(ctx context.Context, req *mcp.CallToolRequest, args FavoriteFeedArgs) (*mcp.CallToolResult, any, error) {
 			argsMap := map[string]interface{}{
@@ -325,7 +439,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	logrus.Infof("Registered %d MCP tools", 12)
+	logrus.Infof("Registered %d MCP tools", 13)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式

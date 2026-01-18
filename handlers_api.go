@@ -250,6 +250,26 @@ func (s *AppServer) postCommentHandler(c *gin.Context) {
 	respondSuccess(c, result, result.Message)
 }
 
+// replyCommentHandler 回复指定评论
+func (s *AppServer) replyCommentHandler(c *gin.Context) {
+	var req ReplyCommentRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
+			"请求参数错误", err.Error())
+		return
+	}
+
+	result, err := s.xiaohongshuService.ReplyCommentToFeed(c.Request.Context(), req.FeedID, req.XsecToken, req.CommentID, req.UserID, req.Content)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "REPLY_COMMENT_FAILED",
+			"回复评论失败", err.Error())
+		return
+	}
+
+	c.Set("account", "ai-report")
+	respondSuccess(c, result, result.Message)
+}
+
 // healthHandler 健康检查
 func healthHandler(c *gin.Context) {
 	respondSuccess(c, map[string]any{

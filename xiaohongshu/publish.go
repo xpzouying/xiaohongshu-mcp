@@ -17,10 +17,11 @@ import (
 
 // PublishImageContent 发布图文内容
 type PublishImageContent struct {
-	Title      string
-	Content    string
-	Tags       []string
-	ImagePaths []string
+	Title        string
+	Content      string
+	Tags         []string
+	ImagePaths   []string
+	ScheduleTime *time.Time // 定时发布时间，nil 表示立即发布
 }
 
 type PublishAction struct {
@@ -35,10 +36,24 @@ func NewPublishImageAction(page *rod.Page) (*PublishAction, error) {
 
 	pp := page.Timeout(300 * time.Second)
 
-	pp.MustNavigate(urlOfPublic).MustWaitIdle().MustWaitDOMStable()
+	// 使用更稳健的导航和等待策略
+	if err := pp.Navigate(urlOfPublic); err != nil {
+		return nil, errors.Wrap(err, "导航到发布页面失败")
+	}
+
+	// 等待页面加载，使用 WaitLoad 代替 WaitIdle（更宽松）
+	if err := pp.WaitLoad(); err != nil {
+		logrus.Warnf("等待页面加载出现问题: %v，继续尝试", err)
+	}
+	time.Sleep(2 * time.Second)
+
+	// 等待页面稳定
+	if err := pp.WaitDOMStable(time.Second, 0.1); err != nil {
+		logrus.Warnf("等待 DOM 稳定出现问题: %v，继续尝试", err)
+	}
 	time.Sleep(1 * time.Second)
 
-	if err := mustClickPublishTab(page, "上传图文"); err != nil {
+	if err := mustClickPublishTab(pp, "上传图文"); err != nil {
 		logrus.Errorf("点击上传图文 TAB 失败: %v", err)
 		return nil, err
 	}
@@ -67,9 +82,9 @@ func (p *PublishAction) Publish(ctx context.Context, content PublishImageContent
 		tags = tags[:10]
 	}
 
-	logrus.Infof("发布内容: title=%s, images=%v, tags=%v", content.Title, len(content.ImagePaths), tags)
+	logrus.Infof("发布内容: title=%s, images=%v, tags=%v, schedule=%v", content.Title, len(content.ImagePaths), tags, content.ScheduleTime)
 
-	if err := submitPublish(page, content.Title, content.Content, tags); err != nil {
+	if err := submitPublish(page, content.Title, content.Content, tags, content.ScheduleTime); err != nil {
 		return errors.Wrap(err, "小红书发布失败")
 	}
 
@@ -239,10 +254,17 @@ func waitForUploadComplete(page *rod.Page, expectedCount int) error {
 	return errors.New("上传超时，请检查网络连接和图片大小")
 }
 
-func submitPublish(page *rod.Page, title, content string, tags []string) error {
+func submitPublish(page *rod.Page, title, content string, tags []string, scheduleTime *time.Time) error {
 
 	titleElem := page.MustElement("div.d-input input")
 	titleElem.MustInput(title)
+
+	// 检查一下 title 的长度
+	time.Sleep(500 * time.Millisecond) // 等待页面渲染长度提示
+	if err := checkTitleMaxLength(page); err != nil {
+		return err
+	}
+	slog.Info("检查标题长度：通过")
 
 	time.Sleep(1 * time.Second)
 
@@ -257,12 +279,78 @@ func submitPublish(page *rod.Page, title, content string, tags []string) error {
 
 	time.Sleep(1 * time.Second)
 
+	// 正文的长度的判定：
+	if err := checkContentMaxLength(page); err != nil {
+		return err
+	}
+	slog.Info("检查正文长度：通过")
+
+	// 处理定时发布
+	if scheduleTime != nil {
+		if err := setSchedulePublish(page, *scheduleTime); err != nil {
+			return errors.Wrap(err, "设置定时发布失败")
+		}
+		slog.Info("定时发布设置完成", "schedule_time", scheduleTime.Format("2006-01-02 15:04"))
+	}
+
 	submitButton := page.MustElement("div.submit div.d-button-content")
 	submitButton.MustClick()
 
 	time.Sleep(3 * time.Second)
 
 	return nil
+}
+
+// 检查标题是否超过最大长度
+func checkTitleMaxLength(page *rod.Page) error {
+	has, elem, err := page.Has(`div.title-container div.max_suffix`)
+	if err != nil {
+		return errors.Wrap(err, "检查标题长度元素失败")
+	}
+
+	// 元素不存在，说明标题没超长
+	if !has {
+		return nil
+	}
+
+	// 元素存在，说明标题超长
+	titleLength, err := elem.Text()
+	if err != nil {
+		return errors.Wrap(err, "获取标题长度文本失败")
+	}
+
+	return makeMaxLengthError(titleLength)
+}
+
+func checkContentMaxLength(page *rod.Page) error {
+	has, elem, err := page.Has(`div.edit-container div.length-error`)
+	if err != nil {
+		return errors.Wrap(err, "检查正文长度元素失败")
+	}
+
+	// 元素不存在，说明正文没超长
+	if !has {
+		return nil
+	}
+
+	// 元素存在，说明正文超长
+	contentLength, err := elem.Text()
+	if err != nil {
+		return errors.Wrap(err, "获取正文长度文本失败")
+	}
+
+	return makeMaxLengthError(contentLength)
+}
+
+func makeMaxLengthError(elemText string) error {
+	parts := strings.Split(elemText, "/")
+	if len(parts) != 2 {
+		return errors.Errorf("长度超过限制: %s", elemText)
+	}
+
+	currLen, maxLen := parts[0], parts[1]
+
+	return errors.Errorf("当前输入长度为%s，最大长度为%s", currLen, maxLen)
 }
 
 // 查找内容输入框 - 使用Race方法处理两种样式
@@ -433,4 +521,133 @@ func isElementVisible(elem *rod.Element) bool {
 	}
 
 	return visible
+}
+
+// setSchedulePublish 设置定时发布时间
+func setSchedulePublish(page *rod.Page, t time.Time) error {
+	// 1. 点击"定时发布" radio button
+	if err := clickScheduleRadio(page); err != nil {
+		return err
+	}
+	time.Sleep(500 * time.Millisecond)
+
+	// 2. 点击时间选择器打开面板
+	if err := clickDateTimePicker(page); err != nil {
+		return err
+	}
+	time.Sleep(500 * time.Millisecond)
+
+	// 3. 设置日期和时间
+	if err := setDateTime(page, t); err != nil {
+		return err
+	}
+	time.Sleep(300 * time.Millisecond)
+
+	// 4. 点击确定按钮
+	if err := clickConfirmButton(page); err != nil {
+		return err
+	}
+	time.Sleep(500 * time.Millisecond)
+
+	return nil
+}
+
+// clickScheduleRadio 点击定时发布 radio
+func clickScheduleRadio(page *rod.Page) error {
+	labels, err := page.Elements("span.el-radio__label")
+	if err != nil {
+		return errors.Wrap(err, "查找 radio label 失败")
+	}
+
+	for _, label := range labels {
+		text, err := label.Text()
+		if err != nil {
+			continue
+		}
+		if strings.TrimSpace(text) == "定时发布" {
+			if err := label.Click(proto.InputMouseButtonLeft, 1); err != nil {
+				return errors.Wrap(err, "点击定时发布按钮失败")
+			}
+			slog.Info("已点击定时发布按钮")
+			return nil
+		}
+	}
+
+	return errors.New("未找到定时发布按钮")
+}
+
+// clickDateTimePicker 点击时间选择器
+func clickDateTimePicker(page *rod.Page) error {
+	// 查找日期时间选择器输入框
+	picker, err := page.Element("input.el-input__inner[placeholder='选择日期和时间']")
+	if err != nil {
+		return errors.Wrap(err, "查找时间选择器失败")
+	}
+
+	if err := picker.Click(proto.InputMouseButtonLeft, 1); err != nil {
+		return errors.Wrap(err, "点击时间选择器失败")
+	}
+	slog.Info("已点击时间选择器")
+	return nil
+}
+
+// setDateTime 设置日期和时间
+func setDateTime(page *rod.Page, t time.Time) error {
+	dateStr := t.Format("2006-01-02")
+	timeStr := t.Format("15:04")
+
+	// 设置日期
+	dateInput, err := page.Element("input.el-input__inner[placeholder='选择日期']")
+	if err != nil {
+		return errors.Wrap(err, "查找日期输入框失败")
+	}
+	if err := dateInput.SelectAllText(); err != nil {
+		return errors.Wrap(err, "选择日期文本失败")
+	}
+	if err := dateInput.Input(dateStr); err != nil {
+		return errors.Wrap(err, "输入日期失败")
+	}
+	slog.Info("已设置日期", "date", dateStr)
+
+	time.Sleep(300 * time.Millisecond)
+
+	// 设置时间
+	timeInput, err := page.Element("input.el-input__inner[placeholder='选择时间']")
+	if err != nil {
+		return errors.Wrap(err, "查找时间输入框失败")
+	}
+	if err := timeInput.SelectAllText(); err != nil {
+		return errors.Wrap(err, "选择时间文本失败")
+	}
+	if err := timeInput.Input(timeStr); err != nil {
+		return errors.Wrap(err, "输入时间失败")
+	}
+	slog.Info("已设置时间", "time", timeStr)
+
+	return nil
+}
+
+// clickConfirmButton 点击确定按钮
+func clickConfirmButton(page *rod.Page) error {
+	// 查找日期选择器弹窗中的确定按钮
+	buttons, err := page.Elements("button.el-picker-panel__link-btn")
+	if err != nil {
+		return errors.Wrap(err, "查找确定按钮失败")
+	}
+
+	for _, btn := range buttons {
+		text, err := btn.Text()
+		if err != nil {
+			continue
+		}
+		if strings.TrimSpace(text) == "确定" {
+			if err := btn.Click(proto.InputMouseButtonLeft, 1); err != nil {
+				return errors.Wrap(err, "点击确定按钮失败")
+			}
+			slog.Info("已点击确定按钮")
+			return nil
+		}
+	}
+
+	return errors.New("未找到确定按钮")
 }
