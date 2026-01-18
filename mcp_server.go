@@ -56,8 +56,11 @@ type FeedDetailArgs struct {
 
 // UserProfileArgs 获取用户主页的参数
 type UserProfileArgs struct {
-	UserID    string `json:"user_id" jsonschema:"小红书用户ID，从Feed列表获取"`
-	XsecToken string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
+	UserID       string `json:"user_id" jsonschema:"小红书用户ID，从Feed列表获取"`
+	XsecToken    string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
+	LoadAllNotes bool   `json:"load_all_notes,omitempty" jsonschema:"是否加载全部笔记（默认false，仅返回首批笔记）"`
+	MaxNoteItems int    `json:"max_note_items,omitempty" jsonschema:"最大加载笔记数（0表示加载所有, 默认: 0）"`
+	ScrollSpeed  string `json:"scroll_speed,omitempty" jsonschema:"滚动速度: 'slow'|'normal'|'fast' (默认: 'normal')"`
 }
 
 // PostCommentArgs 发表评论的参数
@@ -238,12 +241,15 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "user_profile",
-			Description: "获取指定的小红书用户主页，返回用户基本信息，关注、粉丝、获赞量及其笔记内容",
+			Description: "获取指定的小红书用户主页，返回用户基本信息，关注、粉丝、获赞量及其笔记内容。支持自定义加载笔记数量和滚动速度。",
 		},
 		withPanicRecovery("user_profile", func(ctx context.Context, req *mcp.CallToolRequest, args UserProfileArgs) (*mcp.CallToolResult, any, error) {
 			argsMap := map[string]interface{}{
-				"user_id":    args.UserID,
-				"xsec_token": args.XsecToken,
+				"user_id":        args.UserID,
+				"xsec_token":     args.XsecToken,
+				"load_all_notes": args.LoadAllNotes,
+				"max_note_items": args.MaxNoteItems,
+				"scroll_speed":   args.ScrollSpeed,
 			}
 			result := appServer.handleUserProfile(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
