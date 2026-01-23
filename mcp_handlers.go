@@ -437,6 +437,81 @@ func (s *AppServer) handleGetFeedDetail(ctx context.Context, args map[string]any
 	}
 }
 
+// handleGetFeedDetails 批量获取Feed详情
+func (s *AppServer) handleGetFeedDetails(ctx context.Context, args FeedDetailsArgs) *MCPToolResult {
+	logrus.Infof("MCP: 批量获取Feed详情, items=%d", len(args.Items))
+
+	if len(args.Items) == 0 {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "批量获取Feed详情失败: items不能为空",
+			}},
+			IsError: true,
+		}
+	}
+
+	loadAll := args.LoadAllComments
+	config := xiaohongshu.DefaultCommentLoadConfig()
+
+	if loadAll {
+		config.ClickMoreReplies = args.ClickMoreReplies
+
+		limit := args.Limit
+		if limit <= 0 {
+			limit = 20
+		}
+		config.MaxCommentItems = limit
+
+		replyLimit := args.ReplyLimit
+		if replyLimit <= 0 {
+			replyLimit = 10
+		}
+		config.MaxRepliesThreshold = replyLimit
+
+		if args.ScrollSpeed != "" {
+			config.ScrollSpeed = args.ScrollSpeed
+		}
+	}
+
+	concurrency := args.Concurrency
+	if concurrency <= 0 {
+		concurrency = 3
+	}
+	if concurrency > 10 {
+		concurrency = 10
+	}
+
+	result, err := s.xiaohongshuService.GetFeedDetailsWithConfig(ctx, args.Items, loadAll, config, concurrency)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "批量获取Feed详情失败: " + err.Error(),
+			}},
+			IsError: true,
+		}
+	}
+
+	jsonData, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: fmt.Sprintf("批量获取Feed详情成功，但序列化失败: %v", err),
+			}},
+			IsError: true,
+		}
+	}
+
+	return &MCPToolResult{
+		Content: []MCPContent{{
+			Type: "text",
+			Text: string(jsonData),
+		}},
+	}
+}
+
 // handleUserProfile 获取用户主页
 func (s *AppServer) handleUserProfile(ctx context.Context, args map[string]any) *MCPToolResult {
 	logrus.Info("MCP: 获取用户主页")
