@@ -24,6 +24,7 @@ type PublishContentArgs struct {
 	ScheduleAt string   `json:"schedule_at,omitempty" jsonschema:"定时发布时间（可选），ISO8601格式如 2024-01-20T10:30:00+08:00，支持1小时至14天内。不填则立即发布"`
 	IsOriginal bool     `json:"is_original,omitempty" jsonschema:"是否声明原创（可选），true为声明原创，false或不填则不声明"`
 	Visibility string   `json:"visibility,omitempty" jsonschema:"可见范围（可选），支持: 公开可见(默认)、仅自己可见、仅互关好友可见。不填则默认公开可见"`
+	Products   []string `json:"products,omitempty" jsonschema:"商品关键词列表（可选），用于绑定带货商品。填写商品名称或商品ID，系统会自动搜索并选择第一个匹配结果。需账号已开通商品功能。示例: [面膜, 防晒霜SPF50]"`
 }
 
 // PublishVideoArgs 发布视频的参数（仅支持本地单个视频文件）
@@ -34,6 +35,7 @@ type PublishVideoArgs struct {
 	Tags       []string `json:"tags,omitempty" jsonschema:"话题标签列表（可选参数），如 [美食, 旅行, 生活]"`
 	ScheduleAt string   `json:"schedule_at,omitempty" jsonschema:"定时发布时间（可选），ISO8601格式如 2024-01-20T10:30:00+08:00，支持1小时至14天内。不填则立即发布"`
 	Visibility string   `json:"visibility,omitempty" jsonschema:"可见范围（可选），支持: 公开可见(默认)、仅自己可见、仅互关好友可见。不填则默认公开可见"`
+	Products   []string `json:"products,omitempty" jsonschema:"商品关键词列表（可选），用于绑定带货商品。填写商品名称或商品ID，系统会自动搜索并选择第一个匹配结果。需账号已开通商品功能。示例: [面膜, 防晒霜SPF50]"`
 }
 
 // SearchFeedsArgs 搜索内容的参数
@@ -219,6 +221,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				"schedule_at": args.ScheduleAt,
 				"is_original": args.IsOriginal,
 				"visibility":  args.Visibility,
+				"products":    convertStringsToInterfaces(args.Products),
 			}
 			result := appServer.handlePublishContent(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
@@ -391,6 +394,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				"tags":        convertStringsToInterfaces(args.Tags),
 				"schedule_at": args.ScheduleAt,
 				"visibility":  args.Visibility,
+				"products":    convertStringsToInterfaces(args.Products),
 			}
 			result := appServer.handlePublishVideo(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
