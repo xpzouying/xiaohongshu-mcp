@@ -54,6 +54,12 @@ type FeedDetailRequest struct {
 	CommentConfig   *CommentLoadConfig `json:"comment_config,omitempty"`
 }
 
+// FeedDetailItem 批量获取Feed详情的单项
+type FeedDetailItem struct {
+	FeedID    string `json:"feed_id"`
+	XsecToken string `json:"xsec_token"`
+}
+
 type SearchFeedsRequest struct {
 	Keyword string                   `json:"keyword" binding:"required"`
 	Filters xiaohongshu.FilterOption `json:"filters,omitempty"`
@@ -63,6 +69,22 @@ type SearchFeedsRequest struct {
 type FeedDetailResponse struct {
 	FeedID string `json:"feed_id"`
 	Data   any    `json:"data"`
+}
+
+// FeedDetailBatchItemResult 批量获取Feed详情的单项结果
+type FeedDetailBatchItemResult struct {
+	FeedID  string `json:"feed_id"`
+	Success bool   `json:"success"`
+	Data    any    `json:"data,omitempty"`
+	Error   string `json:"error,omitempty"`
+}
+
+// FeedDetailBatchResponse 批量获取Feed详情响应
+type FeedDetailBatchResponse struct {
+	Items        []FeedDetailBatchItemResult `json:"items"`
+	Count        int                         `json:"count"`
+	SuccessCount int                         `json:"success_count"`
+	FailureCount int                         `json:"failure_count"`
 }
 
 // PostCommentRequest 发表评论请求

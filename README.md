@@ -695,6 +695,7 @@ Cline 是一个强大的 AI 编程助手，支持 MCP 协议集成。
 - `list_feeds` - 获取小红书首页推荐列表（无参数）
 - `search_feeds` - 搜索小红书内容（需要：keyword）
 - `get_feed_detail` - 获取帖子详情（需要：feed_id, xsec_token）
+- `get_feed_details` - 批量获取帖子详情（需要：items；可选：concurrency）
 - `post_comment_to_feed` - 发表评论到小红书帖子（需要：feed_id, xsec_token, content）
 - `user_profile` - 获取用户个人主页信息（需要：user_id, xsec_token）
 
