@@ -15,7 +15,7 @@ type ErrorResponse struct {
 type SuccessResponse struct {
 	Success bool   `json:"success"`
 	Data    any    `json:"data"`
-	Message string `json:"message,omitempty"`
+	Message string `json:"message"`
 }
 
 // MCP 相关类型（用于内部转换）

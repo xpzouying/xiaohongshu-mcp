@@ -18,6 +18,7 @@ type PublishContentArgs struct {
 	Content string   `json:"content" jsonschema:"正文内容，不包含以#开头的标签内容，所有话题标签都用tags参数来生成和提供即可"`
 	Images  []string `json:"images" jsonschema:"图片路径列表（至少需要1张图片）。支持两种方式：1. HTTP/HTTPS图片链接（自动下载）；2. 本地图片绝对路径（推荐，如:/Users/user/image.jpg）"`
 	Tags    []string `json:"tags,omitempty" jsonschema:"话题标签列表（可选参数），如 [美食, 旅行, 生活]"`
+	Webhook string   `json:"webhook,omitempty" jsonschema:"可选：发布成功后回调的 webhook URL"`
 }
 
 // PublishVideoArgs 发布视频的参数（仅支持本地单个视频文件）
@@ -26,6 +27,7 @@ type PublishVideoArgs struct {
 	Content string   `json:"content" jsonschema:"正文内容，不包含以#开头的标签内容，所有话题标签都用tags参数来生成和提供即可"`
 	Video   string   `json:"video" jsonschema:"本地视频绝对路径（仅支持单个视频文件，如:/Users/user/video.mp4）"`
 	Tags    []string `json:"tags,omitempty" jsonschema:"话题标签列表（可选参数），如 [美食, 旅行, 生活]"`
+	Webhook string   `json:"webhook,omitempty" jsonschema:"可选：发布成功后回调的 webhook URL"`
 }
 
 // SearchFeedsArgs 搜索内容的参数
@@ -53,6 +55,33 @@ type FeedDetailArgs struct {
 type UserProfileArgs struct {
 	UserID    string `json:"user_id" jsonschema:"小红书用户ID，从Feed列表获取"`
 	XsecToken string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
+}
+
+// MyNoteListArgs 获取我的小红书笔记内容的参数
+//
+// 与 UserProfileArgs 的区别：
+//   - UserProfileArgs: 需要 user_id + xsec_token，用于访问他人主页
+//   - MyNoteListArgs: 只需要 user_id，用于获取我的小红书笔记内容
+//
+// 返回值说明：
+//   - 只返回 feeds 数组（笔记内容），不包含用户基本信息和互动数据
+//   - 如需完整信息，请使用 user_profile 工具
+type MyNoteListArgs struct {
+	UserID string `json:"user_id" jsonschema:"小红书用户ID"`
+}
+
+// OwnProfileArgs 获取自己主页信息的参数
+//
+// 与其他Args 的区别：
+//   - UserProfileArgs: 需要 user_id + xsec_token，返回完整信息
+//   - MyNoteListArgs: 只需要 user_id，只返回笔记内容
+//   - OwnProfileArgs: 只需要 user_id，只返回基本信息 + 互动数据
+//
+// 返回值说明：
+//   - 返回 userBasicInfo + interactions，不包含 feeds
+//   - 如需笔记内容，请使用 my_note_list 工具
+type OwnProfileArgs struct {
+	UserID string `json:"user_id" jsonschema:"小红书用户ID"`
 }
 
 // PostCommentArgs 发表评论的参数
@@ -184,6 +213,25 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
+	// 工具 4.1: 暂存内容并离开
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "save_and_exit",
+			Description: "暂存小红书图文内容并离开（不发布）",
+		},
+		withPanicRecovery("save_and_exit", func(ctx context.Context, req *mcp.CallToolRequest, args PublishContentArgs) (*mcp.CallToolResult, any, error) {
+			// 转换参数格式到现有的 handler
+			argsMap := map[string]interface{}{
+				"title":   args.Title,
+				"content": args.Content,
+				"images":  convertStringsToInterfaces(args.Images),
+				"tags":    convertStringsToInterfaces(args.Tags),
+			}
+			result := appServer.handleSaveAndExit(ctx, argsMap)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
 	// 工具 5: 获取Feed列表
 	mcp.AddTool(server,
 		&mcp.Tool{
@@ -309,7 +357,37 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	logrus.Infof("Registered %d MCP tools", 12)
+	// 工具 13: 获取我的小红书笔记内容
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "my_note_list",
+			Description: "获取我的小红书笔记内容（只需要 user_id，不需要 xsec_token）",
+		},
+		withPanicRecovery("my_note_list", func(ctx context.Context, req *mcp.CallToolRequest, args MyNoteListArgs) (*mcp.CallToolResult, any, error) {
+			argsMap := map[string]interface{}{
+				"user_id": args.UserID,
+			}
+			result := appServer.handleMyNoteList(ctx, argsMap)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	// 工具 14: 获取自己的主页信息
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "own_profile",
+			Description: "获取我的小红书主页信息（基本信息 + 互动数据，不包含笔记），只需要 user_id",
+		},
+		withPanicRecovery("own_profile", func(ctx context.Context, req *mcp.CallToolRequest, args OwnProfileArgs) (*mcp.CallToolResult, any, error) {
+			argsMap := map[string]interface{}{
+				"user_id": args.UserID,
+			}
+			result := appServer.handleOwnProfile(ctx, argsMap)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	logrus.Infof("Registered %d MCP tools", 14)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式

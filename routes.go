@@ -42,6 +42,7 @@ func setupRoutes(appServer *AppServer) *gin.Engine {
 		api.GET("/login/qrcode", appServer.getLoginQrcodeHandler)
 		api.DELETE("/login/cookies", appServer.deleteCookiesHandler)
 		api.POST("/publish", appServer.publishHandler)
+		api.POST("/publish/save-and-exit", appServer.saveAndExitHandler)
 		api.POST("/publish_video", appServer.publishVideoHandler)
 		api.GET("/feeds/list", appServer.listFeedsHandler)
 		api.GET("/feeds/search", appServer.searchFeedsHandler)
@@ -50,6 +51,8 @@ func setupRoutes(appServer *AppServer) *gin.Engine {
 		api.POST("/user/profile", appServer.userProfileHandler)
 		api.POST("/feeds/comment", appServer.postCommentHandler)
 		api.GET("/user/me", appServer.myProfileHandler)
+		api.POST("/user/my-note-list", appServer.myNoteListHandler)
+		api.POST("/user/own-profile", appServer.ownProfileHandler)
 	}
 
 	return router

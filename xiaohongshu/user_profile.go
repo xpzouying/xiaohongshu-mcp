@@ -120,3 +120,68 @@ func (u *UserProfileAction) GetMyProfileViaSidebar(ctx context.Context) (*UserPr
 
 	return u.extractUserProfileData(page)
 }
+
+// MyNoteList 获取我的小红书笔记内容（简化版，只需要 userID）
+//
+// 与 UserProfile 的区别：
+//   - UserProfile: 需要 userID + xsec_token 两个参数，用于访问他人主页
+//   - MyNoteList: 只需要 userID 一个参数，用于获取我的小红书笔记内容
+//
+// 原理：小红书允许用户访问自己的主页时，URL 中不需要 xsec_token 参数
+// 例如：https://www.xiaohongshu.com/user/profile/{userID}
+//
+// 参数：
+//   - userID: 小红书用户 ID（自己的用户 ID）
+//
+// 返回：
+//   - *UserProfileResponse: 包含用户基本信息、互动数据（关注/粉丝/获赞）和笔记列表
+//   - error: 如果获取失败则返回错误
+func (u *UserProfileAction) MyNoteList(ctx context.Context, userID string) (*UserProfileResponse, error) {
+	page := u.page.Context(ctx)
+
+	profileURL := makeMyNoteListURL(userID)
+	page.MustNavigate(profileURL)
+	page.MustWaitStable()
+
+	return u.extractUserProfileData(page)
+}
+
+// makeMyNoteListURL 生成获取我的小红书笔记内容的 URL（不需要 xsec_token）
+//
+// 与 makeUserProfileURL 的区别：
+//   - makeUserProfileURL: 生成带 xsec_token 的 URL，用于访问他人主页
+//   - makeMyNoteListURL: 生成不带 xsec_token 的 URL，用于获取我的小红书笔记内容
+//
+// 参数：
+//   - userID: 小红书用户 ID
+//
+// 返回：
+//   - string: 格式为 https://www.xiaohongshu.com/user/profile/{userID}
+func makeMyNoteListURL(userID string) string {
+	return fmt.Sprintf("https://www.xiaohongshu.com/user/profile/%s", userID)
+}
+
+// OwnProfile 获取自己的主页信息（基本信息 + 互动数据，不包含笔记）
+//
+// 与其他方法的区别：
+//   - UserProfile: 需要 userID + xsec_token，返回完整信息（基本信息 + 互动数据 + 笔记）
+//   - MyNoteList: 只需要 userID，只返回笔记内容
+//   - OwnProfile: 只需要 userID，只返回基本信息 + 互动数据
+//
+// 原理：访问自己的主页不需要 xsec_token
+//
+// 参数：
+//   - userID: 小红书用户 ID（自己的用户 ID）
+//
+// 返回：
+//   - *UserProfileResponse: 包含用户基本信息和互动数据（关注/粉丝/获赞）
+//   - error: 如果获取失败则返回错误
+func (u *UserProfileAction) OwnProfile(ctx context.Context, userID string) (*UserProfileResponse, error) {
+	page := u.page.Context(ctx)
+
+	profileURL := makeMyNoteListURL(userID)
+	page.MustNavigate(profileURL)
+	page.MustWaitStable()
+
+	return u.extractUserProfileData(page)
+}

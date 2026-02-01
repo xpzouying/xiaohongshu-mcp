@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
+	"time"
+
 	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/xiaohongshu-mcp/cookies"
 	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
-	"strings"
-	"time"
 )
 
 // MCP 工具处理函数
@@ -33,9 +34,9 @@ func (s *AppServer) handleCheckLoginStatus(ctx context.Context) *MCPToolResult {
 	if status.IsLoggedIn {
 		resultText = fmt.Sprintf("✅ 已登录\n用户名: %s\n\n你可以使用其他功能了。", status.Username)
 	} else {
-		resultText = fmt.Sprintf("❌ 未登录\n\n请使用 get_login_qrcode 工具获取二维码进行登录。")
+		resultText = "❌ 未登录\n\n请使用 get_login_qrcode 工具获取二维码进行登录。"
 	}
-	
+
 	return &MCPToolResult{
 		Content: []MCPContent{{
 			Type: "text",
@@ -153,6 +154,61 @@ func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]in
 	}
 
 	resultText := fmt.Sprintf("内容发布成功: %+v", result)
+	return &MCPToolResult{
+		Content: []MCPContent{{
+			Type: "text",
+			Text: resultText,
+		}},
+	}
+}
+
+// handleSaveAndExit 处理暂存内容并离开
+func (s *AppServer) handleSaveAndExit(ctx context.Context, args map[string]interface{}) *MCPToolResult {
+	logrus.Info("MCP: 暂存内容并离开")
+
+	// 解析参数
+	title, _ := args["title"].(string)
+	content, _ := args["content"].(string)
+	imagePathsInterface, _ := args["images"].([]interface{})
+	tagsInterface, _ := args["tags"].([]interface{})
+
+	var imagePaths []string
+	for _, path := range imagePathsInterface {
+		if pathStr, ok := path.(string); ok {
+			imagePaths = append(imagePaths, pathStr)
+		}
+	}
+
+	var tags []string
+	for _, tag := range tagsInterface {
+		if tagStr, ok := tag.(string); ok {
+			tags = append(tags, tagStr)
+		}
+	}
+
+	logrus.Infof("MCP: 暂存内容 - 标题: %s, 图片数量: %d, 标签数量: %d", title, len(imagePaths), len(tags))
+
+	// 构建发布请求
+	req := &PublishRequest{
+		Title:   title,
+		Content: content,
+		Images:  imagePaths,
+		Tags:    tags,
+	}
+
+	// 执行暂存
+	result, err := s.xiaohongshuService.SaveAndExit(ctx, req)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "暂存失败: " + err.Error(),
+			}},
+			IsError: true,
+		}
+	}
+
+	resultText := fmt.Sprintf("内容暂存成功: %+v", result)
 	return &MCPToolResult{
 		Content: []MCPContent{{
 			Type: "text",
@@ -416,6 +472,153 @@ func (s *AppServer) handleUserProfile(ctx context.Context, args map[string]any) 
 			Content: []MCPContent{{
 				Type: "text",
 				Text: fmt.Sprintf("获取用户主页，但序列化失败: %v", err),
+			}},
+			IsError: true,
+		}
+	}
+
+	return &MCPToolResult{
+		Content: []MCPContent{{
+			Type: "text",
+			Text: string(jsonData),
+		}},
+	}
+}
+
+// handleMyNoteList 获取我的小红书笔记内容（MCP 工具处理函数）
+//
+// 工具说明：
+//   - 工具名称：my_note_list
+//   - 功能：获取我的小红书笔记内容
+//   - 参数：只需要 user_id（不需要 xsec_token）
+//   - 返回：feeds 数组（笔记内容的 JSON）
+//
+// 与其他工具的对比：
+//   - user_profile: 需要 user_id + xsec_token，返回完整的用户信息（基本信息 + 互动数据 + 笔记）
+//   - my_note_list: 只需要 user_id，只返回笔记内容
+//
+// 使用场景：
+//   - 当你只需要获取自己的笔记内容时使用此工具
+//   - 访问自己的主页不需要 xsec_token（小红书的特性）
+//
+// 参数：
+//   - args["user_id"]: 小红书用户 ID（必需）
+//
+// 返回：
+//   - 成功：JSON 格式的 {"feeds": [...]} 对象
+//   - 失败：错误信息文本
+func (s *AppServer) handleMyNoteList(ctx context.Context, args map[string]any) *MCPToolResult {
+	logrus.Info("MCP: 获取我的小红书笔记内容")
+
+	// 解析参数
+	userID, ok := args["user_id"].(string)
+	if !ok || userID == "" {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "获取我的小红书笔记内容失败: 缺少user_id参数",
+			}},
+			IsError: true,
+		}
+	}
+
+	logrus.Infof("MCP: 获取我的小红书笔记内容 - User ID: %s", userID)
+
+	// 调用 MyNoteList 服务方法，只返回 feeds 数组
+	feeds, err := s.xiaohongshuService.MyNoteList(ctx, userID)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "获取我的小红书笔记内容失败: " + err.Error(),
+			}},
+			IsError: true,
+		}
+	}
+
+	// 包装成与 HTTP API 一致的格式：{"feeds": [...]}
+	response := map[string]interface{}{
+		"feeds": feeds,
+	}
+
+	jsonData, err := json.MarshalIndent(response, "", "  ")
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: fmt.Sprintf("获取我的小红书笔记内容成功，但序列化失败: %v", err),
+			}},
+			IsError: true,
+		}
+	}
+
+	return &MCPToolResult{
+		Content: []MCPContent{{
+			Type: "text",
+			Text: string(jsonData),
+		}},
+	}
+}
+
+// handleOwnProfile 获取我的小红书主页信息（MCP 工具处理函数）
+//
+// 工具说明：
+//   - 工具名称：own_profile
+//   - 功能：获取我的小红书主页信息（基本信息 + 互动数据）
+//   - 参数：只需要 user_id（不需要 xsec_token）
+//   - 返回：userBasicInfo + interactions（不包含笔记内容）
+//
+// 与其他工具的对比：
+//   - user_profile: 需要 user_id + xsec_token，返回完整信息（基本信息 + 互动数据 + 笔记）
+//   - my_note_list: 只需要 user_id，只返回笔记内容
+//   - own_profile: 只需要 user_id，只返回基本信息 + 互动数据
+//
+// 使用场景：
+//   - 当你只需要获取自己的基本信息和互动数据（关注/粉丝/获赞），不需要笔记内容时使用
+//   - 访问自己的主页不需要 xsec_token（小红书的特性）
+//
+// 参数：
+//   - args["user_id"]: 小红书用户 ID（必需）
+//
+// 返回：
+//   - 成功：JSON 格式的用户主页信息（userBasicInfo + interactions）
+//   - 失败：错误信息文本
+func (s *AppServer) handleOwnProfile(ctx context.Context, args map[string]any) *MCPToolResult {
+	logrus.Info("MCP: 获取我的小红书主页信息")
+
+	// 解析参数
+	userID, ok := args["user_id"].(string)
+	if !ok || userID == "" {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "获取我的小红书主页信息失败: 缺少user_id参数",
+			}},
+			IsError: true,
+		}
+	}
+
+	logrus.Infof("MCP: 获取我的小红书主页信息 - User ID: %s", userID)
+
+	// 调用 OwnProfile 服务方法
+	result, err := s.xiaohongshuService.OwnProfile(ctx, userID)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "获取我的小红书主页信息失败: " + err.Error(),
+			}},
+			IsError: true,
+		}
+	}
+
+	// 返回完整的用户信息（userBasicInfo + interactions）
+	jsonData, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: fmt.Sprintf("获取我的小红书主页信息成功，但序列化失败: %v", err),
 			}},
 			IsError: true,
 		}

@@ -18,20 +18,25 @@ import (
 	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
 )
 
-// XiaohongshuService 小红书业务服务
-type XiaohongshuService struct{}
-
-// NewXiaohongshuService 创建小红书服务实例
-func NewXiaohongshuService() *XiaohongshuService {
-	return &XiaohongshuService{}
+// XiaohongshuService 小红书服务
+type XiaohongshuService struct {
+	webhookSender *WebhookSender
 }
 
-// PublishRequest 发布请求
+// NewXiaohongshuService 创建服务实例
+func NewXiaohongshuService() *XiaohongshuService {
+	return &XiaohongshuService{
+		webhookSender: NewWebhookSender(),
+	}
+}
+
+// PublishRequest 发布图文请求
 type PublishRequest struct {
 	Title   string   `json:"title" binding:"required"`
 	Content string   `json:"content" binding:"required"`
 	Images  []string `json:"images" binding:"required,min=1"`
 	Tags    []string `json:"tags,omitempty"`
+	Webhook string   `json:"webhook,omitempty"` // 可选：发布成功后回调的 URL
 }
 
 // LoginStatusResponse 登录状态响应
@@ -62,6 +67,7 @@ type PublishVideoRequest struct {
 	Content string   `json:"content" binding:"required"`
 	Video   string   `json:"video" binding:"required"`
 	Tags    []string `json:"tags,omitempty"`
+	Webhook string   `json:"webhook,omitempty"` // 可选：发布成功后回调的 URL
 }
 
 // PublishVideoResponse 发布视频响应
@@ -200,6 +206,11 @@ func (s *XiaohongshuService) PublishContent(ctx context.Context, req *PublishReq
 		Status:  "发布完成",
 	}
 
+	// 如果有 webhook，异步发送
+	if req.Webhook != "" {
+		s.sendPublishWebhook(ctx, req.Webhook, response, "publish_content")
+	}
+
 	return response, nil
 }
 
@@ -224,6 +235,64 @@ func (s *XiaohongshuService) publishContent(ctx context.Context, content xiaohon
 
 	// 执行发布
 	return action.Publish(ctx, content)
+}
+
+// SaveAndExit 暂存内容并离开
+func (s *XiaohongshuService) SaveAndExit(ctx context.Context, req *PublishRequest) (*PublishResponse, error) {
+	// 验证标题长度
+	if titleWidth := runewidth.StringWidth(req.Title); titleWidth > 40 {
+		return nil, fmt.Errorf("标题长度超过限制")
+	}
+
+	// 处理图片
+	imagePaths, err := s.processImages(req.Images)
+	if err != nil {
+		return nil, err
+	}
+
+	// 构建发布内容
+	content := xiaohongshu.PublishImageContent{
+		Title:      req.Title,
+		Content:    req.Content,
+		Tags:       req.Tags,
+		ImagePaths: imagePaths,
+	}
+
+	// 执行暂存
+	if err := s.saveAndExit(ctx, content); err != nil {
+		logrus.Errorf("暂存内容失败: title=%s %v", content.Title, err)
+		return nil, err
+	}
+
+	response := &PublishResponse{
+		Title:   req.Title,
+		Content: req.Content,
+		Images:  len(imagePaths),
+		Status:  "暂存完成",
+	}
+
+	// 如果有 webhook，异步发送
+	if req.Webhook != "" {
+		s.sendPublishWebhook(ctx, req.Webhook, response, "save_and_exit")
+	}
+
+	return response, nil
+}
+
+// saveAndExit 执行暂存操作
+func (s *XiaohongshuService) saveAndExit(ctx context.Context, content xiaohongshu.PublishImageContent) error {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action, err := xiaohongshu.NewPublishImageAction(page)
+	if err != nil {
+		return err
+	}
+
+	return action.SaveAndExit(ctx, content)
 }
 
 // PublishVideo 发布视频（本地文件）
@@ -258,8 +327,14 @@ func (s *XiaohongshuService) PublishVideo(ctx context.Context, req *PublishVideo
 		Title:   req.Title,
 		Content: req.Content,
 		Video:   req.Video,
-		Status:  "发布完成",
+		Status:  "视频发布完成",
 	}
+
+	// 如果有 webhook，异步发送
+	if req.Webhook != "" {
+		s.sendPublishWebhook(ctx, req.Webhook, resp, "publish_video")
+	}
+
 	return resp, nil
 }
 
@@ -505,4 +580,97 @@ func (s *XiaohongshuService) GetMyProfile(ctx context.Context) (*UserProfileResp
 	}
 
 	return response, nil
+}
+
+// MyNoteList 获取我的小红书笔记内容（简化版）
+//
+// 与其他用户主页方法的对比：
+//   - GetMyProfile: 通过侧边栏导航获取当前登录用户的完整信息（基本信息 + 互动数据 + 笔记）
+//   - UserProfile: 需要 userID + xsec_token 访问他人主页，返回完整信息
+//   - MyNoteList: 只需要 userID 获取我的小红书笔记内容（feeds 数组）
+//
+// 使用场景：
+//   - 当你只需要获取自己的笔记内容，不需要基本信息和互动数据时使用
+//   - 相比 GetMyProfile，这个方法不需要通过侧边栏导航，更直接高效
+//
+// 参数：
+//   - userID: 小红书用户 ID（自己的用户 ID）
+//
+// 返回：
+//   - []xiaohongshu.Feed: 笔记列表数组
+//   - error: 如果获取失败则返回错误
+func (s *XiaohongshuService) MyNoteList(ctx context.Context, userID string) ([]xiaohongshu.Feed, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewUserProfileAction(page)
+
+	result, err := action.MyNoteList(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 只返回 feeds 数组
+	return result.Feeds, nil
+}
+
+// OwnProfile 获取自己的主页信息（基本信息 + 互动数据，不包含笔记）
+//
+// 与其他用户主页方法的对比：
+//   - GetMyProfile: 通过侧边栏导航获取当前登录用户的完整信息（基本信息 + 互动数据 + 笔记）
+//   - UserProfile: 需要 userID + xsec_token 访问他人主页，返回完整信息
+//   - MyNoteList: 只需要 userID 获取笔记内容（feeds 数组）
+//   - OwnProfile: 只需要 userID 获取基本信息 + 互动数据
+//
+// 使用场景：
+//   - 当你只需要获取自己的基本信息和互动数据，不需要笔记内容时使用
+//   - 相比 GetMyProfile，这个方法不需要通过侧边栏导航，更直接高效
+//
+// 参数：
+//   - userID: 小红书用户 ID（自己的用户 ID）
+//
+// 返回：
+//   - *UserProfileResponse: 只包含 userBasicInfo 和 interactions，feeds 为空
+//   - error: 如果获取失败则返回错误
+func (s *XiaohongshuService) OwnProfile(ctx context.Context, userID string) (*UserProfileResponse, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewUserProfileAction(page)
+
+	result, err := action.OwnProfile(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 只返回基本信息和互动数据，不包含 feeds
+	response := &UserProfileResponse{
+		UserBasicInfo: result.UserBasicInfo,
+		Interactions:  result.Interactions,
+		Feeds:         []xiaohongshu.Feed{}, // 空数组
+	}
+
+	return response, nil
+}
+
+// sendPublishWebhook 发送发布成功的 webhook 通知
+//
+// 参数：
+//   - webhookURL: webhook 接收地址
+//   - publishResponse: 发布响应信息
+//   - eventType: 事件类型（publish_content/publish_video）
+//
+// 功能：
+//   - 异步获取用户信息
+//   - 构建包含发布信息和用户信息的 payload
+//   - 发送到指定的 webhook URL
+func (s *XiaohongshuService) sendPublishWebhook(ctx context.Context, webhookURL string, publishResponse interface{}, eventType string) {
+	// 直接使用 webhookSender 异步发送，不再额外去抓取用户信息，避免开启多余的浏览器页面
+	s.webhookSender.SendAsync(webhookURL, publishResponse, nil, eventType)
 }

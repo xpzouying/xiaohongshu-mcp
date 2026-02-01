@@ -22,7 +22,7 @@ type PublishVideoContent struct {
 
 // NewPublishVideoAction 进入发布页并切换到“上传视频”
 func NewPublishVideoAction(page *rod.Page) (*PublishAction, error) {
-	pp := page.Timeout(300 * time.Second)
+	pp := page.Timeout(600 * time.Second)
 
 	pp.MustNavigate(urlOfPublic).MustWaitIdle().MustWaitDOMStable()
 	time.Sleep(1 * time.Second)
@@ -125,7 +125,7 @@ func submitPublishVideo(page *rod.Page, title, content string, tags []string) er
 	// 正文 + 标签
 	if contentElem, ok := getContentElement(page); ok {
 		contentElem.MustInput(content)
-		inputTags(contentElem, tags)
+		inputTags(page, contentElem, tags)
 	} else {
 		return errors.New("没有找到内容输入框")
 	}

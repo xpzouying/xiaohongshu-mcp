@@ -1,6 +1,9 @@
 services:
   xiaohongshu-mcp:
-    image: xpzouying/xiaohongshu-mcp
+    build:
+      context: ..
+      dockerfile: Dockerfile.arm64
+    image: xiaohongshu-mcp:local
     container_name: xiaohongshu-mcp
     restart: unless-stopped
     tty: true
