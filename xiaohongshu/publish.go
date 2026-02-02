@@ -22,6 +22,7 @@ type PublishImageContent struct {
 	Tags         []string
 	ImagePaths   []string
 	ScheduleTime *time.Time // 定时发布时间，nil 表示立即发布
+	Private      bool       // 是否仅自己可见，默认 false 即公开可见
 }
 
 type PublishAction struct {
@@ -82,9 +83,9 @@ func (p *PublishAction) Publish(ctx context.Context, content PublishImageContent
 		tags = tags[:10]
 	}
 
-	logrus.Infof("发布内容: title=%s, images=%v, tags=%v, schedule=%v", content.Title, len(content.ImagePaths), tags, content.ScheduleTime)
+	logrus.Infof("发布内容: title=%s, images=%v, tags=%v, schedule=%v, private=%t", content.Title, len(content.ImagePaths), tags, content.ScheduleTime, content.Private)
 
-	if err := submitPublish(page, content.Title, content.Content, tags, content.ScheduleTime); err != nil {
+	if err := submitPublish(page, content.Title, content.Content, tags, content.ScheduleTime, content.Private); err != nil {
 		return errors.Wrap(err, "小红书发布失败")
 	}
 
@@ -254,7 +255,7 @@ func waitForUploadComplete(page *rod.Page, expectedCount int) error {
 	return errors.New("上传超时，请检查网络连接和图片大小")
 }
 
-func submitPublish(page *rod.Page, title, content string, tags []string, scheduleTime *time.Time) error {
+func submitPublish(page *rod.Page, title, content string, tags []string, scheduleTime *time.Time, private bool) error {
 
 	titleElem := page.MustElement("div.d-input input")
 	titleElem.MustInput(title)
@@ -291,6 +292,11 @@ func submitPublish(page *rod.Page, title, content string, tags []string, schedul
 			return errors.Wrap(err, "设置定时发布失败")
 		}
 		slog.Info("定时发布设置完成", "schedule_time", scheduleTime.Format("2006-01-02 15:04"))
+	}
+
+	// 设置可见范围（公开可见 / 仅自己可见）
+	if err := setVisibility(page, private); err != nil {
+		return errors.Wrap(err, "设置可见范围失败")
 	}
 
 	submitButton := page.MustElement("div.submit div.d-button-content")
@@ -521,6 +527,77 @@ func isElementVisible(elem *rod.Element) bool {
 	}
 
 	return visible
+}
+
+// setVisibility 设置可见范围：private=false 公开可见（默认），private=true 仅自己可见
+func setVisibility(page *rod.Page, private bool) error {
+	if !private {
+		slog.Info("可见范围使用默认：公开可见")
+		return nil
+	}
+
+	// 找到“可见范围”旁的下拉框并点击展开
+	labels, err := page.Elements("span, label, div")
+	if err != nil {
+		return errors.Wrap(err, "查找可见范围区域失败")
+	}
+	var visibilityTrigger *rod.Element
+	for _, el := range labels {
+		text, err := el.Text()
+		if err != nil {
+			continue
+		}
+		if strings.TrimSpace(text) == "可见范围" {
+			visibilityTrigger = el
+			break
+		}
+	}
+	if visibilityTrigger == nil {
+		return errors.New("未找到可见范围标签")
+	}
+
+	// 点击标签所在行内的输入/下拉区域以展开选项（通常在同一行右侧）
+	parent, err := visibilityTrigger.Parent()
+	if err != nil {
+		return errors.Wrap(err, "获取可见范围父元素失败")
+	}
+	inputs, err := parent.Elements("input, div[class*='select'], div[class*='input']")
+	if err != nil {
+		return errors.Wrap(err, "查找可见范围下拉失败")
+	}
+	if len(inputs) == 0 {
+		// 尝试点击标签右侧区域打开下拉
+		if err := visibilityTrigger.Click(proto.InputMouseButtonLeft, 1); err != nil {
+			return errors.Wrap(err, "点击可见范围失败")
+		}
+		time.Sleep(300 * time.Millisecond)
+	} else {
+		if err := inputs[0].Click(proto.InputMouseButtonLeft, 1); err != nil {
+			return errors.Wrap(err, "点击可见范围下拉失败")
+		}
+		time.Sleep(300 * time.Millisecond)
+	}
+
+	// 在下拉中点击“仅自己可见”
+	opts, err := page.Elements("div[class*='option'], li, span")
+	if err != nil {
+		return errors.Wrap(err, "查找可见范围选项失败")
+	}
+	for _, opt := range opts {
+		text, err := opt.Text()
+		if err != nil {
+			continue
+		}
+		if strings.TrimSpace(text) == "仅自己可见" {
+			if err := opt.Click(proto.InputMouseButtonLeft, 1); err != nil {
+				return errors.Wrap(err, "选择仅自己可见失败")
+			}
+			slog.Info("已设置可见范围：仅自己可见")
+			time.Sleep(200 * time.Millisecond)
+			return nil
+		}
+	}
+	return errors.New("未找到「仅自己可见」选项")
 }
 
 // setSchedulePublish 设置定时发布时间
