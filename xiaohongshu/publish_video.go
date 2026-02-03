@@ -10,6 +10,7 @@ import (
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/proto"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 )
 
 // PublishVideoContent 发布视频内容
@@ -21,14 +22,26 @@ type PublishVideoContent struct {
 	ScheduleTime *time.Time // 定时发布时间，nil 表示立即发布
 }
 
-// NewPublishVideoAction 进入发布页并切换到“上传视频”
+// NewPublishVideoAction 进入发布页并切换到"上传视频"
 func NewPublishVideoAction(page *rod.Page) (*PublishAction, error) {
 	pp := page.Timeout(300 * time.Second)
 
-	pp.MustNavigate(urlOfPublic).MustWaitIdle().MustWaitDOMStable()
+	if err := pp.Navigate(urlOfPublic); err != nil {
+		return nil, errors.Wrap(err, "导航到发布页面失败")
+	}
+
+	// 使用 WaitLoad 代替 WaitIdle（更宽松）
+	if err := pp.WaitLoad(); err != nil {
+		logrus.Warnf("等待页面加载出现问题: %v，继续尝试", err)
+	}
+	time.Sleep(2 * time.Second)
+
+	if err := pp.WaitDOMStable(time.Second, 0.1); err != nil {
+		logrus.Warnf("等待 DOM 稳定出现问题: %v，继续尝试", err)
+	}
 	time.Sleep(1 * time.Second)
 
-	if err := mustClickPublishTab(page, "上传视频"); err != nil {
+	if err := mustClickPublishTab(pp, "上传视频"); err != nil {
 		return nil, errors.Wrap(err, "切换到上传视频失败")
 	}
 
@@ -90,7 +103,7 @@ func waitForPublishButtonClickable(page *rod.Page) (*rod.Element, error) {
 	maxWait := 10 * time.Minute
 	interval := 1 * time.Second
 	start := time.Now()
-	selector := "button.publishBtn"
+	selector := ".publish-page-publish-btn button.bg-red"
 
 	slog.Info("开始等待发布按钮可点击(视频)")
 
