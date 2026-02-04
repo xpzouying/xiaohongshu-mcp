@@ -35,6 +35,11 @@
 | 2026-01-02 | K91431 | 49.99 | 赞赏码 |
 | 2026-01-05 | Yancy | 49.99 | 赞赏码 |
 
+捐赠截图
+
+![631d12986a903b0bf51d2b5dfc28b395](https://github.com/user-attachments/assets/ab6eae5e-9e8a-496d-94aa-d3f0c8a1cfc1)
+
+
 ### 2025-12
 
 **本月小结**
