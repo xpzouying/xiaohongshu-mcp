@@ -298,8 +298,7 @@ func submitPublish(page *rod.Page, title, content string, tags []string, schedul
 	if err := setVisibility(page, private); err != nil {
 		return errors.Wrap(err, "设置可见范围失败")
 	}
-
-	submitButton := page.MustElement("div.submit div.d-button-content")
+	submitButton := page.MustElement(".publish-page-publish-btn button.bg-red")
 	submitButton.MustClick()
 
 	time.Sleep(3 * time.Second)
@@ -602,129 +601,51 @@ func setVisibility(page *rod.Page, private bool) error {
 
 // setSchedulePublish 设置定时发布时间
 func setSchedulePublish(page *rod.Page, t time.Time) error {
-	// 1. 点击"定时发布" radio button
-	if err := clickScheduleRadio(page); err != nil {
+	// 1. 点击定时发布开关
+	if err := clickScheduleSwitch(page); err != nil {
 		return err
 	}
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(800 * time.Millisecond)
 
-	// 2. 点击时间选择器打开面板
-	if err := clickDateTimePicker(page); err != nil {
-		return err
-	}
-	time.Sleep(500 * time.Millisecond)
-
-	// 3. 设置日期和时间
+	// 2. 设置日期时间
 	if err := setDateTime(page, t); err != nil {
 		return err
 	}
-	time.Sleep(300 * time.Millisecond)
-
-	// 4. 点击确定按钮
-	if err := clickConfirmButton(page); err != nil {
-		return err
-	}
 	time.Sleep(500 * time.Millisecond)
 
 	return nil
 }
 
-// clickScheduleRadio 点击定时发布 radio
-func clickScheduleRadio(page *rod.Page) error {
-	labels, err := page.Elements("span.el-radio__label")
+// clickScheduleSwitch 点击定时发布开关
+func clickScheduleSwitch(page *rod.Page) error {
+	switchElem, err := page.Element(".post-time-wrapper .d-switch")
 	if err != nil {
-		return errors.Wrap(err, "查找 radio label 失败")
+		return errors.Wrap(err, "查找定时发布开关失败")
 	}
 
-	for _, label := range labels {
-		text, err := label.Text()
-		if err != nil {
-			continue
-		}
-		if strings.TrimSpace(text) == "定时发布" {
-			if err := label.Click(proto.InputMouseButtonLeft, 1); err != nil {
-				return errors.Wrap(err, "点击定时发布按钮失败")
-			}
-			slog.Info("已点击定时发布按钮")
-			return nil
-		}
+	if err := switchElem.Click(proto.InputMouseButtonLeft, 1); err != nil {
+		return errors.Wrap(err, "点击定时发布开关失败")
 	}
-
-	return errors.New("未找到定时发布按钮")
-}
-
-// clickDateTimePicker 点击时间选择器
-func clickDateTimePicker(page *rod.Page) error {
-	// 查找日期时间选择器输入框
-	picker, err := page.Element("input.el-input__inner[placeholder='选择日期和时间']")
-	if err != nil {
-		return errors.Wrap(err, "查找时间选择器失败")
-	}
-
-	if err := picker.Click(proto.InputMouseButtonLeft, 1); err != nil {
-		return errors.Wrap(err, "点击时间选择器失败")
-	}
-	slog.Info("已点击时间选择器")
+	slog.Info("已点击定时发布开关")
 	return nil
 }
 
-// setDateTime 设置日期和时间
+// setDateTime 设置日期时间
 func setDateTime(page *rod.Page, t time.Time) error {
-	dateStr := t.Format("2006-01-02")
-	timeStr := t.Format("15:04")
+	dateTimeStr := t.Format("2006-01-02 15:04")
 
-	// 设置日期
-	dateInput, err := page.Element("input.el-input__inner[placeholder='选择日期']")
+	input, err := page.Element(".date-picker-container input")
 	if err != nil {
-		return errors.Wrap(err, "查找日期输入框失败")
+		return errors.Wrap(err, "查找日期时间输入框失败")
 	}
-	if err := dateInput.SelectAllText(); err != nil {
-		return errors.Wrap(err, "选择日期文本失败")
-	}
-	if err := dateInput.Input(dateStr); err != nil {
-		return errors.Wrap(err, "输入日期失败")
-	}
-	slog.Info("已设置日期", "date", dateStr)
 
-	time.Sleep(300 * time.Millisecond)
-
-	// 设置时间
-	timeInput, err := page.Element("input.el-input__inner[placeholder='选择时间']")
-	if err != nil {
-		return errors.Wrap(err, "查找时间输入框失败")
+	if err := input.SelectAllText(); err != nil {
+		return errors.Wrap(err, "选择日期时间文本失败")
 	}
-	if err := timeInput.SelectAllText(); err != nil {
-		return errors.Wrap(err, "选择时间文本失败")
+	if err := input.Input(dateTimeStr); err != nil {
+		return errors.Wrap(err, "输入日期时间失败")
 	}
-	if err := timeInput.Input(timeStr); err != nil {
-		return errors.Wrap(err, "输入时间失败")
-	}
-	slog.Info("已设置时间", "time", timeStr)
+	slog.Info("已设置日期时间", "datetime", dateTimeStr)
 
 	return nil
-}
-
-// clickConfirmButton 点击确定按钮
-func clickConfirmButton(page *rod.Page) error {
-	// 查找日期选择器弹窗中的确定按钮
-	buttons, err := page.Elements("button.el-picker-panel__link-btn")
-	if err != nil {
-		return errors.Wrap(err, "查找确定按钮失败")
-	}
-
-	for _, btn := range buttons {
-		text, err := btn.Text()
-		if err != nil {
-			continue
-		}
-		if strings.TrimSpace(text) == "确定" {
-			if err := btn.Click(proto.InputMouseButtonLeft, 1); err != nil {
-				return errors.Wrap(err, "点击确定按钮失败")
-			}
-			slog.Info("已点击确定按钮")
-			return nil
-		}
-	}
-
-	return errors.New("未找到确定按钮")
 }
