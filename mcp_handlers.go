@@ -15,6 +15,21 @@ import (
 
 // MCP 工具处理函数
 
+// parsePrivate 从 MCP 参数中解析 private（客户端可能传 bool 或 string "true"/"false"）
+func parsePrivate(args map[string]interface{}) bool {
+	v, ok := args["private"]
+	if !ok || v == nil {
+		return false
+	}
+	if b, ok := v.(bool); ok {
+		return b
+	}
+	if s, ok := v.(string); ok {
+		return strings.EqualFold(s, "true") || s == "1"
+	}
+	return false
+}
+
 // handleCheckLoginStatus 处理检查登录状态
 func (s *AppServer) handleCheckLoginStatus(ctx context.Context) *MCPToolResult {
 	logrus.Info("MCP: 检查登录状态")
@@ -134,8 +149,9 @@ func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]in
 
 	// 解析定时发布参数
 	scheduleAt, _ := args["schedule_at"].(string)
+	private := parsePrivate(args)
 
-	logrus.Infof("MCP: 发布内容 - 标题: %s, 图片数量: %d, 标签数量: %d, 定时: %s", title, len(imagePaths), len(tags), scheduleAt)
+	logrus.Infof("MCP: 发布内容 - 标题: %s, 图片数量: %d, 标签数量: %d, 定时: %s, private: %t", title, len(imagePaths), len(tags), scheduleAt, private)
 
 	// 构建发布请求
 	req := &PublishRequest{
@@ -144,6 +160,7 @@ func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]in
 		Images:     imagePaths,
 		Tags:       tags,
 		ScheduleAt: scheduleAt,
+		Private:    private,
 	}
 
 	// 执行发布
@@ -195,8 +212,9 @@ func (s *AppServer) handlePublishVideo(ctx context.Context, args map[string]inte
 
 	// 解析定时发布参数
 	scheduleAt, _ := args["schedule_at"].(string)
+	private := parsePrivate(args)
 
-	logrus.Infof("MCP: 发布视频 - 标题: %s, 标签数量: %d, 定时: %s", title, len(tags), scheduleAt)
+	logrus.Infof("MCP: 发布视频 - 标题: %s, 标签数量: %d, 定时: %s, private: %t", title, len(tags), scheduleAt, private)
 
 	// 构建发布请求
 	req := &PublishVideoRequest{
@@ -205,6 +223,7 @@ func (s *AppServer) handlePublishVideo(ctx context.Context, args map[string]inte
 		Video:      videoPath,
 		Tags:       tags,
 		ScheduleAt: scheduleAt,
+		Private:    private,
 	}
 
 	// 执行发布

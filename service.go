@@ -33,6 +33,7 @@ type PublishRequest struct {
 	Images     []string `json:"images" binding:"required,min=1"`
 	Tags       []string `json:"tags,omitempty"`
 	ScheduleAt string   `json:"schedule_at,omitempty"` // 定时发布时间，ISO8601格式，为空则立即发布
+	Private bool `json:"private,omitempty"` // 是否仅自己可见，默认 false 即公开可见
 }
 
 // LoginStatusResponse 登录状态响应
@@ -64,6 +65,7 @@ type PublishVideoRequest struct {
 	Video      string   `json:"video" binding:"required"`
 	Tags       []string `json:"tags,omitempty"`
 	ScheduleAt string   `json:"schedule_at,omitempty"` // 定时发布时间，ISO8601格式，为空则立即发布
+	Private bool `json:"private,omitempty"` // 是否仅自己可见，默认 false 即公开可见
 }
 
 // PublishVideoResponse 发布视频响应
@@ -214,6 +216,7 @@ func (s *XiaohongshuService) PublishContent(ctx context.Context, req *PublishReq
 		Tags:         req.Tags,
 		ImagePaths:   imagePaths,
 		ScheduleTime: scheduleTime,
+		Private:      req.Private,
 	}
 
 	// 执行发布
@@ -296,13 +299,13 @@ func (s *XiaohongshuService) PublishVideo(ctx context.Context, req *PublishVideo
 		logrus.Infof("设置定时发布时间: %s", t.Format("2006-01-02 15:04"))
 	}
 
-	// 构建发布内容
 	content := xiaohongshu.PublishVideoContent{
 		Title:        req.Title,
 		Content:      req.Content,
 		Tags:         req.Tags,
 		VideoPath:    req.Video,
 		ScheduleTime: scheduleTime,
+		Private:      req.Private,
 	}
 
 	// 执行发布
