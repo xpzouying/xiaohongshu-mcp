@@ -1,0 +1,10 @@
+{
+  "default_account": "default",
+  "accounts": {
+    "default": {
+      "alias": "默认账号",
+      "profile_dir": "C:\\Users\\admin\\AppData\\Local\\Google\\Chrome\\XiaohongshuProfiles\\default",
+      "created_at": null
+    }
+  }
+}

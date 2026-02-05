@@ -1,0 +1,5 @@
+微软向 Canary 通道推送了 Windows 11 Insider Preview Build 28020.1546 更新，补丁编号 KB5074176。
+
+本次更新为常规改进与修复，属于小幅迭代更新，没有重大功能变化。
+
+Canary 通道是 Windows Insider 最前沿的测试分支，适合愿意尝鲜和接受不稳定性的用户。
