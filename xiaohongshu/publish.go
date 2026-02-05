@@ -2,6 +2,7 @@ package xiaohongshu
 
 import (
 	"context"
+	stderrors "errors"
 	"log/slog"
 	"math/rand"
 	"os"
@@ -115,6 +116,13 @@ func clickEmptyPosition(page *rod.Page) {
 func mustClickPublishTab(page *rod.Page, tabname string) error {
 	page.MustElement(`div.upload-content`).MustWaitVisible()
 
+	// 快速路径：直接按标题点击
+	if clickCreatorTabByTitle(page, tabname) {
+		if waitCreatorTabActive(page, tabname, 3*time.Second) {
+			return nil
+		}
+	}
+
 	deadline := time.Now().Add(15 * time.Second)
 	for time.Now().Before(deadline) {
 		tab, blocked, err := getTabElement(page, tabname)
@@ -142,10 +150,41 @@ func mustClickPublishTab(page *rod.Page, tabname string) error {
 			continue
 		}
 
+		if waitCreatorTabActive(page, tabname, 3*time.Second) {
+			return nil
+		}
+
 		return nil
 	}
 
 	return errors.Errorf("没有找到发布 TAB - %s", tabname)
+}
+
+func clickCreatorTabByTitle(page *rod.Page, tabname string) bool {
+	el, err := page.Timeout(2*time.Second).ElementR("div.creator-tab .title", "^\\s*"+tabname+"\\s*$")
+	if err != nil || el == nil {
+		return false
+	}
+	parent, err := el.Parent()
+	if err != nil || parent == nil {
+		return false
+	}
+	if err := parent.Click(proto.InputMouseButtonLeft, 1); err != nil {
+		return false
+	}
+	return true
+}
+
+func waitCreatorTabActive(page *rod.Page, tabname string, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		el, err := page.Timeout(500*time.Millisecond).ElementR("div.creator-tab.active .title", "^\\s*"+tabname+"\\s*$")
+		if err == nil && el != nil {
+			return true
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return false
 }
 
 func getTabElement(page *rod.Page, tabname string) (*rod.Element, bool, error) {
@@ -356,26 +395,33 @@ func makeMaxLengthError(elemText string) error {
 // 查找内容输入框 - 使用Race方法处理两种样式
 func getContentElement(page *rod.Page) (*rod.Element, bool) {
 	var foundElement *rod.Element
-	var found bool
 
-	page.Race().
-		Element("div.ql-editor").MustHandle(func(e *rod.Element) {
+	_, err := page.Timeout(3 * time.Second).
+		Race().
+		Element("div.ql-editor").Handle(func(e *rod.Element) error {
 		foundElement = e
-		found = true
+		return nil
 	}).
 		ElementFunc(func(page *rod.Page) (*rod.Element, error) {
 			return findTextboxByPlaceholder(page)
-		}).MustHandle(func(e *rod.Element) {
+		}).Handle(func(e *rod.Element) error {
 		foundElement = e
-		found = true
+		return nil
 	}).
-		MustDo()
+		Do()
 
-	if found {
+	if foundElement != nil {
 		return foundElement, true
 	}
 
-	slog.Warn("no content element found by any method")
+	if err != nil && !stderrors.Is(err, &rod.ElementNotFoundError{}) {
+		// 页面切换/加载过程中可能会触发超时或执行上下文销毁，不需要刷屏
+		if !stderrors.Is(err, context.DeadlineExceeded) && !strings.Contains(err.Error(), "Execution context was destroyed") {
+			slog.Warn("getContentElement: failed to find content element", "error", err)
+		}
+	}
+
+	slog.Debug("no content element found by any method")
 	return nil, false
 }
 
@@ -442,19 +488,19 @@ func inputTag(contentElem *rod.Element, tag string) {
 func findTextboxByPlaceholder(page *rod.Page) (*rod.Element, error) {
 	elements := page.MustElements("p")
 	if elements == nil {
-		return nil, errors.New("no p elements found")
+		return nil, &rod.ElementNotFoundError{}
 	}
 
 	// 查找包含指定placeholder的元素
 	placeholderElem := findPlaceholderElement(elements, "输入正文描述")
 	if placeholderElem == nil {
-		return nil, errors.New("no placeholder element found")
+		return nil, &rod.ElementNotFoundError{}
 	}
 
 	// 向上查找textbox父元素
 	textboxElem := findTextboxParent(placeholderElem)
 	if textboxElem == nil {
-		return nil, errors.New("no textbox parent found")
+		return nil, &rod.ElementNotFoundError{}
 	}
 
 	return textboxElem, nil

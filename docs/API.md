@@ -40,6 +40,7 @@
 | DELETE | `/api/v1/login/cookies` | 删除 Cookies（重置登录） |
 | POST | `/api/v1/publish` | 发布图文内容 |
 | POST | `/api/v1/publish_video` | 发布视频内容 |
+| POST | `/api/v1/publish_long_article` | 发布长文内容 |
 | GET | `/api/v1/feeds/list` | 获取 Feeds 列表 |
 | GET/POST | `/api/v1/feeds/search` | 搜索 Feeds |
 | POST | `/api/v1/feeds/detail` | 获取 Feed 详情 |
@@ -241,6 +242,53 @@ Content-Type: application/json
 - 仅支持本地视频文件路径，不支持 HTTP 链接
 - 视频处理时间较长，请耐心等待
 - 建议视频文件大小不超过 1GB
+
+#### 3.3 发布长文内容
+
+发布长文（写长文）到小红书。
+
+**请求**
+```
+POST /api/v1/publish_long_article
+Content-Type: application/json
+```
+
+**请求体**
+```json
+{
+  "title": "长文标题",
+  "content": "# 一级标题\n正文段落（支持 Markdown）",
+  "content_is_markdown": true,
+  "markdown_file": "/Users/username/Documents/article.md",
+  "post_title": "图文标题（可选）",
+  "post_content": "图文正文（必填）",
+  "tags": ["标签1", "标签2"],
+  "schedule_at": "2026-02-04T10:30:00+08:00"
+}
+```
+
+**请求参数说明:**
+- `title` (string, required): 长文标题
+- `content` (string, optional): 长文正文内容（可纯文本或 Markdown）
+- `content_is_markdown` (bool, optional): `content` 是否为 Markdown（默认 false）
+- `markdown_file` (string, optional): 本地 Markdown 文件路径（优先级高于 `content`）
+- `post_title` (string, optional): 图文发布页标题（不填则使用 `title`）
+- `post_content` (string, required): 图文发布页正文（最终发布的描述）
+- `tags` (array, optional): 标签数组
+- `schedule_at` (string, optional): 定时发布时间（ISO8601/RFC3339）
+
+**响应**
+```json
+{
+  "success": true,
+  "data": {
+    "title": "长文标题",
+    "content": "长文正文内容",
+    "status": "发布完成"
+  },
+  "message": "长文发布成功"
+}
+```
 
 ---
 
