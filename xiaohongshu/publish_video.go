@@ -132,16 +132,25 @@ func waitForPublishButtonClickable(page *rod.Page) (*rod.Element, error) {
 // submitPublishVideo 填写标题、正文、标签并点击发布（等待按钮可点击后再提交）
 func submitPublishVideo(page *rod.Page, title, content string, tags []string, scheduleTime *time.Time) error {
 	// 标题
-	titleElem := page.MustElement("div.d-input input")
-	titleElem.MustInput(title)
+	titleElem, err := page.Element("div.d-input input")
+	if err != nil {
+		return errors.Wrap(err, "查找标题输入框失败")
+	}
+	if err := titleElem.Input(title); err != nil {
+		return errors.Wrap(err, "输入标题失败")
+	}
 	time.Sleep(1 * time.Second)
 
 	// 正文 + 标签
-	if contentElem, ok := getContentElement(page); ok {
-		contentElem.MustInput(content)
-		inputTags(contentElem, tags)
-	} else {
+	contentElem, ok := getContentElement(page)
+	if !ok {
 		return errors.New("没有找到内容输入框")
+	}
+	if err := contentElem.Input(content); err != nil {
+		return errors.Wrap(err, "输入正文失败")
+	}
+	if err := inputTags(contentElem, tags); err != nil {
+		return err
 	}
 
 	time.Sleep(1 * time.Second)
