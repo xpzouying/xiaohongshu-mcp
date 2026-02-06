@@ -199,8 +199,6 @@ func isElementBlocked(elem *rod.Element) (bool, error) {
 }
 
 func uploadImages(page *rod.Page, imagesPaths []string) error {
-	pp := page.Timeout(30 * time.Second)
-
 	// 验证文件路径有效性
 	validPaths := make([]string, 0, len(imagesPaths))
 	for _, path := range imagesPaths {
@@ -209,18 +207,31 @@ func uploadImages(page *rod.Page, imagesPaths []string) error {
 			continue
 		}
 		validPaths = append(validPaths, path)
-
 		logrus.Infof("获取有效图片：%s", path)
 	}
 
-	// 等待上传输入框出现
-	uploadInput := pp.MustElement(".upload-input")
+	// 逐张上传：第一张用 .upload-input，后续页面会移除该 class，改用 input[type="file"]
+	for i, path := range validPaths {
+		selector := `input[type="file"]`
+		if i == 0 {
+			selector = ".upload-input"
+		}
 
-	// 上传多个文件
-	uploadInput.MustSetFiles(validPaths...)
+		pp := page.Timeout(60 * time.Second)
+		uploadInput, err := pp.Element(selector)
+		if err != nil {
+			return errors.Wrapf(err, "查找上传输入框失败(第%d张)", i+1)
+		}
+		if err := uploadInput.SetFiles([]string{path}); err != nil {
+			return errors.Wrapf(err, "上传第%d张图片失败", i+1)
+		}
+
+		slog.Info("图片已提交上传", "index", i+1, "path", path)
+		time.Sleep(1 * time.Second)
+	}
 
 	// 等待并验证上传完成
-	return waitForUploadComplete(pp, len(validPaths))
+	return waitForUploadComplete(page, len(validPaths))
 }
 
 // waitForUploadComplete 等待并验证上传完成
