@@ -242,7 +242,7 @@ func waitForUploadComplete(page *rod.Page, expectedCount int) error {
 	maxWaitTime := 60 * time.Second
 	checkInterval := 500 * time.Millisecond
 	start := time.Now()
-	lastLogCount := 0
+	lastLogCount := expectedCount - 1
 
 	for time.Since(start) < maxWaitTime {
 		uploadedImages, err := page.Elements(".img-preview-area .pr")
