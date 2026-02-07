@@ -27,7 +27,22 @@
       "Bash(tar:*)",
       "mcp__playwright__browser_type",
       "mcp__playwright__browser_close",
-      "Bash(git remote:*)"
+      "Bash(git remote:*)",
+      "mcp__plugin_playwright_playwright__browser_navigate",
+      "mcp__xiaohongshu-mcp__check_login_status",
+      "mcp__xiaohongshu-mcp__publish_content",
+      "mcp__plugin_playwright_playwright__browser_click",
+      "mcp__plugin_playwright_playwright__browser_resize",
+      "mcp__plugin_playwright_playwright__browser_snapshot",
+      "mcp__plugin_playwright_playwright__browser_evaluate",
+      "Bash(date:*)",
+      "mcp__xiaohongshu-mcp__publish_with_video",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git checkout:*)",
+      "Bash(git pull:*)",
+      "Bash(git branch:*)"
     ],
     "deny": []
   }
