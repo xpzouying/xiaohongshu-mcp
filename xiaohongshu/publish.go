@@ -210,15 +210,14 @@ func uploadImages(page *rod.Page, imagesPaths []string) error {
 		logrus.Infof("获取有效图片：%s", path)
 	}
 
-	// 逐张上传：第一张用 .upload-input，后续页面会移除该 class，改用 input[type="file"]
+	// 逐张上传：每张上传后等待预览出现，再上传下一张
 	for i, path := range validPaths {
 		selector := `input[type="file"]`
 		if i == 0 {
 			selector = ".upload-input"
 		}
 
-		pp := page.Timeout(60 * time.Second)
-		uploadInput, err := pp.Element(selector)
+		uploadInput, err := page.Element(selector)
 		if err != nil {
 			return errors.Wrapf(err, "查找上传输入框失败(第%d张)", i+1)
 		}
@@ -227,42 +226,46 @@ func uploadImages(page *rod.Page, imagesPaths []string) error {
 		}
 
 		slog.Info("图片已提交上传", "index", i+1, "path", path)
+
+		// 等待当前图片上传完成（预览元素数量达到 i+1），最多等 60 秒
+		if err := waitForUploadComplete(page, i+1); err != nil {
+			return errors.Wrapf(err, "第%d张图片上传超时", i+1)
+		}
 		time.Sleep(1 * time.Second)
 	}
 
-	// 等待并验证上传完成
-	return waitForUploadComplete(page, len(validPaths))
+	return nil
 }
 
-// waitForUploadComplete 等待并验证上传完成
+// waitForUploadComplete 等待第 expectedCount 张图片上传完成，最多等 60 秒
 func waitForUploadComplete(page *rod.Page, expectedCount int) error {
 	maxWaitTime := 60 * time.Second
 	checkInterval := 500 * time.Millisecond
 	start := time.Now()
-
-	slog.Info("开始等待图片上传完成", "expected_count", expectedCount)
+	lastLogCount := expectedCount - 1
 
 	for time.Since(start) < maxWaitTime {
-		// 使用具体的pr类名检查已上传的图片
 		uploadedImages, err := page.Elements(".img-preview-area .pr")
+		if err != nil {
+			time.Sleep(checkInterval)
+			continue
+		}
 
-		slog.Info("uploadedImages", "uploadedImages", uploadedImages)
-
-		if err == nil {
-			currentCount := len(uploadedImages)
-			slog.Info("检测到已上传图片", "current_count", currentCount, "expected_count", expectedCount)
-			if currentCount >= expectedCount {
-				slog.Info("所有图片上传完成", "count", currentCount)
-				return nil
-			}
-		} else {
-			slog.Debug("未找到已上传图片元素")
+		currentCount := len(uploadedImages)
+		// 数量变化时才打印，避免刷屏
+		if currentCount != lastLogCount {
+			slog.Info("等待图片上传", "current", currentCount, "expected", expectedCount)
+			lastLogCount = currentCount
+		}
+		if currentCount >= expectedCount {
+			slog.Info("图片上传完成", "count", currentCount)
+			return nil
 		}
 
 		time.Sleep(checkInterval)
 	}
 
-	return errors.New("上传超时，请检查网络连接和图片大小")
+	return errors.Errorf("第%d张图片上传超时(60s)，请检查网络连接和图片大小", expectedCount)
 }
 
 func submitPublish(page *rod.Page, title, content string, tags []string, scheduleTime *time.Time) error {
