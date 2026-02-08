@@ -411,7 +411,9 @@ npx @modelcontextprotocol/inspector
 
 运行后，打开红色标记的链接，配置 MCP inspector，输入 `http://localhost:18060/mcp` ，点击 `Connect` 按钮。
 
-![配置 MCP inspector](./assets/inspect_mcp.png)
+<img width="915" height="659" alt="bf9532dd0b7ba423491accf511a467de" src="https://github.com/user-attachments/assets/08bc3cef-73e7-42d2-b923-7ba9e6c8af30" />
+
+**注意：** 左侧边框中的选项是否正确。
 
 按照上面配置 MCP inspector 后，点击 `List Tools` 按钮，查看所有的 Tools。
 
