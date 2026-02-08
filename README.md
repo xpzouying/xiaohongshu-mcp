@@ -853,5 +853,7 @@ Cline 是一个强大的 AI 编程助手，支持 MCP 协议集成。
 | 贡献者                                                                                                                      |
 | --------------------------------------------------------------------------------------------------------------------------- |
 | [<img src="https://avatars.githubusercontent.com/wanpengxie" width="100px;"><br>@wanpengxie](https://github.com/wanpengxie) |
+| [<img src="https://avatars.githubusercontent.com/u/7806992?v=4" width="100px;"><br>@tanxxjun321](https://github.com/tanxxjun321) |
+| [<img src="https://avatars.githubusercontent.com/u/17389304?v=4" width="100px;"><br>@Angiin](https://github.com/Angiin) |
 
 本项目遵循 [all-contributors](https://github.com/all-contributors/all-contributors) 规范。欢迎任何形式的贡献！
