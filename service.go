@@ -8,13 +8,13 @@ import (
 	"time"
 
 	"github.com/go-rod/rod"
-	"github.com/mattn/go-runewidth"
 	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/headless_browser"
 	"github.com/xpzouying/xiaohongshu-mcp/browser"
 	"github.com/xpzouying/xiaohongshu-mcp/configs"
 	"github.com/xpzouying/xiaohongshu-mcp/cookies"
 	"github.com/xpzouying/xiaohongshu-mcp/pkg/downloader"
+	"github.com/xpzouying/xiaohongshu-mcp/pkg/xhsutil"
 	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
 )
 
@@ -168,10 +168,8 @@ func (s *XiaohongshuService) GetLoginQrcode(ctx context.Context) (*LoginQrcodeRe
 
 // PublishContent 发布内容
 func (s *XiaohongshuService) PublishContent(ctx context.Context, req *PublishRequest) (*PublishResponse, error) {
-	// 验证标题长度
-	// 小红书限制：最大40个单位长度
-	// 中文/日文/韩文占2个单位，英文/数字占1个单位
-	if titleWidth := runewidth.StringWidth(req.Title); titleWidth > 40 {
+	// 验证标题长度（小红书限制：最大20个字）
+	if xhsutil.CalcTitleLength(req.Title) > 20 {
 		return nil, fmt.Errorf("标题长度超过限制")
 	}
 
@@ -257,8 +255,8 @@ func (s *XiaohongshuService) publishContent(ctx context.Context, content xiaohon
 
 // PublishVideo 发布视频（本地文件）
 func (s *XiaohongshuService) PublishVideo(ctx context.Context, req *PublishVideoRequest) (*PublishVideoResponse, error) {
-	// 标题长度校验
-	if titleWidth := runewidth.StringWidth(req.Title); titleWidth > 40 {
+	// 标题长度校验（小红书限制：最大20个字）
+	if xhsutil.CalcTitleLength(req.Title) > 20 {
 		return nil, fmt.Errorf("标题长度超过限制")
 	}
 
