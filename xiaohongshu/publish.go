@@ -17,11 +17,12 @@ import (
 
 // PublishImageContent 发布图文内容
 type PublishImageContent struct {
-	Title        string
-	Content      string
-	Tags         []string
-	ImagePaths   []string
-	ScheduleTime *time.Time // 定时发布时间，nil 表示立即发布
+	Title          string
+	Content        string
+	Tags           []string
+	ImagePaths     []string
+	ProductKeyword string
+	ScheduleTime   *time.Time // 定时发布时间，nil 表示立即发布
 }
 
 type PublishAction struct {
@@ -84,7 +85,7 @@ func (p *PublishAction) Publish(ctx context.Context, content PublishImageContent
 
 	logrus.Infof("发布内容: title=%s, images=%v, tags=%v, schedule=%v", content.Title, len(content.ImagePaths), tags, content.ScheduleTime)
 
-	if err := submitPublish(page, content.Title, content.Content, tags, content.ScheduleTime); err != nil {
+	if err := submitPublish(page, content.Title, content.Content, tags, content.ScheduleTime, content.ProductKeyword); err != nil {
 		return errors.Wrap(err, "小红书发布失败")
 	}
 
@@ -268,7 +269,7 @@ func waitForUploadComplete(page *rod.Page, expectedCount int) error {
 	return errors.Errorf("第%d张图片上传超时(60s)，请检查网络连接和图片大小", expectedCount)
 }
 
-func submitPublish(page *rod.Page, title, content string, tags []string, scheduleTime *time.Time) error {
+func submitPublish(page *rod.Page, title, content string, tags []string, scheduleTime *time.Time, productKeyword string) error {
 	titleElem, err := page.Element("div.d-input input")
 	if err != nil {
 		return errors.Wrap(err, "查找标题输入框失败")
@@ -313,7 +314,7 @@ func submitPublish(page *rod.Page, title, content string, tags []string, schedul
 		slog.Info("定时发布设置完成", "schedule_time", scheduleTime.Format("2006-01-02 15:04"))
 	}
 
-	attachShopProductIfConfigured(page)
+	attachShopProductIfNeeded(page, productKeyword)
 
 	submitButton, err := page.Element(".publish-page-publish-btn button.bg-red")
 	if err != nil {
@@ -327,10 +328,10 @@ func submitPublish(page *rod.Page, title, content string, tags []string, schedul
 	return nil
 }
 
-// attachShopProductIfConfigured 按关键词自动添加店铺商品（可选）
-// 通过环境变量 XHS_PRODUCT_KEYWORD 开启，不设置时不影响原有发布流程
-func attachShopProductIfConfigured(page *rod.Page) {
-	keyword := strings.TrimSpace(os.Getenv("XHS_PRODUCT_KEYWORD"))
+// attachShopProductIfNeeded 按关键词自动添加店铺商品（可选）
+// 通过发布请求中的 product_keyword 参数开启，不设置时不影响原有发布流程
+func attachShopProductIfNeeded(page *rod.Page, productKeyword string) {
+	keyword := strings.TrimSpace(productKeyword)
 	if keyword == "" {
 		return
 	}

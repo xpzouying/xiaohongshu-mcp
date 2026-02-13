@@ -134,16 +134,19 @@ func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]in
 
 	// 解析定时发布参数
 	scheduleAt, _ := args["schedule_at"].(string)
+	productKeyword, _ := args["product_keyword"].(string)
 
-	logrus.Infof("MCP: 发布内容 - 标题: %s, 图片数量: %d, 标签数量: %d, 定时: %s", title, len(imagePaths), len(tags), scheduleAt)
+	logrus.Infof("MCP: 发布内容 - 标题: %s, 图片数量: %d, 标签数量: %d, 商品关键词: %s, 定时: %s",
+		title, len(imagePaths), len(tags), productKeyword, scheduleAt)
 
 	// 构建发布请求
 	req := &PublishRequest{
-		Title:      title,
-		Content:    content,
-		Images:     imagePaths,
-		Tags:       tags,
-		ScheduleAt: scheduleAt,
+		Title:          title,
+		Content:        content,
+		Images:         imagePaths,
+		Tags:           tags,
+		ProductKeyword: productKeyword,
+		ScheduleAt:     scheduleAt,
 	}
 
 	// 执行发布

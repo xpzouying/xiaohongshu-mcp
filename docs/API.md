@@ -171,7 +171,8 @@ Content-Type: application/json
     "http://example.com/image1.jpg",
     "http://example.com/image2.jpg"
   ],
-  "tags": ["标签1", "标签2"]
+  "tags": ["标签1", "标签2"],
+  "product_keyword": "幼小衔接"
 }
 ```
 
@@ -180,6 +181,7 @@ Content-Type: application/json
 - `content` (string, required): 笔记内容
 - `images` (array, required): 图片URL数组，至少包含一张图片
 - `tags` (array, optional): 标签数组
+- `product_keyword` (string, optional): 店铺商品关键词，传入后会在发布页自动执行“添加商品 -> 搜索 -> 勾选 -> 保存”
 
 **响应**
 ```json
