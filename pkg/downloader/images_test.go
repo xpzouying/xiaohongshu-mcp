@@ -100,3 +100,31 @@ func TestImageDownloader_generateFileName(t *testing.T) {
 		t.Errorf("different URLs should generate different file names")
 	}
 }
+
+// TestDownloadImage_AntiHotlink 测试下载防盗链图片
+// 验证 PR #412 的修改：添加 User-Agent 和 Referer 解决 403 问题
+func TestDownloadImage_AntiHotlink(t *testing.T) {
+	// 快科技的图片，需要 User-Agent 才能下载
+	testURL := "https://img1.mydrivers.com/img/20260213/s_fdac2d21214147019e629fa7f2c8802e.png"
+
+	tempDir := t.TempDir()
+	downloader := NewImageDownloader(tempDir)
+
+	filePath, err := downloader.DownloadImage(testURL)
+	if err != nil {
+		t.Fatalf("下载失败: %v", err)
+	}
+
+	// 验证文件存在
+	info, err := os.Stat(filePath)
+	if err != nil {
+		t.Fatalf("文件不存在: %v", err)
+	}
+
+	// 验证文件大小合理（大于 1KB）
+	if info.Size() < 1024 {
+		t.Errorf("文件太小，可能下载失败: %d bytes", info.Size())
+	}
+
+	t.Logf("下载成功: %s (%d bytes)", filePath, info.Size())
+}
