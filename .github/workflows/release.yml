@@ -73,6 +73,10 @@ jobs:
         CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o xiaohongshu-mcp-linux-amd64 .
         CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o xiaohongshu-login-linux-amd64 ./cmd/login
 
+        # Linux ARM64
+        CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o xiaohongshu-mcp-linux-arm64 .
+        CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o xiaohongshu-login-linux-arm64 ./cmd/login
+
     - name: Package binaries
       run: |
         # 创建压缩包
@@ -87,6 +91,9 @@ jobs:
 
         # Linux x64
         tar czf xiaohongshu-mcp-linux-amd64.tar.gz xiaohongshu-mcp-linux-amd64 xiaohongshu-login-linux-amd64
+
+        # Linux ARM64
+        tar czf xiaohongshu-mcp-linux-arm64.tar.gz xiaohongshu-mcp-linux-arm64 xiaohongshu-login-linux-arm64
 
     - name: Clean up old releases
       run: |
@@ -121,6 +128,7 @@ jobs:
           - **macOS Intel**: `xiaohongshu-mcp-darwin-amd64.tar.gz`
           - **Windows x64**: `xiaohongshu-mcp-windows-amd64.zip`
           - **Linux x64**: `xiaohongshu-mcp-linux-amd64.tar.gz`
+          - **Linux ARM64**: `xiaohongshu-mcp-linux-arm64.tar.gz`
 
           每个压缩包包含：
           - `xiaohongshu-mcp-*`: MCP 服务主程序
@@ -156,3 +164,4 @@ jobs:
           xiaohongshu-mcp-darwin-amd64.tar.gz
           xiaohongshu-mcp-windows-amd64.zip
           xiaohongshu-mcp-linux-amd64.tar.gz
+          xiaohongshu-mcp-linux-arm64.tar.gz
