@@ -44,15 +44,30 @@ func (d *ImageDownloader) DownloadImage(imageURL string) (string, error) {
 		return "", errors.New("invalid image URL format")
 	}
 
-	// 下载图片数据
-	resp, err := d.httpClient.Get(imageURL)
+	// 创建请求并设置请求头
+	req, err := http.NewRequest("GET", imageURL, nil)
 	if err != nil {
-		return "", errors.Wrap(err, "failed to download image")
+		return "", errors.Wrap(err, "failed to create request")
+	}
+
+	// 设置 User-Agent，模拟浏览器请求
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+
+	// 设置 Referer，使用图片 URL 的域名
+	parsedURL, _ := url.Parse(imageURL)
+	if parsedURL != nil {
+		req.Header.Set("Referer", fmt.Sprintf("%s://%s/", parsedURL.Scheme, parsedURL.Host))
+	}
+
+	// 下载图片数据
+	resp, err := d.httpClient.Do(req)
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to download image from %s", imageURL)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("download failed with status: %d", resp.StatusCode)
+		return "", fmt.Errorf("download failed with status %d for URL: %s", resp.StatusCode, imageURL)
 	}
 
 	// 读取图片数据
