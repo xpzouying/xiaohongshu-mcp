@@ -43,6 +43,7 @@ func setupRoutes(appServer *AppServer) *gin.Engine {
 		api.DELETE("/login/cookies", appServer.deleteCookiesHandler)
 		api.POST("/publish", appServer.publishHandler)
 		api.POST("/publish_video", appServer.publishVideoHandler)
+		api.POST("/publish_long_article", appServer.publishLongArticleHandler)
 		api.GET("/feeds/list", appServer.listFeedsHandler)
 		api.GET("/feeds/search", appServer.searchFeedsHandler)
 		api.POST("/feeds/search", appServer.searchFeedsHandler)
