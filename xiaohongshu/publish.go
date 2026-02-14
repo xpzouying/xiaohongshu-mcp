@@ -17,11 +17,12 @@ import (
 
 // PublishImageContent 发布图文内容
 type PublishImageContent struct {
-	Title        string
-	Content      string
-	Tags         []string
-	ImagePaths   []string
-	ScheduleTime *time.Time // 定时发布时间，nil 表示立即发布
+	Title          string
+	Content        string
+	Tags           []string
+	ImagePaths     []string
+	ProductKeyword string
+	ScheduleTime   *time.Time // 定时发布时间，nil 表示立即发布
 }
 
 type PublishAction struct {
@@ -84,7 +85,7 @@ func (p *PublishAction) Publish(ctx context.Context, content PublishImageContent
 
 	logrus.Infof("发布内容: title=%s, images=%v, tags=%v, schedule=%v", content.Title, len(content.ImagePaths), tags, content.ScheduleTime)
 
-	if err := submitPublish(page, content.Title, content.Content, tags, content.ScheduleTime); err != nil {
+	if err := submitPublish(page, content.Title, content.Content, tags, content.ScheduleTime, content.ProductKeyword); err != nil {
 		return errors.Wrap(err, "小红书发布失败")
 	}
 
@@ -268,7 +269,7 @@ func waitForUploadComplete(page *rod.Page, expectedCount int) error {
 	return errors.Errorf("第%d张图片上传超时(60s)，请检查网络连接和图片大小", expectedCount)
 }
 
-func submitPublish(page *rod.Page, title, content string, tags []string, scheduleTime *time.Time) error {
+func submitPublish(page *rod.Page, title, content string, tags []string, scheduleTime *time.Time, productKeyword string) error {
 	titleElem, err := page.Element("div.d-input input")
 	if err != nil {
 		return errors.Wrap(err, "查找标题输入框失败")
@@ -313,6 +314,8 @@ func submitPublish(page *rod.Page, title, content string, tags []string, schedul
 		slog.Info("定时发布设置完成", "schedule_time", scheduleTime.Format("2006-01-02 15:04"))
 	}
 
+	attachShopProductIfNeeded(page, productKeyword)
+
 	submitButton, err := page.Element(".publish-page-publish-btn button.bg-red")
 	if err != nil {
 		return errors.Wrap(err, "查找发布按钮失败")
@@ -323,6 +326,161 @@ func submitPublish(page *rod.Page, title, content string, tags []string, schedul
 
 	time.Sleep(3 * time.Second)
 	return nil
+}
+
+// attachShopProductIfNeeded 按关键词自动添加店铺商品（可选）
+// 通过发布请求中的 product_keyword 参数开启，不设置时不影响原有发布流程
+func attachShopProductIfNeeded(page *rod.Page, productKeyword string) {
+	keyword := strings.TrimSpace(productKeyword)
+	if keyword == "" {
+		return
+	}
+
+	slog.Info("尝试按关键词添加店铺商品", "keyword", keyword)
+
+	if err := clickVisibleElementByText(page, "button", []string{"添加商品"}); err != nil {
+		if err2 := clickVisibleElementByText(page, "div", []string{"选择我店铺内的商品"}); err2 != nil {
+			slog.Warn("未找到添加商品入口，跳过商品添加", "error", err2)
+			return
+		}
+	}
+	time.Sleep(1200 * time.Millisecond)
+
+	if err := inputProductKeyword(page, keyword); err != nil {
+		slog.Warn("未找到商品搜索输入框，跳过商品添加", "error", err)
+		return
+	}
+	time.Sleep(1200 * time.Millisecond)
+	_ = clickVisibleElementByText(page, "button", []string{"搜索"})
+	time.Sleep(1200 * time.Millisecond)
+
+	status := finalizeProductSelection(page, keyword)
+	slog.Info("商品添加结果", "status", status)
+}
+
+func inputProductKeyword(page *rod.Page, keyword string) error {
+	inputs, err := page.Elements("input")
+	if err != nil {
+		return err
+	}
+
+	var fallback *rod.Element
+	for _, inputElem := range inputs {
+		if !isElementVisible(inputElem) {
+			continue
+		}
+		if fallback == nil {
+			fallback = inputElem
+		}
+
+		placeholder, _ := inputElem.Attribute("placeholder")
+		if placeholder == nil {
+			continue
+		}
+		p := strings.TrimSpace(*placeholder)
+		if strings.Contains(p, "搜索") || strings.Contains(p, "商品") || strings.Contains(p, "关键词") {
+			return inputKeyword(inputElem, keyword)
+		}
+	}
+
+	if fallback != nil {
+		return inputKeyword(fallback, keyword)
+	}
+	return errors.New("未找到可用输入框")
+}
+
+func inputKeyword(inputElem *rod.Element, keyword string) error {
+	if err := inputElem.SelectAllText(); err != nil {
+		slog.Warn("选择已有输入文本失败，继续覆盖输入", "error", err)
+	}
+	if err := inputElem.Input(keyword); err != nil {
+		return err
+	}
+	if ka, err := inputElem.KeyActions(); err == nil {
+		_ = ka.Press(input.Enter).Do()
+	}
+	return nil
+}
+
+func clickVisibleElementByText(page *rod.Page, selector string, texts []string) error {
+	elems, err := page.Elements(selector)
+	if err != nil {
+		return err
+	}
+
+	for _, elem := range elems {
+		if !isElementVisible(elem) {
+			continue
+		}
+		text, err := elem.Text()
+		if err != nil {
+			continue
+		}
+		txt := strings.TrimSpace(text)
+		for _, t := range texts {
+			if strings.Contains(txt, t) {
+				if err := elem.Click(proto.InputMouseButtonLeft, 1); err == nil {
+					return nil
+				}
+			}
+		}
+	}
+
+	return errors.New("未匹配到目标元素文本")
+}
+
+func finalizeProductSelection(page *rod.Page, keyword string) string {
+	result, err := page.Eval(`(kw) => {
+		const textOf = (el) => (el && (el.innerText || el.textContent || '') || '').trim();
+		const hasText = (el, t) => textOf(el).includes(t);
+		const modal = [...document.querySelectorAll('div')]
+			.find(el => hasText(el, '选择商品') && el.querySelector('button'));
+		if (!modal) return 'no_modal';
+
+		let selected = false;
+		const hitRow = [...modal.querySelectorAll('div,li,tr')]
+			.find(el => hasText(el, kw) && hasText(el, '商品ID'));
+		if (hitRow) {
+			const row = hitRow.closest('li, tr, [class*="item"], [class*="goods"], [class*="row"]') || hitRow;
+			row.click();
+			selected = true;
+		}
+
+		if (!selected) {
+			const firstRow = [...modal.querySelectorAll('div,li,tr')]
+				.find(el => hasText(el, '商品ID'));
+			if (firstRow) {
+				const row = firstRow.closest('li, tr, [class*="item"], [class*="goods"], [class*="row"]') || firstRow;
+				row.click();
+				selected = true;
+			}
+		}
+
+		const checkbox = modal.querySelector('input[type="checkbox"], [role="checkbox"], .el-checkbox, .d-checkbox');
+		if (checkbox && checkbox instanceof HTMLElement) {
+			checkbox.click();
+			selected = true;
+		}
+
+		const saveButton = [...modal.querySelectorAll('button,span,div')].find(el => {
+			const txt = textOf(el);
+			return txt === '保存' || txt === '确定' || txt === '完成';
+		});
+		if (saveButton && saveButton instanceof HTMLElement) {
+			saveButton.click();
+			return selected ? 'selected_and_saved' : 'saved_without_selection';
+		}
+
+		return selected ? 'selected_but_no_save' : 'no_product_selected';
+	}`, keyword)
+	if err != nil {
+		slog.Warn("商品选择弹窗处理失败", "error", err)
+		return "modal_eval_error"
+	}
+	if result.Value.Str() == "" {
+		return "unknown"
+	}
+	return result.Value.Str()
 }
 
 // 检查标题是否超过最大长度
