@@ -20,6 +20,7 @@ type PublishVideoContent struct {
 	Tags         []string
 	VideoPath    string
 	ScheduleTime *time.Time // 定时发布时间，nil 表示立即发布
+	Products     []string   // 商品关键词列表，用于绑定带货商品
 }
 
 // NewPublishVideoAction 进入发布页并切换到"上传视频"
@@ -62,7 +63,7 @@ func (p *PublishAction) PublishVideo(ctx context.Context, content PublishVideoCo
 		return errors.Wrap(err, "小红书上传视频失败")
 	}
 
-	if err := submitPublishVideo(page, content.Title, content.Content, content.Tags, content.ScheduleTime); err != nil {
+	if err := submitPublishVideo(page, content.Title, content.Content, content.Tags, content.ScheduleTime, content.Products); err != nil {
 		return errors.Wrap(err, "小红书发布失败")
 	}
 	return nil
@@ -130,7 +131,7 @@ func waitForPublishButtonClickable(page *rod.Page) (*rod.Element, error) {
 }
 
 // submitPublishVideo 填写标题、正文、标签并点击发布（等待按钮可点击后再提交）
-func submitPublishVideo(page *rod.Page, title, content string, tags []string, scheduleTime *time.Time) error {
+func submitPublishVideo(page *rod.Page, title, content string, tags []string, scheduleTime *time.Time, products []string) error {
 	// 标题
 	titleElem, err := page.Element("div.d-input input")
 	if err != nil {
@@ -161,6 +162,11 @@ func submitPublishVideo(page *rod.Page, title, content string, tags []string, sc
 			return errors.Wrap(err, "设置定时发布失败")
 		}
 		slog.Info("定时发布设置完成", "schedule_time", scheduleTime.Format("2006-01-02 15:04"))
+	}
+
+	// 绑定商品
+	if err := bindProducts(page, products); err != nil {
+		return errors.Wrap(err, "绑定商品失败")
 	}
 
 	// 等待发布按钮可点击
