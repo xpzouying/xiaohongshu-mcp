@@ -631,6 +631,32 @@ func (s *AppServer) handlePostComment(ctx context.Context, args map[string]inter
 	}
 }
 
+// handleLikeComment 处理评论点赞
+func (s *AppServer) handleLikeComment(ctx context.Context, args map[string]interface{}) *MCPToolResult {
+	logrus.Info("MCP: 评论点赞")
+
+	feedID, _ := args["feed_id"].(string)
+	xsecToken, _ := args["xsec_token"].(string)
+	commentID, _ := args["comment_id"].(string)
+
+	if feedID == "" || xsecToken == "" || commentID == "" {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "评论点赞失败: 缺少feed_id、xsec_token或comment_id参数"}},
+			IsError: true,
+		}
+	}
+
+	err := s.xiaohongshuService.LikeComment(ctx, feedID, xsecToken, commentID)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "评论点赞失败: " + err.Error()}},
+			IsError: true,
+		}
+	}
+
+	return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: fmt.Sprintf("评论 %s 点赞成功", commentID)}}}
+}
+
 // handleNotification 通用通知处理函数，减少重复代码
 func (s *AppServer) handleNotification(ctx context.Context, args map[string]interface{}, label string, fetcher func(context.Context, int, string) (*NotificationsResponse, error)) *MCPToolResult {
 	logrus.Infof("MCP: 获取%s通知", label)

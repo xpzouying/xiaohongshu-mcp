@@ -94,6 +94,13 @@ type NotificationArgs struct {
 	Cursor string `json:"cursor,omitempty" jsonschema:"分页游标，从上一次返回的cursor获取，首次查询不填"`
 }
 
+// LikeCommentArgs 评论点赞参数
+type LikeCommentArgs struct {
+	FeedID    string `json:"feed_id" jsonschema:"笔记ID"`
+	XsecToken string `json:"xsec_token" jsonschema:"笔记的xsec_token"`
+	CommentID string `json:"comment_id" jsonschema:"评论ID"`
+}
+
 // FavoriteFeedArgs 收藏参数
 type FavoriteFeedArgs struct {
 	FeedID     string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
@@ -499,7 +506,27 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	logrus.Infof("Registered %d MCP tools", 16)
+	// 工具 17: 评论点赞
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "like_comment",
+			Description: "点赞指定评论。需要feed_id、xsec_token和comment_id",
+			Annotations: &mcp.ToolAnnotations{
+				Title: "Like Comment",
+			},
+		},
+		withPanicRecovery("like_comment", func(ctx context.Context, req *mcp.CallToolRequest, args LikeCommentArgs) (*mcp.CallToolResult, any, error) {
+			argsMap := map[string]interface{}{
+				"feed_id":    args.FeedID,
+				"xsec_token": args.XsecToken,
+				"comment_id": args.CommentID,
+			}
+			result := appServer.handleLikeComment(ctx, argsMap)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	logrus.Infof("Registered %d MCP tools", 17)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式

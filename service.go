@@ -544,6 +544,18 @@ type NotificationsResponse struct {
 	Count    int         `json:"count"`
 }
 
+// LikeComment 点赞指定评论
+func (s *XiaohongshuService) LikeComment(ctx context.Context, feedID, xsecToken, commentID string) error {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewLikeCommentAction(page)
+	return action.LikeComment(ctx, feedID, xsecToken, commentID)
+}
+
 // fetchNotifications 通用通知获取函数，减少重复代码
 func (s *XiaohongshuService) fetchNotifications(
 	ctx context.Context,
