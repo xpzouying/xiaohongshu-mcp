@@ -631,9 +631,9 @@ func (s *AppServer) handlePostComment(ctx context.Context, args map[string]inter
 	}
 }
 
-// handleGetMentions 处理获取评论和@通知
-func (s *AppServer) handleGetMentions(ctx context.Context, args map[string]interface{}) *MCPToolResult {
-	logrus.Info("MCP: 获取评论和@通知")
+// handleNotification 通用通知处理函数，减少重复代码
+func (s *AppServer) handleNotification(ctx context.Context, args map[string]interface{}, label string, fetcher func(context.Context, int, string) (*NotificationsResponse, error)) *MCPToolResult {
+	logrus.Infof("MCP: 获取%s通知", label)
 
 	num := 20
 	if v, ok := args["num"].(float64); ok && v > 0 {
@@ -641,10 +641,10 @@ func (s *AppServer) handleGetMentions(ctx context.Context, args map[string]inter
 	}
 	cursor, _ := args["cursor"].(string)
 
-	result, err := s.xiaohongshuService.GetMentions(ctx, num, cursor)
+	result, err := fetcher(ctx, num, cursor)
 	if err != nil {
 		return &MCPToolResult{
-			Content: []MCPContent{{Type: "text", Text: "获取评论和@通知失败: " + err.Error()}},
+			Content: []MCPContent{{Type: "text", Text: fmt.Sprintf("获取%s通知失败: %s", label, err.Error())}},
 			IsError: true,
 		}
 	}
@@ -657,62 +657,21 @@ func (s *AppServer) handleGetMentions(ctx context.Context, args map[string]inter
 		}
 	}
 	return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: string(jsonData)}}}
+}
+
+// handleGetMentions 处理获取评论和@通知
+func (s *AppServer) handleGetMentions(ctx context.Context, args map[string]interface{}) *MCPToolResult {
+	return s.handleNotification(ctx, args, "评论和@", s.xiaohongshuService.GetMentions)
 }
 
 // handleGetLikes 处理获取赞和收藏通知
 func (s *AppServer) handleGetLikes(ctx context.Context, args map[string]interface{}) *MCPToolResult {
-	logrus.Info("MCP: 获取赞和收藏通知")
-
-	num := 20
-	if v, ok := args["num"].(float64); ok && v > 0 {
-		num = int(v)
-	}
-	cursor, _ := args["cursor"].(string)
-
-	result, err := s.xiaohongshuService.GetLikes(ctx, num, cursor)
-	if err != nil {
-		return &MCPToolResult{
-			Content: []MCPContent{{Type: "text", Text: "获取赞和收藏通知失败: " + err.Error()}},
-			IsError: true,
-		}
-	}
-
-	jsonData, err := json.MarshalIndent(result, "", "  ")
-	if err != nil {
-		return &MCPToolResult{
-			Content: []MCPContent{{Type: "text", Text: fmt.Sprintf("序列化失败: %v", err)}},
-			IsError: true,
-		}
-	}
-	return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: string(jsonData)}}}
+	return s.handleNotification(ctx, args, "赞和收藏", s.xiaohongshuService.GetLikes)
 }
 
 // handleGetConnections 处理获取新增关注通知
 func (s *AppServer) handleGetConnections(ctx context.Context, args map[string]interface{}) *MCPToolResult {
-	logrus.Info("MCP: 获取新增关注通知")
-
-	num := 20
-	if v, ok := args["num"].(float64); ok && v > 0 {
-		num = int(v)
-	}
-	cursor, _ := args["cursor"].(string)
-
-	result, err := s.xiaohongshuService.GetConnections(ctx, num, cursor)
-	if err != nil {
-		return &MCPToolResult{
-			Content: []MCPContent{{Type: "text", Text: "获取新增关注通知失败: " + err.Error()}},
-			IsError: true,
-		}
-	}
-
-	jsonData, err := json.MarshalIndent(result, "", "  ")
-	if err != nil {
-		return &MCPToolResult{
-			Content: []MCPContent{{Type: "text", Text: fmt.Sprintf("序列化失败: %v", err)}},
-			IsError: true,
-		}
-	}
-	return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: string(jsonData)}}}
+	return s.handleNotification(ctx, args, "新增关注", s.xiaohongshuService.GetConnections)
 }
 
 // handleReplyComment 处理回复评论
