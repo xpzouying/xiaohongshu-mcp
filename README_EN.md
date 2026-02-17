@@ -1,7 +1,7 @@
 # xiaohongshu-mcp
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-17-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-22-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 [![Philanthropy](https://img.shields.io/badge/Philanthropy-CNY%201300.00-brightgreen?style=flat-square)](./DONATIONS.md)
@@ -412,7 +412,9 @@ npx @modelcontextprotocol/inspector
 
 After running, open the red-marked link, configure MCP inspector, enter `http://localhost:18060/mcp`, and click the `Connect` button.
 
-![Configure MCP inspector](./assets/inspect_mcp.png)
+<img width="915" height="659" alt="bf9532dd0b7ba423491accf511a467de" src="https://github.com/user-attachments/assets/08bc3cef-73e7-42d2-b923-7ba9e6c8af30" />
+
+**Note:** Check if the options in the left sidebar are correct.
 
 After configuring MCP inspector as above, click the `List Tools` button to view all Tools.
 
@@ -466,6 +468,9 @@ curl -X POST http://localhost:18060/mcp \
 ```bash
 # Add HTTP MCP server
 claude mcp add --transport http xiaohongshu-mcp http://localhost:18060/mcp
+
+# Check if MCP was added successfully (ensure MCP is already started before running this command)
+claude mcp list
 ```
 
 ### 2.2. Supported Clients
@@ -478,6 +483,9 @@ Official command line tool, already shown in the quick start section above:
 ```bash
 # Add HTTP MCP server
 claude mcp add --transport http xiaohongshu-mcp http://localhost:18060/mcp
+
+# Check if MCP was added successfully (ensure MCP is already started before running this command)
+claude mcp list
 ```
 
 </details>
@@ -734,6 +742,43 @@ Use xiaohongshu-mcp's video publishing feature.
 
 <img src="./assets/publish_result.jpeg" alt="xiaohongshu-mcp publishing result" width="300">
 
+### 2.5. MCP FAQ
+
+---
+
+**Q:** Why does the check login username display `xiaghgngshu-mcp`?
+**A:** The username is hardcoded.
+
+---
+
+**Q:** It shows publish success but the post doesn't actually appear?
+**A:** Troubleshooting steps:
+1. Re-publish using **non-headless mode**.
+2. Try publishing with **different content**.
+3. Login to RedNote web version and check if the account has been **restricted from web publishing due to risk control**.
+4. Check if the **image size** is too large.
+5. Make sure there are **no Chinese characters in the image path**.
+6. If using network image URLs, confirm the **image links are accessible**.
+
+---
+
+**Q:** The MCP program crashes on my device, how to resolve?
+**A:**
+1. It is recommended to **build from source**.
+2. Or use **Docker to install xiaohongshu-mcp**, refer to:
+   - [Install xiaohongshu-mcp with Docker](https://github.com/xpzouying/xiaohongshu-mcp#:~:text=%E6%96%B9%E5%BC%8F%E4%B8%89%EF%BC%9A%E4%BD%BF%E7%94%A8%20Docker%20%E5%AE%B9%E5%99%A8%EF%BC%88%E6%9C%80%E7%AE%80%E5%8D%95%EF%BC%89)
+   - [X-MCP Project Page](https://github.com/xpzouying/x-mcp/)
+
+---
+
+**Q:** When verifying MCP with `http://localhost:18060/mcp`, it shows connection error?
+**A:**
+- In a **Docker environment**, please use
+  [http://host.docker.internal:18060/mcp](http://host.docker.internal:18060/mcp)
+- In a **non-Docker environment**, please use your **local IPv4 address** to access.
+
+---
+
 ## 3. 🌟 Community Showcases
 
 > 💡 **Highly Recommended**: These are real-world use cases from community contributors, featuring detailed configuration steps and practical experiences!
@@ -753,11 +798,11 @@ Use xiaohongshu-mcp's video publishing feature.
 
 **Important: Before asking questions in the group, please make sure to read the README documentation thoroughly and check Issues first.**
 
-<!-- Two-column layout: Feishu Group 3 | WeChat Group 10 -->
+<!-- Two-column layout: Feishu Group 3 | WeChat Group 14 -->
 
-| 【Feishu Group 3】: Scan to join                                                                                           | 【WeChat Group 10】: Scan to join                                                                                           |
-| -------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| <img src="https://github.com/user-attachments/assets/9a0ec41a-cb65-4f4e-a0f7-31658a49512d" alt="qrcode_2qun" width="300"> | <img src="https://github.com/user-attachments/assets/a5f8fc69-e37a-4404-a611-4a601ba0b42f" alt="WechatIMG119" width="300"> |
+| 【Feishu Group 3】: Scan to join                                                                                           | 【WeChat Group 14】: Scan to join                                                                                           |
+| ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| <img src="https://github.com/user-attachments/assets/9a0ec41a-cb65-4f4e-a0f7-31658a49512d" alt="qrcode_2qun" width="300"> | <img src="https://github.com/user-attachments/assets/f597fbef-0d67-4a5d-a07c-3066bee49fc5" alt="WechatIMG119" width="300"> |
 
 ## 🙏 Thanks to Contributors ✨
 
@@ -790,6 +835,13 @@ Thanks to all friends who have contributed to this project! (In no particular or
       <td align="center" valign="top" width="14.28%"><a href="https://carlo-blog.aiju.fun/"><img src="https://avatars.githubusercontent.com/u/18513362?v=4?s=100" width="100px;" alt="Carlo"/><br /><sub><b>Carlo</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=a67793581" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/hrz394943230"><img src="https://avatars.githubusercontent.com/u/28583005?v=4?s=100" width="100px;" alt="hrz"/><br /><sub><b>hrz</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=hrz394943230" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/ctrlz526"><img src="https://avatars.githubusercontent.com/u/143257420?v=4?s=100" width="100px;" alt="Ctrlz"/><br /><sub><b>Ctrlz</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=ctrlz526" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/flippancy"><img src="https://avatars.githubusercontent.com/u/6467703?v=4?s=100" width="100px;" alt="flippancy"/><br /><sub><b>flippancy</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=flippancy" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Infinityay"><img src="https://avatars.githubusercontent.com/u/103165980?v=4?s=100" width="100px;" alt="Yuhang Lu"/><br /><sub><b>Yuhang Lu</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=Infinityay" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://triepod.ai"><img src="https://avatars.githubusercontent.com/u/199543909?v=4?s=100" width="100px;" alt="Bryan Thompson"/><br /><sub><b>Bryan Thompson</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=triepod-ai" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="http://www.megvii.com"><img src="https://avatars.githubusercontent.com/u/7806992?v=4?s=100" width="100px;" alt="tan jun"/><br /><sub><b>tan jun</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=tanxxjun321" title="Code">💻</a></td>
+    </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/coldmountein"><img src="https://avatars.githubusercontent.com/u/95873096?v=4?s=100" width="100px;" alt="coldmountain"/><br /><sub><b>coldmountain</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=coldmountein" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>
@@ -801,8 +853,14 @@ Thanks to all friends who have contributed to this project! (In no particular or
 
 ### ✨ Special Thanks
 
-| Contributors                                                                                                                |
-| --------------------------------------------------------------------------------------------------------------------------- |
-| [<img src="https://avatars.githubusercontent.com/wanpengxie" width="100px;"><br>@wanpengxie](https://github.com/wanpengxie) |
+<table>
+  <tbody>
+    <tr>
+      <td align="center" valign="top" width="20%"><a href="https://github.com/wanpengxie"><img src="https://avatars.githubusercontent.com/wanpengxie" width="130px;" alt="wanpengxie"/><br /><sub><b>@wanpengxie</b></sub></a></td>
+      <td align="center" valign="top" width="20%"><a href="https://github.com/tanxxjun321"><img src="https://avatars.githubusercontent.com/u/7806992?v=4" width="130px;" alt="tanxxjun321"/><br /><sub><b>@tanxxjun321</b></sub></a></td>
+      <td align="center" valign="top" width="20%"><a href="https://github.com/Angiin"><img src="https://avatars.githubusercontent.com/u/17389304?v=4" width="130px;" alt="Angiin"/><br /><sub><b>@Angiin</b></sub></a></td>
+    </tr>
+  </tbody>
+</table>
 
 This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind welcome!
