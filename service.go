@@ -565,6 +565,33 @@ func withBrowserPage(fn func(*rod.Page) error) error {
 	return fn(page)
 }
 
+// GetNotifications 获取通知列表（评论和回复）
+// cursor 为空时获取最新通知，非空时获取下一页（通过滚动触发）
+// limit 为每次获取的数量（最大 20，默认 20）
+func (s *XiaohongshuService) GetNotifications(ctx context.Context, cursor string, limit int) (*xiaohongshu.NotificationsResult, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewNotificationsAction(page)
+	return action.GetNotifications(ctx, cursor, limit)
+}
+
+// GetNotificationsSince 获取指定时间之后的所有通知（自动翻页）
+// sinceUnix 为 Unix 时间戳（秒），0 表示获取所有
+func (s *XiaohongshuService) GetNotificationsSince(ctx context.Context, sinceUnix int64) (*xiaohongshu.NotificationsResult, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewNotificationsAction(page)
+	return action.GetNotificationsSince(ctx, sinceUnix)
+}
+
 // GetMyProfile 获取当前登录用户的个人信息
 func (s *XiaohongshuService) GetMyProfile(ctx context.Context) (*UserProfileResponse, error) {
 	var result *xiaohongshu.UserProfileResponse

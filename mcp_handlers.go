@@ -704,3 +704,89 @@ func (s *AppServer) handleReplyComment(ctx context.Context, args map[string]inte
 		}},
 	}
 }
+
+// handleGetNotifications 处理获取通知列表请求
+func (s *AppServer) handleGetNotifications(ctx context.Context, args map[string]interface{}) *MCPToolResult {
+	cursor, _ := args["cursor"].(string)
+	limitFloat, _ := args["limit"].(float64)
+	limit := int(limitFloat)
+	if limit <= 0 {
+		limit = 20
+	}
+	sinceUnix, _ := args["since_unix"].(int64)
+
+	logrus.Infof("MCP: 获取通知列表 - cursor=%s, limit=%d, since_unix=%d", cursor, limit, sinceUnix)
+
+	var result *xiaohongshu.NotificationsResult
+	var err error
+
+	if sinceUnix > 0 {
+		// since_unix 模式：自动翻页获取所有符合条件的通知
+		result, err = s.xiaohongshuService.GetNotificationsSince(ctx, sinceUnix)
+	} else {
+		result, err = s.xiaohongshuService.GetNotifications(ctx, cursor, limit)
+	}
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "获取通知失败: " + err.Error(),
+			}},
+			IsError: true,
+		}
+	}
+
+	if len(result.Notifications) == 0 {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "暂无新通知",
+			}},
+		}
+	}
+
+	// 格式化输出
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("共获取到 %d 条通知", len(result.Notifications)))
+	if result.HasMore {
+		sb.WriteString(fmt.Sprintf("（还有更多，下一页 cursor: %s）", result.NextCursor))
+	}
+	sb.WriteString("\n\n")
+
+	for i, n := range result.Notifications {
+		// 将 Unix 时间戳转为北京时间
+		t := time.Unix(n.Time, 0).In(time.FixedZone("CST", 8*3600))
+		timeStr := t.Format("2006-01-02 15:04:05")
+
+		sb.WriteString(fmt.Sprintf("--- 通知 %d ---\n", i+1))
+		sb.WriteString(fmt.Sprintf("通知ID: %s\n", n.ID))
+		sb.WriteString(fmt.Sprintf("类型: %s（%s）\n", n.Type, n.Title))
+		sb.WriteString(fmt.Sprintf("时间: %s\n", timeStr))
+		sb.WriteString(fmt.Sprintf("用户: %s（ID: %s）", n.UserInfo.Nickname, n.UserInfo.UserID))
+		if n.UserInfo.Indicator != "" {
+			sb.WriteString(fmt.Sprintf("【%s】", n.UserInfo.Indicator))
+		}
+		sb.WriteString("\n")
+		sb.WriteString(fmt.Sprintf("评论内容: %s\n", n.CommentInfo.Content))
+		sb.WriteString(fmt.Sprintf("评论ID: %s\n", n.CommentInfo.ID))
+
+		if n.Type == "comment/comment" && n.CommentInfo.TargetComment != nil {
+			sb.WriteString(fmt.Sprintf("被回复的评论: %s（ID: %s）\n", n.CommentInfo.TargetComment.Content, n.CommentInfo.TargetComment.ID))
+		}
+
+		sb.WriteString(fmt.Sprintf("关联笔记: %s（ID: %s）\n", n.ItemInfo.Content, n.ItemInfo.ID))
+		sb.WriteString(fmt.Sprintf("笔记 xsec_token: %s\n", n.ItemInfo.XsecToken))
+		sb.WriteString("\n")
+	}
+
+	if result.HasMore {
+		sb.WriteString(fmt.Sprintf("⚠️ 还有更多通知，可使用 cursor=%s 获取下一页\n", result.NextCursor))
+	}
+
+	return &MCPToolResult{
+		Content: []MCPContent{{
+			Type: "text",
+			Text: sb.String(),
+		}},
+	}
+}
