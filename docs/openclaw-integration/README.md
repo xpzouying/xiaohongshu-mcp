@@ -598,6 +598,7 @@ exec(command="mcporter call xiaohongshu.post_comment_to_feed ...", timeout=180)
 
 ## 相关链接
 
+- [本集成方案仓库（含 Skill 代码和工作区模板）](https://github.com/BodaFu/xiaohongshu-mcp/tree/main/docs/openclaw-integration)
 - [xiaohongshu-mcp 原项目](https://github.com/xpzouying/xiaohongshu-mcp)
 - [OpenClaw 官网](https://openclaw.ai)
 - [mcporter CLI](https://github.com/openclaw/mcporter)

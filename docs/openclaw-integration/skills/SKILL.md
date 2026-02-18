@@ -1,7 +1,7 @@
 ---
 name: xiaohongshu-mcp
 description: 小红书完整工具包 — 通过 exec + mcporter 调用 xiaohongshu-mcp 的 13 个 MCP 工具，支持浏览、搜索、点赞、评论、发布等全部操作
-homepage: https://github.com/xpzouying/xiaohongshu-mcp
+homepage: https://github.com/BodaFu/xiaohongshu-mcp/tree/main/docs/openclaw-integration
 emoji: 📕
 version: 3.0.0
 
