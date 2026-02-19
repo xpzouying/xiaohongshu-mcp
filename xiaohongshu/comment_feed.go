@@ -28,12 +28,26 @@ func (f *CommentFeedAction) PostComment(ctx context.Context, feedID, xsecToken, 
 	url := makeFeedDetailURL(feedID, xsecToken)
 	logrus.Infof("打开 feed 详情页: %s", url)
 
-	// 导航到详情页
+	// 小红书是 SPA，直接打开帖子 URL 时路由初始化不完整
+	// 需要先访问主页让 SPA 完全初始化，再导航到帖子页面
+	logrus.Info("预热：先访问小红书主页初始化 SPA...")
+	page.MustNavigate("https://www.xiaohongshu.com/")
+	page.MustWaitDOMStable()
+	time.Sleep(2 * time.Second)
+
+	logrus.Infof("导航到帖子详情页: %s", url)
 	page.MustNavigate(url)
 	page.MustWaitDOMStable()
-	time.Sleep(1 * time.Second)
 
-	// 检测页面是否可访问
+	for i := 0; i < 15; i++ {
+		time.Sleep(1 * time.Second)
+		result := page.MustEval(`() => document.querySelector('#noteContainer, .note-container, .note-scroller, .comments-container') ? 1 : 0`)
+		if result.Int() == 1 {
+			logrus.Infof("页面内容已渲染（%ds）", i+1)
+			break
+		}
+	}
+
 	if err := checkPageAccessible(page); err != nil {
 		return err
 	}
@@ -87,18 +101,34 @@ func (f *CommentFeedAction) ReplyToComment(ctx context.Context, feedID, xsecToke
 	url := makeFeedDetailURL(feedID, xsecToken)
 	logrus.Infof("打开 feed 详情页进行回复: %s", url)
 
-	// 导航到详情页
+	// 小红书是 SPA，直接打开帖子 URL 时路由初始化不完整，评论区不会渲染
+	// 需要先访问主页让 SPA 完全初始化，再导航到帖子页面
+	logrus.Info("预热：先访问小红书主页初始化 SPA...")
+	page.MustNavigate("https://www.xiaohongshu.com/")
+	page.MustWaitDOMStable()
+	time.Sleep(2 * time.Second)
+
+	// 再导航到帖子详情页
+	logrus.Infof("导航到帖子详情页: %s", url)
 	page.MustNavigate(url)
 	page.MustWaitDOMStable()
-	time.Sleep(1 * time.Second)
+
+	// 等待评论区容器渲染（最多 15 秒）
+	logrus.Info("等待评论区渲染...")
+	for i := 0; i < 15; i++ {
+		time.Sleep(1 * time.Second)
+		// 返回 1 表示找到，0 表示未找到
+		result := page.MustEval(`() => document.querySelector('#noteContainer, .note-container, .note-scroller, .comments-container') ? 1 : 0`)
+		if result.Int() == 1 {
+			logrus.Infof("评论区已渲染（%ds）", i+1)
+			break
+		}
+	}
 
 	// 检测页面是否可访问
 	if err := checkPageAccessible(page); err != nil {
 		return err
 	}
-
-	// 等待评论容器加载
-	time.Sleep(2 * time.Second)
 
 	// 使用 Go 实现的查找逻辑
 	commentEl, err := findCommentElement(page, commentID, userID)
@@ -164,6 +194,19 @@ func findCommentElement(page *rod.Page, commentID, userID string) (*rod.Element,
 	scrollToCommentsArea(page)
 	time.Sleep(1 * time.Second)
 
+	// 在开始循环前，先尝试直接查找（处理评论数量少、页面已完全加载的情况）
+	// 此时 .end-container 可能已存在，但评论元素也已在 DOM 中
+	if commentID != "" {
+		selector := fmt.Sprintf("#comment-%s", commentID)
+		logrus.Infof("预检：尝试直接查找 commentID: %s", selector)
+		el, err := page.Timeout(3 * time.Second).Element(selector)
+		if err == nil && el != nil {
+			logrus.Infof("✓ 预检直接找到评论: %s", commentID)
+			return el, nil
+		}
+		logrus.Infof("预检未找到，进入滚动查找循环")
+	}
+
 	var lastCommentCount = 0
 	stagnantChecks := 0
 
@@ -172,7 +215,18 @@ func findCommentElement(page *rod.Page, commentID, userID string) (*rod.Element,
 	for attempt := 0; attempt < maxAttempts; attempt++ {
 		logrus.Infof("=== 查找尝试 %d/%d ===", attempt+1, maxAttempts)
 
-		// === 1. 检查是否到达底部 ===
+		// === 1. 先尝试查找目标评论，再检查是否到达底部 ===
+		// 修复：当评论数量少时，页面初始加载就会显示 .end-container，
+		// 但评论元素此时已在 DOM 中，不应该在查找前就退出
+		if commentID != "" {
+			selector := fmt.Sprintf("#comment-%s", commentID)
+			el, err := page.Timeout(2 * time.Second).Element(selector)
+			if err == nil && el != nil {
+				logrus.Infof("✓ 通过 commentID 找到评论: %s (尝试 %d 次)", commentID, attempt+1)
+				return el, nil
+			}
+		}
+
 		if checkEndContainer(page) {
 			logrus.Info("已到达评论底部，未找到目标评论")
 			break
