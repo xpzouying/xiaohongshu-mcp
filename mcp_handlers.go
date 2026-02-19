@@ -670,6 +670,8 @@ func (s *AppServer) handleReplyComment(ctx context.Context, args map[string]inte
 		}
 	}
 
+	parentCommentID, _ := args["parent_comment_id"].(string)
+
 	content, ok := args["content"].(string)
 	if !ok || content == "" {
 		return &MCPToolResult{
@@ -681,10 +683,10 @@ func (s *AppServer) handleReplyComment(ctx context.Context, args map[string]inte
 		}
 	}
 
-	logrus.Infof("MCP: 回复评论 - Feed ID: %s, Comment ID: %s, User ID: %s, 内容长度: %d", feedID, commentID, userID, len(content))
+	logrus.Infof("MCP: 回复评论 - Feed ID: %s, Comment ID: %s, User ID: %s, Parent Comment ID: %s, 内容长度: %d", feedID, commentID, userID, parentCommentID, len(content))
 
 	// 回复评论
-	result, err := s.xiaohongshuService.ReplyCommentToFeed(ctx, feedID, xsecToken, commentID, userID, content)
+	result, err := s.xiaohongshuService.ReplyCommentToFeed(ctx, feedID, xsecToken, commentID, userID, parentCommentID, content)
 	if err != nil {
 		return &MCPToolResult{
 			Content: []MCPContent{{

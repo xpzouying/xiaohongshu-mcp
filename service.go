@@ -519,7 +519,9 @@ func (s *XiaohongshuService) UnfavoriteFeed(ctx context.Context, feedID, xsecTok
 }
 
 // ReplyCommentToFeed 回复指定评论
-func (s *XiaohongshuService) ReplyCommentToFeed(ctx context.Context, feedID, xsecToken, commentID, userID, content string) (*ReplyCommentResponse, error) {
+// parentCommentID 为可选参数：当目标评论是子评论（comment/comment 类型）时，
+// 传入父评论 ID 可帮助浏览器先展开父评论的"查看回复"，再定位子评论，提高成功率。
+func (s *XiaohongshuService) ReplyCommentToFeed(ctx context.Context, feedID, xsecToken, commentID, userID, parentCommentID, content string) (*ReplyCommentResponse, error) {
 	b := newBrowser()
 	defer b.Close()
 
@@ -528,7 +530,7 @@ func (s *XiaohongshuService) ReplyCommentToFeed(ctx context.Context, feedID, xse
 
 	action := xiaohongshu.NewCommentFeedAction(page)
 
-	if err := action.ReplyToComment(ctx, feedID, xsecToken, commentID, userID, content); err != nil {
+	if err := action.ReplyToComment(ctx, feedID, xsecToken, commentID, userID, parentCommentID, content); err != nil {
 		return nil, err
 	}
 
