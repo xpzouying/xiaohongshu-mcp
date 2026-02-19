@@ -84,6 +84,22 @@ func (f *FeedDetailAction) GetFeedDetailWithConfig(ctx context.Context, feedID, 
 	logrus.Infof("配置: 点击更多=%v, 回复阈值=%d, 最大评论数=%d, 滚动速度=%s",
 		config.ClickMoreReplies, config.MaxRepliesThreshold, config.MaxCommentItems, config.ScrollSpeed)
 
+	// 先访问首页完成 SPA 运行时初始化，再跳转详情页。
+	// 小红书是 SPA，直接导航到详情页时 JS 运行时尚未初始化，
+	// window.__INITIAL_STATE__.note.noteDetailMap 会为空，导致提取失败。
+	// warmup 使用独立的短超时，避免首页卡住时耗尽整个函数的超时时间。
+	logrus.Info("SPA warmup: 先访问首页初始化运行时...")
+	warmupCtx, warmupCancel := context.WithTimeout(ctx, 15*time.Second)
+	warmupPage := f.page.Context(warmupCtx)
+	warmupErr := warmupPage.Navigate("https://www.xiaohongshu.com")
+	warmupCancel()
+	if warmupErr != nil {
+		logrus.Warnf("SPA warmup 超时或失败（将继续尝试）: %v", warmupErr)
+	} else {
+		page.MustWaitDOMStable()
+		time.Sleep(1 * time.Second)
+	}
+
 	// 使用retry-go处理页面导航和DOM稳定等待
 	err := retry.Do(
 		func() error {
@@ -806,7 +822,8 @@ func checkPageAccessible(page *rod.Page) error {
 func (f *FeedDetailAction) extractFeedDetail(page *rod.Page, feedID string) (*FeedDetailResponse, error) {
 	var result string
 
-	// 使用retry-go来处理可能的DOM查询失败
+	// 使用retry-go来处理可能的DOM查询失败。
+	// 增加重试间隔以等待 SPA 将笔记数据注入 window.__INITIAL_STATE__。
 	err := retry.Do(
 		func() error {
 			evalResult := page.MustEval(`() => {
@@ -825,9 +842,9 @@ func (f *FeedDetailAction) extractFeedDetail(page *rod.Page, feedID string) (*Fe
 			}
 			return fmt.Errorf("无法获取初始状态数据")
 		},
-		retry.Attempts(3),
-		retry.Delay(200*time.Millisecond),
-		retry.MaxJitter(300*time.Millisecond),
+		retry.Attempts(5),
+		retry.Delay(500*time.Millisecond),
+		retry.MaxJitter(500*time.Millisecond),
 		retry.OnRetry(func(n uint, err error) {
 			logrus.Debugf("提取Feed详情重试 #%d: %v", n, err)
 		}),
