@@ -2,13 +2,61 @@ package xiaohongshu
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/proto"
 	"github.com/sirupsen/logrus"
 )
+
+// commentPageAPIResponse 小红书评论列表 API 的原始响应结构
+type commentPageAPIResponse struct {
+	Code    int    `json:"code"`
+	Success bool   `json:"success"`
+	Msg     string `json:"msg"`
+	Data    struct {
+		Comments []struct {
+			ID          string `json:"id"`
+			Content     string `json:"content"`
+			SubComments []struct {
+				ID      string `json:"id"`
+				Content string `json:"content"`
+			} `json:"sub_comments"`
+		} `json:"comments"`
+		HasMore bool   `json:"has_more"`
+		Cursor  string `json:"cursor"`
+	} `json:"data"`
+}
+
+// commentAPIEntry 单次评论 API 响应的摘要
+type commentAPIEntry struct {
+	body    string
+	hasMore bool
+}
+
+// commentIDExistsInAPIEntries 检查 commentID 是否在已捕获的 API 响应中
+func commentIDExistsInAPIEntries(entries []commentAPIEntry, commentID string) bool {
+	for _, entry := range entries {
+		var resp commentPageAPIResponse
+		if err := json.Unmarshal([]byte(entry.body), &resp); err != nil {
+			continue
+		}
+		for _, c := range resp.Data.Comments {
+			if c.ID == commentID {
+				return true
+			}
+			for _, sub := range c.SubComments {
+				if sub.ID == commentID {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
 
 // CommentFeedAction 表示 Feed 评论动作
 type CommentFeedAction struct {
@@ -23,7 +71,7 @@ func NewCommentFeedAction(page *rod.Page) *CommentFeedAction {
 // PostComment 发表评论到 Feed
 func (f *CommentFeedAction) PostComment(ctx context.Context, feedID, xsecToken, content string) error {
 	// 不使用 Context(ctx)，避免继承外部 context 的超时
-	page := f.page.Timeout(60 * time.Second)
+	page := f.page.Timeout(5 * time.Minute)
 
 	url := makeFeedDetailURL(feedID, xsecToken)
 	logrus.Infof("打开 feed 详情页: %s", url)
@@ -95,11 +143,43 @@ func (f *CommentFeedAction) PostComment(ctx context.Context, feedID, xsecToken, 
 
 // ReplyToComment 回复指定评论
 func (f *CommentFeedAction) ReplyToComment(ctx context.Context, feedID, xsecToken, commentID, userID, content string) error {
-	// 增加超时时间，因为需要滚动查找评论
 	// 注意：不使用 Context(ctx)，避免继承外部 context 的超时
 	page := f.page.Timeout(5 * time.Minute)
 	url := makeFeedDetailURL(feedID, xsecToken)
 	logrus.Infof("打开 feed 详情页进行回复: %s", url)
+
+	// 方案A+B：在导航之前注册 HijackRequests，拦截评论 API 响应。
+	// HijackRequests 必须在页面导航前注册，才能捕获页面加载时发出的 API 请求。
+	var commentAPIEntries []commentAPIEntry
+	var commentAPIMu sync.Mutex
+	var commentAPIWorked bool
+
+	if commentID != "" {
+		router := page.HijackRequests()
+		go router.Run()
+		defer router.Stop()
+
+		router.MustAdd("*/api/sns/web/v2/comment/page*", func(ctx *rod.Hijack) {
+			ctx.MustLoadResponse()
+			body := ctx.Response.Body()
+			if body == "" {
+				return
+			}
+			var resp commentPageAPIResponse
+			if err := json.Unmarshal([]byte(body), &resp); err != nil || !resp.Success {
+				return
+			}
+			commentAPIMu.Lock()
+			commentAPIEntries = append(commentAPIEntries, commentAPIEntry{
+				body:    body,
+				hasMore: resp.Data.HasMore,
+			})
+			commentAPIMu.Unlock()
+			logrus.Infof("API预检：捕获到评论API响应（%d条评论，has_more=%v）",
+				len(resp.Data.Comments), resp.Data.HasMore)
+		})
+		logrus.Info("API预检：已注册评论API拦截器")
+	}
 
 	// 小红书是 SPA，直接打开帖子 URL 时路由初始化不完整，评论区不会渲染
 	// 需要先访问主页让 SPA 完全初始化，再导航到帖子页面
@@ -108,7 +188,7 @@ func (f *CommentFeedAction) ReplyToComment(ctx context.Context, feedID, xsecToke
 	page.MustWaitDOMStable()
 	time.Sleep(2 * time.Second)
 
-	// 再导航到帖子详情页
+	// 再导航到帖子详情页（此时拦截器已就绪，会自动捕获评论API请求）
 	logrus.Infof("导航到帖子详情页: %s", url)
 	page.MustNavigate(url)
 	page.MustWaitDOMStable()
@@ -117,7 +197,6 @@ func (f *CommentFeedAction) ReplyToComment(ctx context.Context, feedID, xsecToke
 	logrus.Info("等待评论区渲染...")
 	for i := 0; i < 15; i++ {
 		time.Sleep(1 * time.Second)
-		// 返回 1 表示找到，0 表示未找到
 		result := page.MustEval(`() => document.querySelector('#noteContainer, .note-container, .note-scroller, .comments-container') ? 1 : 0`)
 		if result.Int() == 1 {
 			logrus.Infof("评论区已渲染（%ds）", i+1)
@@ -130,11 +209,15 @@ func (f *CommentFeedAction) ReplyToComment(ctx context.Context, feedID, xsecToke
 		return err
 	}
 
-	// 使用 Go 实现的查找逻辑
-	commentEl, err := findCommentElement(page, commentID, userID)
+	// 方案A+B：利用已拦截的 API 数据 + DOM 滚动联合查找评论。
+	// API 拦截器在导航前已注册，页面加载时会自动捕获评论 API 响应。
+	// findCommentElementWithAPICheck 会在每次滚动后同步检查 API 数据，
+	// 一旦 API 返回 has_more=false 且未找到目标评论，立即终止，无需滚到 DOM 底部。
+	commentEl, err := findCommentElementWithAPICheck(page, commentID, userID, &commentAPIEntries, &commentAPIMu)
 	if err != nil {
 		return fmt.Errorf("无法找到评论: %w", err)
 	}
+	_ = commentAPIWorked
 
 	// 滚动到评论位置
 	logrus.Info("滚动到评论位置...")
@@ -183,145 +266,154 @@ func (f *CommentFeedAction) ReplyToComment(ctx context.Context, feedID, xsecToke
 	return nil
 }
 
-// findCommentElement 查找指定评论元素（参考 feed_detail.go 的滚动逻辑）
-func findCommentElement(page *rod.Page, commentID, userID string) (*rod.Element, error) {
+// findCommentElementWithAPICheck 查找指定评论元素，同时利用 API 拦截数据加速判断。
+//
+// 终止条件（按优先级）：
+//  1. 在 DOM 中找到目标评论 → 返回元素
+//  2. API 数据确认 has_more=false 且未找到 → 评论已删除，立即返回错误
+//  3. 检测到 .end-container → 已加载全部评论，目标不存在
+//  4. 评论数停滞 3 次 → 已加载完毕，目标不存在
+//  5. 超过 maxScrollRounds 轮 → 安全上限
+//
+// apiEntries/apiMu 是在导航前注册的拦截器收集的 API 响应，
+// 每次滚动后会有新的 API 响应追加进来，实时检查。
+func findCommentElementWithAPICheck(page *rod.Page, commentID, userID string, apiEntries *[]commentAPIEntry, apiMu *sync.Mutex) (*rod.Element, error) {
 	logrus.Infof("开始查找评论 - commentID: %s, userID: %s", commentID, userID)
 
-	const maxAttempts = 100
-	const scrollInterval = 800 * time.Millisecond
+	const maxScrollRounds = 15
+	const scrollInterval = 500 * time.Millisecond
 
 	// 先滚动到评论区
 	scrollToCommentsArea(page)
 	time.Sleep(1 * time.Second)
 
-	// 在开始循环前，先尝试直接查找（处理评论数量少、页面已完全加载的情况）
-	// 此时 .end-container 可能已存在，但评论元素也已在 DOM 中
+	// 预检：直接查找（评论数少或页面已完全加载时直接命中）
 	if commentID != "" {
 		selector := fmt.Sprintf("#comment-%s", commentID)
-		logrus.Infof("预检：尝试直接查找 commentID: %s", selector)
 		el, err := page.Timeout(3 * time.Second).Element(selector)
 		if err == nil && el != nil {
 			logrus.Infof("✓ 预检直接找到评论: %s", commentID)
 			return el, nil
 		}
-		logrus.Infof("预检未找到，进入滚动查找循环")
+
+		// 检查初始 API 数据
+		apiMu.Lock()
+		initialEntries := make([]commentAPIEntry, len(*apiEntries))
+		copy(initialEntries, *apiEntries)
+		apiMu.Unlock()
+
+		if len(initialEntries) > 0 {
+			logrus.Infof("预检：已有 %d 批API数据，开始检查", len(initialEntries))
+			if commentIDExistsInAPIEntries(initialEntries, commentID) {
+				logrus.Infof("✓ 预检API数据中找到 commentID=%s，进入DOM定位", commentID)
+			} else {
+				lastHasMore := initialEntries[len(initialEntries)-1].hasMore
+				if !lastHasMore {
+					logrus.Infof("API确认：评论API已无更多页，commentID=%s 不存在（已删除）", commentID)
+					return nil, fmt.Errorf("评论不存在（已被删除或不可见）: commentID=%s", commentID)
+				}
+				logrus.Infof("预检API数据未找到，评论可能在后续页，进入滚动查找（最多 %d 轮）", maxScrollRounds)
+			}
+		} else {
+			logrus.Infof("预检：暂无API数据，进入滚动查找（最多 %d 轮）", maxScrollRounds)
+		}
 	}
 
 	var lastCommentCount = 0
+	var lastAPICount = 0
 	stagnantChecks := 0
 
-	logrus.Infof("开始循环查找，最大尝试次数: %d", maxAttempts)
+	for round := 0; round < maxScrollRounds; round++ {
+		logrus.Infof("=== 滚动轮次 %d/%d ===", round+1, maxScrollRounds)
 
-	for attempt := 0; attempt < maxAttempts; attempt++ {
-		logrus.Infof("=== 查找尝试 %d/%d ===", attempt+1, maxAttempts)
-
-		// === 1. 先尝试查找目标评论，再检查是否到达底部 ===
-		// 修复：当评论数量少时，页面初始加载就会显示 .end-container，
-		// 但评论元素此时已在 DOM 中，不应该在查找前就退出
+		// 1. 先尝试在 DOM 中查找目标评论
 		if commentID != "" {
 			selector := fmt.Sprintf("#comment-%s", commentID)
 			el, err := page.Timeout(2 * time.Second).Element(selector)
 			if err == nil && el != nil {
-				logrus.Infof("✓ 通过 commentID 找到评论: %s (尝试 %d 次)", commentID, attempt+1)
+				logrus.Infof("✓ 找到评论: %s（第 %d 轮）", commentID, round+1)
 				return el, nil
 			}
 		}
 
+		// 2. 检查新增的 API 数据（每次滚动后可能有新响应）
+		if commentID != "" {
+			apiMu.Lock()
+			currentEntries := make([]commentAPIEntry, len(*apiEntries))
+			copy(currentEntries, *apiEntries)
+			apiMu.Unlock()
+
+			if len(currentEntries) > lastAPICount {
+				logrus.Infof("API检查：新增 %d 批数据（共 %d 批），检查 commentID=%s",
+					len(currentEntries)-lastAPICount, len(currentEntries), commentID)
+				lastAPICount = len(currentEntries)
+
+				if commentIDExistsInAPIEntries(currentEntries, commentID) {
+					logrus.Infof("✓ API数据确认评论存在，继续DOM定位")
+					// 评论存在，继续 DOM 滚动查找，不提前终止
+				} else {
+					lastHasMore := currentEntries[len(currentEntries)-1].hasMore
+					if !lastHasMore {
+						logrus.Infof("API确认：所有评论页已加载完毕，commentID=%s 不存在（已删除）", commentID)
+						return nil, fmt.Errorf("评论不存在（已被删除或不可见）: commentID=%s", commentID)
+					}
+				}
+			}
+		}
+
+		// 3. 检查是否已到 DOM 底部
 		if checkEndContainer(page) {
-			logrus.Info("已到达评论底部，未找到目标评论")
+			logrus.Info("已到达评论底部，目标评论不存在（可能已被删除）")
 			break
 		}
 
-		// === 2. 获取当前评论数量 ===
+		// 4. 获取当前评论数量，检测停滞
 		currentCount := getCommentCount(page)
 		logrus.Infof("当前评论数: %d", currentCount)
-		
+
 		if currentCount != lastCommentCount {
-			logrus.Infof("✓ 评论数增加: %d -> %d", lastCommentCount, currentCount)
+			logrus.Infof("评论数增加: %d -> %d", lastCommentCount, currentCount)
 			lastCommentCount = currentCount
 			stagnantChecks = 0
 		} else {
 			stagnantChecks++
-			if stagnantChecks%5 == 0 {
-				logrus.Infof("评论数停滞 %d 次", stagnantChecks)
+			logrus.Infof("评论数停滞（%d/3）", stagnantChecks)
+			if stagnantChecks >= 3 {
+				logrus.Info("评论数连续停滞，已加载全部评论，目标评论不存在")
+				break
 			}
 		}
 
-		// === 3. 停滞检测 ===
-		if stagnantChecks >= 10 {
-			logrus.Info("评论数量停滞超过10次，可能已加载完所有评论")
-			break
-		}
-
-		// === 4. 先滚动到最后一个评论（触发懒加载）===
-		if currentCount > 0 {
-			logrus.Infof("滚动到最后一个评论（共 %d 条）", currentCount)
-			
-			// 使用 Go 获取所有评论元素
-			elements, err := page.Timeout(2 * time.Second).Elements(".parent-comment, .comment-item, .comment")
-			if err == nil && len(elements) > 0 {
-				// 滚动到最后一个评论
-				lastComment := elements[len(elements)-1]
-				err := lastComment.ScrollIntoView()
-				if err != nil {
-					logrus.Warnf("滚动到最后一个评论失败: %v", err)
-				}
-			} else {
-				logrus.Warnf("未找到评论元素: %v", err)
-			}
-			time.Sleep(300 * time.Millisecond)
-		}
-
-		// === 5. 继续向下滚动 ===
-		logrus.Infof("继续向下滚动...")
-		_, err := page.Eval(`() => { window.scrollBy(0, window.innerHeight * 0.8); return true; }`)
-		if err != nil {
-			logrus.Warnf("滚动失败: %v", err)
-		}
-		time.Sleep(500 * time.Millisecond)
-
-		// === 6. 滚动后立即查找（边滚动边查找）===
-		// 优先通过 commentID 查找（使用 Timeout 避免长时间等待）
-		if commentID != "" {
-			selector := fmt.Sprintf("#comment-%s", commentID)
-			logrus.Infof("尝试通过 commentID 查找: %s", selector)
-			
-			// 使用 Timeout 避免长时间等待
-			el, err := page.Timeout(2 * time.Second).Element(selector)
-			if err == nil && el != nil {
-				logrus.Infof("✓ 通过 commentID 找到评论: %s (尝试 %d 次)", commentID, attempt+1)
-				return el, nil
-			}
-			logrus.Infof("未找到 commentID (2秒超时)")
-		}
-
-		// 通过 userID 查找
+		// 5. 通过 userID 查找（备用方式）
 		if userID != "" {
-			logrus.Infof("尝试通过 userID 查找: %s", userID)
-			
-			// 使用 Timeout 避免长时间等待
 			elements, err := page.Timeout(2 * time.Second).Elements(".comment-item, .comment, .parent-comment")
 			if err == nil && len(elements) > 0 {
-				logrus.Infof("找到 %d 个评论元素", len(elements))
 				for i, el := range elements {
-					// 快速检查，不等待
 					userEl, err := el.Timeout(500 * time.Millisecond).Element(fmt.Sprintf(`[data-user-id="%s"]`, userID))
 					if err == nil && userEl != nil {
-						logrus.Infof("✓ 通过 userID 在第 %d 个元素中找到评论: %s (尝试 %d 次)", i+1, userID, attempt+1)
+						logrus.Infof("✓ 通过 userID 找到评论（第 %d 个元素，第 %d 轮）", i+1, round+1)
 						return el, nil
 					}
 				}
-				logrus.Infof("在 %d 个元素中未找到匹配的 userID", len(elements))
-			} else {
-				logrus.Infof("获取评论元素失败或超时: %v", err)
 			}
 		}
-		
-		logrus.Infof("本次尝试未找到目标评论，继续下一轮...")
 
-		// === 7. 等待内容加载 ===
+		// 6. 滚动到最后一个评论触发懒加载
+		elements, err := page.Timeout(2 * time.Second).Elements(".parent-comment, .comment-item, .comment")
+		if err == nil && len(elements) > 0 {
+			_ = elements[len(elements)-1].ScrollIntoView()
+			time.Sleep(300 * time.Millisecond)
+		}
+
+		// 7. 继续向下滚动
+		_, _ = page.Eval(`() => { window.scrollBy(0, window.innerHeight * 0.8); return true; }`)
 		time.Sleep(scrollInterval)
 	}
 
-	return nil, fmt.Errorf("未找到评论 (commentID: %s, userID: %s), 尝试次数: %d", commentID, userID, maxAttempts)
+	return nil, fmt.Errorf("未找到评论 (commentID: %s, userID: %s)，已滚动 %d 轮，评论可能已被删除", commentID, userID, maxScrollRounds)
+}
+
+// findCommentElement 查找指定评论元素（不使用 API 预检，用于无拦截器场景）
+func findCommentElement(page *rod.Page, commentID, userID string) (*rod.Element, error) {
+	return findCommentElementWithAPICheck(page, commentID, userID, &[]commentAPIEntry{}, &sync.Mutex{})
 }
