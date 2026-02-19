@@ -259,7 +259,7 @@ func (s *AppServer) replyCommentHandler(c *gin.Context) {
 		return
 	}
 
-	result, err := s.xiaohongshuService.ReplyCommentToFeed(c.Request.Context(), req.FeedID, req.XsecToken, req.CommentID, req.UserID, req.Content)
+	result, err := s.xiaohongshuService.ReplyCommentToFeed(c.Request.Context(), req.FeedID, req.XsecToken, req.CommentID, req.UserID, "", req.Content)
 	if err != nil {
 		respondError(c, http.StatusInternalServerError, "REPLY_COMMENT_FAILED",
 			"回复评论失败", err.Error())

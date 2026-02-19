@@ -74,11 +74,12 @@ type PostCommentArgs struct {
 
 // ReplyCommentArgs 回复评论的参数
 type ReplyCommentArgs struct {
-	FeedID    string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
-	XsecToken string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
-	CommentID string `json:"comment_id,omitempty" jsonschema:"目标评论ID，从评论列表获取"`
-	UserID    string `json:"user_id,omitempty" jsonschema:"目标评论用户ID，从评论列表获取"`
-	Content   string `json:"content" jsonschema:"回复内容"`
+	FeedID          string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
+	XsecToken       string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
+	CommentID       string `json:"comment_id,omitempty" jsonschema:"目标评论ID，从评论列表获取"`
+	UserID          string `json:"user_id,omitempty" jsonschema:"目标评论用户ID，从评论列表获取"`
+	ParentCommentID string `json:"parent_comment_id,omitempty" jsonschema:"父评论ID（可选）：当目标评论为子评论时传入父评论ID，帮助浏览器先展开父评论再定位子评论，提高成功率"`
+	Content         string `json:"content" jsonschema:"回复内容"`
 }
 
 // LikeFeedArgs 点赞参数
@@ -342,7 +343,12 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "reply_comment_in_feed",
-			Description: "回复小红书笔记下的指定评论",
+			Description: "回复小红书笔记下的指定评论。\n" +
+				"支持回复一级评论和子评论：\n" +
+				"- 回复一级评论：仅需 comment_id 和 user_id。\n" +
+				"- 回复子评论（comment/comment 类型）：强烈建议同时传入 parent_comment_id（父评论 ID），\n" +
+				"  浏览器会先展开父评论再定位子评论，显著提高成功率。\n" +
+				"  parent_comment_id 可从 get_notifications 返回的 parent_comment_id 字段获取。",
 			Annotations: &mcp.ToolAnnotations{
 				Title:           "Reply Comment",
 				DestructiveHint: boolPtr(true),
@@ -357,11 +363,12 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 			}
 
 			argsMap := map[string]interface{}{
-				"feed_id":    args.FeedID,
-				"xsec_token": args.XsecToken,
-				"comment_id": args.CommentID,
-				"user_id":    args.UserID,
-				"content":    args.Content,
+				"feed_id":           args.FeedID,
+				"xsec_token":        args.XsecToken,
+				"comment_id":        args.CommentID,
+				"user_id":           args.UserID,
+				"parent_comment_id": args.ParentCommentID,
+				"content":           args.Content,
 			}
 			result := appServer.handleReplyComment(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
