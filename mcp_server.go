@@ -95,6 +95,17 @@ type FavoriteFeedArgs struct {
 	Unfavorite bool   `json:"unfavorite,omitempty" jsonschema:"是否取消收藏，true为取消收藏，false或未设置则为收藏"`
 }
 
+// GetNotificationsArgs 获取通知的参数
+type GetNotificationsArgs struct {
+	// Cursor 分页游标：
+	//   - 不传（留空）→ 获取最新一页通知
+	//   - 传入上次返回的 next_cursor → 获取更早的通知（向历史方向翻页）
+	// 注意：通知按时间倒序排列，第一页最新，越翻越旧。
+	Cursor    string `json:"cursor,omitempty" jsonschema:"分页游标（可选）。留空获取最新通知；传入上次返回的 next_cursor 可获取更早的旧通知"`
+	Limit     int    `json:"limit,omitempty" jsonschema:"每次获取的通知数量（可选，默认20，最大20）"`
+	SinceUnix int64  `json:"since_unix,omitempty" jsonschema:"（可选）只返回此 Unix 时间戳（秒）之后的通知，自动翻页汇总所有符合条件的通知。例如 1771200000"`
+}
+
 // InitMCPServer 初始化 MCP Server
 func InitMCPServer(appServer *AppServer) *mcp.Server {
 	// 创建 MCP Server
@@ -433,7 +444,35 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	logrus.Infof("Registered %d MCP tools", 13)
+	// 工具 14: 获取通知列表（评论和回复）
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name: "get_notifications",
+			Description: "获取小红书「评论和@」通知列表（按时间倒序，最新在最前）。\n" +
+				"每条通知包含 relation_type 字段，客观描述该评论与当前用户的关系：\n" +
+				"  - comment_on_my_note：有人直接评论了你的笔记（顶级评论）\n" +
+				"  - reply_to_my_comment：有人直接回复了你的评论（子评论）\n" +
+				"  - at_others_under_my_comment：有人在你的评论下 @了其他人\n" +
+				"回复评论时，用返回的 feed_id + xsec_token + comment_id 调用 reply_comment_in_feed；\n" +
+				"对于 reply_to_my_comment 类型，建议同时传入 parent_comment_id 以提高子评论定位成功率。\n" +
+				"分页：不传 cursor 获取最新页；传入返回的 next_cursor 可获取更早的旧通知。",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Get Notifications",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("get_notifications", func(ctx context.Context, req *mcp.CallToolRequest, args GetNotificationsArgs) (*mcp.CallToolResult, any, error) {
+			argsMap := map[string]interface{}{
+				"cursor":     args.Cursor,
+				"limit":      float64(args.Limit),
+				"since_unix": args.SinceUnix,
+			}
+			result := appServer.handleGetNotifications(ctx, argsMap)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	logrus.Infof("Registered %d MCP tools", 14)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式

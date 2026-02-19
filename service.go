@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/go-rod/rod"
@@ -17,6 +18,11 @@ import (
 	"github.com/xpzouying/xiaohongshu-mcp/pkg/xhsutil"
 	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
 )
+
+// notificationsMu 保证同一时刻只有一个通知查询在运行。
+// 通知接口依赖 HijackRequests 拦截浏览器网络请求，若与其他浏览器操作并发
+// 会导致 API 响应无法被捕获，始终返回"无法获取通知数据"。
+var notificationsMu sync.Mutex
 
 // XiaohongshuService 小红书业务服务
 type XiaohongshuService struct{}
@@ -563,6 +569,39 @@ func withBrowserPage(fn func(*rod.Page) error) error {
 	defer page.Close()
 
 	return fn(page)
+}
+
+// GetNotifications 获取通知列表（评论和回复）
+// cursor 为空时获取最新通知，非空时获取下一页（通过滚动触发）
+// limit 为每次获取的数量（最大 20，默认 20）
+func (s *XiaohongshuService) GetNotifications(ctx context.Context, cursor string, limit int) (*xiaohongshu.NotificationsResult, error) {
+	notificationsMu.Lock()
+	defer notificationsMu.Unlock()
+
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewNotificationsAction(page)
+	return action.GetNotifications(ctx, cursor, limit)
+}
+
+// GetNotificationsSince 获取指定时间之后的所有通知（自动翻页）
+// sinceUnix 为 Unix 时间戳（秒），0 表示获取所有
+func (s *XiaohongshuService) GetNotificationsSince(ctx context.Context, sinceUnix int64) (*xiaohongshu.NotificationsResult, error) {
+	notificationsMu.Lock()
+	defer notificationsMu.Unlock()
+
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewNotificationsAction(page)
+	return action.GetNotificationsSince(ctx, sinceUnix)
 }
 
 // GetMyProfile 获取当前登录用户的个人信息

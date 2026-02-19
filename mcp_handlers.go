@@ -704,3 +704,123 @@ func (s *AppServer) handleReplyComment(ctx context.Context, args map[string]inte
 		}},
 	}
 }
+
+// handleGetNotifications 处理获取通知列表请求
+func (s *AppServer) handleGetNotifications(ctx context.Context, args map[string]interface{}) *MCPToolResult {
+	cursor, _ := args["cursor"].(string)
+	limitFloat, _ := args["limit"].(float64)
+	limit := int(limitFloat)
+	if limit <= 0 {
+		limit = 20
+	}
+	sinceUnix, _ := args["since_unix"].(int64)
+
+	logrus.Infof("MCP: 获取通知列表 - cursor=%s, limit=%d, since_unix=%d", cursor, limit, sinceUnix)
+
+	var result *xiaohongshu.NotificationsResult
+	var err error
+
+	if sinceUnix > 0 {
+		result, err = s.xiaohongshuService.GetNotificationsSince(ctx, sinceUnix)
+	} else {
+		result, err = s.xiaohongshuService.GetNotifications(ctx, cursor, limit)
+	}
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "获取通知失败: " + err.Error(),
+			}},
+			IsError: true,
+		}
+	}
+
+	if len(result.Notifications) == 0 {
+		msg := "暂无通知"
+		if cursor != "" {
+			msg = "已到最后一页，没有更多旧通知"
+		}
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: msg}},
+		}
+	}
+
+	var sb strings.Builder
+	cst := time.FixedZone("CST", 8*3600)
+
+	sb.WriteString(fmt.Sprintf("共 %d 条通知", len(result.Notifications)))
+	if len(result.Notifications) > 0 {
+		t0 := time.Unix(result.Notifications[0].Time, 0).In(cst)
+		tN := time.Unix(result.Notifications[len(result.Notifications)-1].Time, 0).In(cst)
+		sb.WriteString(fmt.Sprintf("（%s ~ %s）", tN.Format("01-02 15:04"), t0.Format("01-02 15:04")))
+	}
+	sb.WriteString("\n")
+	if result.HasMore {
+		sb.WriteString(fmt.Sprintf("next_cursor=%s（传入可获取更早的通知）\n", result.NextCursor))
+	} else {
+		sb.WriteString("已是最后一页\n")
+	}
+	sb.WriteString("\n")
+
+	for i, n := range result.Notifications {
+		t := time.Unix(n.Time, 0).In(cst)
+		timeStr := t.Format("2006-01-02 15:04:05")
+
+		var relationLabel string
+		switch n.RelationType {
+		case xiaohongshu.RelationCommentOnMyNote:
+			relationLabel = "评论了我的笔记"
+		case xiaohongshu.RelationReplyToMyComment:
+			relationLabel = "回复了我的评论"
+		case xiaohongshu.RelationAtOthersUnderMyComment:
+			relationLabel = "在我的评论下@了他人"
+		default:
+			relationLabel = string(n.RelationType)
+		}
+
+		sb.WriteString(fmt.Sprintf("--- 通知 %d [%s] ---\n", i+1, relationLabel))
+		sb.WriteString(fmt.Sprintf("notification_id: %s\n", n.ID))
+		sb.WriteString(fmt.Sprintf("时间: %s\n", timeStr))
+		sb.WriteString(fmt.Sprintf("用户: %s (user_id: %s)", n.UserInfo.Nickname, n.UserInfo.UserID))
+		if n.UserInfo.Indicator != "" {
+			sb.WriteString(fmt.Sprintf("【%s】", n.UserInfo.Indicator))
+		}
+		sb.WriteString("\n")
+		sb.WriteString(fmt.Sprintf("评论内容: %s\n", n.CommentInfo.Content))
+		sb.WriteString(fmt.Sprintf("comment_id: %s\n", n.CommentInfo.ID))
+
+		if n.Type == "comment/comment" && n.CommentInfo.TargetComment != nil {
+			sb.WriteString(fmt.Sprintf("被回复的评论: [%s] %s\n",
+				n.CommentInfo.TargetComment.UserInfo.Nickname,
+				truncate(n.CommentInfo.TargetComment.Content, 60)))
+			if n.ParentCommentID != "" {
+				sb.WriteString(fmt.Sprintf("parent_comment_id: %s\n", n.ParentCommentID))
+			}
+		}
+
+		sb.WriteString(fmt.Sprintf("笔记: %s\n", truncate(n.ItemInfo.Content, 40)))
+		sb.WriteString(fmt.Sprintf("feed_id: %s\n", n.ItemInfo.ID))
+		sb.WriteString(fmt.Sprintf("xsec_token: %s\n", n.ItemInfo.XsecToken))
+		sb.WriteString("\n")
+	}
+
+	if result.HasMore {
+		sb.WriteString(fmt.Sprintf("next_cursor=%s\n", result.NextCursor))
+	}
+
+	return &MCPToolResult{
+		Content: []MCPContent{{
+			Type: "text",
+			Text: sb.String(),
+		}},
+	}
+}
+
+// truncate 截断字符串到指定长度
+func truncate(s string, n int) string {
+	runes := []rune(s)
+	if len(runes) <= n {
+		return s
+	}
+	return string(runes[:n]) + "..."
+}
