@@ -85,10 +85,22 @@ type Notification struct {
 	//   "at_others_under_my_comment"    - 有人在你的评论下 @了其他人（你被间接带到）
 	RelationType NotificationRelationType `json:"relation_type"`
 
-	// ParentCommentID 仅对 comment/comment 类型有效：
+	// TargetCommentID 仅对 comment/comment 类型有效：
 	// 被回复的那条评论的 ID（即 CommentInfo.TargetComment.ID）。
-	// 调用 reply_comment_in_feed 回复子评论时需要传入，
-	// 用于定位父评论并展开子评论列表。
+	// 这是小红书通知 API 直接返回的原始字段，语义是"用户回复了哪条评论"。
+	// 注意：这条评论本身可能是顶级评论，也可能是子评论（例如 Liko 自己发的回复）。
+	TargetCommentID string `json:"target_comment_id,omitempty"`
+
+	// ParentCommentID 仅对 comment/comment 类型有效：
+	// 调用 reply_comment_in_feed 时需要传入的顶级父评论 ID。
+	// 小红书评论只有两层（顶级评论 + 子评论），reply_comment_in_feed 需要的是顶级评论 ID。
+	//
+	// 当 TargetCommentID 是顶级评论时：ParentCommentID == TargetCommentID。
+	// 当 TargetCommentID 是子评论时（例如 Liko 自己的回复被别人再次回复）：
+	//   ParentCommentID 是 TargetCommentID 所属的顶级评论 ID。
+	//   此时通知 API 无法直接提供这个值，reply_comment_in_feed 会在执行时动态解析。
+	//   因此本字段在这种情况下会设置为 TargetCommentID（作为提示），
+	//   reply_comment_in_feed 内部会自动识别并修正。
 	ParentCommentID string `json:"parent_comment_id,omitempty"`
 }
 
@@ -490,7 +502,12 @@ func parseNotificationsResponse(body string) (*NotificationsResult, error) {
 					Image:    msg.CommentInfo.TargetComment.UserInfo.Image,
 				},
 			}
-			// ParentCommentID：被回复的评论即为父评论（用于 reply_comment_in_feed）
+			// TargetCommentID：保留通知 API 原始语义——被回复的那条评论 ID。
+			// 该评论可能是顶级评论，也可能是 Liko 自己的子评论（当对话已有多轮时）。
+			notification.TargetCommentID = msg.CommentInfo.TargetComment.ID
+			// ParentCommentID：reply_comment_in_feed 需要的顶级父评论 ID。
+			// 通知 API 无法直接区分 TargetComment 是顶级还是子评论，
+			// 暂时设置为 TargetCommentID，reply_comment_in_feed 执行时会自动识别并修正。
 			notification.ParentCommentID = msg.CommentInfo.TargetComment.ID
 		}
 
