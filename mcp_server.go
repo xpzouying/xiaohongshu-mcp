@@ -74,11 +74,12 @@ type PostCommentArgs struct {
 
 // ReplyCommentArgs 回复评论的参数
 type ReplyCommentArgs struct {
-	FeedID    string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
-	XsecToken string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
-	CommentID string `json:"comment_id,omitempty" jsonschema:"目标评论ID，从评论列表获取"`
-	UserID    string `json:"user_id,omitempty" jsonschema:"目标评论用户ID，从评论列表获取"`
-	Content   string `json:"content" jsonschema:"回复内容"`
+	FeedID          string `json:"feed_id" jsonschema:"小红书笔记ID，从通知或Feed列表获取"`
+	XsecToken       string `json:"xsec_token" jsonschema:"访问令牌，从通知或Feed列表的xsec_token字段获取"`
+	CommentID       string `json:"comment_id,omitempty" jsonschema:"目标评论ID（comment/item 时为顶级评论ID；comment/comment 时为子评论ID）"`
+	ParentCommentID string `json:"parent_comment_id,omitempty" jsonschema:"父评论ID（仅 comment/comment 类型需要传入，即通知中 parent_comment_id 字段的值；帮助浏览器先展开父评论再找子评论）"`
+	UserID          string `json:"user_id,omitempty" jsonschema:"目标评论用户ID（可选，comment_id 不可用时使用）"`
+	Content         string `json:"content" jsonschema:"回复内容"`
 }
 
 // LikeFeedArgs 点赞参数
@@ -97,9 +98,13 @@ type FavoriteFeedArgs struct {
 
 // GetNotificationsArgs 获取通知的参数
 type GetNotificationsArgs struct {
-	Cursor    string `json:"cursor,omitempty" jsonschema:"分页游标（可选）。首次调用留空获取最新通知；如需获取更多历史通知，传入上次返回的 next_cursor 值"`
+	// Cursor 分页游标：
+	//   - 不传（留空）→ 获取最新一页通知
+	//   - 传入上次返回的 next_cursor → 获取更早的通知（向历史方向翻页）
+	// 注意：通知按时间倒序排列，第一页最新，越翻越旧。
+	Cursor    string `json:"cursor,omitempty" jsonschema:"分页游标（可选）。留空获取最新通知；传入上次返回的 next_cursor 可获取更早的旧通知"`
 	Limit     int    `json:"limit,omitempty" jsonschema:"每次获取的通知数量（可选，默认20，最大20）"`
-	SinceUnix int64  `json:"since_unix,omitempty" jsonschema:"（可选）只返回此 Unix 时间戳（秒）之后的通知，会自动翻页直到找到所有符合条件的通知。例如 1771200000 表示 2026-02-17 06:00:00 北京时间"`
+	SinceUnix int64  `json:"since_unix,omitempty" jsonschema:"（可选）只返回此 Unix 时间戳（秒）之后的通知，自动翻页汇总所有符合条件的通知。例如 1771200000"`
 }
 
 // InitMCPServer 初始化 MCP Server
@@ -348,8 +353,14 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 	// 工具 10: 回复评论
 	mcp.AddTool(server,
 		&mcp.Tool{
-			Name:        "reply_comment_in_feed",
-			Description: "回复小红书笔记下的指定评论",
+			Name: "reply_comment_in_feed",
+			Description: "回复小红书笔记下的指定评论。\n" +
+				"参数说明：\n" +
+				"- comment_id：目标评论的 ID（必填）\n" +
+				"- parent_comment_id：父评论 ID（当通知类型为 comment/comment 时强烈建议传入，\n" +
+				"  即 get_notifications 返回的 parent_comment_id 字段值；\n" +
+				"  传入后浏览器会先展开父评论的子评论列表，再精确定位目标子评论，显著提高成功率）\n" +
+				"- feed_id 和 xsec_token 直接从 get_notifications 返回值中取，无需额外查询",
 			Annotations: &mcp.ToolAnnotations{
 				Title:           "Reply Comment",
 				DestructiveHint: boolPtr(true),
@@ -364,11 +375,12 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 			}
 
 			argsMap := map[string]interface{}{
-				"feed_id":    args.FeedID,
-				"xsec_token": args.XsecToken,
-				"comment_id": args.CommentID,
-				"user_id":    args.UserID,
-				"content":    args.Content,
+				"feed_id":           args.FeedID,
+				"xsec_token":        args.XsecToken,
+				"comment_id":        args.CommentID,
+				"parent_comment_id": args.ParentCommentID,
+				"user_id":           args.UserID,
+				"content":           args.Content,
 			}
 			result := appServer.handleReplyComment(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
@@ -444,10 +456,14 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name: "get_notifications",
-			Description: "获取小红书通知列表，包括：别人评论了你的笔记（comment/item）、别人回复了你的评论（comment/comment）。" +
-				"每条通知包含：通知类型、发通知用户信息、评论内容、评论ID、关联笔记ID和xsec_token。" +
-				"可直接用返回的 feed_id + xsec_token + comment_id 调用 reply_comment_in_feed 进行回复，无需额外查询。" +
-				"支持两种模式：1) 默认模式：不传参数获取最新20条；2) since_unix 模式：传入 Unix 时间戳自动翻页获取该时间之后的所有通知（推荐用于补回复历史消息）。",
+			Description: "获取小红书「评论和@」通知列表（按时间倒序，最新在最前）。\n" +
+				"每条通知包含 relation_type 字段，客观描述该评论与当前用户的关系：\n" +
+				"  - comment_on_my_note：有人直接评论了你的笔记（顶级评论）\n" +
+				"  - reply_to_my_comment：有人直接回复了你的评论（子评论）\n" +
+				"  - at_others_under_my_comment：有人在你的评论下 @了其他人\n" +
+				"回复评论时，用返回的 feed_id + xsec_token + comment_id 调用 reply_comment_in_feed；\n" +
+				"对于 reply_to_my_comment 类型，建议同时传入 parent_comment_id 以提高子评论定位成功率。\n" +
+				"分页：不传 cursor 获取最新页；传入返回的 next_cursor 可获取更早的旧通知。",
 			Annotations: &mcp.ToolAnnotations{
 				Title:        "Get Notifications",
 				ReadOnlyHint: true,
@@ -464,7 +480,24 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	logrus.Infof("Registered %d MCP tools", 14)
+
+	// 工具 15: 获取我的主页（当前登录用户）
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "my_profile",
+			Description: "获取当前登录的小红书账号的个人主页信息，包括用户基本信息、关注数、粉丝数、获赞量及已发布的笔记列表。无需参数。",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "My Profile",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("my_profile", func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleMyProfile(ctx)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	logrus.Infof("Registered %d MCP tools", 15)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式

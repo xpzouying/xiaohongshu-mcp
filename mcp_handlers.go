@@ -497,6 +497,40 @@ func (s *AppServer) handleUserProfile(ctx context.Context, args map[string]any) 
 	}
 }
 
+// handleMyProfile 获取当前登录用户的个人主页信息
+func (s *AppServer) handleMyProfile(ctx context.Context) *MCPToolResult {
+	logrus.Info("MCP: 获取我的主页")
+
+	result, err := s.xiaohongshuService.GetMyProfile(ctx)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "获取我的主页失败: " + err.Error(),
+			}},
+			IsError: true,
+		}
+	}
+
+	jsonData, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: fmt.Sprintf("获取我的主页成功，但序列化失败: %v", err),
+			}},
+			IsError: true,
+		}
+	}
+
+	return &MCPToolResult{
+		Content: []MCPContent{{
+			Type: "text",
+			Text: string(jsonData),
+		}},
+	}
+}
+
 // handleLikeFeed 处理点赞/取消点赞
 func (s *AppServer) handleLikeFeed(ctx context.Context, args map[string]interface{}) *MCPToolResult {
 	feedID, ok := args["feed_id"].(string)
@@ -660,6 +694,7 @@ func (s *AppServer) handleReplyComment(ctx context.Context, args map[string]inte
 
 	commentID, _ := args["comment_id"].(string)
 	userID, _ := args["user_id"].(string)
+	parentCommentID, _ := args["parent_comment_id"].(string)
 	if commentID == "" && userID == "" {
 		return &MCPToolResult{
 			Content: []MCPContent{{
@@ -681,10 +716,11 @@ func (s *AppServer) handleReplyComment(ctx context.Context, args map[string]inte
 		}
 	}
 
-	logrus.Infof("MCP: 回复评论 - Feed ID: %s, Comment ID: %s, User ID: %s, 内容长度: %d", feedID, commentID, userID, len(content))
+	logrus.Infof("MCP: 回复评论 - Feed ID: %s, Comment ID: %s, Parent ID: %s, User ID: %s, 内容长度: %d",
+		feedID, commentID, parentCommentID, userID, len(content))
 
 	// 回复评论
-	result, err := s.xiaohongshuService.ReplyCommentToFeed(ctx, feedID, xsecToken, commentID, userID, content)
+	result, err := s.xiaohongshuService.ReplyCommentToFeed(ctx, feedID, xsecToken, commentID, userID, parentCommentID, content)
 	if err != nil {
 		return &MCPToolResult{
 			Content: []MCPContent{{
@@ -721,7 +757,6 @@ func (s *AppServer) handleGetNotifications(ctx context.Context, args map[string]
 	var err error
 
 	if sinceUnix > 0 {
-		// since_unix 模式：自动翻页获取所有符合条件的通知
 		result, err = s.xiaohongshuService.GetNotificationsSince(ctx, sinceUnix)
 	} else {
 		result, err = s.xiaohongshuService.GetNotifications(ctx, cursor, limit)
@@ -737,50 +772,79 @@ func (s *AppServer) handleGetNotifications(ctx context.Context, args map[string]
 	}
 
 	if len(result.Notifications) == 0 {
+		msg := "暂无通知"
+		if cursor != "" {
+			msg = "已到最后一页，没有更多旧通知"
+		}
 		return &MCPToolResult{
-			Content: []MCPContent{{
-				Type: "text",
-				Text: "暂无新通知",
-			}},
+			Content: []MCPContent{{Type: "text", Text: msg}},
 		}
 	}
 
-	// 格式化输出
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("共获取到 %d 条通知", len(result.Notifications)))
-	if result.HasMore {
-		sb.WriteString(fmt.Sprintf("（还有更多，下一页 cursor: %s）", result.NextCursor))
+	cst := time.FixedZone("CST", 8*3600)
+
+	// 头部摘要
+	sb.WriteString(fmt.Sprintf("共 %d 条通知", len(result.Notifications)))
+	if len(result.Notifications) > 0 {
+		t0 := time.Unix(result.Notifications[0].Time, 0).In(cst)
+		tN := time.Unix(result.Notifications[len(result.Notifications)-1].Time, 0).In(cst)
+		sb.WriteString(fmt.Sprintf("（%s ~ %s）", tN.Format("01-02 15:04"), t0.Format("01-02 15:04")))
 	}
-	sb.WriteString("\n\n")
+	sb.WriteString("\n")
+	if result.HasMore {
+		sb.WriteString(fmt.Sprintf("next_cursor=%s（传入可获取更早的通知）\n", result.NextCursor))
+	} else {
+		sb.WriteString("已是最后一页\n")
+	}
+	sb.WriteString("\n")
 
 	for i, n := range result.Notifications {
-		// 将 Unix 时间戳转为北京时间
-		t := time.Unix(n.Time, 0).In(time.FixedZone("CST", 8*3600))
+		t := time.Unix(n.Time, 0).In(cst)
 		timeStr := t.Format("2006-01-02 15:04:05")
 
-		sb.WriteString(fmt.Sprintf("--- 通知 %d ---\n", i+1))
-		sb.WriteString(fmt.Sprintf("通知ID: %s\n", n.ID))
-		sb.WriteString(fmt.Sprintf("类型: %s（%s）\n", n.Type, n.Title))
+		// 关系类型标签（客观描述，不含行动建议）
+		var relationLabel string
+		switch n.RelationType {
+		case xiaohongshu.RelationCommentOnMyNote:
+			relationLabel = "评论了我的笔记"
+		case xiaohongshu.RelationReplyToMyComment:
+			relationLabel = "回复了我的评论"
+		case xiaohongshu.RelationAtOthersUnderMyComment:
+			relationLabel = "在我的评论下@了他人"
+		default:
+			relationLabel = string(n.RelationType)
+		}
+
+		sb.WriteString(fmt.Sprintf("--- 通知 %d [%s] ---\n", i+1, relationLabel))
+		sb.WriteString(fmt.Sprintf("notification_id: %s\n", n.ID))
 		sb.WriteString(fmt.Sprintf("时间: %s\n", timeStr))
-		sb.WriteString(fmt.Sprintf("用户: %s（ID: %s）", n.UserInfo.Nickname, n.UserInfo.UserID))
+		sb.WriteString(fmt.Sprintf("用户: %s (user_id: %s)", n.UserInfo.Nickname, n.UserInfo.UserID))
 		if n.UserInfo.Indicator != "" {
 			sb.WriteString(fmt.Sprintf("【%s】", n.UserInfo.Indicator))
 		}
 		sb.WriteString("\n")
 		sb.WriteString(fmt.Sprintf("评论内容: %s\n", n.CommentInfo.Content))
-		sb.WriteString(fmt.Sprintf("评论ID: %s\n", n.CommentInfo.ID))
+		sb.WriteString(fmt.Sprintf("comment_id: %s\n", n.CommentInfo.ID))
 
+		// comment/comment 补充被回复评论的信息
 		if n.Type == "comment/comment" && n.CommentInfo.TargetComment != nil {
-			sb.WriteString(fmt.Sprintf("被回复的评论: %s（ID: %s）\n", n.CommentInfo.TargetComment.Content, n.CommentInfo.TargetComment.ID))
+			sb.WriteString(fmt.Sprintf("被回复的评论: [%s] %s\n",
+				n.CommentInfo.TargetComment.UserInfo.Nickname,
+				truncate(n.CommentInfo.TargetComment.Content, 60)))
+			if n.ParentCommentID != "" {
+				sb.WriteString(fmt.Sprintf("parent_comment_id: %s\n", n.ParentCommentID))
+			}
 		}
 
-		sb.WriteString(fmt.Sprintf("关联笔记: %s（ID: %s）\n", n.ItemInfo.Content, n.ItemInfo.ID))
-		sb.WriteString(fmt.Sprintf("笔记 xsec_token: %s\n", n.ItemInfo.XsecToken))
+		sb.WriteString(fmt.Sprintf("笔记: %s\n", truncate(n.ItemInfo.Content, 40)))
+		sb.WriteString(fmt.Sprintf("feed_id: %s\n", n.ItemInfo.ID))
+		sb.WriteString(fmt.Sprintf("xsec_token: %s\n", n.ItemInfo.XsecToken))
 		sb.WriteString("\n")
 	}
 
 	if result.HasMore {
-		sb.WriteString(fmt.Sprintf("⚠️ 还有更多通知，可使用 cursor=%s 获取下一页\n", result.NextCursor))
+		sb.WriteString(fmt.Sprintf("next_cursor=%s\n", result.NextCursor))
 	}
 
 	return &MCPToolResult{
@@ -789,4 +853,13 @@ func (s *AppServer) handleGetNotifications(ctx context.Context, args map[string]
 			Text: sb.String(),
 		}},
 	}
+}
+
+// truncate 截断字符串到指定长度
+func truncate(s string, n int) string {
+	runes := []rune(s)
+	if len(runes) <= n {
+		return s
+	}
+	return string(runes[:n]) + "..."
 }

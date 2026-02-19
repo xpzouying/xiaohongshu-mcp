@@ -142,7 +142,9 @@ func (f *CommentFeedAction) PostComment(ctx context.Context, feedID, xsecToken, 
 }
 
 // ReplyToComment 回复指定评论
-func (f *CommentFeedAction) ReplyToComment(ctx context.Context, feedID, xsecToken, commentID, userID, content string) error {
+// parentCommentID 为可选参数：当目标评论是子评论时，传入父评论 ID，
+// 浏览器会先找到并展开父评论的"查看回复"列表，再定位目标子评论。
+func (f *CommentFeedAction) ReplyToComment(ctx context.Context, feedID, xsecToken, commentID, userID, parentCommentID, content string) error {
 	// 注意：不使用 Context(ctx)，避免继承外部 context 的超时
 	page := f.page.Timeout(5 * time.Minute)
 	url := makeFeedDetailURL(feedID, xsecToken)
@@ -213,7 +215,15 @@ func (f *CommentFeedAction) ReplyToComment(ctx context.Context, feedID, xsecToke
 	// API 拦截器在导航前已注册，页面加载时会自动捕获评论 API 响应。
 	// findCommentElementWithAPICheck 会在每次滚动后同步检查 API 数据，
 	// 一旦 API 返回 has_more=false 且未找到目标评论，立即终止，无需滚到 DOM 底部。
-	commentEl, err := findCommentElementWithAPICheck(page, commentID, userID, &commentAPIEntries, &commentAPIMu)
+	var commentEl *rod.Element
+	var err error
+	if parentCommentID != "" {
+		// 子评论路径：先找到父评论，展开"查看回复"，再在子评论列表中找目标评论
+		logrus.Infof("目标是子评论，先找父评论 %s，然后展开子评论列表", parentCommentID)
+		commentEl, err = findSubComment(page, parentCommentID, commentID, userID, &commentAPIEntries, &commentAPIMu)
+	} else {
+		commentEl, err = findCommentElementWithAPICheck(page, commentID, userID, &commentAPIEntries, &commentAPIMu)
+	}
 	if err != nil {
 		return fmt.Errorf("无法找到评论: %w", err)
 	}
@@ -292,8 +302,15 @@ func findCommentElementWithAPICheck(page *rod.Page, commentID, userID string, ap
 		selector := fmt.Sprintf("#comment-%s", commentID)
 		el, err := page.Timeout(3 * time.Second).Element(selector)
 		if err == nil && el != nil {
-			logrus.Infof("✓ 预检直接找到评论: %s", commentID)
-			return el, nil
+			// 滚动到视口触发虚拟化渲染，验证内容非空
+			_ = el.ScrollIntoView()
+			time.Sleep(500 * time.Millisecond)
+			text, _ := el.Text()
+			if text != "" {
+				logrus.Infof("✓ 预检直接找到评论（内容已渲染）: %s", commentID)
+				return el, nil
+			}
+			logrus.Infof("预检：找到占位元素但内容为空，进入滚动查找")
 		}
 
 		// 检查初始 API 数据
@@ -326,13 +343,20 @@ func findCommentElementWithAPICheck(page *rod.Page, commentID, userID string, ap
 	for round := 0; round < maxScrollRounds; round++ {
 		logrus.Infof("=== 滚动轮次 %d/%d ===", round+1, maxScrollRounds)
 
-		// 1. 先尝试在 DOM 中查找目标评论
+		// 1. 先尝试在 DOM 中查找目标评论（需验证内容非空，避免虚拟化渲染占位符）
 		if commentID != "" {
 			selector := fmt.Sprintf("#comment-%s", commentID)
 			el, err := page.Timeout(2 * time.Second).Element(selector)
 			if err == nil && el != nil {
-				logrus.Infof("✓ 找到评论: %s（第 %d 轮）", commentID, round+1)
-				return el, nil
+				// scrollIntoView 触发虚拟化渲染
+				_ = el.ScrollIntoView()
+				time.Sleep(400 * time.Millisecond)
+				text, _ := el.Text()
+				if text != "" {
+					logrus.Infof("✓ 找到评论（内容已渲染）: %s（第 %d 轮）", commentID, round+1)
+					return el, nil
+				}
+				logrus.Infof("找到DOM占位元素但内容为空，继续滚动等待渲染（第 %d 轮）", round+1)
 			}
 		}
 
@@ -416,4 +440,121 @@ func findCommentElementWithAPICheck(page *rod.Page, commentID, userID string, ap
 // findCommentElement 查找指定评论元素（不使用 API 预检，用于无拦截器场景）
 func findCommentElement(page *rod.Page, commentID, userID string) (*rod.Element, error) {
 	return findCommentElementWithAPICheck(page, commentID, userID, &[]commentAPIEntry{}, &sync.Mutex{})
+}
+
+// findSubComment 查找子评论元素。
+// 流程：先用 findCommentElementWithAPICheck 定位父评论，展开"查看回复"按钮，
+// 再等待子评论渲染后在子评论列表中查找目标 commentID。
+func findSubComment(page *rod.Page, parentCommentID, commentID, userID string, apiEntries *[]commentAPIEntry, apiMu *sync.Mutex) (*rod.Element, error) {
+	logrus.Infof("findSubComment: 查找父评论 parentID=%s, 目标子评论 commentID=%s", parentCommentID, commentID)
+
+	// 1. 找到父评论
+	parentEl, err := findCommentElementWithAPICheck(page, parentCommentID, "", apiEntries, apiMu)
+	if err != nil {
+		return nil, fmt.Errorf("找不到父评论 %s: %w", parentCommentID, err)
+	}
+	logrus.Infof("找到父评论 %s，准备展开子评论", parentCommentID)
+
+	// 2. 展开子评论
+	// 小红书的 DOM 结构：
+	//   .list-container
+	//     └── .parent-comment (包含评论和展开按钮)
+	//           ├── .comment-item#comment-{parentID}  (评论内容)
+	//           └── .reply-container > .show-more "展开 N 条回复"  (展开按钮)
+	// 展开按钮在 .parent-comment 内部（作为子元素），通过 parentEl.parentElement.querySelector('.show-more') 找到。
+	expandBtnResult, err := page.Eval(fmt.Sprintf(`() => {
+		const parentEl = document.getElementById('comment-%s');
+		if (!parentEl) return 'parent-not-found';
+		const parentComment = parentEl.parentElement; // .parent-comment
+		if (!parentComment) return 'parent-comment-not-found';
+		const showMore = parentComment.querySelector('.show-more');
+		if (!showMore) return 'no-show-more';
+		showMore.scrollIntoView({behavior: 'smooth', block: 'center'});
+		showMore.click();
+		return showMore.textContent.trim();
+	}`, parentCommentID))
+	if err != nil {
+		logrus.Warnf("展开子评论JS执行失败: %v，尝试继续", err)
+	} else {
+		expandResult := expandBtnResult.Value.String()
+		if expandResult == "parent-not-found" || expandResult == "parent-comment-not-found" {
+			logrus.Warnf("无法找到父评论元素: %s", expandResult)
+		} else if expandResult == "no-show-more" {
+			logrus.Info("父评论下无展开按钮，子评论可能已全部展示（或此时不需要展开）")
+		} else {
+			logrus.Infof("已点击展开按钮: %s，等待子评论渲染", expandResult)
+			time.Sleep(2 * time.Second)
+		}
+	}
+
+	// 3. 循环：尝试找到目标子评论，每轮之间点击"展开更多回复"
+	// 小红书使用虚拟化渲染：DOM 中存在带 id 的占位元素，但内容为空，
+	// 必须将元素 scrollIntoView 到视口后才会渲染真实内容。
+	// 判断条件：getElementById 找到元素 AND textContent 非空。
+	const maxExpandRounds = 30
+	checkSubCommentVisible := func() (*rod.Element, bool) {
+		result, err := page.Eval(fmt.Sprintf(`() => {
+			const el = document.getElementById('comment-%s');
+			if (!el) return null;
+			// 滚动到视口触发渲染
+			el.scrollIntoView({behavior: 'instant', block: 'center'});
+			return el.textContent.trim() || null;
+		}`, commentID))
+		if err != nil || result == nil {
+			return nil, false
+		}
+		val := result.Value.String()
+		if val == "null" || val == "" || val == "undefined" {
+			// 元素存在但内容为空（占位符），等待渲染
+			return nil, false
+		}
+		// 内容非空，用 rod 拿到真实元素
+		el, elErr := page.Timeout(2 * time.Second).Element(fmt.Sprintf("#comment-%s", commentID))
+		if elErr != nil || el == nil {
+			return nil, false
+		}
+		return el, true
+	}
+
+	for i := 0; i < maxExpandRounds; i++ {
+		if el, found := checkSubCommentVisible(); found {
+			logrus.Infof("✓ 第 %d 轮找到子评论 %s（内容已渲染）", i+1, commentID)
+			return el, nil
+		}
+
+		// 查找"展开更多回复"按钮并点击
+		moreResult, moreErr := page.Eval(fmt.Sprintf(`() => {
+			const parentEl = document.getElementById('comment-%s');
+			if (!parentEl) return 'parent-lost';
+			const parentComment = parentEl.parentElement;
+			if (!parentComment) return 'no-parent-comment';
+			const showMore = parentComment.querySelector('.show-more');
+			if (!showMore) return 'no-more';
+			showMore.scrollIntoView({block:'center'});
+			showMore.click();
+			return showMore.textContent.trim();
+		}`, parentCommentID))
+
+		if moreErr != nil {
+			logrus.Warnf("点击更多回复JS失败: %v", moreErr)
+			break
+		}
+		moreText := moreResult.Value.String()
+		if moreText == "no-more" || moreText == "no-parent-comment" || moreText == "parent-lost" {
+			logrus.Infof("无更多按钮（%s），子评论已全部展开，共 %d 轮", moreText, i+1)
+			break
+		}
+		logrus.Infof("第 %d 轮：点击了 '%s'", i+1, moreText)
+		time.Sleep(1500 * time.Millisecond)
+	}
+
+	// 最终尝试
+	if el, found := checkSubCommentVisible(); found {
+		logrus.Infof("✓ 最终找到子评论 %s", commentID)
+		return el, nil
+	}
+
+	// 确认评论不存在
+	logrus.Warnf("在父评论 %s 下未找到子评论 %s（已展开全部回复）", parentCommentID, commentID)
+	return parentEl, fmt.Errorf("子评论不存在（已被删除或不可见）: commentID=%s", commentID)
 }

@@ -48,15 +48,27 @@ type NotificationItemInfo struct {
 	UserInfo  NotificationUserInfo `json:"user_info"`  // 笔记作者信息
 }
 
+// NotificationRelationType 描述通知中评论与当前用户的关系
+type NotificationRelationType string
+
+const (
+	// RelationCommentOnMyNote 有人直接评论了你的笔记（顶级评论）
+	RelationCommentOnMyNote NotificationRelationType = "comment_on_my_note"
+	// RelationReplyToMyComment 有人在你的评论下直接回复了你（子评论，不含 @他人）
+	RelationReplyToMyComment NotificationRelationType = "reply_to_my_comment"
+	// RelationAtOthersUnderMyComment 有人在你的评论下 @了其他人（你被间接带到，非直接回复）
+	RelationAtOthersUnderMyComment NotificationRelationType = "at_others_under_my_comment"
+)
+
 // Notification 单条通知
 type Notification struct {
 	// 通知 ID（用于去重和分页游标）
 	ID string `json:"id"`
-	// 通知类型：
+	// 通知类型（来自小红书 API）：
 	//   "comment/item"    - 有人评论了你的笔记
-	//   "comment/comment" - 有人回复了你的评论
+	//   "comment/comment" - 有人在你的评论下留言
 	Type string `json:"type"`
-	// 通知标题（中文描述，如"回复了你的评论"）
+	// 通知标题（小红书原始文本，如"回复了你的评论"）
 	Title string `json:"title"`
 	// 发通知的用户
 	UserInfo NotificationUserInfo `json:"user_info"`
@@ -66,6 +78,18 @@ type Notification struct {
 	ItemInfo NotificationItemInfo `json:"item_info"`
 	// Unix 时间戳（秒）
 	Time int64 `json:"time"`
+
+	// RelationType 描述该通知中评论与当前登录用户的关系，便于调用方判断如何处理：
+	//   "comment_on_my_note"            - 有人直接评论了你的笔记（顶级评论）
+	//   "reply_to_my_comment"           - 有人直接回复了你的评论（子评论）
+	//   "at_others_under_my_comment"    - 有人在你的评论下 @了其他人（你被间接带到）
+	RelationType NotificationRelationType `json:"relation_type"`
+
+	// ParentCommentID 仅对 comment/comment 类型有效：
+	// 被回复的那条评论的 ID（即 CommentInfo.TargetComment.ID）。
+	// 调用 reply_comment_in_feed 回复子评论时需要传入，
+	// 用于定位父评论并展开子评论列表。
+	ParentCommentID string `json:"parent_comment_id,omitempty"`
 }
 
 // NotificationsResult 获取通知的结果
@@ -465,6 +489,24 @@ func parseNotificationsResponse(body string) (*NotificationsResult, error) {
 					Nickname: msg.CommentInfo.TargetComment.UserInfo.Nickname,
 					Image:    msg.CommentInfo.TargetComment.UserInfo.Image,
 				},
+			}
+			// ParentCommentID：被回复的评论即为父评论（用于 reply_comment_in_feed）
+			notification.ParentCommentID = msg.CommentInfo.TargetComment.ID
+		}
+
+		// 设置 RelationType：客观描述评论与当前用户的关系
+		switch msg.Type {
+		case "comment/item":
+			// 有人直接评论了你的笔记
+			notification.RelationType = RelationCommentOnMyNote
+		case "comment/comment":
+			content := msg.CommentInfo.Content
+			// 启发式判断：评论内容以 @ 开头 → 用户在你的评论下 @了其他人
+			// 否则 → 用户直接回复了你的评论
+			if len(content) > 0 && content[0] == '@' {
+				notification.RelationType = RelationAtOthersUnderMyComment
+			} else {
+				notification.RelationType = RelationReplyToMyComment
 			}
 		}
 
