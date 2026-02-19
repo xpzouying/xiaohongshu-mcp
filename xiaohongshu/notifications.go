@@ -11,6 +11,11 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// notificationsTimeout 是通知操作的内部超时时间。
+// 整个流程（主页 warmup + 导航 + reload + 等待 API）约需 20-30s，
+// 设为 90s 给足余量，避免被 mcporter 的短超时 context 提前取消。
+const notificationsTimeout = 90 * time.Second
+
 // NotificationUserInfo 通知中的用户信息
 type NotificationUserInfo struct {
 	UserID    string `json:"userid"`
@@ -151,6 +156,12 @@ func (n *NotificationsAction) GetNotifications(ctx context.Context, cursor strin
 		limit = 20
 	}
 
+	// 使用独立的内部 context，避免被 mcporter 的短超时 context 提前取消。
+	// 整个通知流程（warmup + 导航 + reload + 等待 API）约需 20-30s，
+	// 外部 ctx 仍作为父 context，若调用方主动取消则内部也会取消。
+	innerCtx, cancel := context.WithTimeout(ctx, notificationsTimeout)
+	defer cancel()
+
 	// 收集所有拦截到的 API 响应（按 cursor 索引）
 	type apiEntry struct {
 		cursor string
@@ -159,7 +170,7 @@ func (n *NotificationsAction) GetNotifications(ctx context.Context, cursor strin
 	var mu sync.Mutex
 	var apiEntries []apiEntry
 
-	page := n.page.Context(ctx)
+	page := n.page.Context(innerCtx)
 
 	router := page.HijackRequests()
 	go router.Run()
@@ -175,15 +186,20 @@ func (n *NotificationsAction) GetNotifications(ctx context.Context, cursor strin
 		mu.Unlock()
 	})
 
-	// 先访问主页初始化 SPA
-	logrus.Info("通知：先访问小红书主页初始化 SPA...")
+	// 先访问主页让 SPA 完全初始化，再强制 reload 通知页面。
+	// 不能直接从主页 SPA 路由切换到 /notification（SPA 会复用内存中的旧数据不重新请求 API）；
+	// 也不能用 about:blank 冷启动（SPA 未初始化，DOM stable 时 JS 还未执行，API 请求来不及发出）。
+	// 正确做法：主页 warmup → 导航到通知页 → Reload 强制浏览器重新发起所有请求。
+	logrus.Info("通知：主页 warmup...")
 	page.MustNavigate("https://www.xiaohongshu.com/")
 	page.MustWaitDOMStable()
-	time.Sleep(2 * time.Second)
+	time.Sleep(1 * time.Second)
 
-	// 访问通知页面（触发第一页请求）
-	logrus.Info("通知：访问通知页面...")
+	logrus.Info("通知：导航到通知页并强制 reload...")
 	page.MustNavigate("https://www.xiaohongshu.com/notification")
+	page.MustWaitDOMStable()
+	// Reload 强制浏览器丢弃 SPA 内存缓存，重新发起 /api/sns/web/v1/you/mentions 请求
+	page.MustReload()
 	page.MustWaitDOMStable()
 
 	// 等待第一页 API 响应
@@ -260,6 +276,11 @@ func (n *NotificationsAction) GetNotificationsSince(ctx context.Context, sinceUn
 	hasMore := true
 	pageNum := 0
 
+	// 使用独立的内部 context，避免被 mcporter 的短超时 context 提前取消。
+	// since 模式可能需要翻多页，给更充裕的时间（最多 10 页 × 约 15s/页）。
+	innerCtx, cancel := context.WithTimeout(ctx, notificationsTimeout)
+	defer cancel()
+
 	// 收集所有拦截到的 API 响应
 	type apiEntry struct {
 		cursor string
@@ -268,7 +289,7 @@ func (n *NotificationsAction) GetNotificationsSince(ctx context.Context, sinceUn
 	var mu sync.Mutex
 	var apiEntries []apiEntry
 
-	page := n.page.Context(ctx)
+	page := n.page.Context(innerCtx)
 
 	router := page.HijackRequests()
 	go router.Run()
@@ -286,15 +307,16 @@ func (n *NotificationsAction) GetNotificationsSince(ctx context.Context, sinceUn
 		}
 	})
 
-	// 先访问主页初始化 SPA
-	logrus.Info("通知(since)：先访问小红书主页初始化 SPA...")
+	// 主页 warmup → 导航通知页 → Reload（原因同 GetNotifications）
+	logrus.Info("通知(since)：主页 warmup...")
 	page.MustNavigate("https://www.xiaohongshu.com/")
 	page.MustWaitDOMStable()
-	time.Sleep(2 * time.Second)
+	time.Sleep(1 * time.Second)
 
-	// 访问通知页面
-	logrus.Info("通知(since)：访问通知页面...")
+	logrus.Info("通知(since)：导航到通知页并强制 reload...")
 	page.MustNavigate("https://www.xiaohongshu.com/notification")
+	page.MustWaitDOMStable()
+	page.MustReload()
 	page.MustWaitDOMStable()
 
 	// 等待第一页 API 响应
