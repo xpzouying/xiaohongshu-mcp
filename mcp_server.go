@@ -95,6 +95,13 @@ type FavoriteFeedArgs struct {
 	Unfavorite bool   `json:"unfavorite,omitempty" jsonschema:"是否取消收藏，true为取消收藏，false或未设置则为收藏"`
 }
 
+// GetNotificationsArgs 获取通知的参数
+type GetNotificationsArgs struct {
+	Cursor    string `json:"cursor,omitempty" jsonschema:"分页游标（可选）。首次调用留空获取最新通知；如需获取更多历史通知，传入上次返回的 next_cursor 值"`
+	Limit     int    `json:"limit,omitempty" jsonschema:"每次获取的通知数量（可选，默认20，最大20）"`
+	SinceUnix int64  `json:"since_unix,omitempty" jsonschema:"（可选）只返回此 Unix 时间戳（秒）之后的通知，会自动翻页直到找到所有符合条件的通知。例如 1771200000 表示 2026-02-17 06:00:00 北京时间"`
+}
+
 // InitMCPServer 初始化 MCP Server
 func InitMCPServer(appServer *AppServer) *mcp.Server {
 	// 创建 MCP Server
@@ -433,7 +440,31 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	logrus.Infof("Registered %d MCP tools", 13)
+	// 工具 14: 获取通知列表（评论和回复）
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name: "get_notifications",
+			Description: "获取小红书通知列表，包括：别人评论了你的笔记（comment/item）、别人回复了你的评论（comment/comment）。" +
+				"每条通知包含：通知类型、发通知用户信息、评论内容、评论ID、关联笔记ID和xsec_token。" +
+				"可直接用返回的 feed_id + xsec_token + comment_id 调用 reply_comment_in_feed 进行回复，无需额外查询。" +
+				"支持两种模式：1) 默认模式：不传参数获取最新20条；2) since_unix 模式：传入 Unix 时间戳自动翻页获取该时间之后的所有通知（推荐用于补回复历史消息）。",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Get Notifications",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("get_notifications", func(ctx context.Context, req *mcp.CallToolRequest, args GetNotificationsArgs) (*mcp.CallToolResult, any, error) {
+			argsMap := map[string]interface{}{
+				"cursor":     args.Cursor,
+				"limit":      float64(args.Limit),
+				"since_unix": args.SinceUnix,
+			}
+			result := appServer.handleGetNotifications(ctx, argsMap)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	logrus.Infof("Registered %d MCP tools", 14)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式
