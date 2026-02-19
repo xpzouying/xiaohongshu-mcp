@@ -87,10 +87,18 @@ func (f *FeedDetailAction) GetFeedDetailWithConfig(ctx context.Context, feedID, 
 	// 先访问首页完成 SPA 运行时初始化，再跳转详情页。
 	// 小红书是 SPA，直接导航到详情页时 JS 运行时尚未初始化，
 	// window.__INITIAL_STATE__.note.noteDetailMap 会为空，导致提取失败。
+	// warmup 使用独立的短超时，避免首页卡住时耗尽整个函数的超时时间。
 	logrus.Info("SPA warmup: 先访问首页初始化运行时...")
-	page.MustNavigate("https://www.xiaohongshu.com")
-	page.MustWaitDOMStable()
-	time.Sleep(1 * time.Second)
+	warmupCtx, warmupCancel := context.WithTimeout(ctx, 15*time.Second)
+	warmupPage := f.page.Context(warmupCtx)
+	warmupErr := warmupPage.Navigate("https://www.xiaohongshu.com")
+	warmupCancel()
+	if warmupErr != nil {
+		logrus.Warnf("SPA warmup 超时或失败（将继续尝试）: %v", warmupErr)
+	} else {
+		page.MustWaitDOMStable()
+		time.Sleep(1 * time.Second)
+	}
 
 	// 使用retry-go处理页面导航和DOM稳定等待
 	err := retry.Do(
