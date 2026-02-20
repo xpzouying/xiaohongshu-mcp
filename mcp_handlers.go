@@ -774,6 +774,8 @@ func (s *AppServer) handleGetNotifications(ctx context.Context, args map[string]
 			relationLabel = "回复了我的评论"
 		case xiaohongshu.RelationAtOthersUnderMyComment:
 			relationLabel = "在我的评论下@了他人"
+		case xiaohongshu.RelationMentionedMe:
+			relationLabel = "在评论中@了我"
 		default:
 			relationLabel = string(n.RelationType)
 		}

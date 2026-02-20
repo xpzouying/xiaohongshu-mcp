@@ -58,6 +58,8 @@ const (
 	RelationReplyToMyComment NotificationRelationType = "reply_to_my_comment"
 	// RelationAtOthersUnderMyComment 有人在你的评论下 @了其他人（你被间接带到，非直接回复）
 	RelationAtOthersUnderMyComment NotificationRelationType = "at_others_under_my_comment"
+	// RelationMentionedMe 有人在评论中直接 @了你（mention/comment 类型）
+	RelationMentionedMe NotificationRelationType = "mentioned_me"
 )
 
 // Notification 单条通知
@@ -67,6 +69,7 @@ type Notification struct {
 	// 通知类型（来自小红书 API）：
 	//   "comment/item"    - 有人评论了你的笔记
 	//   "comment/comment" - 有人在你的评论下留言
+	//   "mention/comment" - 有人在评论中直接 @了你
 	Type string `json:"type"`
 	// 通知标题（小红书原始文本，如"回复了你的评论"）
 	Title string `json:"title"`
@@ -83,6 +86,7 @@ type Notification struct {
 	//   "comment_on_my_note"            - 有人直接评论了你的笔记（顶级评论）
 	//   "reply_to_my_comment"           - 有人直接回复了你的评论（子评论）
 	//   "at_others_under_my_comment"    - 有人在你的评论下 @了其他人（你被间接带到）
+	//   "mentioned_me"                  - 有人在评论中直接 @了你（mention/comment 类型）
 	RelationType NotificationRelationType `json:"relation_type"`
 
 	// ParentCommentID 仅对 comment/comment 类型有效：
@@ -448,7 +452,9 @@ func parseNotificationsResponse(body string) (*NotificationsResult, error) {
 
 	notifications := make([]Notification, 0, len(apiResp.Data.MessageList))
 	for _, msg := range apiResp.Data.MessageList {
-		if msg.Type != "comment/item" && msg.Type != "comment/comment" {
+		logrus.Debugf("通知原始 type=%q id=%s title=%q", msg.Type, msg.ID, msg.Title)
+		if msg.Type != "comment/item" && msg.Type != "comment/comment" && msg.Type != "mention/comment" {
+			logrus.Infof("通知过滤（未支持的 type）: type=%q id=%s title=%q", msg.Type, msg.ID, msg.Title)
 			continue
 		}
 
@@ -508,6 +514,9 @@ func parseNotificationsResponse(body string) (*NotificationsResult, error) {
 			} else {
 				notification.RelationType = RelationReplyToMyComment
 			}
+		case "mention/comment":
+			// 有人在评论中直接 @了你（不是在你的评论下，而是在任意评论里 @你）
+			notification.RelationType = RelationMentionedMe
 		}
 
 		notifications = append(notifications, notification)

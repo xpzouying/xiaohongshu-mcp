@@ -453,6 +453,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				"  - comment_on_my_note：有人直接评论了你的笔记（顶级评论）\n" +
 				"  - reply_to_my_comment：有人直接回复了你的评论（子评论）\n" +
 				"  - at_others_under_my_comment：有人在你的评论下 @了其他人\n" +
+				"  - mentioned_me：有人在评论中直接 @了你（不是在你的评论下，而是在任意评论里 @你）\n" +
 				"回复评论时，用返回的 feed_id + xsec_token + comment_id 调用 reply_comment_in_feed；\n" +
 				"对于 reply_to_my_comment 类型，建议同时传入 parent_comment_id 以提高子评论定位成功率。\n" +
 				"分页：不传 cursor 获取最新页；传入返回的 next_cursor 可获取更早的旧通知。",
