@@ -1,0 +1,8 @@
+{
+  "name": "openclaw-xiaohongshu-mcp",
+  "version": "3.0.0",
+  "description": "OpenClaw Skill — xiaohongshu-mcp integration via mcporter",
+  "main": "scripts/index.js",
+  "keywords": ["openclaw", "xiaohongshu", "mcp", "skill"],
+  "license": "MIT"
+}
