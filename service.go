@@ -565,6 +565,23 @@ func withBrowserPage(fn func(*rod.Page) error) error {
 	return fn(page)
 }
 
+// GetMentions 获取提及消息列表（评论/回复/@ 等通知）
+func (s *XiaohongshuService) GetMentions(ctx context.Context, limit int) ([]xiaohongshu.Mention, error) {
+	return withBrowserPageMentions(ctx, limit)
+}
+
+// withBrowserPageMentions 使用浏览器页面获取提及消息
+func withBrowserPageMentions(ctx context.Context, limit int) ([]xiaohongshu.Mention, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewMentionsAction(page)
+	return action.GetMentions(ctx, limit)
+}
+
 // GetMyProfile 获取当前登录用户的个人信息
 func (s *XiaohongshuService) GetMyProfile(ctx context.Context) (*UserProfileResponse, error) {
 	var result *xiaohongshu.UserProfileResponse

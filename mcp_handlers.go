@@ -631,6 +631,58 @@ func (s *AppServer) handlePostComment(ctx context.Context, args map[string]inter
 	}
 }
 
+// handleGetMentions 处理获取提及消息列表
+func (s *AppServer) handleGetMentions(ctx context.Context, args map[string]interface{}) *MCPToolResult {
+	logrus.Info("MCP: 获取提及消息列表")
+
+	limit := 20
+	if raw, ok := args["limit"]; ok {
+		switch v := raw.(type) {
+		case float64:
+			if v > 0 {
+				limit = int(v)
+			}
+		case int:
+			if v > 0 {
+				limit = v
+			}
+		case string:
+			if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
+				limit = parsed
+			}
+		}
+	}
+
+	result, err := s.xiaohongshuService.GetMentions(ctx, limit)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "获取提及消息失败: " + err.Error(),
+			}},
+			IsError: true,
+		}
+	}
+
+	jsonData, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: fmt.Sprintf("获取提及消息成功，但序列化失败: %v", err),
+			}},
+			IsError: true,
+		}
+	}
+
+	return &MCPToolResult{
+		Content: []MCPContent{{
+			Type: "text",
+			Text: string(jsonData),
+		}},
+	}
+}
+
 // handleReplyComment 处理回复评论
 func (s *AppServer) handleReplyComment(ctx context.Context, args map[string]interface{}) *MCPToolResult {
 	logrus.Info("MCP: 回复评论")
