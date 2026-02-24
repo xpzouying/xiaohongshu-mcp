@@ -95,6 +95,9 @@ type FavoriteFeedArgs struct {
 	Unfavorite bool   `json:"unfavorite,omitempty" jsonschema:"是否取消收藏，true为取消收藏，false或未设置则为收藏"`
 }
 
+// GetNotificationsArgs 获取通知的参数
+type GetNotificationsArgs struct{}
+
 // InitMCPServer 初始化 MCP Server
 func InitMCPServer(appServer *AppServer) *mcp.Server {
 	// 创建 MCP Server
@@ -433,7 +436,23 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	logrus.Infof("Registered %d MCP tools", 13)
+	// 工具 14: 获取通知列表
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "get_notifications",
+			Description: "获取小红书通知列表，包括点赞、收藏、评论、关注、@提及等所有类型通知",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Get Notifications",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("get_notifications", func(ctx context.Context, req *mcp.CallToolRequest, _ GetNotificationsArgs) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleGetNotifications(ctx)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	logrus.Infof("Registered %d MCP tools", 14)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式

@@ -588,3 +588,27 @@ func (s *XiaohongshuService) GetMyProfile(ctx context.Context) (*UserProfileResp
 
 	return response, nil
 }
+
+// GetNotifications 获取通知列表
+func (s *XiaohongshuService) GetNotifications(ctx context.Context) (*NotificationsResponse, error) {
+	var result *xiaohongshu.NotificationList
+	var err error
+
+	err = withBrowserPage(func(page *rod.Page) error {
+		action := xiaohongshu.NewNotificationAction(page)
+		result, err = action.GetNotifications(ctx)
+		return err
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	response := &NotificationsResponse{
+		Notifications: result.Notifications,
+		Count:         len(result.Notifications),
+		HasMore:       result.HasMore,
+	}
+
+	return response, nil
+}

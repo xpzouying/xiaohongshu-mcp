@@ -293,3 +293,16 @@ func (s *AppServer) myProfileHandler(c *gin.Context) {
 	c.Set("account", "ai-report")
 	respondSuccess(c, map[string]any{"data": result}, "获取我的主页成功")
 }
+
+// getNotificationsHandler 获取通知列表
+func (s *AppServer) getNotificationsHandler(c *gin.Context) {
+	result, err := s.xiaohongshuService.GetNotifications(c.Request.Context())
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "GET_NOTIFICATIONS_FAILED",
+			"获取通知列表失败", err.Error())
+		return
+	}
+
+	c.Set("account", "ai-report")
+	respondSuccess(c, result, "获取通知列表成功")
+}
