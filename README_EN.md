@@ -798,11 +798,21 @@ Use xiaohongshu-mcp's video publishing feature.
 
 **Important: Before asking questions in the group, please make sure to read the README documentation thoroughly and check Issues first.**
 
-<!-- Two-column layout: Feishu Group 3 | WeChat Group 14 -->
+### WeChat Group
 
-| 【Feishu Group 3】: Scan to join                                                                                           | 【WeChat Group 14】: Scan to join                                                                                           |
-| ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| <img src="https://github.com/user-attachments/assets/9a0ec41a-cb65-4f4e-a0f7-31658a49512d" alt="qrcode_2qun" width="300"> | <img src="https://github.com/user-attachments/assets/f597fbef-0d67-4a5d-a07c-3066bee49fc5" alt="WechatIMG119" width="300"> |
+| 【WeChat Group 14】: Scan to join |
+| :---: |
+| <img src="https://github.com/user-attachments/assets/03db7a63-b9b7-4ab4-aecf-14d05b74cc13" alt="WechatIMG119" width="300"> |
+
+### Feishu (Lark) Groups
+
+| Feishu Group 1 | Feishu Group 2 | Feishu Group 3 | Feishu Group 4 |
+| :---: | :---: | :---: | :---: |
+| <img src="https://github.com/user-attachments/assets/65579771-3543-4661-9b48-def48eed609b" alt="qr-feishu01" width="260"> | <img src="https://github.com/user-attachments/assets/4983ea42-ce5b-4e26-a8c0-33889093b579" alt="qr-feishu02" width="260"> | <img src="https://github.com/user-attachments/assets/c77b45da-6028-4d3a-b421-ccc6c7210695" alt="qr-feishu03" width="260"> | <img src="https://github.com/user-attachments/assets/c42f5595-71cd-4d9b-b7f8-0c333bd25e2b" alt="qr-feishu04" width="260"> |
+
+> **Note:**
+> 1. WeChat group QR codes have a time limit. Sometimes I forget to update them — please wait for an update or submit an Issue to remind me.
+> 2. If a Feishu group is full, try scanning another group's QR code — there's always a spot somewhere.
 
 ## 🙏 Thanks to Contributors ✨
 
