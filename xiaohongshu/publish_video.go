@@ -146,7 +146,7 @@ func submitPublishVideo(page *rod.Page, title, content string, tags []string, sc
 	if !ok {
 		return errors.New("没有找到内容输入框")
 	}
-	if err := contentElem.Input(content); err != nil {
+	if err := inputTextToEditorSafe(page, contentElem, content); err != nil {
 		return errors.Wrap(err, "输入正文失败")
 	}
 	if err := inputTags(contentElem, tags); err != nil {
