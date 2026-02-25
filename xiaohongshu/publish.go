@@ -328,7 +328,7 @@ func submitPublish(page *rod.Page, title, content string, tags []string, schedul
 	if !ok {
 		return errors.New("没有找到内容输入框")
 	}
-	if err := inputTextToEditor(contentElem, content); err != nil {
+	if err := inputTextToEditor(page, contentElem, content); err != nil {
 		return errors.Wrap(err, "输入正文失败")
 	}
 	if err := inputTags(contentElem, tags); err != nil {
@@ -543,26 +543,27 @@ func findTextboxByPlaceholder(page *rod.Page) (*rod.Element, error) {
 }
 
 // inputTextToEditor 向富文本编辑器（contenteditable div）输入包含换行的文本。
-// go-rod 的 Input() 使用 CDP InsertText，会将 \n 作为字面文本插入而非换行。
-// 此函数按 \n 拆分文本，逐行输入，行间用 Enter 键产生真正的换行。
-func inputTextToEditor(elem *rod.Element, text string) error {
-	lines := strings.Split(text, "\n")
-	for i, line := range lines {
-		if line != "" {
-			if err := elem.Input(line); err != nil {
-				return errors.Wrapf(err, "输入第%d行文本失败", i+1)
-			}
-		}
-		// 行间插入 Enter 键换行，最后一行不需要
-		if i < len(lines)-1 {
-			ka, err := elem.KeyActions()
-			if err != nil {
-				return errors.Wrap(err, "创建键盘操作失败")
-			}
-			if err := ka.Press(input.Enter).Do(); err != nil {
-				return errors.Wrap(err, "按下回车键失败")
-			}
-		}
+// 使用 innerHTML 将 \n 替换为 <br> 标签实现换行
+func inputTextToEditor(page *rod.Page, elem *rod.Element, text string) error {
+	// 将 \n 替换为 <br>，并转义其他 HTML 特殊字符
+	escapedText := strings.ReplaceAll(text, `&`, `&amp;`)
+	escapedText = strings.ReplaceAll(escapedText, `<`, `&lt;`)
+	escapedText = strings.ReplaceAll(escapedText, `>`, `&gt;`)
+	escapedText = strings.ReplaceAll(escapedText, `"`, `&quot;`)
+	htmlContent := strings.ReplaceAll(escapedText, "\n", "<br>")
+	
+	// 直接内联 HTML
+	jsCode := `(function() {
+		this.innerHTML = "` + htmlContent + `";
+		this.dispatchEvent(new Event('input', { bubbles: true }));
+	})`
+	
+	_, err := elem.Evaluate(&rod.EvalOptions{
+		JS: jsCode,
+	})
+	
+	if err != nil {
+		return errors.Wrap(err, "设置文本内容失败")
 	}
 	return nil
 }

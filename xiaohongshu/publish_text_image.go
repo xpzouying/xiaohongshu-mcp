@@ -92,7 +92,7 @@ func inputTextImageContent(page *rod.Page, text string) error {
 		}
 	}
 
-	if err := inputTextToEditor(inputElem, text); err != nil {
+	if err := inputTextToEditor(page, inputElem, text); err != nil {
 		return errors.Wrap(err, "输入文字内容失败")
 	}
 
