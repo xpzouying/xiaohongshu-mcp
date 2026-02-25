@@ -24,6 +24,15 @@ type PublishImageContent struct {
 	ScheduleTime *time.Time // 定时发布时间，nil 表示立即发布
 }
 
+// PublishTextImageContent 文字配图发布内容
+type PublishTextImageContent struct {
+	Title            string
+	Content          string
+	Tags             []string
+	TextImageContent string     // 用于生成图片的文字内容
+	ScheduleTime     *time.Time // 定时发布时间，nil 表示立即发布
+}
+
 type PublishAction struct {
 	page *rod.Page
 }
@@ -84,6 +93,35 @@ func (p *PublishAction) Publish(ctx context.Context, content PublishImageContent
 
 	logrus.Infof("发布内容: title=%s, images=%v, tags=%v, schedule=%v", content.Title, len(content.ImagePaths), tags, content.ScheduleTime)
 
+	if err := submitPublish(page, content.Title, content.Content, tags, content.ScheduleTime); err != nil {
+		return errors.Wrap(err, "小红书发布失败")
+	}
+
+	return nil
+}
+
+// PublishTextImage 执行文字配图发布
+func (p *PublishAction) PublishTextImage(ctx context.Context, content PublishTextImageContent) error {
+	if content.TextImageContent == "" {
+		return errors.New("文字配图内容不能为空")
+	}
+
+	page := p.page.Context(ctx)
+
+	// 步骤1: 点击文字配图按钮，输入文字，生成图片，点击下一步
+	if err := generateTextImage(page, content.TextImageContent); err != nil {
+		return errors.Wrap(err, "文字配图生成失败")
+	}
+
+	tags := content.Tags
+	if len(tags) >= 10 {
+		logrus.Warnf("标签数量超过10，截取前10个标签")
+		tags = tags[:10]
+	}
+
+	logrus.Infof("文字配图发布: title=%s, tags=%v, schedule=%v", content.Title, tags, content.ScheduleTime)
+
+	// 步骤2: 复用现有的 submitPublish 完成标题、正文、标签填写和发布
 	if err := submitPublish(page, content.Title, content.Content, tags, content.ScheduleTime); err != nil {
 		return errors.Wrap(err, "小红书发布失败")
 	}
@@ -377,13 +415,18 @@ func makeMaxLengthError(elemText string) error {
 	return errors.Errorf("当前输入长度为%s，最大长度为%s", currLen, maxLen)
 }
 
-// 查找内容输入框 - 使用Race方法处理两种样式
+// 查找内容输入框 - 使用Race方法处理多种样式
+// 文字配图发布页使用 tiptap/ProseMirror 编辑器（div.tiptap），普通图文发布页使用 Quill 编辑器（div.ql-editor）
 func getContentElement(page *rod.Page) (*rod.Element, bool) {
 	var foundElement *rod.Element
 	var found bool
 
 	page.Race().
 		Element("div.ql-editor").MustHandle(func(e *rod.Element) {
+		foundElement = e
+		found = true
+	}).
+		Element("div.tiptap").MustHandle(func(e *rod.Element) {
 		foundElement = e
 		found = true
 	}).

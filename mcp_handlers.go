@@ -739,3 +739,63 @@ func (s *AppServer) handleGetNotifications(ctx context.Context) *MCPToolResult {
 		}},
 	}
 }
+
+// handlePublishTextImage 处理文字配图发布
+func (s *AppServer) handlePublishTextImage(ctx context.Context, args map[string]interface{}) *MCPToolResult {
+	logrus.Info("MCP: 文字配图发布")
+
+	// 解析参数
+	title, _ := args["title"].(string)
+	content, _ := args["content"].(string)
+	textImageContent, _ := args["text_image_content"].(string)
+	tagsInterface, _ := args["tags"].([]interface{})
+	scheduleAt, _ := args["schedule_at"].(string)
+
+	var tags []string
+	for _, tag := range tagsInterface {
+		if tagStr, ok := tag.(string); ok {
+			tags = append(tags, tagStr)
+		}
+	}
+
+	if textImageContent == "" {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "发布失败: 缺少文字配图内容(text_image_content)",
+			}},
+			IsError: true,
+		}
+	}
+
+	logrus.Infof("MCP: 文字配图发布 - 标题: %s, 标签数量: %d, 定时: %s", title, len(tags), scheduleAt)
+
+	// 构建发布请求
+	req := &PublishTextImageRequest{
+		Title:            title,
+		Content:          content,
+		TextImageContent: textImageContent,
+		Tags:             tags,
+		ScheduleAt:       scheduleAt,
+	}
+
+	// 执行发布
+	result, err := s.xiaohongshuService.PublishTextImage(ctx, req)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "文字配图发布失败: " + err.Error(),
+			}},
+			IsError: true,
+		}
+	}
+
+	resultText := fmt.Sprintf("文字配图发布成功: %+v", result)
+	return &MCPToolResult{
+		Content: []MCPContent{{
+			Type: "text",
+			Text: resultText,
+		}},
+	}
+}

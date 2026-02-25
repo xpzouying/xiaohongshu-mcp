@@ -100,6 +100,26 @@ func (s *AppServer) publishHandler(c *gin.Context) {
 	respondSuccess(c, result, "发布成功")
 }
 
+// publishTextImageHandler 文字配图发布
+func (s *AppServer) publishTextImageHandler(c *gin.Context) {
+	var req PublishTextImageRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
+			"请求参数错误", err.Error())
+		return
+	}
+
+	// 执行文字配图发布
+	result, err := s.xiaohongshuService.PublishTextImage(c.Request.Context(), &req)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "PUBLISH_TEXT_IMAGE_FAILED",
+			"文字配图发布失败", err.Error())
+		return
+	}
+
+	respondSuccess(c, result, "文字配图发布成功")
+}
+
 // publishVideoHandler 发布视频内容
 func (s *AppServer) publishVideoHandler(c *gin.Context) {
 	var req PublishVideoRequest
