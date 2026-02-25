@@ -1,7 +1,9 @@
 # xiaohongshu-mcp
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
+
 [![All Contributors](https://img.shields.io/badge/all_contributors-22-orange.svg?style=flat-square)](#contributors-)
+
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 [![Philanthropy](https://img.shields.io/badge/Philanthropy-CNY%201300.00-brightgreen?style=flat-square)](./DONATIONS.md)
@@ -350,6 +352,7 @@ docker build -t xpzouying/xiaohongshu-mcp .
 **4. Configuration Notes**
 
 The Docker version automatically:
+
 - Configures Chrome browser and Chinese fonts
 - Mounts `./data` for storing cookies
 - Mounts `./images` for storing publish images
@@ -753,6 +756,7 @@ Use xiaohongshu-mcp's video publishing feature.
 
 **Q:** It shows publish success but the post doesn't actually appear?
 **A:** Troubleshooting steps:
+
 1. Re-publish using **non-headless mode**.
 2. Try publishing with **different content**.
 3. Login to RedNote web version and check if the account has been **restricted from web publishing due to risk control**.
@@ -764,6 +768,7 @@ Use xiaohongshu-mcp's video publishing feature.
 
 **Q:** The MCP program crashes on my device, how to resolve?
 **A:**
+
 1. It is recommended to **build from source**.
 2. Or use **Docker to install xiaohongshu-mcp**, refer to:
    - [Install xiaohongshu-mcp with Docker](https://github.com/xpzouying/xiaohongshu-mcp#:~:text=%E6%96%B9%E5%BC%8F%E4%B8%89%EF%BC%9A%E4%BD%BF%E7%94%A8%20Docker%20%E5%AE%B9%E5%99%A8%EF%BC%88%E6%9C%80%E7%AE%80%E5%8D%95%EF%BC%89)
@@ -773,6 +778,7 @@ Use xiaohongshu-mcp's video publishing feature.
 
 **Q:** When verifying MCP with `http://localhost:18060/mcp`, it shows connection error?
 **A:**
+
 - In a **Docker environment**, please use
   [http://host.docker.internal:18060/mcp](http://host.docker.internal:18060/mcp)
 - In a **non-Docker environment**, please use your **local IPv4 address** to access.
@@ -800,17 +806,18 @@ Use xiaohongshu-mcp's video publishing feature.
 
 ### WeChat Group
 
-| 【WeChat Group 14】: Scan to join |
-| :---: |
-| <img src="https://github.com/user-attachments/assets/03db7a63-b9b7-4ab4-aecf-14d05b74cc13" alt="WechatIMG119" width="300"> |
+|                                             【WeChat Group 15】: Scan to join                                              |
+| :------------------------------------------------------------------------------------------------------------------------: |
+| <img src="https://github.com/user-attachments/assets/73e23573-9ac1-414d-9192-f592548e9092" alt="WechatIMG119" width="300"> |
 
 ### Feishu (Lark) Groups
 
-| Feishu Group 1 | Feishu Group 2 | Feishu Group 3 | Feishu Group 4 |
-| :---: | :---: | :---: | :---: |
+|                                                      Feishu Group 1                                                       |                                                      Feishu Group 2                                                       |                                                      Feishu Group 3                                                       |                                                      Feishu Group 4                                                       |
+| :-----------------------------------------------------------------------------------------------------------------------: | :-----------------------------------------------------------------------------------------------------------------------: | :-----------------------------------------------------------------------------------------------------------------------: | :-----------------------------------------------------------------------------------------------------------------------: |
 | <img src="https://github.com/user-attachments/assets/65579771-3543-4661-9b48-def48eed609b" alt="qr-feishu01" width="260"> | <img src="https://github.com/user-attachments/assets/4983ea42-ce5b-4e26-a8c0-33889093b579" alt="qr-feishu02" width="260"> | <img src="https://github.com/user-attachments/assets/c77b45da-6028-4d3a-b421-ccc6c7210695" alt="qr-feishu03" width="260"> | <img src="https://github.com/user-attachments/assets/c42f5595-71cd-4d9b-b7f8-0c333bd25e2b" alt="qr-feishu04" width="260"> |
 
 > **Note:**
+>
 > 1. WeChat group QR codes have a time limit. Sometimes I forget to update them — please wait for an update or submit an Issue to remind me.
 > 2. If a Feishu group is full, try scanning another group's QR code — there's always a spot somewhere.
 

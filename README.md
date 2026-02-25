@@ -1,7 +1,9 @@
 # xiaohongshu-mcp
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
+
 [![All Contributors](https://img.shields.io/badge/all_contributors-22-orange.svg?style=flat-square)](#contributors-)
+
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 [![善款已捐](https://img.shields.io/badge/善款已捐-CNY%201300.00-brightgreen?style=flat-square)](./DONATIONS.md)
@@ -227,7 +229,7 @@ https://github.com/user-attachments/assets/cc385b6c-422c-489b-a5fc-63e92c695b80
 1. 该项目是在自己的另外一个项目的基础上开源出来的，原来的项目稳定运行一年多，没有出现过封号的情况，只有出现过 Cookies 过期需要重新登录。
 2. 我是使用 Claude Code 接入，稳定自动化运营数周后，验证没有问题后开源。
 3. 如果账号没有实名认证，特别是新号，一般会触发 **实名认证** 的消息提醒（参见下图）。⚠️ 这个不是封号，不用 MCP 也会要求实名认证。实名认证后，账号就正常了。建议使用该项目前就先实名。
-  <img width="508" height="306" alt="image" src="https://github.com/user-attachments/assets/34383e1b-f666-409f-9870-002655507dc1" />
+   <img width="508" height="306" alt="image" src="https://github.com/user-attachments/assets/34383e1b-f666-409f-9870-002655507dc1" />
 
 该项目是基于学习的目的，禁止一切违法行为。
 
@@ -749,35 +751,38 @@ Cline 是一个强大的 AI 编程助手，支持 MCP 协议集成。
 
 ---
 
-**Q:** 为什么检查登录用户名显示 `xiaghgngshu-mcp`？  
+**Q:** 为什么检查登录用户名显示 `xiaghgngshu-mcp`？
 **A:** 用户名是写死的。
 
 ---
 
-**Q:** 显示发布成功后，但实际上没有显示？  
-**A:** 排查步骤如下：  
-1. 使用 **非无头模式** 重新发布一次。  
-2. 更换 **不同的内容** 重新发布。  
-3. 登录网页版小红书，查看账号是否被 **风控限制网页版发布**。  
-4. 检查 **图片大小** 是否过大。  
-5. 确认 **图片路径中没有中文字符**。  
+**Q:** 显示发布成功后，但实际上没有显示？
+**A:** 排查步骤如下：
+
+1. 使用 **非无头模式** 重新发布一次。
+2. 更换 **不同的内容** 重新发布。
+3. 登录网页版小红书，查看账号是否被 **风控限制网页版发布**。
+4. 检查 **图片大小** 是否过大。
+5. 确认 **图片路径中没有中文字符**。
 6. 若使用网络图片地址，请确认 **图片链接可正常访问**。
 
 ---
 
-**Q:** 在设备上运行 MCP 程序出现闪退如何解决？  
-**A:**  
-1. 建议 **从源码安装**。  
-2. 或使用 **Docker 安装 xiaohongshu-mcp**，教程参考：  
-   - [使用 Docker 安装 xiaohongshu-mcp](https://github.com/xpzouying/xiaohongshu-mcp#:~:text=%E6%96%B9%E5%BC%8F%E4%B8%89%EF%BC%9A%E4%BD%BF%E7%94%A8%20Docker%20%E5%AE%B9%E5%99%A8%EF%BC%88%E6%9C%80%E7%AE%80%E5%8D%95%EF%BC%89)  
+**Q:** 在设备上运行 MCP 程序出现闪退如何解决？
+**A:**
+
+1. 建议 **从源码安装**。
+2. 或使用 **Docker 安装 xiaohongshu-mcp**，教程参考：
+   - [使用 Docker 安装 xiaohongshu-mcp](https://github.com/xpzouying/xiaohongshu-mcp#:~:text=%E6%96%B9%E5%BC%8F%E4%B8%89%EF%BC%9A%E4%BD%BF%E7%94%A8%20Docker%20%E5%AE%B9%E5%99%A8%EF%BC%88%E6%9C%80%E7%AE%80%E5%8D%95%EF%BC%89)
    - [X-MCP 项目页面](https://github.com/xpzouying/x-mcp/)
 
 ---
 
-**Q:** 使用 `http://localhost:18060/mcp` 进行 MCP 验证时提示无法连接？  
-**A:**  
-- 在 **Docker 环境** 下，请使用  
-  👉 [http://host.docker.internal:18060/mcp](http://host.docker.internal:18060/mcp)  
+**Q:** 使用 `http://localhost:18060/mcp` 进行 MCP 验证时提示无法连接？
+**A:**
+
+- 在 **Docker 环境** 下，请使用
+  👉 [http://host.docker.internal:18060/mcp](http://host.docker.internal:18060/mcp)
 - 在 **非 Docker 环境** 下，请使用 **本机 IPv4 地址** 访问。
 
 ---
@@ -803,25 +808,20 @@ Cline 是一个强大的 AI 编程助手，支持 MCP 协议集成。
 
 ### 微信群
 
-| 【微信群 14 群】：扫码进入 |
-| :---: |
-| <img src="https://github.com/user-attachments/assets/03db7a63-b9b7-4ab4-aecf-14d05b74cc13" alt="WechatIMG119" width="300"> |
-
-微信群 15 群
-
-![qr-wechat15](https://github.com/user-attachments/assets/73e23573-9ac1-414d-9192-f592548e9092)
-
+|                                                 【微信群 15 群】：扫码进入                                                 |
+| :------------------------------------------------------------------------------------------------------------------------: |
+| <img src="https://github.com/user-attachments/assets/73e23573-9ac1-414d-9192-f592548e9092" alt="WechatIMG119" width="300"> |
 
 ### 飞书群
 
-| 飞书 1 群 | 飞书 2 群 | 飞书 3 群 | 飞书 4 群 |
-| :---: | :---: | :---: | :---: |
+|                                                         飞书 1 群                                                         |                                                         飞书 2 群                                                         |                                                         飞书 3 群                                                         |                                                         飞书 4 群                                                         |
+| :-----------------------------------------------------------------------------------------------------------------------: | :-----------------------------------------------------------------------------------------------------------------------: | :-----------------------------------------------------------------------------------------------------------------------: | :-----------------------------------------------------------------------------------------------------------------------: |
 | <img src="https://github.com/user-attachments/assets/65579771-3543-4661-9b48-def48eed609b" alt="qr-feishu01" width="260"> | <img src="https://github.com/user-attachments/assets/4983ea42-ce5b-4e26-a8c0-33889093b579" alt="qr-feishu02" width="260"> | <img src="https://github.com/user-attachments/assets/c77b45da-6028-4d3a-b421-ccc6c7210695" alt="qr-feishu03" width="260"> | <img src="https://github.com/user-attachments/assets/c42f5595-71cd-4d9b-b7f8-0c333bd25e2b" alt="qr-feishu04" width="260"> |
 
 > **注意：**
+>
 > 1. 微信群的二维码有时间限制，有时候忘记更新，麻烦等待更新或者提交 Issue 催我更新。
 > 2. 飞书群，如果有的群满了，可以尝试扫一下另外一个群，总有坑位。
-
 
 ## 🙏 致谢贡献者 ✨
 
