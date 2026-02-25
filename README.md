@@ -807,6 +807,11 @@ Cline 是一个强大的 AI 编程助手，支持 MCP 协议集成。
 | :---: |
 | <img src="https://github.com/user-attachments/assets/03db7a63-b9b7-4ab4-aecf-14d05b74cc13" alt="WechatIMG119" width="300"> |
 
+微信群 15 群
+
+![qr-wechat15](https://github.com/user-attachments/assets/73e23573-9ac1-414d-9192-f592548e9092)
+
+
 ### 飞书群
 
 | 飞书 1 群 | 飞书 2 群 | 飞书 3 群 | 飞书 4 群 |
