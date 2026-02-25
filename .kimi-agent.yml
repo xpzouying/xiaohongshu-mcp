@@ -1,0 +1,4 @@
+# .kimi-agent.yml
+features:
+  pr_auto_review: true       # PR 打开时自动 Code Review
+  release_changelog: true    # Release 发布时自动更新 CHANGELOG
