@@ -58,6 +58,11 @@ func inputTextToEditorSafe(page *rod.Page, elem *rod.Element, text string) error
 		}
 	}
 
+	// 正文末尾追加一个换行，与后续标签区分
+	if err := page.Keyboard.Press(input.Enter); err != nil {
+		return errors.Wrap(err, "正文末尾按下回车键失败")
+	}
+
 	// 给编辑器时间处理输入
 	time.Sleep(500 * time.Millisecond)
 
