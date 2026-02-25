@@ -219,11 +219,15 @@ https://github.com/user-attachments/assets/cc385b6c-422c-489b-a5fc-63e92c695b80
 - Tags：现已支持。添加合适的 Tags 能带来更多的流量。
 - 根据本人实操，小红书每天的发帖量应该是 **50 篇**。
 - **（非常重要）小红书的同一个账号不允许在多个网页端登录**，如果你登录了当前 xiaohongshu-mcp 后，就不要再在其他的网页端登录该账号，否则就会把当前 MCP 的账号“踢出登录”。你可以使用移动 App 端进行查看当前账号信息。
+- 曝光低的话，首先查看内容中是否有违禁词，搜一下有很多第三方免费工具。
+- 一定不要出现引流、纯搬运的情况，属于官方重点打击对象。
 
 **风险说明**
 
 1. 该项目是在自己的另外一个项目的基础上开源出来的，原来的项目稳定运行一年多，没有出现过封号的情况，只有出现过 Cookies 过期需要重新登录。
 2. 我是使用 Claude Code 接入，稳定自动化运营数周后，验证没有问题后开源。
+3. 如果账号没有实名认证，特别是新号，一般会触发 **实名认证** 的消息提醒（参见下图）。⚠️ 这个不是封号，不用 MCP 也会要求实名认证。实名认证后，账号就正常了。建议使用该项目前就先实名。
+  <img width="508" height="306" alt="image" src="https://github.com/user-attachments/assets/34383e1b-f666-409f-9870-002655507dc1" />
 
 该项目是基于学习的目的，禁止一切违法行为。
 
@@ -928,16 +932,21 @@ Cline 是一个强大的 AI 编程助手，支持 MCP 协议集成。
 
 **重要：在群里问问题之前，请一定要先仔细看完 README 文档以及查看 Issues。**
 
-<!-- 两列排布：飞书二群 | 微信群 -->
+### 微信群
 
-| 【飞书 3 群】：扫码进入                                                                                                   | 【微信群 14 群】：扫码进入                                                                                                  |
-| ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| <img src="https://github.com/user-attachments/assets/9a0ec41a-cb65-4f4e-a0f7-31658a49512d" alt="qrcode_2qun" width="300"> | <img src="https://github.com/user-attachments/assets/03db7a63-b9b7-4ab4-aecf-14d05b74cc13" alt="WechatIMG119" width="300"> |
+| 【微信群 14 群】：扫码进入 |
+| :---: |
+| <img src="https://github.com/user-attachments/assets/03db7a63-b9b7-4ab4-aecf-14d05b74cc13" alt="WechatIMG119" width="300"> |
 
+### 飞书群
 
+| 飞书 1 群 | 飞书 2 群 | 飞书 3 群 | 飞书 4 群 |
+| :---: | :---: | :---: | :---: |
+| <img src="https://github.com/user-attachments/assets/65579771-3543-4661-9b48-def48eed609b" alt="qr-feishu01" width="260"> | <img src="https://github.com/user-attachments/assets/4983ea42-ce5b-4e26-a8c0-33889093b579" alt="qr-feishu02" width="260"> | <img src="https://github.com/user-attachments/assets/c77b45da-6028-4d3a-b421-ccc6c7210695" alt="qr-feishu03" width="260"> | <img src="https://github.com/user-attachments/assets/c42f5595-71cd-4d9b-b7f8-0c333bd25e2b" alt="qr-feishu04" width="260"> |
 
-
-
+> **注意：**
+> 1. 微信群的二维码有时间限制，有时候忘记更新，麻烦等待更新或者提交 Issue 催我更新。
+> 2. 飞书群，如果有的群满了，可以尝试扫一下另外一个群，总有坑位。
 
 
 ## 🙏 致谢贡献者 ✨
