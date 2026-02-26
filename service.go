@@ -33,6 +33,7 @@ type PublishRequest struct {
 	Images     []string `json:"images" binding:"required,min=1"`
 	Tags       []string `json:"tags,omitempty"`
 	ScheduleAt string   `json:"schedule_at,omitempty"` // 定时发布时间，ISO8601格式，为空则立即发布
+	Products   []string `json:"products,omitempty"`    // 商品关键词列表，用于绑定带货商品
 }
 
 // LoginStatusResponse 登录状态响应
@@ -64,6 +65,7 @@ type PublishVideoRequest struct {
 	Video      string   `json:"video" binding:"required"`
 	Tags       []string `json:"tags,omitempty"`
 	ScheduleAt string   `json:"schedule_at,omitempty"` // 定时发布时间，ISO8601格式，为空则立即发布
+	Products   []string `json:"products,omitempty"`    // 商品关键词列表，用于绑定带货商品
 }
 
 // PublishVideoResponse 发布视频响应
@@ -212,6 +214,7 @@ func (s *XiaohongshuService) PublishContent(ctx context.Context, req *PublishReq
 		Tags:         req.Tags,
 		ImagePaths:   imagePaths,
 		ScheduleTime: scheduleTime,
+		Products:     req.Products,
 	}
 
 	// 执行发布
@@ -301,6 +304,7 @@ func (s *XiaohongshuService) PublishVideo(ctx context.Context, req *PublishVideo
 		Tags:         req.Tags,
 		VideoPath:    req.Video,
 		ScheduleTime: scheduleTime,
+		Products:     req.Products,
 	}
 
 	// 执行发布
