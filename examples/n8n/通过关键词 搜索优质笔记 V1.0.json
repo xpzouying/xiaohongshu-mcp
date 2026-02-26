@@ -1,0 +1,1493 @@
+{
+  "name": "通过关键词 搜索优质笔记 V1.0",
+  "nodes": [
+    {
+      "parameters": {
+        "resource": "bitable",
+        "operation": "bitable:table:record:add",
+        "app_toke": "B6n8bi2MPaR7AisEEHrcsC4cn5e",
+        "table_id": "tbld9COM01Sj60Kb",
+        "body": "={\n  \"fields\": {\n    \"笔记链接\": {{ JSON.stringify($json[\"笔记链接\"] || \"\") }},\n    \"xssecToken\": {{ JSON.stringify($json.xssecToken || \"\") }},\n    \"userid\": {{ JSON.stringify($json.userid || \"\") }},\n    \"feedid\": {{ JSON.stringify($json.id || $json.feedid || \"\") }},\n    \"笔记标题\": {{ JSON.stringify($json[\"笔记标题\"] || \"\") }},\n    \"图片地址\": {{ JSON.stringify($json[\"图片地址\"] || \"\") }},\n    \"笔记正文\": {{ JSON.stringify($json[\"笔记正文\"] || \"\") }},\n    \"点赞数\": {{ Number($json[\"点赞数\"]) || 0 }},\n    \"收藏数\": {{ Number($json[\"收藏数\"]) || 0 }},\n    \"分享数\": {{ Number($json[\"分享数\"]) || 0 }},\n    \"评论数\": {{ Number($json[\"评论数\"]) || 0 }},\n    \"笔记总数\": {{ Number($json['笔记总数']) || 0 }},\n    \"粉丝数\": {{ Number($json['粉丝数']) || 0 }},\n    \"获赞与收藏数\": {{ Number($json['获赞与收藏数']) || 0 }},\n    \"博主账户名称\": {{ JSON.stringify($json[\"博主账户名称\"] || \"\") }},\n    \"笔记类型\": {{ JSON.stringify($json[\"笔记类型\"] || \"\") }},\n    \"抓取状态\": {{ JSON.stringify($json[\"抓取状态\"] || \"\") }}\n  }\n}"
+      },
+      "type": "n8n-nodes-feishu-lite.feishuNode",
+      "typeVersion": 1,
+      "position": [
+        784,
+        -432
+      ],
+      "id": "bb982c45-9cf3-422d-b90a-6eab4eaf625c",
+      "name": "飞书新增记录",
+      "credentials": {
+        "feishuCredentialsApi": {
+          "id": "YqJWb7ScG0bbq7tF",
+          "name": "Feishu Credentials account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "endpointUrl": "http://host.docker.internal:18060/mcp",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.mcpClientTool",
+      "typeVersion": 1.2,
+      "position": [
+        -2400,
+        128
+      ],
+      "id": "d1048b42-de80-4e46-acab-e0eb0d168429",
+      "name": "xhs-mcp2"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatDeepSeek",
+      "typeVersion": 1,
+      "position": [
+        -2608,
+        48
+      ],
+      "id": "43e8d515-2d8e-43aa-b8b6-b64e16f518df",
+      "name": "DeepSeek Chat Model",
+      "credentials": {
+        "deepSeekApi": {
+          "id": "5krZfhVZGZusDBYO",
+          "name": "DeepSeek account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=任务指令：\n调用 mcp 工具 `search_feeds`，参数如下：\n- 关键词: \"{{ $json['关键词'] }}\"\n- 爬取数量: {{ $json['爬取数量'] }}\n- 发布时间: \"{{ $json['发布时间'] }}\"\n- 排序依据: \"{{ $json['排序依据'] }}\"\n\n执行逻辑：\n1. 使用工具获取数据。\n2. 若涉及多次请求循环，请务必在每次请求间随机停顿 3.5 到 7 秒（这是为了模拟人类行为，不要输出到结果中）。\n3. 提取 `feeds` 下的所有字段（包括 xsecToken, userid, modelType, noteCard, user, interactInfo, cover 等）。\n\n输出要求：\n- 仅返回一个纯 JSON 对象。\n- **不要**包含 ```json 代码块标记。\n- **不要**包含任何思考内容（如 \"好的，我正在...\" 或 \"<think>...\"）。\n- 直接以 JSON 的左花括号 `{` 开始你的回答。",
+        "options": {
+          "systemMessage": "你是一个无头（Headless）数据处理引擎，而非聊天助手。你的唯一任务是执行工具调用并将结果转换为严格的 JSON 格式。\n\n### 核心原则（违反即任务失败）：\n1. **绝对禁止**输出任何自然语言、思考过程、解释、注释或问候语。\n2. **绝对禁止**使用 Markdown 格式（严禁包含 ```json 或 ``` 标记）。\n3. **绝对禁止**输出 <think> 标签或任何 XML 标签。\n4. 输出必须是**纯文本 JSON 字符串**，必须且只能以 \"{\" 字符开始，以 \"}\" 字符结束。\n\n### 数据处理要求：\n1. 调用 `search_feeds` 工具后，必须按原样提取数据，严禁篡改 ID 或 Token。\n2. 返回结果必须严格匹配以下 JSON Schema，**严禁遗漏任何字段**，确保字段名称大小写完全一致：\n{\n  \"feeds\": [\n    {\n      \"xssecToken\": \"string\",\n      \"id\": \"string\", // 对应 feeds 中的 id 或 feedId\n      \"modelType\": \"string\",\n      \"noteCard\": {\n        \"type\": \"string\",\n        \"displaytitle\": \"string\" // 注意全是小写或驼峰，需根据工具实际返回适配，这里强制保持一致\n      },\n      \"user\": {\n        \"userId\": \"string\",\n        \"nickname\": \"string\",\n        \"nickName\": \"string\", // 兼容字段\n        \"avatar\": \"string\"\n      },\n      \"interactInfo\": {\n        \"liked\": \"boolean\",\n        \"likedCount\": \"string\",\n        \"sharedCount\": \"string\",\n        \"commentCount\": \"string\",\n        \"collectedCount\": \"string\",\n        \"collected\": \"boolean\"\n      },\n      \"cover\": {\n        \"width\": \"number\",\n        \"height\": \"number\",\n        \"url\": \"string\",\n        \"fileId\": \"string\",\n        \"urlPre\": \"string\",\n        \"urlDefault\": \"string\"\n      },\n      \"index\": \"number\"\n    }\n  ]\n}\n\n### 关于延迟的指令：\n如果需要多次调用工具抓取，请在工具调用的动作之间进行随机停顿（3.5-7秒），但**绝对不要**在最终的 JSON 输出中体现这个停顿，也不要输出“正在等待”等文字。"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        -2576,
+        -112
+      ],
+      "id": "fd3c5d23-2f69-4f96-842b-3f14235b70b9",
+      "name": "feeds下的全部字段"
+    },
+    {
+      "parameters": {
+        "endpointUrl": "http://host.docker.internal:18060/mcp",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.mcpClientTool",
+      "typeVersion": 1.2,
+      "position": [
+        -816,
+        112
+      ],
+      "id": "eb1222bc-71db-4d86-afc1-29b4822ec259",
+      "name": "xhs-mcp3"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatDeepSeek",
+      "typeVersion": 1,
+      "position": [
+        -976,
+        112
+      ],
+      "id": "5296186f-0d2f-4e5e-93fe-371bbaa09cf4",
+      "name": "DeepSeek Chat Model2",
+      "credentials": {
+        "deepSeekApi": {
+          "id": "5krZfhVZGZusDBYO",
+          "name": "DeepSeek account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ==========================================\n// 1. 严谨的清洗与提取函数 (DeepSeek 专用版)\n// ==========================================\nfunction safeParseJSON(input) {\n    // 0. 空值检查\n    if (!input) return { feeds: [] };\n    if (typeof input === 'object' && input !== null) return input;\n\n    let str = input.toString();\n\n    // --- [新增 1] 针对 DeepSeek 的噪音清洗 ---\n    // 必须先移除 <think> 标签，否则它们包含的字符会干扰 JSON 解析\n    str = str.replace(/<think>[\\s\\S]*?<\\/think>/gi, \"\"); \n    // 移除 Markdown 标记\n    str = str.replace(/```json/gi, \"\").replace(/```/g, \"\");\n\n    // --- [优化 2] 智能定位 JSON 起点 ---\n    // 无论开头有多少废话，直接跳到第一个 \"{\" 或 \"[\"\n    const firstMatch = str.search(/[\\{\\[]/);\n    if (firstMatch > -1) {\n        str = str.substring(firstMatch);\n    }\n    // 移除末尾多余字符\n    const lastMatch = str.search(/[\\]\\}][^\\]\\}]*$/);\n    if (lastMatch > -1) {\n        str = str.substring(0, lastMatch + 1);\n    }\n    \n    // --- [修正 3] 移除原来的危险 replace，改为标准解析 ---\n    try {\n        const result = JSON.parse(str);\n        // 如果解析出来还是字符串（DeepSeek 常见毛病），则进行二次解析\n        if (typeof result === 'string') {\n            try { return JSON.parse(result); } catch(e) {}\n        }\n        return result;\n    } catch (e) {\n        // 标准解析失败，才进入暴力模式\n    }\n\n    // --- [保留但优化] 暴力提取模式 ---\n    // 仅在标准解析彻底失败时使用\n    const validFeeds = [];\n    \n    // 这里的正则放松了条件，不再强制要求开头有 feeds\n    // 直接在文本中寻找看起来像 Feed 对象的代码块\n    let currentStr = str;\n    \n    // 如果能找到 \"feeds\": [...] 结构，先定位进去，缩小搜索范围\n    const feedsArrayMatch = currentStr.match(/[\"']feeds[\"']\\s*:\\s*\\[/i);\n    if (feedsArrayMatch) {\n        currentStr = currentStr.substring(feedsArrayMatch.index + feedsArrayMatch[0].length);\n    }\n\n    // 循环提取 { ... }\n    while (true) {\n        const startBrace = currentStr.indexOf('{');\n        if (startBrace === -1) break;\n\n        currentStr = currentStr.substring(startBrace);\n        \n        // 寻找匹配的闭合括号\n        let balance = 0;\n        let foundEnd = false;\n        let endIndex = 0;\n\n        // 使用更严谨的括号平衡算法，而不是简单的找 \"}\"\n        for (let i = 0; i < currentStr.length; i++) {\n            if (currentStr[i] === '{') balance++;\n            else if (currentStr[i] === '}') balance--;\n\n            if (balance === 0) {\n                endIndex = i;\n                foundEnd = true;\n                break;\n            }\n        }\n\n        if (foundEnd) {\n            const jsonChunk = currentStr.substring(0, endIndex + 1);\n            try {\n                const obj = JSON.parse(jsonChunk);\n                // 简单校验特征字段，避免提取到无用的小对象\n                if (obj && (obj.id || obj.feedid || obj.xssecToken || obj.noteCard)) {\n                    validFeeds.push(obj);\n                }\n            } catch (e) {\n                // 解析失败忽略\n            }\n            currentStr = currentStr.substring(endIndex + 1);\n        } else {\n            // 括号不平衡，说明结构坏了，强制跳过当前字符\n            currentStr = currentStr.substring(1);\n        }\n    }\n\n    return { feeds: validFeeds };\n}\n\n// ==========================================\n// 2. 主逻辑 (映射与输出)\n// ==========================================\nconst results = [];\n\nfor (const item of items) {\n    // 兼容取值\n    let rawData = item.json.output || item.json.text || item.json.content || item.json;\n    \n    const cleanData = safeParseJSON(rawData);\n    \n    // 兼容根目录数组 或 feeds 字段数组\n    let feeds = Array.isArray(cleanData) ? cleanData : (cleanData.feeds || []);\n    if (!Array.isArray(feeds)) feeds = [];\n\n    for (const feed of feeds) {\n        const realId = feed.id || feed.feedid || \"\";\n        if (!realId) continue; \n\n        // 安全解包\n        const noteCard = feed.noteCard || {};\n        const user = feed.user || {};\n        const interact = feed.interactInfo || {};\n        const cover = feed.cover || {};\n\n        // 结果组装\n        results.push({\n            json: {\n                ...feed, // 保留原始数据\n                \"id\": realId, // 统一 ID\n                \"userid\": user.userId || user.userid || \"\",\n                \"笔记标题\": noteCard.displayTitle || noteCard.displaytitle || \"无标题\",\n                \"图片地址\": cover.urlDefault || cover.urlPre || \"\",\n                \"点赞数\": Number(interact.likedCount || 0),\n                \"收藏数\": Number(interact.collectedCount || 0),\n                \"评论数\": Number(interact.commentCount || 0),\n                \"分享数\": Number(interact.sharedCount || 0),\n                \"博主账户名称\": user.nickname || user.nickName || \"\",\n                \"笔记类型\": noteCard.type || \"normal\",\n                \"笔记链接\": `https://www.xiaohongshu.com/explore/${realId}`\n            }\n        });\n    }\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2288,
+        -112
+      ],
+      "id": "7cd55c61-fd39-43be-a3a3-f34a45076efb",
+      "name": "feeds字段格式转化"
+    },
+    {
+      "parameters": {
+        "content": "## 多个正文获取失败的笔记，多次尝试获取，并解析正文\n1、假设有多个笔记要获取正文，增加wait，在循环的时候增加wait，避免短时间多次获取，避免风控\n2、AI Agent 笔记正文获取\n\n",
+        "height": 800,
+        "width": 672
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        736,
+        -1104
+      ],
+      "typeVersion": 1,
+      "id": "48755438-8014-40b1-b64a-a5a0307977ea",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "formTitle": "XHSnote爬取",
+        "formDescription": "XHSnote爬取",
+        "formFields": {
+          "values": [
+            {
+              "fieldName": "关键词",
+              "fieldLabel": "关键词",
+              "placeholder": "请输入关键词 中间可以有空格",
+              "requiredField": true
+            },
+            {
+              "fieldName": "爬取数量",
+              "fieldLabel": "爬取数量",
+              "fieldType": "number",
+              "placeholder": "整数位（最多10个）",
+              "requiredField": true
+            },
+            {
+              "fieldName": "发布时间",
+              "fieldLabel": "发布时间",
+              "placeholder": "不限|一天内|一周内|半年内,默认为“不限”"
+            },
+            {
+              "fieldName": "排序依据",
+              "fieldLabel": "排序依据",
+              "placeholder": "排序依据:综合|最新|最多点赞|最多评论|最多收藏,默认为“综合”"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.4,
+      "position": [
+        -2752,
+        -160
+      ],
+      "id": "71670ee2-2131-4296-b58e-8e287190f952",
+      "name": "On form submission",
+      "webhookId": "507061b3-79f4-4405-96ec-610ceb22a881"
+    },
+    {
+      "parameters": {
+        "content": "## search_feeds：工具调用\n1、获取note前部字段信息（除了笔记正文以外的，大多数据）\n2、code：字段结构化解析",
+        "height": 608,
+        "width": 432
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -1632,
+        -1088
+      ],
+      "typeVersion": 1,
+      "id": "cc62269c-7bf1-4f9b-ba39-1ab72b4a3743",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "## Ai agent 正文提取\n## 博主的粉丝数 笔记总数提取\n1、基于feed_id和Xsec_token字段获取笔记正文\n2、基于user_id和Xsec_token字段获取博主的笔记 总数 粉丝数\n\n",
+        "height": 1056,
+        "width": 480,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -720,
+        -1104
+      ],
+      "typeVersion": 1,
+      "id": "4b61c347-6ef8-43c3-962b-6d216fa8aabc",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e1cbb233-9275-4931-ac40-497c98b25bc6",
+              "name": "xssecToken",
+              "value": "={{ $json.xssecToken }}",
+              "type": "string"
+            },
+            {
+              "id": "4472f50e-4925-4d3c-a37b-1b96c9a4fc81",
+              "name": "feedid",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "a84271cc-d3ae-4f14-aaaa-0a5c52b4190e",
+              "name": "userid",
+              "value": "={{ $json.user.userId }}",
+              "type": "string"
+            },
+            {
+              "id": "19c0f763-c9ad-4dbf-858b-851d56ab7b1c",
+              "name": "笔记类型",
+              "value": "={{ $json.noteCard.type }}",
+              "type": "string"
+            },
+            {
+              "id": "2523c8eb-775e-44f6-8803-d6bd275663fb",
+              "name": "笔记标题",
+              "value": "={{ $json.noteCard.displaytitle }}",
+              "type": "string"
+            },
+            {
+              "id": "9e1619a8-1293-457a-83d1-f868050ee810",
+              "name": "博主账户名称",
+              "value": "={{ $json.user.nickname }}",
+              "type": "string"
+            },
+            {
+              "id": "c3966cb1-7d75-4724-a3d3-6df4f88487ae",
+              "name": "点赞数",
+              "value": "={{ $json.interactInfo.likedCount }}",
+              "type": "string"
+            },
+            {
+              "id": "b1f1035f-505e-48c1-aa7e-8c4c4958efd3",
+              "name": "分享数",
+              "value": "={{ $json.interactInfo.sharedCount }}",
+              "type": "string"
+            },
+            {
+              "id": "236d908e-46c9-4080-9024-4d1bdc7f7f2e",
+              "name": "评论数",
+              "value": "={{ $json.interactInfo.commentCount }}",
+              "type": "string"
+            },
+            {
+              "id": "4307347d-db6f-438f-b251-4152ab134143",
+              "name": "收藏数",
+              "value": "={{ $json.interactInfo.collectedCount }}",
+              "type": "string"
+            },
+            {
+              "id": "ec9cfa9d-692e-4644-b395-660bf8eb7ee0",
+              "name": "图片地址",
+              "value": "={{ $json.cover.urlDefault }}",
+              "type": "string"
+            },
+            {
+              "id": "428137be-c9e6-4ce1-98e9-f6d09bcafca2",
+              "name": "笔记链接",
+              "value": "={{ $json[\"笔记链接\"] }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1456,
+        -224
+      ],
+      "id": "905f5dc1-73b0-4ba7-8e8c-897d4053b5af",
+      "name": "所需全部字段提取"
+    },
+    {
+      "parameters": {
+        "content": "## 字段合并 \n**merge合并 9个字段数据，并将9个字段数据做结构化解析清晰",
+        "height": 656,
+        "width": 272
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -160,
+        -1104
+      ],
+      "typeVersion": 1,
+      "id": "fa3c9457-bea6-4f21-afb3-f77d1870ece7",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "content": "## 条件判断（正文获取失败的笔记进入循环再次获取）\n**获取成功的笔记——》飞书\n    wait ：等待时间，避免风控\n    获取失败的笔记正文进入循环，逐一笔记再次获取",
+        "height": 672,
+        "width": 560,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        144,
+        -1104
+      ],
+      "typeVersion": 1,
+      "id": "6b0d8ca8-2dfa-4fdc-8857-4765b9d11d70",
+      "name": "Sticky Note5"
+    },
+    {
+      "parameters": {
+        "content": "## 循环中对笔记是否获取成功做判断，循环中获取失败的笔记做标记和判断，失败的笔记再次进入循环。循环中获取失败的笔记多次尝试获取，直到成功为止\n\n1、function 解析正文结构，并标记该笔记的征文是否获取成功或者失败，\n2、IF1 节点：对function节点标记为失败的笔记做判断，成功的进入飞书，还是获取正文失败的笔记，进入wait节点（1分钟）后再次获取\n\n",
+        "height": 800,
+        "width": 384,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1424,
+        -1104
+      ],
+      "typeVersion": 1,
+      "id": "17c8f60a-a191-4f50-86bc-293b4ea70c16",
+      "name": "Sticky Note4"
+    },
+    {
+      "parameters": {
+        "endpointUrl": "http://host.docker.internal:18060/mcp",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.mcpClientTool",
+      "typeVersion": 1.2,
+      "position": [
+        208,
+        32
+      ],
+      "id": "043216e7-068b-4b31-8abf-df1a028448b8",
+      "name": "xhs-mcp4"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatDeepSeek",
+      "typeVersion": 1,
+      "position": [
+        -64,
+        48
+      ],
+      "id": "14c2f844-db60-41c5-9599-6a38bf7d4845",
+      "name": "DeepSeek Chat Model4",
+      "credentials": {
+        "deepSeekApi": {
+          "id": "5krZfhVZGZusDBYO",
+          "name": "DeepSeek account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 适配n8n Function节点：解析数据并输出目标字段\nconst results = [];\n\ntry {\n    // 1. 获取输入数据（n8n中输入存在于items数组的json里）\n    const inputItem = items[0]; // 取第一条输入数据\n    const rawOutputStr = inputItem.json.output; // 拿到原始的output字符串\n    \n    // 2. 解析output中的JSON数据\n    const bloggerData = JSON.parse(rawOutputStr);\n\n    // 3. 处理字段（notes_total+1，匹配目标键名）\n    const parsedData = {\n        \"笔记总数\": (Number(bloggerData.notes_total) || 0) + 1, // 0起始计数转实际数\n        \"粉丝数\": bloggerData.fans || \"0\",\n        \"获赞与收藏数\": bloggerData.interaction || \"0\"\n    };\n\n    // 4. 构建n8n输出格式\n    results.push({\n        json: parsedData // 输出的json就是你要的三个字段\n    });\n\n} catch (err) {\n    // 异常处理：输出错误信息\n    results.push({\n        json: {\n            error: \"解析失败\",\n            detail: err.message\n        }\n    });\n}\n\n// n8n Function节点必须返回results数组\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        384,
+        -192
+      ],
+      "id": "c5639499-7d19-4841-823e-2449abcae255",
+      "name": "博主的粉丝数 笔记数 解析"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "9306eda3-d1c6-4b30-8326-8a04a5b7cd78",
+              "leftValue": "={{ $json.noteCard.type }}",
+              "rightValue": "=video",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            },
+            {
+              "id": "e585e355-ea57-42b4-91e8-bc18e7e3bf09",
+              "leftValue": "={{ $json.interactInfo.likedCount.toNumber() }}",
+              "rightValue": 10,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -2080,
+        -112
+      ],
+      "id": "326eec49-ac74-45bf-bc73-9fed17a1ee26",
+      "name": "视频过滤、过滤笔记点赞少于30的笔记"
+    },
+    {
+      "parameters": {
+        "content": "## 笔记过滤\n**只保留图文笔记，点赞高于20的笔记",
+        "height": 608,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -1184,
+        -1104
+      ],
+      "typeVersion": 1,
+      "id": "ecb84404-379e-4243-a900-4e05a76cddf9",
+      "name": "Sticky Note6"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=任务指令：\n调用 mcp 工具 `user_profile` 获取指定博主的主页数据。\n\n参数配置：\n- xssecToken: \"{{ $('所需全部字段提取').item.json.xssecToken }}\"\n- userId: \"{{ $('所需全部字段提取').item.json.userid }}\"\n\n提取要求：\n1. 忽略登录状态。\n2. 提取以下三个核心指标：\n   - 笔记总数 (映射为 notes_total)\n   - 粉丝数 (映射为 fans)\n   - 获赞与收藏总量 (映射为 interaction)\n\n输出要求：\n仅返回纯 JSON 对象，不要包含任何其他内容。",
+        "options": {
+          "systemMessage": "你是一个无头（Headless）数据提取引擎。你的唯一任务是执行工具调用并清洗数据，严禁进行任何对话。\n\n### 核心铁律（违反即任务失败）：\n1. **绝对禁止**输出 Markdown 代码块标记（如 ```json 或 ```）。\n2. **绝对禁止**输出 <think> 标签、思考过程、解释性文字或问候语。\n3. **忽略**所有登录验证（Login Check），假设 Token 有效。\n4. 输出必须是**纯文本 JSON 字符串**，必须且只能以 \"{\" 字符开始，以 \"}\" 字符结束。\n\n### 数据提取标准：\n不管工具返回的数据结构如何，你必须将其清洗为以下唯一的 JSON 格式：\n{\n  \"notes_total\": 0,   // 笔记总数（整数）\n  \"fans\": 0,          // 粉丝数（整数）\n  \"interaction\": 0    // 获赞与收藏数（整数）\n}\n如果某个字段获取失败或不存在，请返回 0，不要返回 null 或报错文字。"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        16,
+        -192
+      ],
+      "id": "da1855e2-d068-4972-81af-c715f421e222",
+      "name": "根据userid获取博主 （笔记总数 粉丝 获赞与收藏数）"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=任务指令：\n调用 mcp 工具 `get_feed_detail` 获取笔记详情。\n\n参数配置：\n- feed_id: \"{{ $('所需全部字段提取').item.json.feedid }}\"\n- xssecToken: \"{{ $('所需全部字段提取').item.json.xssecToken }}\"\n\n执行要求：\n1. 忽略任何关于登录验证的警告。\n2. 从返回结果中仅提取笔记的**文字正文**部分。\n3. 直接返回纯 JSON 字符串，格式为 {\"content\": \"...\"}。\n4. 不要返回标题、用户信息等其他字段。",
+        "options": {
+          "systemMessage": "你是一个无头 API 响应引擎。\n\n### 核心规则：\n1. 你的任务是调用工具并返回结果，**不要**进行任何等待或延迟操作（外部系统已处理）。\n2. **禁止**输出 <think> 标签或 Markdown 代码块。\n3. 无论工具返回什么，只输出以下 JSON 格式：\n{\n  \"content\": \"这里是正文内容\"\n}\n如果获取失败或无内容，输出：\n{\n  \"content\": \"\"\n}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        -960,
+        -80
+      ],
+      "id": "0ae417e8-92c9-4216-afa6-cca293cd9344",
+      "name": "基于feed_id 正文提取"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -1824,
+        -224
+      ],
+      "id": "8c0e23be-72f4-40ff-9035-a510946fe18a",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor(Math.random() * 3) + 3 }}"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -1632,
+        -128
+      ],
+      "id": "8d54a066-3ea1-4468-9fa7-71be6ddef747",
+      "name": "Wait1",
+      "webhookId": "83c799e3-6675-4b74-afbd-3f0fd1e52981"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 获取基础信息（标题、图片、ID等）\n// 注意：确保节点名称与你画布上的完全一致\nconst baseData = $('所需全部字段提取').item.json;\n\n// 获取 Agent 1 的结果（正文）\nlet content = \"\";\ntry {\n    // 尝试解析 Agent 1 的输出，兼顾字符串和对象两种情况\n    const agent1Raw = $('基于feed_id 正文提取').item.json.output;\n    if (typeof agent1Raw === 'string') {\n        // 简单的正则提取 JSON，防止由markdown包裹\n        const match = agent1Raw.match(/\\{[\\s\\S]*\\}/);\n        if (match) {\n            content = JSON.parse(match[0]).content;\n        } else {\n            content = agent1Raw; // 兜底：直接用文本\n        }\n    } else {\n        content = agent1Raw.content || \"\";\n    }\n} catch(e) { \n    content = \"\"; // 出错留空\n}\n\n// 获取 Agent 2 的结果（博主数据）\nlet blogger = { fans: 0, notes: 0, interaction: 0 };\ntry {\n    const agent2Raw = $('根据userid获取博主 （笔记总数 粉丝 获赞与收藏数）').item.json.output;\n    if (typeof agent2Raw === 'string') {\n        const match = agent2Raw.match(/\\{[\\s\\S]*\\}/);\n        if (match) {\n            const parsed = JSON.parse(match[0]);\n            blogger.fans = parsed.fans || 0;\n            blogger.notes = parsed.notes_total || 0;\n            blogger.interaction = parsed.interaction || 0;\n        }\n    } else {\n        blogger.fans = agent2Raw.fans || 0;\n        blogger.notes = agent2Raw.notes_total || 0;\n        blogger.interaction = agent2Raw.interaction || 0;\n    }\n} catch(e) {}\n\n// 输出最终合并的一条数据\nreturn {\n    json: {\n        ...baseData, // 包含原来的 userid, feedid, 标题, 封面等\n        \"笔记正文\": content,\n        \"粉丝数\": Number(blogger.fans),\n        \"笔记总数\": Number(blogger.notes),\n        \"获赞与收藏数\": Number(blogger.interaction),\n        \"抓取状态\": content ? \"成功\" : \"部分缺失\"\n    }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        -192
+      ],
+      "id": "8fb1ea96-0137-44f5-b333-b322f8199663",
+      "name": "数据汇总"
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor(Math.random() * 3) + 3 }}"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -192,
+        -192
+      ],
+      "id": "f77a373e-9e58-4f15-be7a-5dab5781cf88",
+      "name": "Wait2",
+      "webhookId": "83c799e3-6675-4b74-afbd-3f0fd1e52981"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -1248,
+        -176
+      ],
+      "id": "3dc7f913-aa2f-4d75-94f3-a23e9acdfd1a",
+      "name": "Loop Over Items1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "9ca2492e-384f-4add-848b-146ffdfcb07c",
+              "leftValue": "={{ $json[\"抓取状态\"] }}",
+              "rightValue": "成功",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -416,
+        -96
+      ],
+      "id": "658e0d8f-f92a-4d3c-bce5-074bca55a77b",
+      "name": "正文获取状态判断"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a0f3b52d-d11d-4228-971a-f391ef6cd4e1",
+              "name": "retryCount",
+              "value": "={{ ($json.retryCount || 0) + 1 }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -352,
+        192
+      ],
+      "id": "58ba40ec-1dda-4eb0-b7d1-1c8a1603b88a",
+      "name": "最多抓取正文2次"
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor(Math.random() * 4) + 4 }}"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -1184,
+        128
+      ],
+      "id": "3afa6699-9b26-4589-8df9-323a7a9bee69",
+      "name": "Wait",
+      "webhookId": "83c799e3-6675-4b74-afbd-3f0fd1e52981"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// 获取 Agent 输出 (兼容 output 或 text 字段)\nconst agentOutput = item.json.output || item.json.text || \"\";\n\n// 【关键】获取当前的重试次数 (默认0)\n// 必须保留这个值，否则 Set 节点的计数会丢失\nconst currentRetry = item.json.retryCount || 0;\n\nlet content = \"\";\nlet status = \"失败\"; \n\ntry {\n    // 1. 深度清洗 (去除 DeepSeek 的 <think> 和 Markdown)\n    let cleanText = \"\";\n    if (typeof agentOutput === 'string') {\n        cleanText = agentOutput\n            .replace(/<think>[\\s\\S]*?<\\/think>/gi, \"\") // 去思考标签\n            .replace(/```json/gi, \"\") // 去 markdown\n            .replace(/```/g, \"\")\n            .trim();\n    } else if (typeof agentOutput === 'object') {\n        cleanText = agentOutput.content || JSON.stringify(agentOutput);\n    }\n\n    // 2. 尝试提取 JSON 中的 content\n    if (cleanText.includes(\"{\") && cleanText.includes(\"content\")) {\n        try {\n            // 尝试提取 JSON 对象\n            const match = cleanText.match(/\\{[\\s\\S]*\\}/);\n            if (match) {\n                const parsed = JSON.parse(match[0]);\n                content = parsed.content || \"\";\n            }\n        } catch (e) {\n            content = cleanText; // 解析失败降级为纯文本\n        }\n    } else {\n        content = cleanText;\n    }\n\n    // 3. 判定逻辑 (排除 not found 和 空内容)\n    if (!content || content.trim() === \"\" || content.length < 5) {\n        status = \"失败\";\n    } \n    else if (content.includes(\"not found\") || content.includes(\"获取Feed详情失败\")) {\n        status = \"失败\";\n        // 既然 not found，把内容清空，以免后续误用\n        content = \"\"; \n    } \n    else {\n        status = \"成功\";\n    }\n\n} catch (e) {\n    status = \"失败\";\n}\n\n// 4. 输出结果\n// 【重要】使用 ...item.json 保留原始数据(如 feedid, userid, retryCount)\nreturn {\n    json: {\n        ...item.json, \n        \"笔记正文\": content,\n        \"抓取状态\": status,\n        \"retryCount\": currentRetry // 显式传递计数\n    }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -640,
+        -80
+      ],
+      "id": "9fa77cf4-39d2-4f5e-ad4c-3572bd42a9ba",
+      "name": "正文抓取状态判断"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "06bc71c6-d71f-47f0-a975-a40f37f03148",
+              "leftValue": "={{ $json.retryCount || 0 }}",
+              "rightValue": 1,
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -592,
+        128
+      ],
+      "id": "6671ff88-754c-4faa-99ba-b59ac19d4848",
+      "name": "正文抓取 检查次数"
+    }
+  ],
+  "pinData": {
+    "所需全部字段提取": [
+      {
+        "json": {
+          "xssecToken": "ABrYf0ynp2MdQjQBzWUC6Zu3AKV0qXi-BZ3445X2lIZD0=",
+          "feedid": "68da086f0000000013011650",
+          "userid": "669893e30000000003031d84",
+          "笔记类型": "normal",
+          "笔记标题": "独立老师很i但是续费率高的小技巧",
+          "博主账户名称": "绘本老师jasmine",
+          "点赞数": "43",
+          "分享数": "1",
+          "评论数": "0",
+          "收藏数": "40",
+          "图片地址": "http://sns-webpic-qc.xhscdn.com/202512261541/c199e433e9ca6deb8dae4a9e6597fb40/notes_pre_post/1040g3k031n0jm0btmm205pkoifhgu7c46p9qpu0!nc_n_webp_mw_1",
+          "笔记链接": "https://www.xiaohongshu.com/explore/68da086f0000000013011650"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ],
+    "feeds下的全部字段": [
+      {
+        "json": {
+          "output": "{\n  \"feeds\": [\n    {\n      \"xssecToken\": \"ABkKInhozVoudlvuTfjpGJ7MFDgP2DG4keHz5IJntzO04=\",\n      \"id\": \"691c50ea000000000d03b910\",\n      \"modelType\": \"note\",\n      \"noteCard\": {\n        \"type\": \"video\",\n        \"displaytitle\": \"续费一定要用课时提醒卡，礼貌有效收钱\"\n      },\n      \"user\": {\n        \"userId\": \"67e649cb000000000e0117d9\",\n        \"nickname\": \"海龙diary\",\n        \"nickName\": \"海龙diary\",\n        \"avatar\": \"https://sns-avatar-qc.xhscdn.com/avatar/1040g2jo31is9ip151c005pv6975ji5up4ul5ljo?imageView2/2/w/80/format/jpg\"\n      },\n      \"interactInfo\": {\n        \"liked\": false,\n        \"likedCount\": \"164\",\n        \"sharedCount\": \"39\",\n        \"commentCount\": \"85\",\n        \"collectedCount\": \"114\",\n        \"collected\": false\n      },\n      \"cover\": {\n        \"width\": 1080,\n        \"height\": 1920,\n        \"url\": \"\",\n        \"fileId\": \"\",\n        \"urlPre\": \"http://sns-webpic-qc.xhscdn.com/202512261751/e27ac7f16097824e41668261d8483057/1040g2sg31p1b30e0iue05pv6975ji5up7npbo6o!nc_n_webp_prv_1\",\n        \"urlDefault\": \"http://sns-webpic-qc.xhscdn.com/202512261751/060f8840225abf8902f6a0af1ffd8f86/1040g2sg31p1b30e0iue05pv6975ji5up7npbo6o!nc_n_webp_mw_1\"\n      },\n      \"index\": 0\n    },\n    {\n      \"xssecToken\": \"ABQXOteG0T6a9kzXxsdgF1YcI-6Aj1QGCLOESCJ9RBKwk=\",\n      \"id\": \"68adc6ed000000001d01d5a0\",\n      \"modelType\": \"note\",\n      \"noteCard\": {\n        \"type\": \"normal\",\n        \"displaytitle\": \"家长不想续费话术，6句话续费100%\"\n      },\n      \"user\": {\n        \"userId\": \"68520ff8000000001b022793\",\n        \"nickname\": \"星灿姐-英语老师IP孵化\",\n        \"nickName\": \"星灿姐-英语老师IP孵化\",\n        \"avatar\": \"https://sns-avatar-qc.xhscdn.com/avatar/1040g2jo31it4ormoh45g5q2i1vs6s9sjquvbkl8?imageView2/2/w/80/format/jpg\"\n      },\n      \"interactInfo\": {\n        \"liked\": false,\n        \"likedCount\": \"72\",\n        \"sharedCount\": \"7\",\n        \"commentCount\": \"2\",\n        \"collectedCount\": \"58\",\n        \"collected\": false\n      },\n      \"cover\": {\n        \"width\": 828,\n        \"height\": 1108,\n        \"url\": \"\",\n        \"fileId\": \"\",\n        \"urlPre\": \"http://sns-webpic-qc.xhscdn.com/202512261751/556a628c04432b023955967bd360c14b/1040g00831llcm0su5i005q2i1vs6s9sjqitgv7g!nc_n_webp_prv_1\",\n        \"urlDefault\": \"http://sns-webpic-qc.xhscdn.com/202512261751/40b349fd3884aef2d0401ed1276e1e77/1040g00831llcm0su5i005q2i1vs6s9sjqitgv7g!nc_n_webp_mw_1\"\n      },\n      \"index\": 1\n    },\n    {\n      \"xssecToken\": \"ABGeZcMvqtodCoKJJLDoqkpKdm3z6WQNKzkESqAATfhh4=\",\n      \"id\": \"693a92a6000000001f00b7da\",\n      \"modelType\": \"note\",\n      \"noteCard\": {\n        \"type\": \"video\",\n        \"displaytitle\": \"\"\n      },\n      \"user\": {\n        \"userId\": \"68f6ec8100000000300307c8\",\n        \"nickname\": \"李校不说话\",\n        \"nickName\": \"李校不说话\",\n        \"avatar\": \"https://sns-avatar-qc.xhscdn.com/avatar/1040g2jo31nt78qj506005q7mti0s61u8750v71o?imageView2/2/w/80/format/jpg\"\n      },\n      \"interactInfo\": {\n        \"liked\": false,\n        \"likedCount\": \"61\",\n        \"sharedCount\": \"3\",\n        \"commentCount\": \"5\",\n        \"collectedCount\": \"65\",\n        \"collected\": false\n      },\n      \"cover\": {\n        \"width\": 1440,\n        \"height\": 1920,\n        \"url\": \"\",\n        \"fileId\": \"\",\n        \"urlPre\": \"http://sns-webpic-qc.xhscdn.com/202512261751/708636e5621a14b0484e4c8d13fac24e/1040g2sg31puseko07u005q7mti0s61u8agcqhq0!nc_n_webp_prv_1\",\n        \"urlDefault\": \"http://sns-webpic-qc.xhscdn.com/202512261751/60bc414c726be249105ac8e9d0cc081e/1040g2sg31puseko07u005q7mti0s61u8agcqhq0!nc_n_webp_mw_1\"\n      },\n      \"index\": 2\n    },\n    {\n      \"xssecToken\": \"ABrYf0ynp2MdQjQBzWUC6Zu3AKV0qXi-BZ3445X2lIZD0=\",\n      \"id\": \"68da086f0000000013011650\",\n      \"modelType\": \"note\",\n      \"noteCard\": {\n        \"type\": \"normal\",\n        \"displaytitle\": \"独立老师很i但是续费率高的小技巧\"\n      },\n      \"user\": {\n        \"userId\": \"669893e30000000003031d84\",\n        \"nickname\": \"绘本老师jasmine\",\n        \"nickName\": \"绘本老师jasmine\",\n        \"avatar\": \"https://sns-avatar-qc.xhscdn.com/avatar/1040g2jo31nss0abnmg005pkoifhgu7c47p9a5hg?imageView2/2/w/80/format/jpg\"\n      },\n      \"interactInfo\": {\n        \"liked\": false,\n        \"likedCount\": \"43\",\n        \"sharedCount\": \"1\",\n        \"commentCount\": \"0\",\n        \"collectedCount\": \"40\",\n        \"collected\": false\n      },\n      \"cover\": {\n        \"width\": 1062,\n        \"height\": 1417,\n        \"url\": \"\",\n        \"fileId\": \"\",\n        \"urlPre\": \"http://sns-webpic-qc.xhscdn.com/202512261751/270b5b5e3bda665be1c5bd9266a81c1f/notes_pre_post/1040g3k031n0jm0btmm205pkoifhgu7c46p9qpu0!nc_n_webp_prv_1\",\n        \"urlDefault\": \"http://sns-webpic-qc.xhscdn.com/202512261751/3b74a7627f75252091f85745854cfa37/notes_pre_post/1040g3k031n0jm0btmm205pkoifhgu7c46p9qpu0!nc_n_webp_mw_1\"\n      },\n      \"index\": 3\n    },\n    {\n      \"xssecToken\": \"AB95OEvdZur8NWEbHuSl_dEpnu6WIJtVL_sYb2ICCW4HA=\",\n      \"id\": \"690c7371000000000503bd44\",\n      \"modelType\": \"note\",\n      \"noteCard\": {\n        \"type\": \"video\",\n        \"displaytitle\": \"\"\n      },\n      \"user\": {\n        \"userId\": \"618e8aaa0000000010005feb\",\n        \"nickname\": \"金领袖商学干货营\",\n        \"nickName\": \"金领袖商学干货营\",\n        \"avatar\": \"https://sns-avatar-qc.xhscdn.com/avatar/67da7835ec7aac00017d4f35.jpg?imageView2/2/w/80/format/jpg\"\n      },\n      \"interactInfo\": {\n        \"liked\": false,\n        \"likedCount\": \"41\",\n        \"sharedCount\": \"8\",\n        \"commentCount\": \"11\",\n        \"collectedCount\": \"34\",\n        \"collected\": false\n      },\n      \"cover\": {\n        \"width\": 2022,\n        \"height\": 2696,\n        \"url\": \"\",\n        \"fileId\": \"\",\n        \"urlPre\": \"http://sns-webpic-qc.xhscdn.com/202512261751/c320ac1a64cd0a6c20d4e4d9448f8a0e/spectrum/1040g34o31ohra1vr4u105ocehal40nvbfm2j15o!nc_n_webp_prv_1\",\n        \"urlDefault\": \"http://sns-webpic-qc.xhscdn.com/202512261751/95858e805115f558178911b12ebeb2fb/spectrum/1040g34o31ohra1vr4u105ocehal40nvbfm2j15o!nc_n_webp_mw_1\"\n      },\n      \"index\": 4\n    },\n    {\n      \"xssecToken\": \"ABJWulAbrWSiT-A8PqVWdEqIWIhoTTMF3DsGs9kF2KiE0=\",\n      \"id\": \"68a595bb000000001d01a95c\",\n      \"modelType\": \"note\",\n      \"noteCard\": {\n        \"type\": \"normal\",\n        \"displaytitle\": \"秋季续费模板，独立老师直接用！\"\n      },\n      \"user\": {\n        \"userId\": \"669893e30000000003031d84\",\n        \"nickname\": \"绘本老师jasmine\",\n        \"nickName\": \"绘本老师jasmine\",\n        \"avatar\": \"https://sns-avatar-qc.xhscdn.com/avatar/1040g2jo31nss0abnmg005pkoifhgu7c47p9a5hg?imageView2/2/w/80/format/jpg\"\n      },\n      \"interactInfo\": {\n        \"liked\": false,\n        \"likedCount\": \"20\",\n        \"sharedCount\": \"1\",\n        \"commentCount\": \"0\",\n        \"collectedCount\": \"15\",\n        \"collected\": false\n      },\n      \"cover\": {\n        \"width\": 1242,\n        \"height\": 1656,\n        \"url\": \"\",\n        \"fileId\": \"\",\n        \"urlPre\": \"http://sns-webpic-qc.xhscdn.com/202512261751/151aff8dcdc5962d48c41bba70a89c42/notes_pre_post/1040g3k831ldco8e8lo705pkoifhgu7c4g9bmtto!nc_n_webp_prv_1\",\n        \"urlDefault\": \"http://sns-webpic-qc.xhscdn.com/202512261751/47433fec205b090dd8ec2f5cc0f41f29/notes_pre_post/1040g3k831ldco8e8lo705pkoifhgu7c4g9bmtto!nc_n_webp_mw_1\"\n      },\n      \"index\": 5\n    },\n    {\n      \"xssecToken\": \"ABpEOytmf7MQ2UDym_6uWDrOnJd9hy-ZkEhtrYcOKK8gi31vBldH6h4WwGz1t9Wx5J2qD6dnT5WCVyVDhb4ch7mj2slA-17OQxz8clHvpyIAw=\",\n      \"id\": \"51b9a5be-d720-4b4e-9bf2-93168a34c779#1766742702056\",\n      \"modelType\": \"hot_query\",\n      \"noteCard\": {\n        \"type\": \"\",\n        \"displaytitle\": \"\"\n      },\n      \"user\": {\n        \"userId\": \"\",\n        \"nickname\": \"\",\n        \"nickName\": \"\",\n        \"avatar\": \"\"\n      },\n      \"interactInfo\": {\n        \"liked\": false,\n        \"likedCount\": \"\",\n        \"sharedCount\": \"\",\n        \"commentCount\": \"\",\n        \"collectedCount\": \"\",\n        \"collected\": false\n      },\n      \"cover\": {\n        \"width\": 0,\n        \"height\": 0,\n        \"url\": \"\",\n        \"fileId\": \"\",\n        \"urlPre\": \"\",\n        \"urlDefault\": \"\"\n      },\n      \"index\": 6\n    },\n    {\n      \"xssecToken\": \"ABBKOx4X1OOafO5Y2CjP7rmke-9_Fn_VPEAE0oIWEyGd4=\",\n      \"id\": \"68ee5afd000000000301ca05\",\n      \"modelType\": \"note\",\n      \"noteCard\": {\n        \"type\": \"normal\",\n        \"displaytitle\": \"家长不想续费❓用这6句话续费率100%❗️\"\n      },\n      \"user\": {\n        \"userId\": \"675dbeba000000001801611d\",\n        \"nickname\": \"嘻嘻的教培日记\",\n        \"nickName\": \"嘻嘻的教培日记\",\n        \"avatar\": \"https://sns-avatar-qc.xhscdn.com/avatar/1040g2jo31jm1rq8g2u6g5pqtnqt62o8t91eeacg?imageView2/2/w/80/format/jpg\"\n      },\n      \"interactInfo\": {\n        \"liked\": false,\n        \"likedCount\": \"17\",\n        \"sharedCount\": \"1\",\n        \"commentCount\": \"0\",\n        \"collectedCount\": \"19\",\n        \"collected\": false\n      },\n      \"cover\": {\n        \"width\": 1200,\n        \"height\": 1600,\n        \"url\": \"\",\n        \"fileId\": \"\",\n        \"urlPre\": \"http://sns-webpic-qc.xhscdn.com/202512261751/25bace3faf47c6d541fe1327635da6be/1040g2sg31nkeoug2lmfg5pqtnqt62o8t77i3o5g!nc_n_webp_prv_1\",\n        \"urlDefault\": \"http://sns-webpic-qc.xhscdn.com/202512261751/12f5fdb2932779605803098653de4520/1040g2sg31nkeoug2lmfg5pqtnqt62o8t77i3o5g!nc_n_webp_mw_1\"\n      },\n      \"index\": 7\n    }\n  ]\n}"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ],
+    "feeds字段格式转化": [
+      {
+        "json": {
+          "xssecToken": "ABkKInhozVoudlvuTfjpGJ7MFDgP2DG4keHz5IJntzO04=",
+          "id": "691c50ea000000000d03b910",
+          "modelType": "note",
+          "noteCard": {
+            "type": "video",
+            "displaytitle": "续费一定要用课时提醒卡，礼貌有效收钱"
+          },
+          "user": {
+            "userId": "67e649cb000000000e0117d9",
+            "nickname": "海龙diary",
+            "nickName": "海龙diary",
+            "avatar": "https://sns-avatar-qc.xhscdn.com/avatar/1040g2jo31is9ip151c005pv6975ji5up4ul5ljo?imageView2/2/w/80/format/jpg"
+          },
+          "interactInfo": {
+            "liked": false,
+            "likedCount": "164",
+            "sharedCount": "39",
+            "commentCount": "85",
+            "collectedCount": "114",
+            "collected": false
+          },
+          "cover": {
+            "width": 1080,
+            "height": 1920,
+            "url": "",
+            "fileId": "",
+            "urlPre": "http://sns-webpic-qc.xhscdn.com/202512261751/e27ac7f16097824e41668261d8483057/1040g2sg31p1b30e0iue05pv6975ji5up7npbo6o!nc_n_webp_prv_1",
+            "urlDefault": "http://sns-webpic-qc.xhscdn.com/202512261751/060f8840225abf8902f6a0af1ffd8f86/1040g2sg31p1b30e0iue05pv6975ji5up7npbo6o!nc_n_webp_mw_1"
+          },
+          "index": 0,
+          "userid": "67e649cb000000000e0117d9",
+          "笔记标题": "续费一定要用课时提醒卡，礼貌有效收钱",
+          "图片地址": "http://sns-webpic-qc.xhscdn.com/202512261751/060f8840225abf8902f6a0af1ffd8f86/1040g2sg31p1b30e0iue05pv6975ji5up7npbo6o!nc_n_webp_mw_1",
+          "点赞数": 164,
+          "收藏数": 114,
+          "评论数": 85,
+          "分享数": 39,
+          "博主账户名称": "海龙diary",
+          "笔记类型": "video",
+          "笔记链接": "https://www.xiaohongshu.com/explore/691c50ea000000000d03b910"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      },
+      {
+        "json": {
+          "xssecToken": "ABQXOteG0T6a9kzXxsdgF1YcI-6Aj1QGCLOESCJ9RBKwk=",
+          "id": "68adc6ed000000001d01d5a0",
+          "modelType": "note",
+          "noteCard": {
+            "type": "normal",
+            "displaytitle": "家长不想续费话术，6句话续费100%"
+          },
+          "user": {
+            "userId": "68520ff8000000001b022793",
+            "nickname": "星灿姐-英语老师IP孵化",
+            "nickName": "星灿姐-英语老师IP孵化",
+            "avatar": "https://sns-avatar-qc.xhscdn.com/avatar/1040g2jo31it4ormoh45g5q2i1vs6s9sjquvbkl8?imageView2/2/w/80/format/jpg"
+          },
+          "interactInfo": {
+            "liked": false,
+            "likedCount": "72",
+            "sharedCount": "7",
+            "commentCount": "2",
+            "collectedCount": "58",
+            "collected": false
+          },
+          "cover": {
+            "width": 828,
+            "height": 1108,
+            "url": "",
+            "fileId": "",
+            "urlPre": "http://sns-webpic-qc.xhscdn.com/202512261751/556a628c04432b023955967bd360c14b/1040g00831llcm0su5i005q2i1vs6s9sjqitgv7g!nc_n_webp_prv_1",
+            "urlDefault": "http://sns-webpic-qc.xhscdn.com/202512261751/40b349fd3884aef2d0401ed1276e1e77/1040g00831llcm0su5i005q2i1vs6s9sjqitgv7g!nc_n_webp_mw_1"
+          },
+          "index": 1,
+          "userid": "68520ff8000000001b022793",
+          "笔记标题": "家长不想续费话术，6句话续费100%",
+          "图片地址": "http://sns-webpic-qc.xhscdn.com/202512261751/40b349fd3884aef2d0401ed1276e1e77/1040g00831llcm0su5i005q2i1vs6s9sjqitgv7g!nc_n_webp_mw_1",
+          "点赞数": 72,
+          "收藏数": 58,
+          "评论数": 2,
+          "分享数": 7,
+          "博主账户名称": "星灿姐-英语老师IP孵化",
+          "笔记类型": "normal",
+          "笔记链接": "https://www.xiaohongshu.com/explore/68adc6ed000000001d01d5a0"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      },
+      {
+        "json": {
+          "xssecToken": "ABGeZcMvqtodCoKJJLDoqkpKdm3z6WQNKzkESqAATfhh4=",
+          "id": "693a92a6000000001f00b7da",
+          "modelType": "note",
+          "noteCard": {
+            "type": "video",
+            "displaytitle": ""
+          },
+          "user": {
+            "userId": "68f6ec8100000000300307c8",
+            "nickname": "李校不说话",
+            "nickName": "李校不说话",
+            "avatar": "https://sns-avatar-qc.xhscdn.com/avatar/1040g2jo31nt78qj506005q7mti0s61u8750v71o?imageView2/2/w/80/format/jpg"
+          },
+          "interactInfo": {
+            "liked": false,
+            "likedCount": "61",
+            "sharedCount": "3",
+            "commentCount": "5",
+            "collectedCount": "65",
+            "collected": false
+          },
+          "cover": {
+            "width": 1440,
+            "height": 1920,
+            "url": "",
+            "fileId": "",
+            "urlPre": "http://sns-webpic-qc.xhscdn.com/202512261751/708636e5621a14b0484e4c8d13fac24e/1040g2sg31puseko07u005q7mti0s61u8agcqhq0!nc_n_webp_prv_1",
+            "urlDefault": "http://sns-webpic-qc.xhscdn.com/202512261751/60bc414c726be249105ac8e9d0cc081e/1040g2sg31puseko07u005q7mti0s61u8agcqhq0!nc_n_webp_mw_1"
+          },
+          "index": 2,
+          "userid": "68f6ec8100000000300307c8",
+          "笔记标题": "无标题",
+          "图片地址": "http://sns-webpic-qc.xhscdn.com/202512261751/60bc414c726be249105ac8e9d0cc081e/1040g2sg31puseko07u005q7mti0s61u8agcqhq0!nc_n_webp_mw_1",
+          "点赞数": 61,
+          "收藏数": 65,
+          "评论数": 5,
+          "分享数": 3,
+          "博主账户名称": "李校不说话",
+          "笔记类型": "video",
+          "笔记链接": "https://www.xiaohongshu.com/explore/693a92a6000000001f00b7da"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      },
+      {
+        "json": {
+          "xssecToken": "ABrYf0ynp2MdQjQBzWUC6Zu3AKV0qXi-BZ3445X2lIZD0=",
+          "id": "68da086f0000000013011650",
+          "modelType": "note",
+          "noteCard": {
+            "type": "normal",
+            "displaytitle": "独立老师很i但是续费率高的小技巧"
+          },
+          "user": {
+            "userId": "669893e30000000003031d84",
+            "nickname": "绘本老师jasmine",
+            "nickName": "绘本老师jasmine",
+            "avatar": "https://sns-avatar-qc.xhscdn.com/avatar/1040g2jo31nss0abnmg005pkoifhgu7c47p9a5hg?imageView2/2/w/80/format/jpg"
+          },
+          "interactInfo": {
+            "liked": false,
+            "likedCount": "43",
+            "sharedCount": "1",
+            "commentCount": "0",
+            "collectedCount": "40",
+            "collected": false
+          },
+          "cover": {
+            "width": 1062,
+            "height": 1417,
+            "url": "",
+            "fileId": "",
+            "urlPre": "http://sns-webpic-qc.xhscdn.com/202512261751/270b5b5e3bda665be1c5bd9266a81c1f/notes_pre_post/1040g3k031n0jm0btmm205pkoifhgu7c46p9qpu0!nc_n_webp_prv_1",
+            "urlDefault": "http://sns-webpic-qc.xhscdn.com/202512261751/3b74a7627f75252091f85745854cfa37/notes_pre_post/1040g3k031n0jm0btmm205pkoifhgu7c46p9qpu0!nc_n_webp_mw_1"
+          },
+          "index": 3,
+          "userid": "669893e30000000003031d84",
+          "笔记标题": "独立老师很i但是续费率高的小技巧",
+          "图片地址": "http://sns-webpic-qc.xhscdn.com/202512261751/3b74a7627f75252091f85745854cfa37/notes_pre_post/1040g3k031n0jm0btmm205pkoifhgu7c46p9qpu0!nc_n_webp_mw_1",
+          "点赞数": 43,
+          "收藏数": 40,
+          "评论数": 0,
+          "分享数": 1,
+          "博主账户名称": "绘本老师jasmine",
+          "笔记类型": "normal",
+          "笔记链接": "https://www.xiaohongshu.com/explore/68da086f0000000013011650"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      },
+      {
+        "json": {
+          "xssecToken": "AB95OEvdZur8NWEbHuSl_dEpnu6WIJtVL_sYb2ICCW4HA=",
+          "id": "690c7371000000000503bd44",
+          "modelType": "note",
+          "noteCard": {
+            "type": "video",
+            "displaytitle": ""
+          },
+          "user": {
+            "userId": "618e8aaa0000000010005feb",
+            "nickname": "金领袖商学干货营",
+            "nickName": "金领袖商学干货营",
+            "avatar": "https://sns-avatar-qc.xhscdn.com/avatar/67da7835ec7aac00017d4f35.jpg?imageView2/2/w/80/format/jpg"
+          },
+          "interactInfo": {
+            "liked": false,
+            "likedCount": "41",
+            "sharedCount": "8",
+            "commentCount": "11",
+            "collectedCount": "34",
+            "collected": false
+          },
+          "cover": {
+            "width": 2022,
+            "height": 2696,
+            "url": "",
+            "fileId": "",
+            "urlPre": "http://sns-webpic-qc.xhscdn.com/202512261751/c320ac1a64cd0a6c20d4e4d9448f8a0e/spectrum/1040g34o31ohra1vr4u105ocehal40nvbfm2j15o!nc_n_webp_prv_1",
+            "urlDefault": "http://sns-webpic-qc.xhscdn.com/202512261751/95858e805115f558178911b12ebeb2fb/spectrum/1040g34o31ohra1vr4u105ocehal40nvbfm2j15o!nc_n_webp_mw_1"
+          },
+          "index": 4,
+          "userid": "618e8aaa0000000010005feb",
+          "笔记标题": "无标题",
+          "图片地址": "http://sns-webpic-qc.xhscdn.com/202512261751/95858e805115f558178911b12ebeb2fb/spectrum/1040g34o31ohra1vr4u105ocehal40nvbfm2j15o!nc_n_webp_mw_1",
+          "点赞数": 41,
+          "收藏数": 34,
+          "评论数": 11,
+          "分享数": 8,
+          "博主账户名称": "金领袖商学干货营",
+          "笔记类型": "video",
+          "笔记链接": "https://www.xiaohongshu.com/explore/690c7371000000000503bd44"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      },
+      {
+        "json": {
+          "xssecToken": "ABJWulAbrWSiT-A8PqVWdEqIWIhoTTMF3DsGs9kF2KiE0=",
+          "id": "68a595bb000000001d01a95c",
+          "modelType": "note",
+          "noteCard": {
+            "type": "normal",
+            "displaytitle": "秋季续费模板，独立老师直接用！"
+          },
+          "user": {
+            "userId": "669893e30000000003031d84",
+            "nickname": "绘本老师jasmine",
+            "nickName": "绘本老师jasmine",
+            "avatar": "https://sns-avatar-qc.xhscdn.com/avatar/1040g2jo31nss0abnmg005pkoifhgu7c47p9a5hg?imageView2/2/w/80/format/jpg"
+          },
+          "interactInfo": {
+            "liked": false,
+            "likedCount": "20",
+            "sharedCount": "1",
+            "commentCount": "0",
+            "collectedCount": "15",
+            "collected": false
+          },
+          "cover": {
+            "width": 1242,
+            "height": 1656,
+            "url": "",
+            "fileId": "",
+            "urlPre": "http://sns-webpic-qc.xhscdn.com/202512261751/151aff8dcdc5962d48c41bba70a89c42/notes_pre_post/1040g3k831ldco8e8lo705pkoifhgu7c4g9bmtto!nc_n_webp_prv_1",
+            "urlDefault": "http://sns-webpic-qc.xhscdn.com/202512261751/47433fec205b090dd8ec2f5cc0f41f29/notes_pre_post/1040g3k831ldco8e8lo705pkoifhgu7c4g9bmtto!nc_n_webp_mw_1"
+          },
+          "index": 5,
+          "userid": "669893e30000000003031d84",
+          "笔记标题": "秋季续费模板，独立老师直接用！",
+          "图片地址": "http://sns-webpic-qc.xhscdn.com/202512261751/47433fec205b090dd8ec2f5cc0f41f29/notes_pre_post/1040g3k831ldco8e8lo705pkoifhgu7c4g9bmtto!nc_n_webp_mw_1",
+          "点赞数": 20,
+          "收藏数": 15,
+          "评论数": 0,
+          "分享数": 1,
+          "博主账户名称": "绘本老师jasmine",
+          "笔记类型": "normal",
+          "笔记链接": "https://www.xiaohongshu.com/explore/68a595bb000000001d01a95c"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      },
+      {
+        "json": {
+          "xssecToken": "ABpEOytmf7MQ2UDym_6uWDrOnJd9hy-ZkEhtrYcOKK8gi31vBldH6h4WwGz1t9Wx5J2qD6dnT5WCVyVDhb4ch7mj2slA-17OQxz8clHvpyIAw=",
+          "id": "51b9a5be-d720-4b4e-9bf2-93168a34c779#1766742702056",
+          "modelType": "hot_query",
+          "noteCard": {
+            "type": "",
+            "displaytitle": ""
+          },
+          "user": {
+            "userId": "",
+            "nickname": "",
+            "nickName": "",
+            "avatar": ""
+          },
+          "interactInfo": {
+            "liked": false,
+            "likedCount": "",
+            "sharedCount": "",
+            "commentCount": "",
+            "collectedCount": "",
+            "collected": false
+          },
+          "cover": {
+            "width": 0,
+            "height": 0,
+            "url": "",
+            "fileId": "",
+            "urlPre": "",
+            "urlDefault": ""
+          },
+          "index": 6,
+          "userid": "",
+          "笔记标题": "无标题",
+          "图片地址": "",
+          "点赞数": 0,
+          "收藏数": 0,
+          "评论数": 0,
+          "分享数": 0,
+          "博主账户名称": "",
+          "笔记类型": "normal",
+          "笔记链接": "https://www.xiaohongshu.com/explore/51b9a5be-d720-4b4e-9bf2-93168a34c779#1766742702056"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      },
+      {
+        "json": {
+          "xssecToken": "ABBKOx4X1OOafO5Y2CjP7rmke-9_Fn_VPEAE0oIWEyGd4=",
+          "id": "68ee5afd000000000301ca05",
+          "modelType": "note",
+          "noteCard": {
+            "type": "normal",
+            "displaytitle": "家长不想续费❓用这6句话续费率100%❗️"
+          },
+          "user": {
+            "userId": "675dbeba000000001801611d",
+            "nickname": "嘻嘻的教培日记",
+            "nickName": "嘻嘻的教培日记",
+            "avatar": "https://sns-avatar-qc.xhscdn.com/avatar/1040g2jo31jm1rq8g2u6g5pqtnqt62o8t91eeacg?imageView2/2/w/80/format/jpg"
+          },
+          "interactInfo": {
+            "liked": false,
+            "likedCount": "17",
+            "sharedCount": "1",
+            "commentCount": "0",
+            "collectedCount": "19",
+            "collected": false
+          },
+          "cover": {
+            "width": 1200,
+            "height": 1600,
+            "url": "",
+            "fileId": "",
+            "urlPre": "http://sns-webpic-qc.xhscdn.com/202512261751/25bace3faf47c6d541fe1327635da6be/1040g2sg31nkeoug2lmfg5pqtnqt62o8t77i3o5g!nc_n_webp_prv_1",
+            "urlDefault": "http://sns-webpic-qc.xhscdn.com/202512261751/12f5fdb2932779605803098653de4520/1040g2sg31nkeoug2lmfg5pqtnqt62o8t77i3o5g!nc_n_webp_mw_1"
+          },
+          "index": 7,
+          "userid": "675dbeba000000001801611d",
+          "笔记标题": "家长不想续费❓用这6句话续费率100%❗️",
+          "图片地址": "http://sns-webpic-qc.xhscdn.com/202512261751/12f5fdb2932779605803098653de4520/1040g2sg31nkeoug2lmfg5pqtnqt62o8t77i3o5g!nc_n_webp_mw_1",
+          "点赞数": 17,
+          "收藏数": 19,
+          "评论数": 0,
+          "分享数": 1,
+          "博主账户名称": "嘻嘻的教培日记",
+          "笔记类型": "normal",
+          "笔记链接": "https://www.xiaohongshu.com/explore/68ee5afd000000000301ca05"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ],
+    "Wait1": [
+      {
+        "json": {
+          "xssecToken": "ABQXOteG0T6a9kzXxsdgF1YcI-6Aj1QGCLOESCJ9RBKwk=",
+          "id": "68adc6ed000000001d01d5a0",
+          "modelType": "note",
+          "noteCard": {
+            "type": "normal",
+            "displaytitle": "家长不想续费话术，6句话续费100%"
+          },
+          "user": {
+            "userId": "68520ff8000000001b022793",
+            "nickname": "星灿姐-英语老师IP孵化",
+            "nickName": "星灿姐-英语老师IP孵化",
+            "avatar": "https://sns-avatar-qc.xhscdn.com/avatar/1040g2jo31it4ormoh45g5q2i1vs6s9sjquvbkl8?imageView2/2/w/80/format/jpg"
+          },
+          "interactInfo": {
+            "liked": false,
+            "likedCount": "72",
+            "sharedCount": "7",
+            "commentCount": "2",
+            "collectedCount": "58",
+            "collected": false
+          },
+          "cover": {
+            "width": 828,
+            "height": 1108,
+            "url": "",
+            "fileId": "",
+            "urlPre": "http://sns-webpic-qc.xhscdn.com/202512261751/556a628c04432b023955967bd360c14b/1040g00831llcm0su5i005q2i1vs6s9sjqitgv7g!nc_n_webp_prv_1",
+            "urlDefault": "http://sns-webpic-qc.xhscdn.com/202512261751/40b349fd3884aef2d0401ed1276e1e77/1040g00831llcm0su5i005q2i1vs6s9sjqitgv7g!nc_n_webp_mw_1"
+          },
+          "index": 1,
+          "userid": "68520ff8000000001b022793",
+          "笔记标题": "家长不想续费话术，6句话续费100%",
+          "图片地址": "http://sns-webpic-qc.xhscdn.com/202512261751/40b349fd3884aef2d0401ed1276e1e77/1040g00831llcm0su5i005q2i1vs6s9sjqitgv7g!nc_n_webp_mw_1",
+          "点赞数": 72,
+          "收藏数": 58,
+          "评论数": 2,
+          "分享数": 7,
+          "博主账户名称": "星灿姐-英语老师IP孵化",
+          "笔记类型": "normal",
+          "笔记链接": "https://www.xiaohongshu.com/explore/68adc6ed000000001d01d5a0"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ],
+    "基于feed_id 正文提取": [
+      {
+        "json": {
+          "output": "{\n  \"content\": \"社恐独立老师狂喜！话少也能把续费率拉满\\n✨谁说独立老师得能说会道？我这人超“i”，跟家长聊天都得提前在心里打草稿，但续费率一直稳得很。\\n\\n✅其实不用逼自己变外向，掌握几个小技巧就行：\\n1. 少说场面话，多发“细节反馈”。比如“今天孩子主动提出用新方法解题，比上次快了5分钟”，比空说“孩子进步了”管用10倍。\\n2. 把“催续课”换成“聊规划”。家长问要不要续，就说“接下来咱们重点补XX模块，正好衔接孩子现在的进度，能帮他把基础扎得更牢”。\\n3. 偶尔“示弱”更拉近距离。比如“这个知识点我准备了3种讲法，您觉得孩子更适合哪种？”，家长反而觉得你用心又靠谱。\\n👉咱“i人”的优势就是细心、有耐心，把这点用到跟家长、孩子的沟通里，续课根本不用愁！\\n✅给大家准备续费话术，需要的直接来！\"\n}"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ],
+    "正文抓取状态判断": [
+      {
+        "json": {
+          "output": "{\n  \"content\": \"社恐独立老师狂喜！话少也能把续费率拉满\\n✨谁说独立老师得能说会道？我这人超“i”，跟家长聊天都得提前在心里打草稿，但续费率一直稳得很。\\n\\n✅其实不用逼自己变外向，掌握几个小技巧就行：\\n1. 少说场面话，多发“细节反馈”。比如“今天孩子主动提出用新方法解题，比上次快了5分钟”，比空说“孩子进步了”管用10倍。\\n2. 把“催续课”换成“聊规划”。家长问要不要续，就说“接下来咱们重点补XX模块，正好衔接孩子现在的进度，能帮他把基础扎得更牢”。\\n3. 偶尔“示弱”更拉近距离。比如“这个知识点我准备了3种讲法，您觉得孩子更适合哪种？”，家长反而觉得你用心又靠谱。\\n👉咱“i人”的优势就是细心、有耐心，把这点用到跟家长、孩子的沟通里，续课根本不用愁！\\n✅给大家准备续费话术，需要的直接来！\"\n}",
+          "笔记正文": "社恐独立老师狂喜！话少也能把续费率拉满\n✨谁说独立老师得能说会道？我这人超“i”，跟家长聊天都得提前在心里打草稿，但续费率一直稳得很。\n\n✅其实不用逼自己变外向，掌握几个小技巧就行：\n1. 少说场面话，多发“细节反馈”。比如“今天孩子主动提出用新方法解题，比上次快了5分钟”，比空说“孩子进步了”管用10倍。\n2. 把“催续课”换成“聊规划”。家长问要不要续，就说“接下来咱们重点补XX模块，正好衔接孩子现在的进度，能帮他把基础扎得更牢”。\n3. 偶尔“示弱”更拉近距离。比如“这个知识点我准备了3种讲法，您觉得孩子更适合哪种？”，家长反而觉得你用心又靠谱。\n👉咱“i人”的优势就是细心、有耐心，把这点用到跟家长、孩子的沟通里，续课根本不用愁！\n✅给大家准备续费话术，需要的直接来！",
+          "抓取状态": "成功",
+          "retryCount": 0
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ],
+    "数据汇总": [
+      {
+        "json": {
+          "xssecToken": "ABrYf0ynp2MdQjQBzWUC6Zu3AKV0qXi-BZ3445X2lIZD0=",
+          "feedid": "68da086f0000000013011650",
+          "userid": "669893e30000000003031d84",
+          "笔记类型": "normal",
+          "笔记标题": "独立老师很i但是续费率高的小技巧",
+          "博主账户名称": "绘本老师jasmine",
+          "点赞数": "43",
+          "分享数": "1",
+          "评论数": "0",
+          "收藏数": "40",
+          "图片地址": "http://sns-webpic-qc.xhscdn.com/202512261541/c199e433e9ca6deb8dae4a9e6597fb40/notes_pre_post/1040g3k031n0jm0btmm205pkoifhgu7c46p9qpu0!nc_n_webp_mw_1",
+          "笔记链接": "https://www.xiaohongshu.com/explore/68da086f0000000013011650",
+          "笔记正文": "社恐独立老师狂喜！话少也能把续费率拉满\n✨谁说独立老师得能说会道？我这人超“i”，跟家长聊天都得提前在心里打草稿，但续费率一直稳得很。\n\n✅其实不用逼自己变外向，掌握几个小技巧就行：\n1. 少说场面话，多发“细节反馈”。比如“今天孩子主动提出用新方法解题，比上次快了5分钟”，比空说“孩子进步了”管用10倍。\n2. 把“催续课”换成“聊规划”。家长问要不要续，就说“接下来咱们重点补XX模块，正好衔接孩子现在的进度，能帮他把基础扎得更牢”。\n3. 偶尔“示弱”更拉近距离。比如“这个知识点我准备了3种讲法，您觉得孩子更适合哪种？”，家长反而觉得你用心又靠谱。\n👉咱“i人”的优势就是细心、有耐心，把这点用到跟家长、孩子的沟通里，续课根本不用愁！\n✅给大家准备续费话术，需要的直接来！",
+          "粉丝数": 582,
+          "笔记总数": 32,
+          "获赞与收藏数": 5374,
+          "抓取状态": "成功"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "xhs-mcp2": {
+      "ai_tool": [
+        [
+          {
+            "node": "feeds下的全部字段",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DeepSeek Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "feeds下的全部字段",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "feeds下的全部字段": {
+      "main": [
+        [
+          {
+            "node": "feeds字段格式转化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "xhs-mcp3": {
+      "ai_tool": [
+        [
+          {
+            "node": "基于feed_id 正文提取",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DeepSeek Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "基于feed_id 正文提取",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "feeds字段格式转化": {
+      "main": [
+        [
+          {
+            "node": "视频过滤、过滤笔记点赞少于30的笔记",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "飞书新增记录": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "feeds下的全部字段",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "所需全部字段提取": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "xhs-mcp4": {
+      "ai_tool": [
+        [
+          {
+            "node": "根据userid获取博主 （笔记总数 粉丝 获赞与收藏数）",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DeepSeek Chat Model4": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "根据userid获取博主 （笔记总数 粉丝 获赞与收藏数）",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "博主的粉丝数 笔记数 解析": {
+      "main": [
+        [
+          {
+            "node": "数据汇总",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "视频过滤、过滤笔记点赞少于30的笔记": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "根据userid获取博主 （笔记总数 粉丝 获赞与收藏数）": {
+      "main": [
+        [
+          {
+            "node": "博主的粉丝数 笔记数 解析",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "基于feed_id 正文提取": {
+      "main": [
+        [
+          {
+            "node": "正文抓取状态判断",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Wait1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait1": {
+      "main": [
+        [
+          {
+            "node": "所需全部字段提取",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "数据汇总": {
+      "main": [
+        [
+          {
+            "node": "飞书新增记录",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait2": {
+      "main": [
+        [
+          {
+            "node": "根据userid获取博主 （笔记总数 粉丝 获赞与收藏数）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items1": {
+      "main": [
+        [],
+        [
+          {
+            "node": "基于feed_id 正文提取",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "正文获取状态判断": {
+      "main": [
+        [
+          {
+            "node": "Wait2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "正文抓取 检查次数",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "最多抓取正文2次": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "基于feed_id 正文提取",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "正文抓取状态判断": {
+      "main": [
+        [
+          {
+            "node": "正文获取状态判断",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "正文抓取 检查次数": {
+      "main": [
+        [
+          {
+            "node": "最多抓取正文2次",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timeSavedMode": "fixed",
+    "timezone": "Asia/Shanghai",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "versionId": "683bd474-91d0-4c4e-ae1b-2cd24e431b73",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "c590ddc7e26b1e496db852f8cb7e9145dd0761916c1a5979e8bf3a71085cf24a"
+  },
+  "id": "0FeqWBqnkwPur7fK",
+  "tags": []
+}
