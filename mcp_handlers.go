@@ -135,7 +135,10 @@ func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]in
 	// 解析定时发布参数
 	scheduleAt, _ := args["schedule_at"].(string)
 
-	logrus.Infof("MCP: 发布内容 - 标题: %s, 图片数量: %d, 标签数量: %d, 定时: %s", title, len(imagePaths), len(tags), scheduleAt)
+	// 解析原创参数
+	isOriginal, _ := args["is_original"].(bool)
+
+	logrus.Infof("MCP: 发布内容 - 标题: %s, 图片数量: %d, 标签数量: %d, 定时: %s, 原创: %v", title, len(imagePaths), len(tags), scheduleAt, isOriginal)
 
 	// 构建发布请求
 	req := &PublishRequest{
@@ -144,6 +147,7 @@ func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]in
 		Images:     imagePaths,
 		Tags:       tags,
 		ScheduleAt: scheduleAt,
+		IsOriginal: isOriginal,
 	}
 
 	// 执行发布
