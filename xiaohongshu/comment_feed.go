@@ -106,33 +106,53 @@ func (f *CommentFeedAction) ReplyToComment(ctx context.Context, feedID, xsecToke
 	url := makeFeedDetailURL(feedID, xsecToken)
 	logrus.Infof("打开 feed 详情页进行回复: %s", url)
 
+	// 先访问首页建立正常浏览会话（避免无 referrer 直接访问被拦截）
+	logrus.Info("先导航到首页建立浏览会话...")
+	page.MustNavigate("https://www.xiaohongshu.com")
+	page.MustWaitDOMStable()
+	time.Sleep(2 * time.Second)
+
+	// 再导航到详情页（此时有正常的浏览上下文）
+	logrus.Infof("导航到详情页: %s", url)
 	page.MustNavigate(url)
 	page.MustWaitDOMStable()
 	time.Sleep(1 * time.Second)
 
 	if err := checkPageAccessible(page); err != nil {
-		return err
+		// 如果仍然不可访问，尝试通过 JS 跳转（模拟页面内导航）
+		logrus.Warnf("直接导航失败: %v, 尝试 JS 跳转...", err)
+		_, _ = page.Eval(fmt.Sprintf(`() => { window.location.href = "%s"; }`, url))
+		time.Sleep(3 * time.Second)
+		page.MustWaitDOMStable()
+		if err2 := checkPageAccessible(page); err2 != nil {
+			return fmt.Errorf("页面不可访问（已尝试多种导航方式）: %w", err2)
+		}
 	}
 
 	time.Sleep(2 * time.Second)
 
-	commentEl, err := findCommentElement(page, commentID, userID)
-	if err != nil {
-		return fmt.Errorf("无法找到评论: %w", err)
+	// findCommentElement 中使用短超时 context 查找，返回的 element 可能绑定到已过期的 context
+	// 这里先确认评论存在，再用主 page context 重新获取（避免 context deadline exceeded）
+	if _, findErr := findCommentElement(page, commentID, userID); findErr != nil {
+		return fmt.Errorf("无法找到评论: %w", findErr)
 	}
+
+	// 用主 page context（5min 超时）重新获取评论元素
+	selector := fmt.Sprintf("#comment-%s", commentID)
+	commentEl, err := page.Timeout(10 * time.Second).Element(selector)
+	if err != nil {
+		return fmt.Errorf("重新获取评论元素失败: %w", err)
+	}
+	logrus.Infof("已用主 context 重新获取评论元素: %s", selector)
 
 	if err := commentEl.ScrollIntoView(); err != nil {
 		logrus.Warnf("滚动到评论位置失败: %v", err)
 	}
 	time.Sleep(1 * time.Second)
 
-	// 查找回复按钮（新旧选择器兼容）
-	replyBtn, err := commentEl.Timeout(5 * time.Second).Element(".interactions .reply, .right .interactions .reply")
-	if err != nil {
-		return fmt.Errorf("无法找到回复按钮: %w", err)
-	}
-	if err := replyBtn.Click(proto.InputMouseButtonLeft, 1); err != nil {
-		return fmt.Errorf("点击回复按钮失败: %w", err)
+	// 多策略查找并点击回复按钮
+	if err := clickReplyButton(page, commentEl); err != nil {
+		return fmt.Errorf("回复按钮点击失败: %w", err)
 	}
 
 	time.Sleep(1 * time.Second)
@@ -225,6 +245,77 @@ func findCommentElement(page *rod.Page, commentID, userID string) (*rod.Element,
 	}
 
 	return nil, fmt.Errorf("未找到评论 (commentID: %s, userID: %s), 尝试次数: %d", commentID, userID, maxAttempts)
+}
+
+// clickReplyButton 多策略查找并点击评论的回复按钮
+func clickReplyButton(page *rod.Page, commentEl *rod.Element) error {
+	// 调试: 用 page.Eval + element 引用获取 HTML（rod 中 Element.Eval 使用 this）
+	html, err := commentEl.Eval(`function() { return this.outerHTML.substring(0, 3000); }`)
+	if err != nil {
+		logrus.Warnf("获取评论 HTML 失败: %v", err)
+	} else {
+		logrus.Infof("评论元素 outerHTML (截取): %s", html.Value.Str())
+	}
+
+	// 策略1: CSS 选择器（覆盖多种可能的类名）
+	selectors := []string{
+		".right .interactions .reply",
+		".interactions .reply",
+		".reply-btn",
+		"span.reply",
+		"[class*='reply']",
+		".comment-op .reply",
+		".operation .reply",
+	}
+	for _, sel := range selectors {
+		btn, err := commentEl.Timeout(1 * time.Second).Element(sel)
+		if err == nil && btn != nil {
+			logrus.Infof("策略1: 通过选择器 '%s' 找到回复按钮", sel)
+			if clickErr := btn.Click(proto.InputMouseButtonLeft, 1); clickErr == nil {
+				return nil
+			}
+			logrus.Warnf("点击失败，尝试下一个选择器")
+		}
+	}
+	logrus.Warn("策略1(CSS选择器)均失败，尝试策略2(JS文本搜索)")
+
+	// 策略2: JS 搜索含"回复"文本的元素并点击（使用 function 而非箭头函数）
+	clicked, err := commentEl.Eval(`function() {
+		var candidates = this.querySelectorAll('span, a, div, button, p, label');
+		for (var i = 0; i < candidates.length; i++) {
+			var text = candidates[i].textContent.trim();
+			if (text === '回复' || text === 'Reply' || text === '回复评论') {
+				candidates[i].click();
+				return true;
+			}
+		}
+		return false;
+	}`)
+	if err == nil && clicked.Value.Bool() {
+		logrus.Info("策略2: 通过JS文本搜索找到并点击了回复按钮")
+		return nil
+	}
+	logrus.Warn("策略2(JS文本搜索)失败，尝试策略3(点击评论文字)")
+
+	// 策略3: 直接点击评论文字区域（小红书点击评论文字可触发回复输入框）
+	contentClicked, err := commentEl.Eval(`function() {
+		// 尝试点击评论文本内容
+		var all = this.querySelectorAll('*');
+		for (var i = 0; i < all.length; i++) {
+			var el = all[i];
+			if (el.children.length === 0 && el.textContent.trim().length > 5) {
+				el.click();
+				return true;
+			}
+		}
+		return false;
+	}`)
+	if err == nil && contentClicked.Value.Bool() {
+		logrus.Info("策略3: 点击评论文字触发回复")
+		return nil
+	}
+
+	return fmt.Errorf("所有策略均失败，请检查页面DOM结构")
 }
 
 // tryFindComment 尝试在当前 DOM 中查找目标评论
