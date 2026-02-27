@@ -1,6 +1,9 @@
 package browser
 
 import (
+	"net/url"
+	"os"
+
 	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/headless_browser"
 	"github.com/xpzouying/xiaohongshu-mcp/cookies"
@@ -18,6 +21,20 @@ func WithBinPath(binPath string) Option {
 	}
 }
 
+// maskProxyCredentials masks username and password in proxy URL for safe logging.
+func maskProxyCredentials(proxyURL string) string {
+	u, err := url.Parse(proxyURL)
+	if err != nil || u.User == nil {
+		return proxyURL
+	}
+	if _, hasPassword := u.User.Password(); hasPassword {
+		u.User = url.UserPassword("***", "***")
+	} else {
+		u.User = url.User("***")
+	}
+	return u.String()
+}
+
 func NewBrowser(headless bool, options ...Option) *headless_browser.Browser {
 	cfg := &browserConfig{}
 	for _, opt := range options {
@@ -29,6 +46,12 @@ func NewBrowser(headless bool, options ...Option) *headless_browser.Browser {
 	}
 	if cfg.binPath != "" {
 		opts = append(opts, headless_browser.WithChromeBinPath(cfg.binPath))
+	}
+
+	// Read proxy from environment variable
+	if proxy := os.Getenv("XHS_PROXY"); proxy != "" {
+		opts = append(opts, headless_browser.WithProxy(proxy))
+		logrus.Infof("Using proxy: %s", maskProxyCredentials(proxy))
 	}
 
 	// 加载 cookies
