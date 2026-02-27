@@ -766,6 +766,28 @@ Use xiaohongshu-mcp's video publishing feature.
 
 ---
 
+**Q:** Running `xiaohongshu-login-linux-amd64` in WSL (without GUI) returns `Missing X server or $DISPLAY`. What should I do?
+**A:** `xiaohongshu-login-linux-amd64` requires a graphical environment, so it fails in headless WSL terminals. Recommended flow: login on Windows, then reuse cookies in WSL:
+
+1. Run `xiaohongshu-login-windows-amd64.exe` on Windows and complete login.
+2. Copy `cookies.json` from Windows to WSL `bin` and restart Linux MCP:
+
+```bash
+cd ~/.openclaw/workspace/skills/xiaohongshu-mcp/bin && cp -f /mnt/c/Users/<your-user>/.openclaw/workspace/skills/xiaohongshu-mcp/bin/cookies.json ./cookies.json && (pkill -f xiaohongshu-mcp-linux-amd64 2>/dev/null || true) && { nohup ./xiaohongshu-mcp-linux-amd64 > mcp.log 2>&1 & } && sleep 3 && curl -sS http://127.0.0.1:18060/api/v1/login/status
+```
+
+---
+
+**Q:** `search_feeds` / `publish_content` hangs for a long time on WSL. How to troubleshoot?
+**A:** Most cases are caused by missing login state or incomplete Chromium runtime dependencies:
+
+1. Check login status first: `GET /api/v1/login/status` and ensure `is_logged_in=true`.
+2. If logs show missing `libnss3.so`, install dependencies and restart MCP:
+   - `sudo apt-get update && sudo apt-get install -y libnss3 libnspr4 libgbm1 libgtk-3-0 libx11-xcb1 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libasound2t64 libatk1.0-0 libcups2 libxkbcommon0 libxshmfence1 fonts-liberation xdg-utils`
+3. Retry `search_feeds` / `publish_content` and inspect request timing/errors in `bin/mcp.log`.
+
+---
+
 **Q:** The MCP program crashes on my device, how to resolve?
 **A:**
 
