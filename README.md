@@ -773,6 +773,7 @@ Cline 是一个强大的 AI 编程助手，支持 MCP 协议集成。
 
 1. 在 Windows 中先运行 `xiaohongshu-login-windows-amd64.exe` 完成登录。
 2. 把 Windows 生成的 `cookies.json` 复制到 WSL 的 `bin` 目录，并重启 Linux 版 MCP：
+   - 下面命令里的 `~/.openclaw/workspace/skills/xiaohongshu-mcp/bin` 是 OpenClaw 默认路径；如果你是手动部署，请替换成你自己的 `xiaohongshu-mcp/bin` 目录。
 
 ```bash
 cd ~/.openclaw/workspace/skills/xiaohongshu-mcp/bin && cp -f /mnt/c/Users/<your-user>/.openclaw/workspace/skills/xiaohongshu-mcp/bin/cookies.json ./cookies.json && (pkill -f xiaohongshu-mcp-linux-amd64 2>/dev/null || true) && { nohup ./xiaohongshu-mcp-linux-amd64 > mcp.log 2>&1 & } && sleep 3 && curl -sS http://127.0.0.1:18060/api/v1/login/status
