@@ -92,7 +92,34 @@ docker compose pull && docker compose up -d
 
 <img width="1662" height="458" alt="image" src="https://github.com/user-attachments/assets/309c2dab-51c4-4502-a41b-cdd4a3dd57ac" />
 
-## 4. 扫码登录
+## 4. 配置代理（可选）
+
+如果需要通过代理访问小红书，可以通过 `XHS_PROXY` 环境变量配置。
+
+### 使用 docker run
+
+```bash
+docker run -e XHS_PROXY=http://user:pass@proxy:port xpzouying/xiaohongshu-mcp
+```
+
+### 使用 docker-compose
+
+在 `docker-compose.yml` 的 `environment` 中添加 `XHS_PROXY`：
+
+```yaml
+environment:
+  - ROD_BROWSER_BIN=/usr/bin/google-chrome
+  - COOKIES_PATH=/app/data/cookies.json
+  - XHS_PROXY=http://user:pass@proxy:port
+```
+
+支持 HTTP/HTTPS/SOCKS5 代理。日志中会自动隐藏代理的认证信息，输出示例：
+
+```
+Using proxy: http://***:***@proxy:port
+```
+
+## 5. 扫码登录
 
 1. **重要**，一定要先把 App 提前打开，准备扫码登录。
 2. 尽快扫码，有可能二维码会过期。
