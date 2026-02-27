@@ -22,6 +22,7 @@ type PublishImageContent struct {
 	Tags         []string
 	ImagePaths   []string
 	ScheduleTime *time.Time // 定时发布时间，nil 表示立即发布
+	IsOriginal   bool       // 是否声明原创
 }
 
 type PublishAction struct {
@@ -82,9 +83,9 @@ func (p *PublishAction) Publish(ctx context.Context, content PublishImageContent
 		tags = tags[:10]
 	}
 
-	logrus.Infof("发布内容: title=%s, images=%v, tags=%v, schedule=%v", content.Title, len(content.ImagePaths), tags, content.ScheduleTime)
+	logrus.Infof("发布内容: title=%s, images=%v, tags=%v, schedule=%v, original=%v", content.Title, len(content.ImagePaths), tags, content.ScheduleTime, content.IsOriginal)
 
-	if err := submitPublish(page, content.Title, content.Content, tags, content.ScheduleTime); err != nil {
+	if err := submitPublish(page, content.Title, content.Content, tags, content.ScheduleTime, content.IsOriginal); err != nil {
 		return errors.Wrap(err, "小红书发布失败")
 	}
 
@@ -268,7 +269,7 @@ func waitForUploadComplete(page *rod.Page, expectedCount int) error {
 	return errors.Errorf("第%d张图片上传超时(60s)，请检查网络连接和图片大小", expectedCount)
 }
 
-func submitPublish(page *rod.Page, title, content string, tags []string, scheduleTime *time.Time) error {
+func submitPublish(page *rod.Page, title, content string, tags []string, scheduleTime *time.Time, isOriginal bool) error {
 	titleElem, err := page.Element("div.d-input input")
 	if err != nil {
 		return errors.Wrap(err, "查找标题输入框失败")
@@ -311,6 +312,15 @@ func submitPublish(page *rod.Page, title, content string, tags []string, schedul
 			return errors.Wrap(err, "设置定时发布失败")
 		}
 		slog.Info("定时发布设置完成", "schedule_time", scheduleTime.Format("2006-01-02 15:04"))
+	}
+
+	// 处理原创声明
+	if isOriginal {
+		if err := setOriginal(page); err != nil {
+			slog.Warn("设置原创声明失败，继续发布", "error", err)
+		} else {
+			slog.Info("已声明原创")
+		}
 	}
 
 	submitButton, err := page.Element(".publish-page-publish-btn button.bg-red")
@@ -609,6 +619,153 @@ func setDateTime(page *rod.Page, t time.Time) error {
 		return errors.Wrap(err, "输入日期时间失败")
 	}
 	slog.Info("已设置日期时间", "datetime", dateTimeStr)
+
+	return nil
+}
+
+// setOriginal 设置原创声明
+func setOriginal(page *rod.Page) error {
+	// 根据小红书创作者页面的实际结构：
+	// div.custom-switch-card 包含 span.has-tips 文本为"原创声明"
+	// 开关是 div.d-switch 组件
+
+	// 查找包含"原创声明"文本的 custom-switch-card
+	switchCards, err := page.Elements("div.custom-switch-card")
+	if err != nil {
+		return errors.Wrap(err, "查找原创声明卡片失败")
+	}
+
+	for _, card := range switchCards {
+		text, err := card.Text()
+		if err != nil {
+			continue
+		}
+
+		// 检查是否是原创声明卡片
+		if !strings.Contains(text, "原创声明") {
+			continue
+		}
+
+		// 找到原创声明卡片，查找其中的 d-switch
+		switchElem, err := card.Element("div.d-switch")
+		if err != nil {
+			continue
+		}
+
+		// 检查开关是否已打开
+		checked, err := switchElem.Eval(`() => {
+			const input = this.querySelector('input[type="checkbox"]');
+			return input ? input.checked : false;
+		}`)
+		if err != nil {
+			continue
+		}
+
+		if checked.Value.Bool() {
+			slog.Info("原创声明已开启")
+			return nil
+		}
+
+		// 点击开关
+		if err := switchElem.Click(proto.InputMouseButtonLeft, 1); err != nil {
+			return errors.Wrap(err, "点击原创声明开关失败")
+		}
+
+		time.Sleep(500 * time.Millisecond)
+
+		// 处理原创声明确认弹窗
+		if err := confirmOriginalDeclaration(page); err != nil {
+			return errors.Wrap(err, "确认原创声明失败")
+		}
+
+		slog.Info("已开启原创声明")
+		return nil
+	}
+
+	return errors.New("未找到原创声明选项")
+}
+
+// confirmOriginalDeclaration 处理原创声明确认弹窗
+func confirmOriginalDeclaration(page *rod.Page) error {
+	// 等待确认弹窗出现
+	time.Sleep(800 * time.Millisecond)
+
+	// 使用 JavaScript 直接处理弹窗，更可靠
+	result, err := page.Eval(`
+		() => {
+			// 查找包含"原创声明须知"的 footer 区域
+			const footers = document.querySelectorAll('div.footer');
+			for (const footer of footers) {
+				// 检查是否包含原创声明相关内容
+				if (!footer.textContent.includes('原创声明须知')) {
+					continue;
+				}
+
+				// 找到 checkbox 并勾选
+				const checkbox = footer.querySelector('div.d-checkbox input[type="checkbox"]');
+				if (checkbox && !checkbox.checked) {
+					checkbox.click();
+					console.log('已勾选原创声明须知 checkbox');
+				}
+
+				// 等待一下让按钮变为可用
+				return 'found_footer';
+			}
+			return 'footer_not_found';
+		}
+	`)
+	if err != nil {
+		slog.Warn("执行查找弹窗脚本失败", "error", err)
+	} else if result.Value.String() == "footer_not_found" {
+		slog.Warn("未找到原创声明确认弹窗的 footer")
+	}
+
+	time.Sleep(500 * time.Millisecond)
+
+	// 再次使用 JavaScript 点击声明原创按钮
+	result2, err := page.Eval(`
+		() => {
+			const footers = document.querySelectorAll('div.footer');
+			for (const footer of footers) {
+				if (!footer.textContent.includes('声明原创')) {
+					continue;
+				}
+
+				// 找到声明原创按钮
+				const btn = footer.querySelector('button.custom-button');
+				if (btn) {
+					// 检查是否禁用
+					if (btn.classList.contains('disabled') || btn.disabled) {
+						// 尝试再次勾选 checkbox
+						const checkbox = footer.querySelector('div.d-checkbox input[type="checkbox"]');
+						if (checkbox && !checkbox.checked) {
+							checkbox.click();
+						}
+						return 'button_disabled';
+					}
+					btn.click();
+					return 'clicked';
+				}
+			}
+			return 'button_not_found';
+		}
+	`)
+	if err != nil {
+		return errors.Wrap(err, "执行点击按钮脚本失败")
+	}
+
+	status := result2.Value.String()
+	slog.Info("原创声明确认结果", "status", status)
+
+	if status == "button_not_found" {
+		return errors.New("未找到声明原创按钮")
+	}
+	if status == "button_disabled" {
+		return errors.New("声明原创按钮仍处于禁用状态")
+	}
+
+	slog.Info("已成功点击声明原创按钮")
+	time.Sleep(300 * time.Millisecond)
 
 	return nil
 }

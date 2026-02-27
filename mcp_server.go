@@ -22,6 +22,7 @@ type PublishContentArgs struct {
 	Images     []string `json:"images" jsonschema:"图片路径列表（至少需要1张图片）。支持两种方式：1. HTTP/HTTPS图片链接（自动下载）；2. 本地图片绝对路径（推荐，如:/Users/user/image.jpg）"`
 	Tags       []string `json:"tags,omitempty" jsonschema:"话题标签列表（可选参数），如 [美食, 旅行, 生活]"`
 	ScheduleAt string   `json:"schedule_at,omitempty" jsonschema:"定时发布时间（可选），ISO8601格式如 2024-01-20T10:30:00+08:00，支持1小时至14天内。不填则立即发布"`
+	IsOriginal bool     `json:"is_original,omitempty" jsonschema:"是否声明原创（可选），true为声明原创，false或不填则不声明"`
 }
 
 // PublishVideoArgs 发布视频的参数（仅支持本地单个视频文件）
@@ -214,6 +215,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				"images":      convertStringsToInterfaces(args.Images),
 				"tags":        convertStringsToInterfaces(args.Tags),
 				"schedule_at": args.ScheduleAt,
+				"is_original": args.IsOriginal,
 			}
 			result := appServer.handlePublishContent(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
