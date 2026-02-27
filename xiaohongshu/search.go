@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/go-rod/rod"
+	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/xiaohongshu-mcp/errors"
 )
 
@@ -162,6 +163,10 @@ type SearchAction struct {
 func NewSearchAction(page *rod.Page) *SearchAction {
 	pp := page.Timeout(60 * time.Second)
 
+	// 先访问主页建立 session（搜索页需要登录态，直接跳转会被拦截）
+	pp.MustNavigate("https://www.xiaohongshu.com")
+	pp.MustWaitDOMStable()
+
 	return &SearchAction{page: pp}
 }
 
@@ -169,10 +174,12 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 	page := s.page.Context(ctx)
 
 	searchURL := makeSearchURL(keyword)
+	logrus.Infof("search: 导航到 %s", searchURL)
 	page.MustNavigate(searchURL)
-	page.MustWaitStable()
+	page.MustWaitDOMStable()
 
-	page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
+	// 等待搜索数据就绪
+	time.Sleep(2 * time.Second)
 
 	// 如果有筛选条件，则应用筛选
 	if len(filters) > 0 {
@@ -193,25 +200,27 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 			}
 		}
 
-		// 悬停在筛选按钮上
-		filterButton := page.MustElement(`div.filter`)
-		filterButton.MustHover()
+		// 只在有实际筛选条件时才操作筛选面板
+		if len(allInternalFilters) > 0 {
+			// 悬停在筛选按钮上
+			filterButton := page.MustElement(`div.filter`)
+			filterButton.MustHover()
 
-		// 等待筛选面板出现
-		page.MustWait(`() => document.querySelector('div.filter-panel') !== null`)
+			// 等待筛选面板出现
+			page.MustWait(`() => document.querySelector('div.filter-panel') !== null`)
 
-		// 应用所有筛选条件
-		for _, filter := range allInternalFilters {
-			selector := fmt.Sprintf(`div.filter-panel div.filters:nth-child(%d) div.tags:nth-child(%d)`,
-				filter.FiltersIndex, filter.TagsIndex)
-			option := page.MustElement(selector)
-			option.MustClick()
+			// 应用所有筛选条件
+			for _, filter := range allInternalFilters {
+				selector := fmt.Sprintf(`div.filter-panel div.filters:nth-child(%d) div.tags:nth-child(%d)`,
+					filter.FiltersIndex, filter.TagsIndex)
+				option := page.MustElement(selector)
+				option.MustClick()
+			}
+
+			// 等待页面更新
+			page.MustWaitDOMStable()
+			time.Sleep(1 * time.Second)
 		}
-
-		// 等待页面更新
-		page.MustWaitStable()
-		// 重新等待 __INITIAL_STATE__ 更新
-		page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
 	}
 
 	result := page.MustEval(`() => {
