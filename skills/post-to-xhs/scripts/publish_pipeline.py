@@ -21,6 +21,10 @@ Usage:
     # Use local image files instead of URLs
     python publish_pipeline.py --title "标题" --content "正文" --images img1.jpg img2.jpg
 
+    # Long article mode (images optional)
+    python publish_pipeline.py --mode long-article --title "标题" --content "正文"
+    python publish_pipeline.py --mode long-article --title "标题" --content "正文" --images img1.jpg
+
 Exit codes:
     0 = success (READY_TO_PUBLISH or PUBLISHED)
     1 = not logged in (NOT_LOGGED_IN) - headless auto-fallback will restart headed
@@ -65,8 +69,16 @@ def main():
     content_group.add_argument("--content", help="Article body text")
     content_group.add_argument("--content-file", help="Read content from UTF-8 file")
 
-    # Images
-    img_group = parser.add_mutually_exclusive_group(required=True)
+    # Mode
+    parser.add_argument(
+        "--mode",
+        choices=["image-text", "long-article"],
+        default="image-text",
+        help="Publish mode: 'image-text' (default) or 'long-article'",
+    )
+
+    # Images (required for image-text, optional for long-article)
+    img_group = parser.add_mutually_exclusive_group(required=False)
     img_group.add_argument(
         "--image-urls", nargs="+", help="Image URLs to download"
     )
@@ -169,7 +181,7 @@ def main():
         if not image_paths:
             print("Error: All image downloads failed.", file=sys.stderr)
             sys.exit(2)
-    else:
+    elif args.images:
         image_paths = args.images
         # Verify local files exist
         for p in image_paths:
@@ -177,20 +189,33 @@ def main():
                 print(f"Error: Image file not found: {p}", file=sys.stderr)
                 sys.exit(2)
         print(f"[pipeline] Step 3: Using {len(image_paths)} local image(s).")
+    elif args.mode == "image-text":
+        print("Error: Images are required for image-text mode. Use --image-urls or --images.", file=sys.stderr)
+        sys.exit(2)
+    else:
+        print("[pipeline] Step 3: No images (optional for long-article mode).")
 
     # --- Step 4: Fill form ---
     print("[pipeline] Step 4: Filling form...")
     try:
-        publisher.publish(title=title, content=content, image_paths=image_paths)
-        print("FILL_STATUS: READY_TO_PUBLISH")
+        if args.mode == "long-article":
+            publisher.publish_long_article(
+                title=title,
+                content=content,
+                image_paths=image_paths or None,
+            )
+            print("LONG_ARTICLE_STATUS: TEMPLATE_SELECTION")
+        else:
+            publisher.publish(title=title, content=content, image_paths=image_paths)
+            print("FILL_STATUS: READY_TO_PUBLISH")
     except CDPError as e:
         print(f"Error during form fill: {e}", file=sys.stderr)
         if downloader:
             downloader.cleanup()
         sys.exit(2)
 
-    # --- Step 5: Publish (optional) ---
-    if args.auto_publish:
+    # --- Step 5: Publish (optional, image-text mode only) ---
+    if args.auto_publish and args.mode == "image-text":
         print("[pipeline] Step 5: Clicking publish button...")
         try:
             publisher._click_publish()

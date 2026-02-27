@@ -5,11 +5,15 @@ Connects to a Chrome instance via Chrome DevTools Protocol to automate
 publishing articles on Xiaohongshu (RED) creator center.
 
 CLI usage:
-    # Basic commands
+    # Basic commands (image-text mode)
     python cdp_publish.py check-login [--headless] [--account NAME]
     python cdp_publish.py fill --title "标题" --content "正文" --images img1.jpg [--headless] [--account NAME]
     python cdp_publish.py publish --title "标题" --content "正文" --images img1.jpg [--headless] [--account NAME]
     python cdp_publish.py click-publish [--headless] [--account NAME]
+
+    # Long article mode
+    python cdp_publish.py long-article --title "标题" --content "正文" [--images img1.jpg] [--account NAME]
+    python cdp_publish.py click-next-step [--account NAME]
 
     # Account management
     python cdp_publish.py login [--account NAME]           # open browser for QR login
@@ -81,6 +85,13 @@ SELECTORS = {
     "publish_button_text": "发布",
     # Login indicator - URL-based check (redirect to /login if not logged in)
     "login_indicator": '.user-info, .creator-header, [class*="user"]',
+    # Long article mode
+    "long_article_tab_text": "写长文",
+    "new_creation_btn_text": "新的创作",
+    "long_title_input": 'textarea.d-text[placeholder="输入标题"]',
+    "auto_format_btn_text": "一键排版",
+    "next_step_btn_text": "下一步",
+    "template_card": ".template-card",
 }
 
 # Timing
@@ -88,6 +99,8 @@ PAGE_LOAD_WAIT = 3  # seconds to wait after navigation
 TAB_CLICK_WAIT = 2  # seconds to wait after clicking tab
 UPLOAD_WAIT = 6  # seconds to wait after image upload for editor to appear
 ACTION_INTERVAL = 1  # seconds between actions
+AUTO_FORMAT_WAIT = 5  # seconds to wait after clicking auto-format
+TEMPLATE_WAIT = 10  # seconds max to wait for template cards to appear
 
 
 class CDPError(Exception):
@@ -450,7 +463,305 @@ class XiaohongshuPublisher:
             )
 
     # ------------------------------------------------------------------
-    # Main publish workflow
+    # Long article actions
+    # ------------------------------------------------------------------
+
+    def _click_long_article_tab(self):
+        """Click the '写长文' tab to switch to long article mode."""
+        print("[cdp_publish] Clicking '写长文' tab...")
+        tab_text = SELECTORS["long_article_tab_text"]
+        selector = SELECTORS["image_text_tab"]  # same container: div.creator-tab
+
+        clicked = self._evaluate(f"""
+            (function() {{
+                var tabs = document.querySelectorAll('{selector}');
+                for (var i = 0; i < tabs.length; i++) {{
+                    if (tabs[i].textContent.trim() === '{tab_text}') {{
+                        tabs[i].click();
+                        return true;
+                    }}
+                }}
+                return false;
+            }})();
+        """)
+
+        if not clicked:
+            raise CDPError(
+                f"Could not find '{tab_text}' tab. "
+                "The page structure may have changed."
+            )
+
+        print("[cdp_publish] '写长文' tab clicked.")
+        time.sleep(TAB_CLICK_WAIT)
+
+    def _click_new_creation(self):
+        """Click the '新的创作' button to start a new long article."""
+        print("[cdp_publish] Clicking '新的创作' button...")
+        btn_text = SELECTORS["new_creation_btn_text"]
+
+        clicked = self._evaluate(f"""
+            (function() {{
+                // Search all elements for text match
+                var candidates = document.querySelectorAll(
+                    '.center span, .center div, .center button, .center a, '
+                    + 'button, [role="button"], [class*="btn"], [class*="creation"]'
+                );
+                for (var i = 0; i < candidates.length; i++) {{
+                    if (candidates[i].textContent.trim() === '{btn_text}') {{
+                        candidates[i].click();
+                        return true;
+                    }}
+                }}
+                return false;
+            }})();
+        """)
+
+        if not clicked:
+            raise CDPError(
+                f"Could not find '{btn_text}' button. "
+                "The page structure may have changed."
+            )
+
+        print("[cdp_publish] '新的创作' button clicked.")
+        time.sleep(PAGE_LOAD_WAIT)
+
+    def _fill_long_title(self, title: str):
+        """Fill in the long article title (textarea element)."""
+        print(f"[cdp_publish] Setting long article title: {title[:40]}...")
+        time.sleep(ACTION_INTERVAL)
+
+        selector = SELECTORS["long_title_input"]
+        found = self._evaluate(f"!!document.querySelector('{selector}')")
+        if not found:
+            raise CDPError(
+                f"Could not find long title textarea ('{selector}'). "
+                "The page structure may have changed."
+            )
+
+        escaped_title = json.dumps(title)
+        self._evaluate(f"""
+            (function() {{
+                var el = document.querySelector('{selector}');
+                var nativeSetter = Object.getOwnPropertyDescriptor(
+                    window.HTMLTextAreaElement.prototype, 'value'
+                ).set;
+                el.focus();
+                nativeSetter.call(el, {escaped_title});
+                el.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                el.dispatchEvent(new Event('change', {{ bubbles: true }}));
+            }})();
+        """)
+        print("[cdp_publish] Long article title set.")
+
+    def _click_auto_format(self):
+        """Click the '一键排版' button."""
+        print("[cdp_publish] Clicking '一键排版' button...")
+        btn_text = SELECTORS["auto_format_btn_text"]
+
+        clicked = self._evaluate(f"""
+            (function() {{
+                var elems = document.querySelectorAll(
+                    'button, [role="button"], span, div, a, [class*="btn"]'
+                );
+                for (var i = 0; i < elems.length; i++) {{
+                    if (elems[i].textContent.trim() === '{btn_text}') {{
+                        elems[i].click();
+                        return true;
+                    }}
+                }}
+                return false;
+            }})();
+        """)
+
+        if not clicked:
+            raise CDPError(
+                f"Could not find '{btn_text}' button. "
+                "The page structure may have changed."
+            )
+
+        print("[cdp_publish] '一键排版' button clicked. Waiting for templates...")
+        time.sleep(AUTO_FORMAT_WAIT)
+
+    def _wait_for_templates(self) -> bool:
+        """Wait for template cards to appear after clicking auto-format."""
+        print("[cdp_publish] Waiting for template cards to load...")
+        selector = SELECTORS["template_card"]
+
+        for attempt in range(TEMPLATE_WAIT):
+            found = self._evaluate(
+                f"document.querySelectorAll('{selector}').length"
+            )
+            if found and found > 0:
+                print(f"[cdp_publish] Found {found} template card(s).")
+                return True
+            time.sleep(1)
+
+        print("[cdp_publish] Warning: No template cards found within timeout.")
+        return False
+
+    def get_template_names(self) -> list[str]:
+        """Get the list of available template names from the page."""
+        selector = SELECTORS["template_card"]
+        names = self._evaluate(f"""
+            (function() {{
+                var cards = document.querySelectorAll('{selector}');
+                var names = [];
+                for (var i = 0; i < cards.length; i++) {{
+                    var title = cards[i].querySelector('.template-title');
+                    names.push(title ? title.textContent.trim() : 'Template ' + i);
+                }}
+                return names;
+            }})();
+        """)
+        return names or []
+
+    def select_template(self, name: str) -> bool:
+        """Select a template by clicking the card with the matching name."""
+        print(f"[cdp_publish] Selecting template: {name}...")
+        selector = SELECTORS["template_card"]
+
+        clicked = self._evaluate(f"""
+            (function() {{
+                var cards = document.querySelectorAll('{selector}');
+                for (var i = 0; i < cards.length; i++) {{
+                    var title = cards[i].querySelector('.template-title');
+                    if (title && title.textContent.trim() === {json.dumps(name)}) {{
+                        cards[i].click();
+                        return true;
+                    }}
+                }}
+                return false;
+            }})();
+        """)
+
+        if clicked:
+            print(f"[cdp_publish] Template '{name}' selected.")
+            time.sleep(ACTION_INTERVAL)
+        else:
+            print(f"[cdp_publish] Warning: Template '{name}' not found.")
+
+        return bool(clicked)
+
+    def _click_next_step(self):
+        """Click the '下一步' button."""
+        print("[cdp_publish] Clicking '下一步' button...")
+        btn_text = SELECTORS["next_step_btn_text"]
+
+        clicked = self._evaluate(f"""
+            (function() {{
+                var elems = document.querySelectorAll(
+                    'button, [role="button"], span, div, a, [class*="btn"]'
+                );
+                for (var i = 0; i < elems.length; i++) {{
+                    if (elems[i].textContent.trim() === '{btn_text}') {{
+                        elems[i].click();
+                        return true;
+                    }}
+                }}
+                return false;
+            }})();
+        """)
+
+        if not clicked:
+            raise CDPError(
+                f"Could not find '{btn_text}' button. "
+                "The page structure may have changed."
+            )
+
+        print("[cdp_publish] '下一步' button clicked.")
+        time.sleep(PAGE_LOAD_WAIT)
+
+    def publish_long_article(
+        self,
+        title: str,
+        content: str,
+        image_paths: list[str] | None = None,
+    ) -> list[str]:
+        """
+        Execute the full long article publish workflow:
+        1. Navigate to creator publish page
+        2. Click '写长文' tab
+        3. Click '新的创作' button
+        4. Fill title (textarea)
+        5. Fill content (TipTap editor)
+        6. (Optional) Insert images into editor
+        7. Click '一键排版'
+        8. Wait for templates
+
+        Returns list of available template names for the caller to
+        present to the user for selection.
+
+        Args:
+            title: Article title
+            content: Article body text (paragraphs separated by newlines)
+            image_paths: Optional list of local file paths to images
+        """
+        if not self.ws:
+            raise CDPError("Not connected. Call connect() first.")
+
+        # Step 1: Navigate to publish page
+        self._navigate(XHS_CREATOR_URL)
+        time.sleep(2)
+
+        # Step 2: Click '写长文' tab
+        self._click_long_article_tab()
+
+        # Step 3: Click '新的创作'
+        self._click_new_creation()
+
+        # Step 4: Fill title
+        self._fill_long_title(title)
+
+        # Step 5: Fill content
+        self._fill_content(content)
+
+        # Step 6: Upload images into editor (if provided)
+        if image_paths:
+            print(f"[cdp_publish] Inserting {len(image_paths)} image(s) into editor...")
+            for img_path in image_paths:
+                normalized = img_path.replace("\\", "/")
+                self._evaluate(f"""
+                    (function() {{
+                        var editor = document.querySelector('{SELECTORS["content_editor"]}');
+                        if (!editor) return false;
+                        var img = document.createElement('img');
+                        img.src = 'file:///{normalized}';
+                        editor.appendChild(img);
+                        editor.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                        return true;
+                    }})();
+                """)
+            time.sleep(ACTION_INTERVAL)
+
+        # Step 7: Click '一键排版'
+        self._click_auto_format()
+
+        # Step 8: Wait for templates and return names
+        self._wait_for_templates()
+        template_names = self.get_template_names()
+
+        print(
+            "\n[cdp_publish] Templates loaded.\n"
+            "  Available templates: " + ", ".join(template_names) + "\n"
+        )
+        return template_names
+
+    def click_next_and_prepare_publish(self, content: str = ""):
+        """After user selects a template, click '下一步' and fill the publish page description."""
+        self._click_next_step()
+
+        # The publish page has a separate content editor for the post description
+        if content:
+            time.sleep(ACTION_INTERVAL)
+            self._fill_content(content)
+
+        print(
+            "\n[cdp_publish] Ready to publish.\n"
+            "  Please review in the browser before confirming publish.\n"
+        )
+
+    # ------------------------------------------------------------------
+    # Main publish workflow (image-text mode)
     # ------------------------------------------------------------------
 
     def publish(
@@ -531,6 +842,23 @@ def main():
     p_pub.add_argument("--content", default=None)
     p_pub.add_argument("--content-file", default=None, help="Read content from file")
     p_pub.add_argument("--images", nargs="+", required=True)
+
+    # long-article - long article mode
+    p_long = sub.add_parser("long-article", help="Fill long article content with auto-format and template selection")
+    p_long.add_argument("--title", default=None)
+    p_long.add_argument("--title-file", default=None, help="Read title from file")
+    p_long.add_argument("--content", default=None)
+    p_long.add_argument("--content-file", default=None, help="Read content from file")
+    p_long.add_argument("--images", nargs="+", default=None, help="Optional image file paths")
+
+    # select-template - select a template by name
+    p_tpl = sub.add_parser("select-template", help="Select a long article template by name")
+    p_tpl.add_argument("--name", required=True, help="Template name to select")
+
+    # click-next-step - click next step button (for long article after template selection)
+    p_next = sub.add_parser("click-next-step", help="Click '下一步' button after template selection")
+    p_next.add_argument("--content", default=None, help="Post description text")
+    p_next.add_argument("--content-file", default=None, help="Read post description from file")
 
     # click-publish - just click the publish button on current page
     sub.add_parser("click-publish", help="Click publish button on already-filled page")
@@ -647,6 +975,48 @@ def main():
             if args.command == "publish":
                 publisher._click_publish()
                 print("PUBLISH_STATUS: PUBLISHED")
+
+        elif args.command == "long-article":
+            title = args.title
+            if args.title_file:
+                with open(args.title_file, encoding="utf-8") as f:
+                    title = f.read().strip()
+            if not title:
+                print("Error: --title or --title-file required.", file=sys.stderr)
+                sys.exit(1)
+
+            content = args.content
+            if args.content_file:
+                with open(args.content_file, encoding="utf-8") as f:
+                    content = f.read().strip()
+            if not content:
+                print("Error: --content or --content-file required.", file=sys.stderr)
+                sys.exit(1)
+
+            publisher.connect()
+            template_names = publisher.publish_long_article(
+                title=title, content=content, image_paths=args.images,
+            )
+            # Print template names as JSON for programmatic consumption
+            print("TEMPLATES: " + json.dumps(template_names, ensure_ascii=False))
+            print("LONG_ARTICLE_STATUS: TEMPLATE_SELECTION")
+
+        elif args.command == "select-template":
+            publisher.connect(target_url_prefix="https://creator.xiaohongshu.com/publish")
+            if publisher.select_template(args.name):
+                print(f"TEMPLATE_SELECTED: {args.name}")
+            else:
+                print(f"Error: Template '{args.name}' not found.", file=sys.stderr)
+                sys.exit(1)
+
+        elif args.command == "click-next-step":
+            content = getattr(args, 'content', None)
+            if getattr(args, 'content_file', None):
+                with open(args.content_file, encoding="utf-8") as f:
+                    content = f.read().strip()
+            publisher.connect(target_url_prefix="https://creator.xiaohongshu.com/publish")
+            publisher.click_next_and_prepare_publish(content=content or "")
+            print("LONG_ARTICLE_STATUS: READY_TO_PUBLISH")
 
         elif args.command == "click-publish":
             publisher.connect(target_url_prefix="https://creator.xiaohongshu.com/publish")

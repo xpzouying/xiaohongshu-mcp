@@ -10,8 +10,14 @@
 
 ## 流程概览
 
+**上传图文模式**:
 ```
 生成文案 → 用户确认 → 启动 Chrome → 检查登录 → 导航发布页 → 上传图片 → 填写标题 → 填写正文 → 用户确认发布
+```
+
+**写长文模式**:
+```
+生成文案 → 用户确认 → 启动 Chrome → 检查登录 → 导航发布页 → 点击"写长文"tab → 点击"新的创作" → 填写标题 → 填写正文 → 一键排版 → 用户选择模板 → 下一步 → 填写发布页正文描述 → 用户确认发布
 ```
 
 ## 详细步骤
@@ -78,6 +84,64 @@
 - 用户确认后，脚本点击发布按钮
 - 或用户选择手动点击发布按钮
 
+## 写长文模式详细步骤
+
+### 1-2. 启动 Chrome 和检查登录
+
+同上传图文模式。
+
+### 3. 导航到发布页并点击"写长文"tab
+
+脚本: `scripts/cdp_publish.py` → `_click_long_article_tab()`
+
+- 导航到 `https://creator.xiaohongshu.com/publish/publish`
+- 在 `div.creator-tab` 中查找文本为"写长文"的 tab 并点击
+
+### 4. 点击"新的创作"
+
+脚本: `scripts/cdp_publish.py` → `_click_new_creation()`
+
+- 在页面中查找包含"新的创作"文本的元素并点击
+- 等待长文编辑器页面加载
+
+### 5. 填写长文标题
+
+脚本: `scripts/cdp_publish.py` → `_fill_long_title()`
+
+- 定位 `textarea.d-text[placeholder="输入标题"]` 元素
+- 使用 `HTMLTextAreaElement.prototype.value` 的 native setter 设置值
+- 触发 `input` 和 `change` 事件
+
+### 6. 填写长文正文
+
+同上传图文模式的正文填写（TipTap/ProseMirror 编辑器）。
+
+### 7. 一键排版
+
+脚本: `scripts/cdp_publish.py` → `_click_auto_format()`
+
+- 查找并点击"一键排版"按钮
+- 等待模板列表加载
+
+### 8. 模板选择
+
+脚本: `scripts/cdp_publish.py` → `get_template_names()` + `select_template(name)`
+
+- `get_template_names()` 从 `.template-card .template-title` 获取所有模板名称
+- `select_template(name)` 点击指定名称的模板卡片
+- 已选中的模板卡片 class 为 `template-card selected`
+
+### 9. 下一步并填写发布页描述
+
+脚本: `scripts/cdp_publish.py` → `click_next_and_prepare_publish(content)`
+
+- 点击"下一步"按钮进入发布预览页
+- 发布页有独立的正文描述编辑器（`div.tiptap.ProseMirror`），需要单独填入内容
+
+### 10. 用户确认并发布
+
+同上传图文模式。
+
 ## DOM 选择器参考
 
 > **注意**: 小红书前端可能随时更新，以下选择器基于编写时的页面结构。如果自动化失败，需要在浏览器 DevTools 中重新抓取选择器，并更新 `cdp_publish.py` 中的 `SELECTORS` 字典。
@@ -85,9 +149,16 @@
 | 元素 | 主选择器 | 备选选择器 | 说明 |
 |---|---|---|---|
 | 图片上传 | `input.upload-input` | `input[type="file"]` | 隐藏的文件输入，通过 CDP 直接操作 |
-| 标题输入 | `input[placeholder*="填写标题"]` | `input.d-text` | 标题输入框 |
+| 标题输入（图文） | `input[placeholder*="填写标题"]` | `input.d-text` | 图文模式标题输入框 |
+| 标题输入（长文） | `textarea.d-text[placeholder="输入标题"]` | - | 长文模式 textarea 标题 |
 | 正文编辑 | `div.tiptap.ProseMirror` | `div.ProseMirror[contenteditable="true"]` | TipTap/ProseMirror 富文本编辑器 |
-| 发布按钮 | 文本匹配"发布"（`button` + `.d-button-content .d-text`） | - | 通过遍历按钮文本定位 |
+| 发布按钮 | 文本匹配"发布" | - | 通过遍历按钮文本定位 |
+| 写长文 tab | 文本匹配"写长文"（`div.creator-tab`） | - | 长文模式入口 |
+| 新的创作按钮 | 文本匹配"新的创作" | - | 长文编辑器入口 |
+| 一键排版按钮 | 文本匹配"一键排版" | - | 触发模板选择 |
+| 模板卡片 | `.template-card` | `.template-card.selected`（已选） | 排版模板列表 |
+| 模板名称 | `.template-card .template-title` | - | 模板卡片内的名称 span |
+| 下一步按钮 | 文本匹配"下一步" | - | 模板选择后进入发布页 |
 | 登录检测 | URL 包含 "login" | `.user-info, .creator-header` | 重定向检测 + DOM 元素检测 |
 
 ## 选择器维护指南
@@ -140,7 +211,7 @@ python publish_pipeline.py --headless --title "标题" --content "正文" --imag
 - 退出码 1 + `NOT_LOGGED_IN` = 未登录，需扫码（无头模式下会自动切换到有窗口模式）
 - 退出码 2 = 其他错误
 
-### 方式 B: 分步调用
+### 方式 B: 分步调用（图文模式）
 
 ```bash
 # 1. 启动 Chrome（可选 --headless）
@@ -160,6 +231,36 @@ python cdp_publish.py click-publish
 
 # 或一步完成填写+发布
 python cdp_publish.py --headless publish --title "标题" --content-file body.txt --images img1.jpg
+```
+
+### 方式 C: 分步调用（长文模式）
+
+```bash
+# 1. 启动 Chrome
+python chrome_launcher.py
+
+# 2. 检查登录
+python cdp_publish.py check-login
+
+# 3. 填写长文 + 一键排版（输出包含 TEMPLATES JSON）
+python cdp_publish.py long-article --title-file title.txt --content-file content.txt
+
+# 4. 选择模板
+python cdp_publish.py select-template --name "模板名称"
+
+# 5. 下一步 + 填写发布页正文描述
+python cdp_publish.py click-next-step --content-file content.txt
+
+# 6. 用户确认后点击发布
+python cdp_publish.py click-publish
+```
+
+### 方式 D: Pipeline 长文模式
+
+```bash
+# 长文模式（图片可选）
+python publish_pipeline.py --mode long-article --title-file title.txt --content-file content.txt
+python publish_pipeline.py --mode long-article --title "标题" --content "正文" --images img1.jpg
 ```
 
 ### 账号管理
