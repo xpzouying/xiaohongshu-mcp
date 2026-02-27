@@ -859,7 +859,7 @@ Cline 是一个强大的 AI 编程助手，支持 MCP 协议集成。
     </tr>
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/coldmountein"><img src="https://avatars.githubusercontent.com/u/95873096?v=4?s=100" width="100px;" alt="coldmountain"/><br /><sub><b>coldmountain</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=coldmountein" title="Code">💻</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://blog.litpp.com/"><img src="https://avatars.githubusercontent.com/u/44826388?v=4?s=100" width="100px;" alt="mamage"/><br /><sub><b>mamage</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=yqdaddy" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://blog.litpp.com/"><img src="https://avatars.githubusercontent.com/u/44826388?v=4?s=100" width="100px;" alt="mamage"/><br /><sub><b>mamage</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=yqdaddy" title="Code">💻</a> <a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=yqdaddy" title="Documentation">📖</a></td>
     </tr>
   </tbody>
 </table>
