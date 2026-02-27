@@ -220,6 +220,16 @@
         "code",
         "doc"
       ]
+    },
+    {
+      "login": "YRYangang",
+      "name": "Runyang YOU",
+      "avatar_url": "https://avatars.githubusercontent.com/u/54588936?v=4",
+      "profile": "https://runyang.vercel.app/",
+      "contributions": [
+        "code",
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,
