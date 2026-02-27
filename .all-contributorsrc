@@ -210,6 +210,16 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "yqdaddy",
+      "name": "mamage",
+      "avatar_url": "https://avatars.githubusercontent.com/u/44826388?v=4",
+      "profile": "https://blog.litpp.com/",
+      "contributions": [
+        "code",
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,
