@@ -405,6 +405,20 @@ go run .
 go run . -headless=false
 ```
 
+**配置代理（可选）**：
+
+如果需要通过代理访问，可以设置 `XHS_PROXY` 环境变量：
+
+```bash
+# 设置代理后启动
+XHS_PROXY=http://user:pass@proxy:port ./xiaohongshu-mcp-darwin-arm64
+
+# 或使用源码
+XHS_PROXY=http://proxy:port go run .
+```
+
+支持 HTTP/HTTPS/SOCKS5 代理，日志中会自动隐藏代理的认证信息。
+
 ## 1.4. 验证 MCP
 
 ```bash

@@ -11,7 +11,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.11.1
-	github.com/xpzouying/headless_browser v0.2.0
+	github.com/xpzouying/headless_browser v0.3.0
 )
 
 require (
