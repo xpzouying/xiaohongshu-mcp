@@ -103,3 +103,23 @@ func TestFilterValidation(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, internalFilters, 5)
 }
+
+func TestFilterAliasMapping(t *testing.T) {
+	filter := FilterOption{
+		SortBy:      "latest",
+		NoteType:    "video",
+		PublishTime: "one_week",
+		SearchScope: "followed",
+		Location:    "nearby",
+	}
+
+	internalFilters, err := convertToInternalFilters(filter)
+	require.NoError(t, err)
+	require.Len(t, internalFilters, 5)
+
+	require.Equal(t, "最新", internalFilters[0].Text)
+	require.Equal(t, "视频", internalFilters[1].Text)
+	require.Equal(t, "一周内", internalFilters[2].Text)
+	require.Equal(t, "已关注", internalFilters[3].Text)
+	require.Equal(t, "附近", internalFilters[4].Text)
+}

@@ -366,6 +366,10 @@ Content-Type: application/json
 - `search_scope` (string, optional): 搜索范围，可选值：`不限`(默认) | `已看过` | `未看过` | `已关注`
 - `location` (string, optional): 位置距离，可选值：`不限`(默认) | `同城` | `附近`
 
+**兼容性说明:**
+- 筛选参数支持部分英文别名（例如 `latest`、`video`、`one_week`、`followed`、`nearby`）。
+- 当某个筛选值无法识别（例如编码异常导致乱码）时，服务会忽略该筛选项并继续返回搜索结果，而不是让整个请求失败。
+
 **响应**
 ```json
 {
