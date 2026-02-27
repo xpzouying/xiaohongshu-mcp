@@ -15,6 +15,18 @@ import (
 
 // MCP 工具处理函数
 
+// parseVisibility 从 MCP 参数中解析可见范围
+func parseVisibility(args map[string]interface{}) string {
+	v, ok := args["visibility"]
+	if !ok || v == nil {
+		return ""
+	}
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return ""
+}
+
 // handleCheckLoginStatus 处理检查登录状态
 func (s *AppServer) handleCheckLoginStatus(ctx context.Context) *MCPToolResult {
 	logrus.Info("MCP: 检查登录状态")
@@ -134,11 +146,12 @@ func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]in
 
 	// 解析定时发布参数
 	scheduleAt, _ := args["schedule_at"].(string)
+	visibility := parseVisibility(args)
 
 	// 解析原创参数
 	isOriginal, _ := args["is_original"].(bool)
 
-	logrus.Infof("MCP: 发布内容 - 标题: %s, 图片数量: %d, 标签数量: %d, 定时: %s, 原创: %v", title, len(imagePaths), len(tags), scheduleAt, isOriginal)
+	logrus.Infof("MCP: 发布内容 - 标题: %s, 图片数量: %d, 标签数量: %d, 定时: %s, 原创: %v, visibility: %s", title, len(imagePaths), len(tags), scheduleAt, isOriginal, visibility)
 
 	// 构建发布请求
 	req := &PublishRequest{
@@ -148,6 +161,7 @@ func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]in
 		Tags:       tags,
 		ScheduleAt: scheduleAt,
 		IsOriginal: isOriginal,
+		Visibility: visibility,
 	}
 
 	// 执行发布
@@ -199,8 +213,9 @@ func (s *AppServer) handlePublishVideo(ctx context.Context, args map[string]inte
 
 	// 解析定时发布参数
 	scheduleAt, _ := args["schedule_at"].(string)
+	visibility := parseVisibility(args)
 
-	logrus.Infof("MCP: 发布视频 - 标题: %s, 标签数量: %d, 定时: %s", title, len(tags), scheduleAt)
+	logrus.Infof("MCP: 发布视频 - 标题: %s, 标签数量: %d, 定时: %s, visibility: %s", title, len(tags), scheduleAt, visibility)
 
 	// 构建发布请求
 	req := &PublishVideoRequest{
@@ -209,6 +224,7 @@ func (s *AppServer) handlePublishVideo(ctx context.Context, args map[string]inte
 		Video:      videoPath,
 		Tags:       tags,
 		ScheduleAt: scheduleAt,
+		Visibility: visibility,
 	}
 
 	// 执行发布
