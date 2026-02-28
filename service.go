@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/go-rod/rod"
@@ -69,11 +70,31 @@ type PublishVideoRequest struct {
 	Visibility string   `json:"visibility,omitempty"`  // 可见范围: "公开可见"(默认), "仅自己可见", "仅互关好友可见"
 }
 
+// PublishLongArticleRequest 发布长文请求
+type PublishLongArticleRequest struct {
+	Title        string   `json:"title" binding:"required"`
+	Content      string   `json:"content,omitempty"`
+	MarkdownFile string   `json:"markdown_file,omitempty"` // 本地 md 文件路径
+	ContentIsMD  bool     `json:"content_is_markdown,omitempty"`
+	PostTitle    string   `json:"post_title,omitempty"`   // 图文发布页标题（可选）
+	PostContent  string   `json:"post_content,omitempty"` // 图文发布页正文
+	Tags         []string `json:"tags,omitempty"`
+	ScheduleAt   string   `json:"schedule_at,omitempty"` // 定时发布时间，ISO8601格式，为空则立即发布
+}
+
 // PublishVideoResponse 发布视频响应
 type PublishVideoResponse struct {
 	Title   string `json:"title"`
 	Content string `json:"content"`
 	Video   string `json:"video"`
+	Status  string `json:"status"`
+	PostID  string `json:"post_id,omitempty"`
+}
+
+// PublishLongArticleResponse 发布长文响应
+type PublishLongArticleResponse struct {
+	Title   string `json:"title"`
+	Content string `json:"content"`
 	Status  string `json:"status"`
 	PostID  string `json:"post_id,omitempty"`
 }
@@ -321,6 +342,103 @@ func (s *XiaohongshuService) PublishVideo(ctx context.Context, req *PublishVideo
 		Status:  "发布完成",
 	}
 	return resp, nil
+}
+
+// PublishLongArticle 发布长文
+func (s *XiaohongshuService) PublishLongArticle(ctx context.Context, req *PublishLongArticleRequest) (*PublishLongArticleResponse, error) {
+	// 标题长度校验
+	if titleWidth := runewidth.StringWidth(req.Title); titleWidth > 40 {
+		return nil, fmt.Errorf("标题长度超过限制")
+	}
+
+	if req.Content == "" && req.MarkdownFile == "" {
+		return nil, fmt.Errorf("缺少正文内容：请提供 content 或 markdown_file")
+	}
+	if req.PostContent == "" {
+		if req.Content != "" && req.MarkdownFile == "" && !req.ContentIsMD {
+			logrus.Warn("post_content 为空，回退使用 content 作为图文正文（仅建议用于纯文本测试）")
+			req.PostContent = req.Content
+		} else {
+			return nil, fmt.Errorf("缺少图文正文：请提供 post_content")
+		}
+	}
+
+	// 解析定时发布时间
+	var scheduleTime *time.Time
+	if req.ScheduleAt != "" {
+		t, err := time.Parse(time.RFC3339, req.ScheduleAt)
+		if err != nil {
+			return nil, fmt.Errorf("定时发布时间格式错误，请使用 ISO8601 格式: %v", err)
+		}
+
+		// 校验定时发布时间范围：1小时至14天
+		now := time.Now()
+		minTime := now.Add(1 * time.Hour)
+		maxTime := now.Add(14 * 24 * time.Hour)
+
+		if t.Before(minTime) {
+			return nil, fmt.Errorf("定时发布时间必须至少在1小时后，当前设置: %s，最早可选: %s",
+				t.Format("2006-01-02 15:04"), minTime.Format("2006-01-02 15:04"))
+		}
+		if t.After(maxTime) {
+			return nil, fmt.Errorf("定时发布时间不能超过14天，当前设置: %s，最晚可选: %s",
+				t.Format("2006-01-02 15:04"), maxTime.Format("2006-01-02 15:04"))
+		}
+
+		scheduleTime = &t
+		logrus.Infof("设置定时发布时间: %s", t.Format("2006-01-02 15:04"))
+	}
+
+	body := req.Content
+	mdBaseDir := ""
+	if req.MarkdownFile != "" {
+		data, err := os.ReadFile(req.MarkdownFile)
+		if err != nil {
+			return nil, fmt.Errorf("读取 markdown_file 失败: %v", err)
+		}
+		body = string(data)
+		mdBaseDir = filepath.Dir(req.MarkdownFile)
+	}
+
+	content := xiaohongshu.PublishLongArticleContent{
+		Title:        req.Title,
+		Content:      body,
+		ContentIsMD:  req.ContentIsMD || req.MarkdownFile != "",
+		MarkdownBase: mdBaseDir,
+		PostTitle:    req.PostTitle,
+		PostContent:  req.PostContent,
+		Tags:         req.Tags,
+		ScheduleTime: scheduleTime,
+	}
+
+	if err := s.publishLongArticle(ctx, content); err != nil {
+		logrus.Errorf("发布长文失败: title=%s %v", content.Title, err)
+		return nil, err
+	}
+
+	return &PublishLongArticleResponse{
+		Title:   req.Title,
+		Content: req.Content,
+		Status:  "发布完成",
+	}, nil
+}
+
+func (s *XiaohongshuService) publishLongArticle(ctx context.Context, content xiaohongshu.PublishLongArticleContent) error {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	action, err := xiaohongshu.NewPublishLongArticleAction(page)
+	if err != nil {
+		_ = page.Close()
+		return err
+	}
+
+	defer func() {
+		_ = action.Close()
+	}()
+
+	return action.PublishLongArticle(ctx, content)
 }
 
 // publishVideo 执行视频发布

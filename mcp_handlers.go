@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -246,6 +247,159 @@ func (s *AppServer) handlePublishVideo(ctx context.Context, args map[string]inte
 			Text: resultText,
 		}},
 	}
+}
+
+// handlePublishLongArticle 处理发布长文
+func (s *AppServer) handlePublishLongArticle(ctx context.Context, args map[string]interface{}) *MCPToolResult {
+	logrus.Info("MCP: 发布长文")
+	if len(args) > 0 {
+		keys := make([]string, 0, len(args))
+		for k := range args {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		logrus.Infof("MCP: 发布长文参数 keys=%v", keys)
+		if b, err := json.Marshal(args); err == nil {
+			logrus.Infof("MCP: 发布长文参数 raw=%s", string(b))
+		}
+		if v, ok := args["post_content"]; ok {
+			logrus.Infof("MCP: post_content raw type=%T len=%d", v, len(fmt.Sprint(v)))
+		}
+		if v, ok := args["postContent"]; ok {
+			logrus.Infof("MCP: postContent raw type=%T len=%d", v, len(fmt.Sprint(v)))
+		}
+	}
+
+	// 解析参数
+	title := getStringOrDefault(args, "title", "")
+	content := getStringOrDefault(args, "content", "")
+	markdownFile := getStringOrDefault(args, "markdown_file", "")
+	contentIsMD := getBoolOrDefault(args, "content_is_markdown", false)
+	postTitle := getStringOrDefault(args, "post_title", "")
+	postContent := getStringOrDefault(args, "post_content", "")
+	if postContent == "" {
+		postContent = getStringOrDefault(args, "postContent", "")
+	}
+	if postContent == "" {
+		postContent = getStringDeep(args, "post_content")
+	}
+	if postContent == "" {
+		postContent = getStringDeep(args, "postContent")
+	}
+	tagsInterface, _ := args["tags"].([]interface{})
+	scheduleAt := getStringOrDefault(args, "schedule_at", "")
+
+	var tags []string
+	for _, tag := range tagsInterface {
+		if tagStr, ok := tag.(string); ok {
+			tags = append(tags, tagStr)
+		}
+	}
+
+	if title == "" {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "发布失败: 缺少标题"}},
+			IsError: true,
+		}
+	}
+	if content == "" && markdownFile == "" {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "发布失败: 缺少正文（请提供 content 或 markdown_file）"}},
+			IsError: true,
+		}
+	}
+	if postContent == "" {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "发布失败: 缺少图文正文（请提供 post_content）"}},
+			IsError: true,
+		}
+	}
+
+	logrus.Infof("MCP: 发布长文 - 标题: %s, 标签数量: %d, 定时: %s", title, len(tags), scheduleAt)
+
+	req := &PublishLongArticleRequest{
+		Title:        title,
+		Content:      content,
+		MarkdownFile: markdownFile,
+		ContentIsMD:  contentIsMD,
+		PostTitle:    postTitle,
+		PostContent:  postContent,
+		Tags:         tags,
+		ScheduleAt:   scheduleAt,
+	}
+
+	result, err := s.xiaohongshuService.PublishLongArticle(ctx, req)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "发布失败: " + err.Error(),
+			}},
+			IsError: true,
+		}
+	}
+
+	resultText := fmt.Sprintf("长文发布成功: %+v", result)
+	return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: resultText}}}
+}
+
+func getStringOrDefault(args map[string]interface{}, key, def string) string {
+	if v, ok := args[key]; ok {
+		switch t := v.(type) {
+		case string:
+			return t
+		case []byte:
+			return string(t)
+		case fmt.Stringer:
+			return t.String()
+		}
+	}
+	return def
+}
+
+func getBoolOrDefault(args map[string]interface{}, key string, def bool) bool {
+	if v, ok := args[key]; ok {
+		switch t := v.(type) {
+		case bool:
+			return t
+		case string:
+			if t == "true" || t == "1" {
+				return true
+			}
+			if t == "false" || t == "0" {
+				return false
+			}
+		}
+	}
+	return def
+}
+
+func getStringDeep(v any, key string) string {
+	switch t := v.(type) {
+	case map[string]interface{}:
+		if val, ok := t[key]; ok {
+			switch sv := val.(type) {
+			case string:
+				return sv
+			case []byte:
+				return string(sv)
+			case fmt.Stringer:
+				return sv.String()
+			}
+		}
+		for _, vv := range t {
+			if s := getStringDeep(vv, key); s != "" {
+				return s
+			}
+		}
+	case []interface{}:
+		for _, vv := range t {
+			if s := getStringDeep(vv, key); s != "" {
+				return s
+			}
+		}
+	}
+	return ""
 }
 
 // handleListFeeds 处理获取Feeds列表
