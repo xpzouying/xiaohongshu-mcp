@@ -91,6 +91,19 @@ type LikeFeedArgs struct {
 	Unlike    bool   `json:"unlike,omitempty" jsonschema:"是否取消点赞，true为取消点赞，false或未设置则为点赞"`
 }
 
+// NotificationArgs 通知查询参数
+type NotificationArgs struct {
+	Num    int    `json:"num,omitempty" jsonschema:"返回数量，默认20"`
+	Cursor string `json:"cursor,omitempty" jsonschema:"分页游标，从上一次返回的cursor获取，首次查询不填"`
+}
+
+// LikeCommentArgs 评论点赞参数
+type LikeCommentArgs struct {
+	FeedID    string `json:"feed_id" jsonschema:"笔记ID"`
+	XsecToken string `json:"xsec_token" jsonschema:"笔记的xsec_token"`
+	CommentID string `json:"comment_id" jsonschema:"评论ID"`
+}
+
 // FavoriteFeedArgs 收藏参数
 type FavoriteFeedArgs struct {
 	FeedID     string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
@@ -439,7 +452,87 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	logrus.Infof("Registered %d MCP tools", 13)
+	// 工具 14: 获取评论和@通知
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "get_mentions",
+			Description: "获取评论和@通知列表，返回其他用户对你的评论、回复和@提及",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Get Mentions",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("get_mentions", func(ctx context.Context, req *mcp.CallToolRequest, args NotificationArgs) (*mcp.CallToolResult, any, error) {
+			argsMap := map[string]interface{}{
+				"num":    float64(args.Num),
+				"cursor": args.Cursor,
+			}
+			result := appServer.handleGetMentions(ctx, argsMap)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	// 工具 15: 获取赞和收藏通知
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "get_likes",
+			Description: "获取赞和收藏通知列表，返回其他用户对你笔记的点赞和收藏记录",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Get Likes",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("get_likes", func(ctx context.Context, req *mcp.CallToolRequest, args NotificationArgs) (*mcp.CallToolResult, any, error) {
+			argsMap := map[string]interface{}{
+				"num":    float64(args.Num),
+				"cursor": args.Cursor,
+			}
+			result := appServer.handleGetLikes(ctx, argsMap)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	// 工具 16: 获取新增关注通知
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "get_connections",
+			Description: "获取新增关注通知列表，返回新关注你的用户信息",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Get Connections",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("get_connections", func(ctx context.Context, req *mcp.CallToolRequest, args NotificationArgs) (*mcp.CallToolResult, any, error) {
+			argsMap := map[string]interface{}{
+				"num":    float64(args.Num),
+				"cursor": args.Cursor,
+			}
+			result := appServer.handleGetConnections(ctx, argsMap)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	// 工具 17: 评论点赞
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "like_comment",
+			Description: "点赞指定评论。需要feed_id、xsec_token和comment_id",
+			Annotations: &mcp.ToolAnnotations{
+				Title: "Like Comment",
+			},
+		},
+		withPanicRecovery("like_comment", func(ctx context.Context, req *mcp.CallToolRequest, args LikeCommentArgs) (*mcp.CallToolResult, any, error) {
+			argsMap := map[string]interface{}{
+				"feed_id":    args.FeedID,
+				"xsec_token": args.XsecToken,
+				"comment_id": args.CommentID,
+			}
+			result := appServer.handleLikeComment(ctx, argsMap)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	logrus.Infof("Registered %d MCP tools", 17)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式

@@ -541,6 +541,84 @@ func (s *XiaohongshuService) ReplyCommentToFeed(ctx context.Context, feedID, xse
 	}, nil
 }
 
+// NotificationsResponse 通知响应（通用）
+type NotificationsResponse struct {
+	Type     string      `json:"type"`
+	HasMore  bool        `json:"has_more"`
+	Cursor   string      `json:"cursor"`
+	Messages interface{} `json:"messages"`
+	Count    int         `json:"count"`
+}
+
+// LikeComment 点赞指定评论
+func (s *XiaohongshuService) LikeComment(ctx context.Context, feedID, xsecToken, commentID string) error {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewLikeCommentAction(page)
+	return action.LikeComment(ctx, feedID, xsecToken, commentID)
+}
+
+// fetchNotifications 通用通知获取函数，减少重复代码
+func (s *XiaohongshuService) fetchNotifications(
+	ctx context.Context,
+	fetcher func(*xiaohongshu.NotificationAction) (*NotificationsResponse, error),
+) (*NotificationsResponse, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewNotificationAction(page)
+	return fetcher(action)
+}
+
+// GetMentions 获取评论和@通知
+func (s *XiaohongshuService) GetMentions(ctx context.Context, num int, cursor string) (*NotificationsResponse, error) {
+	return s.fetchNotifications(ctx, func(action *xiaohongshu.NotificationAction) (*NotificationsResponse, error) {
+		result, err := action.GetMentions(ctx, num, cursor)
+		if err != nil {
+			return nil, err
+		}
+		return &NotificationsResponse{
+			Type: "mentions", HasMore: result.Data.HasMore, Cursor: result.Data.StrCursor,
+			Messages: result.Data.Messages, Count: len(result.Data.Messages),
+		}, nil
+	})
+}
+
+// GetLikes 获取赞和收藏通知
+func (s *XiaohongshuService) GetLikes(ctx context.Context, num int, cursor string) (*NotificationsResponse, error) {
+	return s.fetchNotifications(ctx, func(action *xiaohongshu.NotificationAction) (*NotificationsResponse, error) {
+		result, err := action.GetLikes(ctx, num, cursor)
+		if err != nil {
+			return nil, err
+		}
+		return &NotificationsResponse{
+			Type: "likes", HasMore: result.Data.HasMore, Cursor: result.Data.StrCursor,
+			Messages: result.Data.Messages, Count: len(result.Data.Messages),
+		}, nil
+	})
+}
+
+// GetConnections 获取新增关注通知
+func (s *XiaohongshuService) GetConnections(ctx context.Context, num int, cursor string) (*NotificationsResponse, error) {
+	return s.fetchNotifications(ctx, func(action *xiaohongshu.NotificationAction) (*NotificationsResponse, error) {
+		result, err := action.GetConnections(ctx, num, cursor)
+		if err != nil {
+			return nil, err
+		}
+		return &NotificationsResponse{
+			Type: "connections", HasMore: result.Data.HasMore, Cursor: result.Data.StrCursor,
+			Messages: result.Data.Messages, Count: len(result.Data.Messages),
+		}, nil
+	})
+}
+
 func newBrowser() *headless_browser.Browser {
 	return browser.NewBrowser(configs.IsHeadless(), browser.WithBinPath(configs.GetBinPath()))
 }
