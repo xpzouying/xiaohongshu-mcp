@@ -685,7 +685,28 @@ Cline 是一个强大的 AI 编程助手，支持 MCP 协议集成。
 ```
 
 </details>
+<details>
+<summary><b>OpenClaw（通过 MCPorter）</b></summary>
 
+> 使用前请确保 xiaohongshu-mcp 已完成本地部署。**不建议**将 GitHub 链接直接丢给 OpenClaw 让其代为部署。
+
+由于 OpenClaw 目前不原生支持 MCP，官方推荐通过 **MCPorter** 来调用 MCP 服务。
+
+> 💡 **提示：** MCPorter 并非调用 MCP 的最佳方案，使用过程中可能出现一些兼容性问题，请知悉。
+
+#### 安装与配置步骤
+
+直接一次性将一下三行命令丢给 OpenClaw（可以是 Control UI、Telegram、Feishu等方式），Openclaw 会代为部署 MCPorter。
+
+```
+npm i -g mcporter
+npx mcporter config add xiaohongshu-mcp http://localhost:18060/mcp
+npx mcporter list xiaohongshu-mcp
+```
+
+完成上述步骤后，即可在 OpenClaw 中通过自然语言调用 xiaohongshu-mcp 的所有功能。
+
+</details>
 <details>
 <summary><b>其他支持 HTTP MCP 的客户端</b></summary>
 
@@ -760,6 +781,17 @@ Cline 是一个强大的 AI 编程助手，支持 MCP 协议集成。
 <img src="./assets/publish_result.jpeg" alt="xiaohongshu-mcp 发布结果" width="300">
 
 ### 2.5. 💬 MCP 使用常见问题解答
+
+---
+
+> ⚠️ 以下是使用 OpenClaw + MCPorter 时的已知风险，使用前请充分了解：
+
+- OpenClaw 的 AI 自动部署行为不在本项目的维护范围内，部署结果无法保证
+- MCPorter 作为中间层可能引入额外的兼容性问题，与 xiaohongshu-mcp 本身无关
+- 若遇到连接失败、工具调用异常等问题，请先排查 MCPorter 自身的配置，而非提交 Issue
+- 在提问社区或群组前，请先确认问题是否能在**不使用 OpenClaw** 的情况下复现
+
+如果你没有强烈的 OpenClaw 使用需求，强烈建议改用 [Claude Code CLI](#claude-code-cli)、[Cursor](#cursor) 或 [Cline](#cline) 等原生支持 HTTP MCP 的客户端，体验会更稳定。
 
 ---
 
