@@ -98,6 +98,11 @@ type FavoriteFeedArgs struct {
 	Unfavorite bool   `json:"unfavorite,omitempty" jsonschema:"是否取消收藏，true为取消收藏，false或未设置则为收藏"`
 }
 
+// GetMentionsArgs 获取提及消息参数
+type GetMentionsArgs struct {
+	Limit int `json:"limit,omitempty" jsonschema:"返回数量限制，默认20"`
+}
+
 // InitMCPServer 初始化 MCP Server
 func InitMCPServer(appServer *AppServer) *mcp.Server {
 	// 创建 MCP Server
@@ -439,7 +444,26 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	logrus.Infof("Registered %d MCP tools", 13)
+	// 工具 14: 获取提及消息
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "get_mentions",
+			Description: "获取小红书提及消息列表（评论、回复、@ 等通知），返回 id、type、title、time、用户、笔记、评论等关键信息",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Get Mentions",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("get_mentions", func(ctx context.Context, req *mcp.CallToolRequest, args GetMentionsArgs) (*mcp.CallToolResult, any, error) {
+			argsMap := map[string]interface{}{
+				"limit": args.Limit,
+			}
+			result := appServer.handleGetMentions(ctx, argsMap)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	logrus.Infof("Registered %d MCP tools", 14)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式
