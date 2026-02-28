@@ -114,7 +114,7 @@ func (f *CommentFeedAction) ReplyToComment(ctx context.Context, feedID, xsecToke
 	logrus.Info("准备点击回复按钮")
 
 	// 查找并点击回复按钮
-	replyBtn, err := commentEl.Element(".right .interactions .reply")
+	replyBtn, err := commentEl.Element(".right .info .interactions .reply")
 	if err != nil {
 		return fmt.Errorf("无法找到回复按钮: %w", err)
 	}
@@ -174,14 +174,18 @@ func findCommentElement(page *rod.Page, commentID, userID string) (*rod.Element,
 
 		// === 1. 检查是否到达底部 ===
 		if checkEndContainer(page) {
-			logrus.Info("已到达评论底部，未找到目标评论")
+			logrus.Info("检测到评论底部，执行最终查找...")
+			if el := searchCommentInCurrentView(page, commentID, userID, attempt+1); el != nil {
+				return el, nil
+			}
+			logrus.Info("已到达评论底部，最终查找未命中")
 			break
 		}
 
 		// === 2. 获取当前评论数量 ===
 		currentCount := getCommentCount(page)
 		logrus.Infof("当前评论数: %d", currentCount)
-		
+
 		if currentCount != lastCommentCount {
 			logrus.Infof("✓ 评论数增加: %d -> %d", lastCommentCount, currentCount)
 			lastCommentCount = currentCount
@@ -202,7 +206,7 @@ func findCommentElement(page *rod.Page, commentID, userID string) (*rod.Element,
 		// === 4. 先滚动到最后一个评论（触发懒加载）===
 		if currentCount > 0 {
 			logrus.Infof("滚动到最后一个评论（共 %d 条）", currentCount)
-			
+
 			// 使用 Go 获取所有评论元素
 			elements, err := page.Timeout(2 * time.Second).Elements(".parent-comment, .comment-item, .comment")
 			if err == nil && len(elements) > 0 {
@@ -227,42 +231,10 @@ func findCommentElement(page *rod.Page, commentID, userID string) (*rod.Element,
 		time.Sleep(500 * time.Millisecond)
 
 		// === 6. 滚动后立即查找（边滚动边查找）===
-		// 优先通过 commentID 查找（使用 Timeout 避免长时间等待）
-		if commentID != "" {
-			selector := fmt.Sprintf("#comment-%s", commentID)
-			logrus.Infof("尝试通过 commentID 查找: %s", selector)
-			
-			// 使用 Timeout 避免长时间等待
-			el, err := page.Timeout(2 * time.Second).Element(selector)
-			if err == nil && el != nil {
-				logrus.Infof("✓ 通过 commentID 找到评论: %s (尝试 %d 次)", commentID, attempt+1)
-				return el, nil
-			}
-			logrus.Infof("未找到 commentID (2秒超时)")
+		if el := searchCommentInCurrentView(page, commentID, userID, attempt+1); el != nil {
+			return el, nil
 		}
 
-		// 通过 userID 查找
-		if userID != "" {
-			logrus.Infof("尝试通过 userID 查找: %s", userID)
-			
-			// 使用 Timeout 避免长时间等待
-			elements, err := page.Timeout(2 * time.Second).Elements(".comment-item, .comment, .parent-comment")
-			if err == nil && len(elements) > 0 {
-				logrus.Infof("找到 %d 个评论元素", len(elements))
-				for i, el := range elements {
-					// 快速检查，不等待
-					userEl, err := el.Timeout(500 * time.Millisecond).Element(fmt.Sprintf(`[data-user-id="%s"]`, userID))
-					if err == nil && userEl != nil {
-						logrus.Infof("✓ 通过 userID 在第 %d 个元素中找到评论: %s (尝试 %d 次)", i+1, userID, attempt+1)
-						return el, nil
-					}
-				}
-				logrus.Infof("在 %d 个元素中未找到匹配的 userID", len(elements))
-			} else {
-				logrus.Infof("获取评论元素失败或超时: %v", err)
-			}
-		}
-		
 		logrus.Infof("本次尝试未找到目标评论，继续下一轮...")
 
 		// === 7. 等待内容加载 ===
@@ -270,4 +242,42 @@ func findCommentElement(page *rod.Page, commentID, userID string) (*rod.Element,
 	}
 
 	return nil, fmt.Errorf("未找到评论 (commentID: %s, userID: %s), 尝试次数: %d", commentID, userID, maxAttempts)
+}
+
+func searchCommentInCurrentView(page *rod.Page, commentID, userID string, attempt int) *rod.Element {
+	// 优先通过 commentID 查找（使用 Timeout 避免长时间等待）
+	if commentID != "" {
+		selector := fmt.Sprintf("#comment-%s", commentID)
+		logrus.Infof("尝试通过 commentID 查找: %s", selector)
+
+		el, err := page.Timeout(2 * time.Second).Element(selector)
+		if err == nil && el != nil {
+			logrus.Infof("✓ 通过 commentID 找到评论: %s (尝试 %d 次)", commentID, attempt)
+			return el
+		}
+		logrus.Infof("未找到 commentID (2秒超时)")
+	}
+
+	// 通过 userID 查找
+	if userID != "" {
+		logrus.Infof("尝试通过 userID 查找: %s", userID)
+
+		elements, err := page.Timeout(2 * time.Second).Elements(".comment-item, .comment, .parent-comment")
+		if err == nil && len(elements) > 0 {
+			logrus.Infof("找到 %d 个评论元素", len(elements))
+			for i, el := range elements {
+				// 快速检查，不等待
+				userEl, err := el.Timeout(500 * time.Millisecond).Element(fmt.Sprintf(`[data-user-id="%s"]`, userID))
+				if err == nil && userEl != nil {
+					logrus.Infof("✓ 通过 userID 在第 %d 个元素中找到评论: %s (尝试 %d 次)", i+1, userID, attempt)
+					return el
+				}
+			}
+			logrus.Infof("在 %d 个元素中未找到匹配的 userID", len(elements))
+		} else {
+			logrus.Infof("获取评论元素失败或超时: %v", err)
+		}
+	}
+
+	return nil
 }
