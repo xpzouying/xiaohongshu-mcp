@@ -62,6 +62,17 @@ type FeedDetailArgs struct {
 	ScrollSpeed      string `json:"scroll_speed,omitempty" jsonschema:"【仅当load_all_comments为true时生效】滚动速度slow慢速、normal正常、fast快速"`
 }
 
+// FeedDetailsArgs 批量获取Feed详情的参数
+type FeedDetailsArgs struct {
+	Items            []FeedDetailItem `json:"items" jsonschema:"批量笔记列表，每项包含feed_id和xsec_token"`
+	LoadAllComments  bool             `json:"load_all_comments,omitempty" jsonschema:"是否加载全部评论。false仅返回前10条一级评论（默认），true滚动加载更多评论"`
+	Limit            int              `json:"limit,omitempty" jsonschema:"【仅当load_all_comments为true时生效】限制加载的一级评论数量。例如20表示最多加载20条，默认20"`
+	ClickMoreReplies bool             `json:"click_more_replies,omitempty" jsonschema:"【仅当load_all_comments为true时生效】是否展开二级回复。true展开子评论，false不展开（默认）"`
+	ReplyLimit       int              `json:"reply_limit,omitempty" jsonschema:"【仅当click_more_replies为true时生效】跳过回复数过多的评论。例如10表示跳过超过10条回复的，默认10"`
+	ScrollSpeed      string           `json:"scroll_speed,omitempty" jsonschema:"【仅当load_all_comments为true时生效】滚动速度slow慢速、normal正常、fast快速"`
+	Concurrency      int              `json:"concurrency,omitempty" jsonschema:"并发数，默认3，最大10"`
+}
+
 // UserProfileArgs 获取用户主页的参数
 type UserProfileArgs struct {
 	UserID    string `json:"user_id" jsonschema:"小红书用户ID，从Feed列表获取"`
@@ -302,7 +313,23 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	// 工具 8: 获取用户主页
+	// 工具 8: 批量获取Feed详情
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "get_feed_details",
+			Description: "批量获取小红书笔记详情，返回笔记内容、图片、作者信息、互动数据及评论列表（支持并发）。默认返回前10条一级评论，如需更多评论请设置load_all_comments=true",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Get Feed Details",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("get_feed_details", func(ctx context.Context, req *mcp.CallToolRequest, args FeedDetailsArgs) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleGetFeedDetails(ctx, args)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	// 工具 9: 获取用户主页
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "user_profile",

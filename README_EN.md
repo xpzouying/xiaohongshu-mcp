@@ -703,6 +703,7 @@ After successful connection, you can use the following MCP tools:
 - `list_feeds` - Get RedNote homepage recommendation list (no parameters)
 - `search_feeds` - Search RedNote content (required: keyword)
 - `get_feed_detail` - Get post details (required: feed_id, xsec_token)
+- `get_feed_details` - Batch get post details (required: items; optional: concurrency)
 - `post_comment_to_feed` - Post comments to RedNote posts (required: feed_id, xsec_token, content)
 - `user_profile` - Get user profile information (required: user_id, xsec_token)
 

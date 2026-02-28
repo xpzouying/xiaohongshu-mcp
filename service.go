@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/go-rod/rod"
@@ -415,6 +416,94 @@ func (s *XiaohongshuService) GetFeedDetailWithConfig(ctx context.Context, feedID
 	}
 
 	return response, nil
+}
+
+// GetFeedDetailsWithConfig 批量获取Feed详情（多浏览器并发）
+func (s *XiaohongshuService) GetFeedDetailsWithConfig(ctx context.Context, items []FeedDetailItem, loadAllComments bool, config xiaohongshu.CommentLoadConfig, concurrency int) (*FeedDetailBatchResponse, error) {
+	if len(items) == 0 {
+		return &FeedDetailBatchResponse{
+			Items:        []FeedDetailBatchItemResult{},
+			Count:        0,
+			SuccessCount: 0,
+			FailureCount: 0,
+		}, nil
+	}
+
+	if concurrency <= 0 {
+		concurrency = 3
+	}
+	if concurrency > 10 {
+		concurrency = 10
+	}
+
+	type job struct {
+		index int
+		item  FeedDetailItem
+	}
+
+	results := make([]FeedDetailBatchItemResult, len(items))
+	jobs := make(chan job)
+	var wg sync.WaitGroup
+
+	worker := func() {
+		defer wg.Done()
+		for j := range jobs {
+			item := j.item
+			if item.FeedID == "" || item.XsecToken == "" {
+				results[j.index] = FeedDetailBatchItemResult{
+					FeedID:  item.FeedID,
+					Success: false,
+					Error:   "缺少feed_id或xsec_token参数",
+				}
+				continue
+			}
+
+			res, err := s.GetFeedDetailWithConfig(ctx, item.FeedID, item.XsecToken, loadAllComments, config)
+			if err != nil {
+				results[j.index] = FeedDetailBatchItemResult{
+					FeedID:  item.FeedID,
+					Success: false,
+					Error:   err.Error(),
+				}
+				continue
+			}
+
+			results[j.index] = FeedDetailBatchItemResult{
+				FeedID:  item.FeedID,
+				Success: true,
+				Data:    res.Data,
+			}
+		}
+	}
+
+	workerCount := concurrency
+	if len(items) < workerCount {
+		workerCount = len(items)
+	}
+	for i := 0; i < workerCount; i++ {
+		wg.Add(1)
+		go worker()
+	}
+
+	for i, item := range items {
+		jobs <- job{index: i, item: item}
+	}
+	close(jobs)
+	wg.Wait()
+
+	successCount := 0
+	for _, r := range results {
+		if r.Success {
+			successCount++
+		}
+	}
+
+	return &FeedDetailBatchResponse{
+		Items:        results,
+		Count:        len(results),
+		SuccessCount: successCount,
+		FailureCount: len(results) - successCount,
+	}, nil
 }
 
 // UserProfile 获取用户信息
