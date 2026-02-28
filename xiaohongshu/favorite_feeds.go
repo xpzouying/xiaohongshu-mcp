@@ -118,12 +118,102 @@ func (f *FavoriteFeedsAction) GetFavoriteFeeds(ctx context.Context) ([]Feed, err
 			if (feeds.length > 0) return JSON.stringify(feeds);
 		}
 
+		// Fallback: 从收藏页面可见卡片链接提取笔记信息，避免 __INITIAL_STATE__ 字段变化导致抓取失败
+			const anchors = Array.from(document.querySelectorAll('a[href*="/explore/"], a[href*="/discovery/item/"], a[href*="/user/profile/"]'));
+		const fallbackFeeds = [];
+		const seen = new Set();
+
+			const tryExtractID = (pathname) => {
+				const m1 = pathname.match(/\/explore\/([^/?#]+)/);
+				if (m1 && m1[1]) return m1[1];
+				const m2 = pathname.match(/\/discovery\/item\/([^/?#]+)/);
+				if (m2 && m2[1]) return m2[1];
+				const m3 = pathname.match(/\/user\/profile\/[^/?#]+\/([^/?#]+)/);
+				if (m3 && m3[1]) return m3[1];
+				return "";
+			};
+
+		for (const a of anchors) {
+			const href = a.getAttribute("href");
+			if (!href) continue;
+
+			let u;
+			try {
+				u = new URL(href, location.origin);
+			} catch {
+				continue;
+			}
+
+			const id = tryExtractID(u.pathname);
+			const xsecToken =
+				u.searchParams.get("xsec_token") ||
+				u.searchParams.get("xsecToken") ||
+				a.getAttribute("data-xsec-token") ||
+				"";
+			if (!id || !xsecToken) continue;
+
+			const key = id + ":" + xsecToken;
+			if (seen.has(key)) continue;
+			seen.add(key);
+
+			const card = a.closest("section, article, .note-item, .feeds-page, .note-card") || a.parentElement;
+			const titleEl =
+				card?.querySelector(".title span") ||
+				card?.querySelector(".title") ||
+				card?.querySelector(".desc") ||
+				card?.querySelector("h3") ||
+				card?.querySelector("h4");
+			const title = ((titleEl?.textContent || a.textContent || "").trim()).slice(0, 200);
+
+			fallbackFeeds.push({
+				id,
+				xsecToken,
+				modelType: "note",
+				noteCard: {
+					type: "normal",
+					displayTitle: title
+				},
+				index: fallbackFeeds.length
+			});
+		}
+
+		if (fallbackFeeds.length > 0) return JSON.stringify(fallbackFeeds);
+
 		if (seenCandidate) return "[]";
 		return "";
 	}`).String()
 
 	if result == "" {
-		return nil, errors.ErrNoFeeds
+		debugInfo := page.MustEval(`() => {
+			const state = window.__INITIAL_STATE__ || {};
+			const user = state.user || null;
+			const userKeys = user ? Object.keys(user).slice(0, 60) : [];
+
+			const tabs = Array.from(document.querySelectorAll('span.channel, .reds-tab-item, .tab-item, div[class*="tab"]'))
+				.map((n) => (n.textContent || "").trim())
+				.filter(Boolean)
+				.slice(0, 20);
+
+			const hrefs = Array.from(document.querySelectorAll('a[href]'))
+				.map((a) => a.getAttribute("href") || "")
+				.filter((href) => href.includes("/explore/") || href.includes("/discovery/item/") || href.includes("collect"))
+				.slice(0, 20);
+
+			return JSON.stringify({
+				url: location.href,
+				title: document.title,
+				hasInitialState: !!window.__INITIAL_STATE__,
+				hasUser: !!user,
+				userKeys,
+				tabs,
+				hrefs,
+			});
+		}`).String()
+
+		if debugInfo == "" {
+			return nil, errors.ErrNoFeeds
+		}
+		return nil, fmt.Errorf("%w; debug=%s", errors.ErrNoFeeds, debugInfo)
 	}
 
 	var feeds []Feed
