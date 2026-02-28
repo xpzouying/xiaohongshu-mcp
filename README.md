@@ -508,6 +508,51 @@ claude mcp list
 </details>
 
 <details>
+<summary><b>Open Code CLI</b></summary>
+
+使用交互式命令添加 MCP Server：
+
+```bash
+opencode mcp add
+```
+
+以添加 `xiaohongshu-mcp` 为例：
+
+```
+┌  Add MCP server
+│
+◇  Enter MCP server name
+│  xiaohongshu-mcp
+│
+◇  Select MCP server type
+│  Remote
+│
+◇  Enter MCP server URL
+│  http://localhost:18060/mcp
+│
+◇  Does this server require OAuth authentication?
+│  No
+│
+◆  MCP server "xiaohongshu-mcp" added to C:\Users\admin\.config\opencode\opencode.json
+│
+└  MCP server added successfully
+```
+
+验证是否添加成功（确保 MCP 已启动的前提下）：
+
+```bash
+opencode mcp list
+```
+
+```
+┌  MCP Servers
+│
+●  ✓ xiaohongshu-mcp connected
+```
+
+</details>
+
+<details>
 <summary><b>Cursor</b></summary>
 
 #### 配置文件的方式
