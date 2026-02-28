@@ -387,6 +387,30 @@ func (s *XiaohongshuService) SearchFeeds(ctx context.Context, keyword string, fi
 	return response, nil
 }
 
+// ListFavoriteFeeds 获取当前登录用户收藏列表
+func (s *XiaohongshuService) ListFavoriteFeeds(ctx context.Context) (*FeedsListResponse, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewFavoriteFeedsAction(page)
+
+	feeds, err := action.GetFavoriteFeeds(ctx)
+	if err != nil {
+		logrus.Errorf("获取收藏列表失败: %v", err)
+		return nil, err
+	}
+
+	response := &FeedsListResponse{
+		Feeds: feeds,
+		Count: len(feeds),
+	}
+
+	return response, nil
+}
+
 // GetFeedDetail 获取Feed详情
 func (s *XiaohongshuService) GetFeedDetail(ctx context.Context, feedID, xsecToken string, loadAllComments bool) (*FeedDetailResponse, error) {
 	return s.GetFeedDetailWithConfig(ctx, feedID, xsecToken, loadAllComments, xiaohongshu.DefaultCommentLoadConfig())

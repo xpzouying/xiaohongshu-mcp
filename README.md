@@ -713,6 +713,7 @@ Cline 是一个强大的 AI 编程助手，支持 MCP 协议集成。
 - `publish_with_video` - 发布视频内容到小红书（必需：title, content, video）
   - `video`: 仅支持本地视频文件绝对路径
 - `list_feeds` - 获取小红书首页推荐列表（无参数）
+- `list_favorite_feeds` - 获取当前登录用户收藏笔记列表（无参数）
 - `search_feeds` - 搜索小红书内容（需要：keyword）
 - `get_feed_detail` - 获取帖子详情（需要：feed_id, xsec_token）
 - `post_comment_to_feed` - 发表评论到小红书帖子（需要：feed_id, xsec_token, content）

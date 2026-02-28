@@ -283,6 +283,40 @@ func (s *AppServer) handleListFeeds(ctx context.Context) *MCPToolResult {
 	}
 }
 
+// handleListFavoriteFeeds 处理获取收藏列表
+func (s *AppServer) handleListFavoriteFeeds(ctx context.Context) *MCPToolResult {
+	logrus.Info("MCP: 获取收藏列表")
+
+	result, err := s.xiaohongshuService.ListFavoriteFeeds(ctx)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "获取收藏列表失败: " + err.Error(),
+			}},
+			IsError: true,
+		}
+	}
+
+	jsonData, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: fmt.Sprintf("获取收藏列表成功，但序列化失败: %v", err),
+			}},
+			IsError: true,
+		}
+	}
+
+	return &MCPToolResult{
+		Content: []MCPContent{{
+			Type: "text",
+			Text: string(jsonData),
+		}},
+	}
+}
+
 // handleSearchFeeds 处理搜索Feeds
 func (s *AppServer) handleSearchFeeds(ctx context.Context, args SearchFeedsArgs) *MCPToolResult {
 	logrus.Info("MCP: 搜索Feeds")

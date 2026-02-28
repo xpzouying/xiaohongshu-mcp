@@ -134,6 +134,19 @@ func (s *AppServer) listFeedsHandler(c *gin.Context) {
 	respondSuccess(c, result, "获取Feeds列表成功")
 }
 
+// listFavoriteFeedsHandler 获取收藏列表
+func (s *AppServer) listFavoriteFeedsHandler(c *gin.Context) {
+	result, err := s.xiaohongshuService.ListFavoriteFeeds(c.Request.Context())
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "LIST_FAVORITE_FEEDS_FAILED",
+			"获取收藏列表失败", err.Error())
+		return
+	}
+
+	c.Set("account", "ai-report")
+	respondSuccess(c, result, "获取收藏列表成功")
+}
+
 // searchFeedsHandler 搜索Feeds
 func (s *AppServer) searchFeedsHandler(c *gin.Context) {
 	var keyword string
