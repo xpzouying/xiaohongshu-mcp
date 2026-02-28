@@ -78,6 +78,20 @@ type PublishVideoResponse struct {
 	PostID  string `json:"post_id,omitempty"`
 }
 
+// DeleteNoteRequest 删除笔记请求
+type DeleteNoteRequest struct {
+	Keyword string `json:"keyword,omitempty"`
+	NoteID  string `json:"note_id,omitempty"`
+	Title   string `json:"title,omitempty"`
+	Index   int    `json:"index,omitempty"`
+}
+
+// DeleteNoteResponse 删除笔记响应
+type DeleteNoteResponse struct {
+	Deleted xiaohongshu.NoteSummary   `json:"deleted"`
+	Notes   []xiaohongshu.NoteSummary `json:"notes"`
+}
+
 // FeedsListResponse Feeds列表响应
 type FeedsListResponse struct {
 	Feeds []xiaohongshu.Feed `json:"feeds"`
@@ -385,6 +399,35 @@ func (s *XiaohongshuService) SearchFeeds(ctx context.Context, keyword string, fi
 	}
 
 	return response, nil
+}
+
+// DeleteNote 删除笔记
+func (s *XiaohongshuService) DeleteNote(ctx context.Context, req *DeleteNoteRequest) (*DeleteNoteResponse, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action, err := xiaohongshu.NewNoteManagerAction(page)
+	if err != nil {
+		return nil, err
+	}
+
+	deleted, notes, err := action.DeleteNote(ctx, xiaohongshu.DeleteNoteOptions{
+		Keyword: req.Keyword,
+		NoteID:  req.NoteID,
+		Title:   req.Title,
+		Index:   req.Index,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &DeleteNoteResponse{
+		Deleted: deleted,
+		Notes:   notes,
+	}, nil
 }
 
 // GetFeedDetail 获取Feed详情
