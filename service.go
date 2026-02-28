@@ -91,6 +91,17 @@ type UserProfileResponse struct {
 	Feeds         []xiaohongshu.Feed             `json:"feeds"`
 }
 
+type FavoriteCategoryListResponse struct {
+	Categories []xiaohongshu.FavoriteCategory `json:"categories"`
+	Count      int                            `json:"count"`
+}
+
+type FavoriteCategoryFeedsResponse struct {
+	Category *xiaohongshu.FavoriteCategory `json:"category"`
+	Feeds    []xiaohongshu.Feed            `json:"feeds"`
+	Count    int                           `json:"count"`
+}
+
 // DeleteCookies 删除 cookies 文件，用于登录重置
 func (s *XiaohongshuService) DeleteCookies(ctx context.Context) error {
 	cookiePath := cookies.GetCookiesFilePath()
@@ -409,6 +420,47 @@ func (s *XiaohongshuService) ListFavoriteFeeds(ctx context.Context) (*FeedsListR
 	}
 
 	return response, nil
+}
+
+func (s *XiaohongshuService) ListFavoriteCategories(ctx context.Context) (*FavoriteCategoryListResponse, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewFavoriteFeedsAction(page)
+	categories, err := action.GetFavoriteCategories(ctx)
+	if err != nil {
+		logrus.Errorf("获取收藏分类失败: %v", err)
+		return nil, err
+	}
+
+	return &FavoriteCategoryListResponse{
+		Categories: categories,
+		Count:      len(categories),
+	}, nil
+}
+
+func (s *XiaohongshuService) ListFavoriteFeedsByCategory(ctx context.Context, categoryID, categoryName string, limit int) (*FavoriteCategoryFeedsResponse, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewFavoriteFeedsAction(page)
+	feeds, category, err := action.GetFavoriteFeedsByCategory(ctx, categoryID, categoryName, limit)
+	if err != nil {
+		logrus.Errorf("按分类获取收藏失败: %v", err)
+		return nil, err
+	}
+
+	return &FavoriteCategoryFeedsResponse{
+		Category: category,
+		Feeds:    feeds,
+		Count:    len(feeds),
+	}, nil
 }
 
 // GetFeedDetail 获取Feed详情

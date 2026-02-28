@@ -700,6 +700,8 @@ After successful connection, you can use the following MCP tools:
   - `video`: Only supports local video file absolute paths
 - `list_feeds` - Get RedNote homepage recommendation list (no parameters)
 - `list_favorite_feeds` - Get current logged-in user's favorite notes list (no parameters)
+- `list_favorite_categories` - Get favorite album categories for current logged-in user (no parameters)
+- `list_favorite_feeds_by_category` - Get favorite notes by category (optional: category_id/category_name/limit)
 - `search_feeds` - Search RedNote content (required: keyword)
 - `get_feed_detail` - Get post details (required: feed_id, xsec_token)
 - `post_comment_to_feed` - Post comments to RedNote posts (required: feed_id, xsec_token, content)
