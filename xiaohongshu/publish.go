@@ -295,6 +295,9 @@ func submitPublish(page *rod.Page, title, content string, tags []string, schedul
 	if err := contentElem.Input(content); err != nil {
 		return errors.Wrap(err, "输入正文失败")
 	}
+	if err := waitAndClickTitleInput(titleElem); err != nil {
+		return err
+	}
 	if err := inputTags(contentElem, tags); err != nil {
 		return err
 	}
@@ -338,6 +341,17 @@ func submitPublish(page *rod.Page, title, content string, tags []string, schedul
 	}
 
 	time.Sleep(3 * time.Second)
+	return nil
+}
+
+// waitAndClickTitleInput 在填写正文后等待 1 秒并回点标题输入框，增强后续交互稳定性
+func waitAndClickTitleInput(titleElem *rod.Element) error {
+	slog.Info("正文填写完成，准备等待后回点标题输入框")
+	time.Sleep(1 * time.Second)
+	if err := titleElem.Click(proto.InputMouseButtonLeft, 1); err != nil {
+		return errors.Wrap(err, "回点标题输入框失败")
+	}
+	slog.Info("已回点标题输入框，继续后续发布流程")
 	return nil
 }
 
