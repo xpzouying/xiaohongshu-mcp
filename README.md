@@ -859,6 +859,18 @@ npx mcporter list xiaohongshu-mcp
 
 ---
 
+**Q:** `search_feeds` / `list_feeds` 偶发超时或无返回怎么办？
+**A:** 排查步骤如下：
+
+1. 先确认服务和登录状态是否正常：`GET /api/v1/login/status`。
+2. 如果使用了筛选参数，先不传 `filters` 重试一次，排除筛选值兼容性问题。
+3. 清理旧进程后重启服务：
+   - Windows: `taskkill /F /IM xiaohongshu-mcp-windows-amd64.exe`
+   - macOS / Linux: `pkill -f xiaohongshu-mcp`
+4. 重新启动 `xiaohongshu-mcp` 后，再次调用搜索/推荐接口验证。
+
+---
+
 **Q:** 在设备上运行 MCP 程序出现闪退如何解决？
 **A:**
 

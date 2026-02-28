@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/go-rod/rod"
+	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/xiaohongshu-mcp/errors"
 )
 
@@ -63,6 +65,73 @@ var filterOptionsMap = map[int][]internalFilterOption{
 		{FiltersIndex: 5, TagsIndex: 1, Text: "不限"},
 		{FiltersIndex: 5, TagsIndex: 2, Text: "同城"},
 		{FiltersIndex: 5, TagsIndex: 3, Text: "附近"},
+	},
+}
+
+// 支持英文/简写/序号，降低调用方编码或参数风格差异导致的失败概率
+var filterOptionAliases = map[int]map[string]string{
+	1: { // sort_by
+		"1":              "综合",
+		"2":              "最新",
+		"3":              "最多点赞",
+		"4":              "最多评论",
+		"5":              "最多收藏",
+		"all":            "综合",
+		"default":        "综合",
+		"comprehensive":  "综合",
+		"latest":         "最新",
+		"most_likes":     "最多点赞",
+		"most_liked":     "最多点赞",
+		"most_comments":  "最多评论",
+		"most_commented": "最多评论",
+		"most_favorites": "最多收藏",
+		"most_favorited": "最多收藏",
+	},
+	2: { // note_type
+		"1":          "不限",
+		"2":          "视频",
+		"3":          "图文",
+		"all":        "不限",
+		"default":    "不限",
+		"video":      "视频",
+		"image_text": "图文",
+		"image-text": "图文",
+		"text_image": "图文",
+	},
+	3: { // publish_time
+		"1":          "不限",
+		"2":          "一天内",
+		"3":          "一周内",
+		"4":          "半年内",
+		"all":        "不限",
+		"default":    "不限",
+		"any":        "不限",
+		"any_time":   "不限",
+		"one_day":    "一天内",
+		"one_week":   "一周内",
+		"half_year":  "半年内",
+		"halfyear":   "半年内",
+	},
+	4: { // search_scope
+		"1":         "不限",
+		"2":         "已看过",
+		"3":         "未看过",
+		"4":         "已关注",
+		"all":       "不限",
+		"default":   "不限",
+		"viewed":    "已看过",
+		"unviewed":  "未看过",
+		"followed":  "已关注",
+		"following": "已关注",
+	},
+	5: { // location
+		"1":       "不限",
+		"2":       "同城",
+		"3":       "附近",
+		"all":     "不限",
+		"default": "不限",
+		"local":   "同城",
+		"nearby":  "附近",
 	},
 }
 
@@ -125,8 +194,19 @@ func findInternalOption(filtersIndex int, text string) (internalFilterOption, er
 		return internalFilterOption{}, fmt.Errorf("筛选组 %d 不存在", filtersIndex)
 	}
 
+	normalized := strings.TrimSpace(text)
+	if normalized == "" {
+		return internalFilterOption{}, fmt.Errorf("筛选组 %d 的筛选值不能为空", filtersIndex)
+	}
+
+	if aliases, ok := filterOptionAliases[filtersIndex]; ok {
+		if canonical, exists := aliases[strings.ToLower(normalized)]; exists {
+			normalized = canonical
+		}
+	}
+
 	for _, option := range options {
-		if option.Text == text {
+		if option.Text == normalized {
 			return option, nil
 		}
 	}
@@ -174,44 +254,49 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 
 	page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
 
-	// 如果有筛选条件，则应用筛选
+	// 如果有筛选条件，则尝试应用筛选（无效筛选将被忽略）
 	if len(filters) > 0 {
-		// 将所有 FilterOption 转换为内部筛选选项
 		var allInternalFilters []internalFilterOption
 		for _, filter := range filters {
 			internalFilters, err := convertToInternalFilters(filter)
 			if err != nil {
-				return nil, fmt.Errorf("筛选选项转换失败: %w", err)
+				logrus.WithError(err).WithField("filter", filter).Warn("筛选选项转换失败，已忽略该筛选")
+				continue
 			}
 			allInternalFilters = append(allInternalFilters, internalFilters...)
 		}
 
-		// 验证所有内部筛选选项
+		validFilters := make([]internalFilterOption, 0, len(allInternalFilters))
 		for _, filter := range allInternalFilters {
 			if err := validateInternalFilterOption(filter); err != nil {
-				return nil, fmt.Errorf("筛选选项验证失败: %w", err)
+				logrus.WithError(err).WithField("filter", filter).Warn("筛选选项验证失败，已忽略该筛选")
+				continue
 			}
+			validFilters = append(validFilters, filter)
 		}
 
-		// 悬停在筛选按钮上
-		filterButton := page.MustElement(`div.filter`)
-		filterButton.MustHover()
+		// 仅在至少有一个有效筛选条件时操作筛选面板，避免空筛选导致额外等待
+		if len(validFilters) > 0 {
+			// 悬停在筛选按钮上
+			filterButton := page.MustElement(`div.filter`)
+			filterButton.MustHover()
 
-		// 等待筛选面板出现
-		page.MustWait(`() => document.querySelector('div.filter-panel') !== null`)
+			// 等待筛选面板出现
+			page.MustWait(`() => document.querySelector('div.filter-panel') !== null`)
 
-		// 应用所有筛选条件
-		for _, filter := range allInternalFilters {
-			selector := fmt.Sprintf(`div.filter-panel div.filters:nth-child(%d) div.tags:nth-child(%d)`,
-				filter.FiltersIndex, filter.TagsIndex)
-			option := page.MustElement(selector)
-			option.MustClick()
+			// 应用所有筛选条件
+			for _, filter := range validFilters {
+				selector := fmt.Sprintf(`div.filter-panel div.filters:nth-child(%d) div.tags:nth-child(%d)`,
+					filter.FiltersIndex, filter.TagsIndex)
+				option := page.MustElement(selector)
+				option.MustClick()
+			}
+
+			// 等待页面更新
+			page.MustWaitStable()
+			// 重新等待 __INITIAL_STATE__ 更新
+			page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
 		}
-
-		// 等待页面更新
-		page.MustWaitStable()
-		// 重新等待 __INITIAL_STATE__ 更新
-		page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
 	}
 
 	result := page.MustEval(`() => {

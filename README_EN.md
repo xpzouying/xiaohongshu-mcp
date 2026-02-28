@@ -768,6 +768,18 @@ Use xiaohongshu-mcp's video publishing feature.
 
 ---
 
+**Q:** `search_feeds` / `list_feeds` occasionally times out or hangs. What should I do?
+**A:** Troubleshooting steps:
+
+1. Verify service and login status first: `GET /api/v1/login/status`.
+2. If you are sending `filters`, retry once without `filters` to rule out filter-compatibility issues.
+3. Kill stale process and restart MCP:
+   - Windows: `taskkill /F /IM xiaohongshu-mcp-windows-amd64.exe`
+   - macOS / Linux: `pkill -f xiaohongshu-mcp`
+4. Start `xiaohongshu-mcp` again, then re-test search/list endpoints.
+
+---
+
 **Q:** The MCP program crashes on my device, how to resolve?
 **A:**
 
