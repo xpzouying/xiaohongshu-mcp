@@ -688,8 +688,6 @@ Cline 是一个强大的 AI 编程助手，支持 MCP 协议集成。
 <details>
 <summary><b>OpenClaw（通过 MCPorter）</b></summary>
 
-> ⚠️ **注意：本教程仅针对必须使用 OpenClaw 的用户，并不建议将 OpenClaw 作为运行 xiaohongshu-mcp 的首选方案。**
->
 > 使用前请确保 xiaohongshu-mcp 已完成本地部署。**不建议**将 GitHub 链接直接丢给 OpenClaw 让其代为部署。
 
 由于 OpenClaw 目前不原生支持 MCP，官方推荐通过 **MCPorter** 来调用 MCP 服务。
@@ -698,18 +696,11 @@ Cline 是一个强大的 AI 编程助手，支持 MCP 协议集成。
 
 #### 安装与配置步骤
 
-**第一步：安装 MCPorter**
-```bash
+直接一次性将一下三行命令丢给 OpenClaw（可以是 Control UI、Telegram、Feishu等方式），Openclaw 会代为部署 MCPorter。
+
+```
 npm i -g mcporter
-```
-
-**第二步：注册 xiaohongshu-mcp 服务**
-```bash
 npx mcporter config add xiaohongshu-mcp http://localhost:18060/mcp
-```
-
-**第三步：验证配置**
-```bash
 npx mcporter list xiaohongshu-mcp
 ```
 
@@ -793,9 +784,7 @@ npx mcporter list xiaohongshu-mcp
 
 ---
 
-> ⚠️ **重要：由 OpenClaw 通过 AI 方式自动部署或调用 MCP 所导致的问题，请自行解决，本项目不提供相关支持。**
-
-以下是使用 OpenClaw + MCPorter 时的已知风险，使用前请充分了解：
+> ⚠️ 以下是使用 OpenClaw + MCPorter 时的已知风险，使用前请充分了解：
 
 - OpenClaw 的 AI 自动部署行为不在本项目的维护范围内，部署结果无法保证
 - MCPorter 作为中间层可能引入额外的兼容性问题，与 xiaohongshu-mcp 本身无关
