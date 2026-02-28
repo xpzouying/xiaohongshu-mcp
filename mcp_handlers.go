@@ -484,9 +484,44 @@ func (s *AppServer) handleUserProfile(ctx context.Context, args map[string]any) 
 		}
 	}
 
-	logrus.Infof("MCP: 获取用户主页 - User ID: %s", userID)
+	// 解析加载全部笔记参数
+	loadAll := false
+	if raw, ok := args["load_all_notes"]; ok {
+		switch v := raw.(type) {
+		case bool:
+			loadAll = v
+		case string:
+			if parsed, err := strconv.ParseBool(v); err == nil {
+				loadAll = parsed
+			}
+		case float64:
+			loadAll = v != 0
+		}
+	}
 
-	result, err := s.xiaohongshuService.UserProfile(ctx, userID, xsecToken)
+	// 解析笔记配置参数，如果未提供则使用默认值
+	config := xiaohongshu.DefaultProfileLoadConfig()
+
+	if raw, ok := args["max_note_items"]; ok {
+		switch v := raw.(type) {
+		case float64:
+			config.MaxNoteItems = int(v)
+		case string:
+			if parsed, err := strconv.Atoi(v); err == nil {
+				config.MaxNoteItems = parsed
+			}
+		case int:
+			config.MaxNoteItems = v
+		}
+	}
+
+	if raw, ok := args["scroll_speed"].(string); ok && raw != "" {
+		config.ScrollSpeed = raw
+	}
+
+	logrus.Infof("MCP: 获取用户主页 - User ID: %s, loadAllNotes=%v, config=%+v", userID, loadAll, config)
+
+	result, err := s.xiaohongshuService.UserProfileWithConfig(ctx, userID, xsecToken, loadAll, config)
 	if err != nil {
 		return &MCPToolResult{
 			Content: []MCPContent{{
