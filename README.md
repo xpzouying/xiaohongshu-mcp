@@ -360,6 +360,12 @@ Docker 版本会自动：
 - 挂载 `./images` 用于存储发布的图片
 - 暴露 18060 端口供 MCP 连接
 
+> **注意：** 如果需要通过 MCP 发布本地图片，请在启动容器时挂载宿主机目录，例如：
+> ```bash
+> docker run -d --name xiaohongshu-mcp -p 18060:18060 -v /tmp:/tmp xpzouying/xiaohongshu-mcp
+> ```
+> 否则容器内无法访问宿主机上的图片文件。也可以使用 HTTP URL 格式的图片链接来避免此问题。
+
 详细使用说明请参考：[Docker 部署指南](./docker/README.md)
 
 </details>

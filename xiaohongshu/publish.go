@@ -203,13 +203,19 @@ func isElementBlocked(elem *rod.Element) (bool, error) {
 func uploadImages(page *rod.Page, imagesPaths []string) error {
 	// 验证文件路径有效性
 	validPaths := make([]string, 0, len(imagesPaths))
+	hasNotFound := false
 	for _, path := range imagesPaths {
 		if _, err := os.Stat(path); os.IsNotExist(err) {
 			logrus.Warnf("图片文件不存在: %s", path)
+			hasNotFound = true
 			continue
 		}
 		validPaths = append(validPaths, path)
 		logrus.Infof("获取有效图片：%s", path)
+	}
+
+	if hasNotFound {
+		logrus.Info("提示: Docker 部署时需挂载宿主机目录（如 -v /tmp:/tmp），或使用 HTTP URL 格式的图片链接，详见 README")
 	}
 
 	// 逐张上传：每张上传后等待预览出现，再上传下一张
