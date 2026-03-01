@@ -41,6 +41,9 @@
 | POST | `/api/v1/publish` | 发布图文内容 |
 | POST | `/api/v1/publish_video` | 发布视频内容 |
 | GET | `/api/v1/feeds/list` | 获取 Feeds 列表 |
+| GET | `/api/v1/feeds/favorites` | 获取收藏列表 |
+| GET | `/api/v1/feeds/favorite_categories` | 获取收藏分类列表 |
+| POST | `/api/v1/feeds/favorites/by_category` | 按分类获取收藏列表 |
 | GET/POST | `/api/v1/feeds/search` | 搜索 Feeds |
 | POST | `/api/v1/feeds/detail` | 获取 Feed 详情 |
 | POST | `/api/v1/user/profile` | 获取用户主页信息 |
@@ -331,7 +334,52 @@ GET /api/v1/feeds/list
   - `sharedCount`: 分享数
 ```
 
-#### 4.2 搜索 Feeds
+#### 4.2 获取收藏列表
+
+获取当前登录用户的收藏笔记列表。
+
+**请求**
+```
+GET /api/v1/feeds/favorites
+```
+
+**响应**
+```json
+{
+  "success": true,
+  "data": {
+    "feeds": [
+      {
+        "xsecToken": "security_token_value",
+        "id": "feed_id_1",
+        "modelType": "note",
+        "noteCard": {
+          "type": "normal",
+          "displayTitle": "收藏笔记标题",
+          "interactInfo": {
+            "liked": false,
+            "likedCount": "120",
+            "collected": true,
+            "collectedCount": "88",
+            "commentCount": "16",
+            "sharedCount": "4"
+          }
+        },
+        "index": 0
+      }
+    ],
+    "count": 12
+  },
+  "message": "获取收藏列表成功"
+}
+```
+
+**响应字段说明:**
+- 响应结构与"获取 Feeds 列表"接口相同
+- 若账号暂无收藏内容，`feeds` 可能为空数组，`count` 为 `0`
+```
+
+#### 4.3 搜索 Feeds
 
 根据关键词搜索 Feeds，支持 GET 和 POST 两种请求方式。
 
@@ -418,7 +466,7 @@ Content-Type: application/json
 - `video`: 视频笔记时有此字段，图文笔记为 null
 ```
 
-#### 4.3 获取 Feed 详情
+#### 4.4 获取 Feed 详情
 
 获取指定 Feed 的详细信息，支持加载全部评论和自定义评论加载配置。
 
@@ -794,6 +842,76 @@ Content-Type: application/json
 
 ---
 
+#### 4.5 获取收藏分类列表
+
+获取当前登录用户收藏下的专辑分类（board）列表。
+
+**请求**
+```
+GET /api/v1/feeds/favorite_categories
+```
+
+**响应**
+```json
+{
+  "success": true,
+  "data": {
+    "categories": [
+      {
+        "id": "663b6e90000000001c019d29",
+        "name": "Trip",
+        "noteCount": 44,
+        "url": "https://www.xiaohongshu.com/board/663b6e90000000001c019d29?source=web_user_page"
+      }
+    ],
+    "count": 12
+  },
+  "message": "获取收藏分类成功"
+}
+```
+
+#### 4.6 按分类获取收藏列表
+
+按分类 ID 或名称获取该分类下的收藏笔记列表。
+
+**请求**
+```
+POST /api/v1/feeds/favorites/by_category
+Content-Type: application/json
+```
+
+**请求体**
+```json
+{
+  "category_id": "663b6e90000000001c019d29",
+  "category_name": "Trip",
+  "limit": 20
+}
+```
+
+**请求参数说明:**
+- `category_id` (string, optional): 分类 ID，优先匹配
+- `category_name` (string, optional): 分类名称（当 category_id 为空时按名称匹配）
+- `limit` (int, optional): 返回数量上限，不填表示不限制
+
+**响应**
+```json
+{
+  "success": true,
+  "data": {
+    "category": {
+      "id": "663b6e90000000001c019d29",
+      "name": "Trip",
+      "noteCount": 44,
+      "url": "https://www.xiaohongshu.com/board/663b6e90000000001c019d29?source=web_user_page"
+    },
+    "feeds": [],
+    "count": 0
+  },
+  "message": "按分类获取收藏列表成功"
+}
+```
+
 ## 错误代码
 
 所有 API 在发生错误时会返回统一格式的错误响应。以下是可能出现的错误代码：
@@ -807,6 +925,9 @@ Content-Type: application/json
 | `PUBLISH_FAILED` | 500 | 发布图文内容失败 |
 | `PUBLISH_VIDEO_FAILED` | 500 | 发布视频内容失败 |
 | `LIST_FEEDS_FAILED` | 500 | 获取 Feeds 列表失败 |
+| `LIST_FAVORITE_FEEDS_FAILED` | 500 | 获取收藏列表失败 |
+| `LIST_FAVORITE_CATEGORIES_FAILED` | 500 | 获取收藏分类失败 |
+| `LIST_FAVORITE_FEEDS_BY_CATEGORY_FAILED` | 500 | 按分类获取收藏列表失败 |
 | `SEARCH_FEEDS_FAILED` | 500 | 搜索 Feeds 失败 |
 | `GET_FEED_DETAIL_FAILED` | 500 | 获取 Feed 详情失败 |
 | `GET_USER_PROFILE_FAILED` | 500 | 获取用户主页信息失败 |

@@ -168,3 +168,11 @@ type UserInteractions struct {
 	Name  string `json:"name"`  // 关注 粉丝 获赞与收藏
 	Count string `json:"count"` // 数量
 }
+
+// FavoriteCategory 收藏专辑分类
+type FavoriteCategory struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	NoteCount int    `json:"noteCount,omitempty"`
+	URL       string `json:"url,omitempty"`
+}

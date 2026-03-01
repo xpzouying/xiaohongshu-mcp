@@ -98,6 +98,13 @@ type FavoriteFeedArgs struct {
 	Unfavorite bool   `json:"unfavorite,omitempty" jsonschema:"是否取消收藏，true为取消收藏，false或未设置则为收藏"`
 }
 
+// FavoriteFeedsByCategoryArgs 按分类获取收藏
+type FavoriteFeedsByCategoryArgs struct {
+	CategoryID   string `json:"category_id,omitempty" jsonschema:"收藏分类ID（专辑ID），优先匹配此参数"`
+	CategoryName string `json:"category_name,omitempty" jsonschema:"收藏分类名称（当 category_id 为空时按名称匹配）"`
+	Limit        int    `json:"limit,omitempty" jsonschema:"返回笔记数量上限，默认不限制"`
+}
+
 // InitMCPServer 初始化 MCP Server
 func InitMCPServer(appServer *AppServer) *mcp.Server {
 	// 创建 MCP Server
@@ -241,7 +248,55 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	// 工具 6: 搜索内容
+	// 工具 6: 获取收藏列表
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "list_favorite_feeds",
+			Description: "获取当前登录用户的收藏笔记列表",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "List Favorite Feeds",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("list_favorite_feeds", func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleListFavoriteFeeds(ctx)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	// 工具 7: 获取收藏分类
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "list_favorite_categories",
+			Description: "获取当前登录用户收藏下的专辑分类列表",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "List Favorite Categories",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("list_favorite_categories", func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleListFavoriteCategories(ctx)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	// 工具 8: 按分类获取收藏笔记
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "list_favorite_feeds_by_category",
+			Description: "按收藏专辑分类获取笔记列表（支持按分类ID或名称过滤）",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "List Favorite Feeds By Category",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("list_favorite_feeds_by_category", func(ctx context.Context, req *mcp.CallToolRequest, args FavoriteFeedsByCategoryArgs) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleListFavoriteFeedsByCategory(ctx, args)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	// 工具 9: 搜索内容
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "search_feeds",
@@ -257,7 +312,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	// 工具 7: 获取Feed详情
+	// 工具 10: 获取Feed详情
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "get_feed_detail",
@@ -302,7 +357,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	// 工具 8: 获取用户主页
+	// 工具 11: 获取用户主页
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "user_profile",
@@ -322,7 +377,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	// 工具 9: 发表评论
+	// 工具 12: 发表评论
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "post_comment_to_feed",
@@ -343,7 +398,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	// 工具 10: 回复评论
+	// 工具 13: 回复评论
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "reply_comment_in_feed",
@@ -373,7 +428,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		},
 	)
 
-	// 工具 11: 发布视频（仅本地文件）
+	// 工具 14: 发布视频（仅本地文件）
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "publish_with_video",
@@ -397,7 +452,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	// 工具 12: 点赞笔记
+	// 工具 15: 点赞笔记
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "like_feed",
@@ -418,7 +473,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	// 工具 13: 收藏笔记
+	// 工具 16: 收藏笔记
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "favorite_feed",
@@ -439,7 +494,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	logrus.Infof("Registered %d MCP tools", 13)
+	logrus.Infof("Registered %d MCP tools", 16)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式
