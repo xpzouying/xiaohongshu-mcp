@@ -78,6 +78,22 @@ type PublishVideoResponse struct {
 	PostID  string `json:"post_id,omitempty"`
 }
 
+// PublishTextImageRequest 文字配图发布请求
+type PublishTextImageRequest struct {
+	Title            string   `json:"title" binding:"required"`
+	Content          string   `json:"content" binding:"required"`
+	TextImageContent string   `json:"text_image_content" binding:"required"` // 用于生成图片的文字内容
+	Tags             []string `json:"tags,omitempty"`
+	ScheduleAt       string   `json:"schedule_at,omitempty"` // 定时发布时间，ISO8601格式，为空则立即发布
+}
+
+// PublishTextImageResponse 文字配图发布响应
+type PublishTextImageResponse struct {
+	Title   string `json:"title"`
+	Content string `json:"content"`
+	Status  string `json:"status"`
+}
+
 // FeedsListResponse Feeds列表响应
 type FeedsListResponse struct {
 	Feeds []xiaohongshu.Feed `json:"feeds"`
@@ -256,6 +272,79 @@ func (s *XiaohongshuService) publishContent(ctx context.Context, content xiaohon
 
 	// 执行发布
 	return action.Publish(ctx, content)
+}
+
+// PublishTextImage 发布文字配图内容
+func (s *XiaohongshuService) PublishTextImage(ctx context.Context, req *PublishTextImageRequest) (*PublishTextImageResponse, error) {
+	// 验证标题长度（小红书限制：最大20个字）
+	if xhsutil.CalcTitleLength(req.Title) > 20 {
+		return nil, fmt.Errorf("标题长度超过限制")
+	}
+
+	// 解析定时发布时间
+	var scheduleTime *time.Time
+	if req.ScheduleAt != "" {
+		t, err := time.Parse(time.RFC3339, req.ScheduleAt)
+		if err != nil {
+			return nil, fmt.Errorf("定时发布时间格式错误，请使用 ISO8601 格式: %v", err)
+		}
+
+		// 校验定时发布时间范围：1小时至14天
+		now := time.Now()
+		minTime := now.Add(1 * time.Hour)
+		maxTime := now.Add(14 * 24 * time.Hour)
+
+		if t.Before(minTime) {
+			return nil, fmt.Errorf("定时发布时间必须至少在1小时后，当前设置: %s，最早可选: %s",
+				t.Format("2006-01-02 15:04"), minTime.Format("2006-01-02 15:04"))
+		}
+		if t.After(maxTime) {
+			return nil, fmt.Errorf("定时发布时间不能超过14天，当前设置: %s，最晚可选: %s",
+				t.Format("2006-01-02 15:04"), maxTime.Format("2006-01-02 15:04"))
+		}
+
+		scheduleTime = &t
+		logrus.Infof("设置定时发布时间: %s", t.Format("2006-01-02 15:04"))
+	}
+
+	// 构建发布内容
+	content := xiaohongshu.PublishTextImageContent{
+		Title:            req.Title,
+		Content:          req.Content,
+		Tags:             req.Tags,
+		TextImageContent: req.TextImageContent,
+		ScheduleTime:     scheduleTime,
+	}
+
+	// 执行发布
+	if err := s.publishTextImage(ctx, content); err != nil {
+		logrus.Errorf("文字配图发布失败: title=%s %v", content.Title, err)
+		return nil, err
+	}
+
+	response := &PublishTextImageResponse{
+		Title:   req.Title,
+		Content: req.Content,
+		Status:  "发布完成",
+	}
+
+	return response, nil
+}
+
+// publishTextImage 执行文字配图发布
+func (s *XiaohongshuService) publishTextImage(ctx context.Context, content xiaohongshu.PublishTextImageContent) error {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action, err := xiaohongshu.NewPublishImageAction(page)
+	if err != nil {
+		return err
+	}
+
+	return action.PublishTextImage(ctx, content)
 }
 
 // PublishVideo 发布视频（本地文件）
@@ -590,6 +679,30 @@ func (s *XiaohongshuService) GetMyProfile(ctx context.Context) (*UserProfileResp
 		UserBasicInfo: result.UserBasicInfo,
 		Interactions:  result.Interactions,
 		Feeds:         result.Feeds,
+	}
+
+	return response, nil
+}
+
+// GetNotifications 获取通知列表
+func (s *XiaohongshuService) GetNotifications(ctx context.Context) (*NotificationsResponse, error) {
+	var result *xiaohongshu.NotificationList
+	var err error
+
+	err = withBrowserPage(func(page *rod.Page) error {
+		action := xiaohongshu.NewNotificationAction(page)
+		result, err = action.GetNotifications(ctx)
+		return err
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	response := &NotificationsResponse{
+		Notifications: result.Notifications,
+		Count:         len(result.Notifications),
+		HasMore:       result.HasMore,
 	}
 
 	return response, nil

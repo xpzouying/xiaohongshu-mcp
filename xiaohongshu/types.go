@@ -168,3 +168,49 @@ type UserInteractions struct {
 	Name  string `json:"name"`  // 关注 粉丝 获赞与收藏
 	Count string `json:"count"` // 数量
 }
+
+// ================ 通知相关结构体 ================
+
+// NotificationType 通知类型
+type NotificationType string
+
+const (
+	NotificationTypeLike     NotificationType = "like"     // 点赞
+	NotificationTypeFavorite NotificationType = "favorite" // 收藏
+	NotificationTypeComment  NotificationType = "comment"  // 评论
+	NotificationTypeFollow   NotificationType = "follow"   // 关注
+	NotificationTypeMention  NotificationType = "mention"  // @提及
+)
+
+// Notification 通知项
+type Notification struct {
+	ID         string            `json:"id"`                   // 通知ID
+	Type       NotificationType  `json:"type"`                 // 通知类型
+	Content    string            `json:"content"`              // 通知内容/摘要
+	FromUser   NotificationUser  `json:"fromUser"`             // 发起通知的用户
+	TargetNote *NotificationNote `json:"targetNote,omitempty"` // 关联的笔记（如有）
+	CreateTime int64             `json:"createTime"`           // 通知时间戳
+	IsRead     bool              `json:"isRead"`               // 是否已读
+}
+
+// NotificationUser 通知用户信息
+type NotificationUser struct {
+	UserID   string `json:"userId"`
+	Nickname string `json:"nickname"`
+	Avatar   string `json:"avatar"`
+}
+
+// NotificationNote 通知关联的笔记信息
+type NotificationNote struct {
+	NoteID    string `json:"noteId"`
+	XsecToken string `json:"xsecToken,omitempty"`
+	Title     string `json:"title"`
+	Cover     string `json:"cover,omitempty"`
+}
+
+// NotificationList 通知列表
+type NotificationList struct {
+	Notifications []Notification `json:"notifications"`
+	HasMore       bool           `json:"hasMore"`
+	Cursor        string         `json:"cursor,omitempty"`
+}

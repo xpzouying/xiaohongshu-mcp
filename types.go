@@ -109,3 +109,10 @@ type ActionResult struct {
 	Success bool   `json:"success"`
 	Message string `json:"message"`
 }
+
+// NotificationsResponse 通知列表响应
+type NotificationsResponse struct {
+	Notifications []xiaohongshu.Notification `json:"notifications"`
+	Count         int                        `json:"count"`
+	HasMore       bool                       `json:"hasMore"`
+}

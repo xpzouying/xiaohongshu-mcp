@@ -26,6 +26,15 @@ type PublishImageContent struct {
 	Visibility   string     // 可见范围: "公开可见"(默认), "仅自己可见", "仅互关好友可见"
 }
 
+// PublishTextImageContent 文字配图发布内容
+type PublishTextImageContent struct {
+	Title            string
+	Content          string
+	Tags             []string
+	TextImageContent string     // 用于生成图片的文字内容
+	ScheduleTime     *time.Time // 定时发布时间，nil 表示立即发布
+}
+
 type PublishAction struct {
 	page *rod.Page
 }
@@ -87,6 +96,35 @@ func (p *PublishAction) Publish(ctx context.Context, content PublishImageContent
 	logrus.Infof("发布内容: title=%s, images=%v, tags=%v, schedule=%v, original=%v, visibility=%s", content.Title, len(content.ImagePaths), tags, content.ScheduleTime, content.IsOriginal, content.Visibility)
 
 	if err := submitPublish(page, content.Title, content.Content, tags, content.ScheduleTime, content.IsOriginal, content.Visibility); err != nil {
+		return errors.Wrap(err, "小红书发布失败")
+	}
+
+	return nil
+}
+
+// PublishTextImage 执行文字配图发布
+func (p *PublishAction) PublishTextImage(ctx context.Context, content PublishTextImageContent) error {
+	if content.TextImageContent == "" {
+		return errors.New("文字配图内容不能为空")
+	}
+
+	page := p.page.Context(ctx)
+
+	// 步骤1: 点击文字配图按钮，输入文字，生成图片，点击下一步
+	if err := generateTextImage(page, content.TextImageContent); err != nil {
+		return errors.Wrap(err, "文字配图生成失败")
+	}
+
+	tags := content.Tags
+	if len(tags) >= 10 {
+		logrus.Warnf("标签数量超过10，截取前10个标签")
+		tags = tags[:10]
+	}
+
+	logrus.Infof("文字配图发布: title=%s, tags=%v, schedule=%v", content.Title, tags, content.ScheduleTime)
+
+	// 步骤2: 复用现有的 submitPublish 完成标题、正文、标签填写和发布
+	if err := submitPublish(page, content.Title, content.Content, tags, content.ScheduleTime); err != nil {
 		return errors.Wrap(err, "小红书发布失败")
 	}
 
@@ -292,7 +330,7 @@ func submitPublish(page *rod.Page, title, content string, tags []string, schedul
 	if !ok {
 		return errors.New("没有找到内容输入框")
 	}
-	if err := contentElem.Input(content); err != nil {
+	if err := inputTextToEditorSafe(page, contentElem, content); err != nil {
 		return errors.Wrap(err, "输入正文失败")
 	}
 	if err := waitAndClickTitleInput(titleElem); err != nil {
@@ -407,13 +445,27 @@ func makeMaxLengthError(elemText string) error {
 	return errors.Errorf("当前输入长度为%s，最大长度为%s", currLen, maxLen)
 }
 
-// 查找内容输入框 - 使用Race方法处理两种样式
+// preprocessContentForInput 预处理内容，将 \n 转换为适合 Input 方法的格式
+// 通过多次 Input 调用实现换行，避免 JS 注入问题
+func preprocessContentForInput(content string) string {
+	// 对于包含 \n 的内容，我们不在 JS 层面处理，而是保持原样
+	// 让 inputTextToEditor 使用更安全的方法
+	// 这里只是占位，实际处理在 inputTextToEditor 中
+	return content
+}
+
+// 查找内容输入框 - 使用Race方法处理多种样式
+// 文字配图发布页使用 tiptap/ProseMirror 编辑器（div.tiptap），普通图文发布页使用 Quill 编辑器（div.ql-editor）
 func getContentElement(page *rod.Page) (*rod.Element, bool) {
 	var foundElement *rod.Element
 	var found bool
 
 	page.Race().
 		Element("div.ql-editor").MustHandle(func(e *rod.Element) {
+		foundElement = e
+		found = true
+	}).
+		Element("div.tiptap").MustHandle(func(e *rod.Element) {
 		foundElement = e
 		found = true
 	}).
@@ -527,6 +579,32 @@ func findTextboxByPlaceholder(page *rod.Page) (*rod.Element, error) {
 	}
 
 	return textboxElem, nil
+}
+
+// inputTextToEditor 向富文本编辑器（contenteditable div）输入包含换行的文本。
+// 使用 innerHTML 将 \n 替换为 <br> 标签实现换行
+func inputTextToEditor(page *rod.Page, elem *rod.Element, text string) error {
+	// 将 \n 替换为 <br>，并转义其他 HTML 特殊字符
+	escapedText := strings.ReplaceAll(text, `&`, `&amp;`)
+	escapedText = strings.ReplaceAll(escapedText, `<`, `&lt;`)
+	escapedText = strings.ReplaceAll(escapedText, `>`, `&gt;`)
+	escapedText = strings.ReplaceAll(escapedText, `"`, `&quot;`)
+	htmlContent := strings.ReplaceAll(escapedText, "\n", "<br>")
+
+	// 直接内联 HTML
+	jsCode := `(function() {
+		this.innerHTML = "` + htmlContent + `";
+		this.dispatchEvent(new Event('input', { bubbles: true }));
+	})`
+
+	_, err := elem.Evaluate(&rod.EvalOptions{
+		JS: jsCode,
+	})
+
+	if err != nil {
+		return errors.Wrap(err, "设置文本内容失败")
+	}
+	return nil
 }
 
 func findPlaceholderElement(elements []*rod.Element, searchText string) *rod.Element {

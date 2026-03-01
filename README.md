@@ -245,6 +245,137 @@ https://github.com/user-attachments/assets/cc385b6c-422c-489b-a5fc-63e92c695b80
 
 <img width="1840" height="582" alt="CleanShot 2025-09-05 at 01 33 13@2x" src="https://github.com/user-attachments/assets/fb367944-dc48-4bbd-8ece-934caa86323e" />
 
+## 技术架构与接口文档
+
+### 整体架构
+
+```
+AI 客户端 (Claude/Cursor/VSCode)
+       │
+       ├── MCP Protocol (/mcp) ──→ mcp_handlers.go
+       │                               │
+       └── REST API (/api/v1/*) ─→ handlers_api.go
+                                       │
+                                  service.go (XiaohongshuService)
+                                       │
+                                  xiaohongshu/ package
+                                  (浏览器自动化 via go-rod)
+                                       │
+                                  browser/ + cookies/
+                                  (Chrome 生命周期 + Cookie 持久化)
+```
+
+**核心设计模式：**
+
+- **每请求浏览器生命周期**：每个服务方法调用 `newBrowser()` 创建独立浏览器实例，执行操作后关闭，请求间无共享浏览器状态。
+- **Action 模式**：`xiaohongshu/` 包中每个功能（login、publish、search 等）定义一个 action 结构体，包含 `*rod.Page` 字段和驱动浏览器交互的方法。
+- **双接口**：同一个 `XiaohongshuService` 同时支持 REST API 和 MCP 工具调用。
+
+### REST API 接口
+
+服务默认运行在 `:18060` 端口，提供以下 REST 接口：
+
+| 路径 | 方法 | 功能 | 请求参数 |
+|------|------|------|----------|
+| `/health` | GET | 健康检查 | 无 |
+| `/api/v1/login/status` | GET | 检查登录状态 | 无 |
+| `/api/v1/login/qrcode` | GET | 获取登录二维码 | 无 |
+| `/api/v1/login/cookies` | DELETE | 删除 cookies，重置登录状态 | 无 |
+| `/api/v1/publish` | POST | 发布图文内容（支持定时） | `title`, `content`, `images[]`, `tags[]`, `schedule_at` |
+| `/api/v1/publish_video` | POST | 发布视频内容 | `title`, `content`, `video`, `tags[]`, `schedule_at` |
+| `/api/v1/feeds/list` | GET | 获取首页 Feed 列表 | 无 |
+| `/api/v1/feeds/search` | GET/POST | 搜索内容 | `keyword`, `filters` |
+| `/api/v1/feeds/detail` | POST | 获取笔记详情+评论 | `feed_id`, `xsec_token`, `load_all_comments`, `comment_config` |
+| `/api/v1/feeds/comment` | POST | 发表评论 | `feed_id`, `xsec_token`, `content` |
+| `/api/v1/feeds/comment/reply` | POST | 回复评论 | `feed_id`, `xsec_token`, `comment_id`, `user_id`, `content` |
+| `/api/v1/user/profile` | POST | 获取用户主页 | `user_id`, `xsec_token` |
+| `/api/v1/user/me` | GET | 获取当前登录用户信息 | 无 |
+
+**统一响应格式：**
+
+```json
+// 成功响应
+{ "success": true, "data": { ... }, "message": "" }
+
+// 错误响应
+{ "error": "错误信息", "code": "错误码", "details": null }
+```
+
+### MCP 工具列表
+
+服务注册了 13 个 MCP 工具，通过 `/mcp` 端点提供 Streamable HTTP 协议访问：
+
+| 工具名 | 参数 | 功能 |
+|--------|------|------|
+| `check_login_status` | 无 | 检查小红书登录状态 |
+| `get_login_qrcode` | 无 | 获取登录二维码（Base64 图片 + 超时时间） |
+| `delete_cookies` | 无 | 删除 cookies，重置登录状态 |
+| `publish_content` | `title`, `content`, `images[]`, `tags[]`, `schedule_at` | 发布图文内容 |
+| `publish_with_video` | `title`, `content`, `video`, `tags[]`, `schedule_at` | 发布视频内容（仅本地文件） |
+| `list_feeds` | 无 | 获取首页 Feed 列表 |
+| `search_feeds` | `keyword`, `filters` | 搜索小红书内容 |
+| `get_feed_detail` | `feed_id`, `xsec_token`, `load_all_comments`, `limit`, `click_more_replies`, `reply_limit`, `scroll_speed` | 获取笔记详情+评论 |
+| `user_profile` | `user_id`, `xsec_token` | 获取用户主页信息 |
+| `post_comment_to_feed` | `feed_id`, `xsec_token`, `content` | 发表评论 |
+| `reply_comment_in_feed` | `feed_id`, `xsec_token`, `comment_id`, `user_id`, `content` | 回复评论 |
+| `like_feed` | `feed_id`, `xsec_token`, `unlike` | 点赞/取消点赞 |
+| `favorite_feed` | `feed_id`, `xsec_token`, `unfavorite` | 收藏/取消收藏 |
+
+<details>
+<summary><b>MCP 工具参数详情</b></summary>
+
+**发布图文参数 (PublishContentArgs)：**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `title` | string | 是 | 标题，最多 20 个中文字或英文单词 |
+| `content` | string | 是 | 正文内容，不包含 # 开头的标签 |
+| `images` | string[] | 是 | 图片路径列表，支持 HTTP/HTTPS 链接或本地绝对路径 |
+| `tags` | string[] | 否 | 话题标签列表，如 `["美食", "旅行"]` |
+| `schedule_at` | string | 否 | 定时发布时间，ISO8601 格式，支持 1 小时至 14 天内 |
+
+**搜索筛选参数 (FilterOption)：**
+
+| 参数 | 可选值 | 默认值 |
+|------|--------|--------|
+| `sort_by` | 综合、最新、最多点赞、最多评论、最多收藏 | 综合 |
+| `note_type` | 不限、视频、图文 | 不限 |
+| `publish_time` | 不限、一天内、一周内、半年内 | 不限 |
+| `search_scope` | 不限、已看过、未看过、已关注 | 不限 |
+| `location` | 不限、同城、附近 | 不限 |
+
+**笔记详情参数 (FeedDetailArgs)：**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `feed_id` | string | 是 | 笔记 ID |
+| `xsec_token` | string | 是 | 访问令牌 |
+| `load_all_comments` | bool | 否 | 是否加载全部评论，默认 false（仅前 10 条） |
+| `limit` | int | 否 | 最大评论数，默认 20（仅 load_all_comments=true 时生效） |
+| `click_more_replies` | bool | 否 | 是否展开二级回复（仅 load_all_comments=true 时生效） |
+| `reply_limit` | int | 否 | 跳过回复数过多的评论，默认 10（仅 click_more_replies=true 时生效） |
+| `scroll_speed` | string | 否 | 滚动速度：slow / normal / fast |
+
+</details>
+
+### 技术实现要点
+
+1. **数据提取**：通过 JavaScript 执行 `window.__INITIAL_STATE__` 获取小红书页面的服务端渲染数据，用于搜索结果、笔记详情、用户信息等数据解析。
+
+2. **浏览器自动化**：使用 [go-rod](https://github.com/go-rod/rod) 驱动 Chrome，支持 headless 和非 headless 模式。
+
+3. **Cookie 持久化**：Cookie 保存在本地文件，每次创建浏览器实例时自动加载，支持登录状态复用。
+
+4. **人性化操作**：滚动、点击等操作加入随机延迟，模拟人类行为，减少被检测风险。
+
+5. **MCP 协议**：使用官方 [go-sdk/mcp](https://github.com/modelcontextprotocol/go-sdk) 实现 Streamable HTTP Handler，支持 JSON 响应模式。
+
+6. **Panic 恢复**：所有 MCP 工具 handler 包装了 `withPanicRecovery`，避免单个工具异常导致服务崩溃。
+
+7. **图片处理**：支持 HTTP/HTTPS 图片链接自动下载和本地路径直接使用两种方式。
+
+8. **定时发布**：支持 ISO8601 格式的定时发布，时间范围校验为 1 小时至 14 天。
+
 ## 1. 使用教程
 
 ### 1.1. 快速开始（推荐）

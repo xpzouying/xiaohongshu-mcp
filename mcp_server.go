@@ -98,6 +98,18 @@ type FavoriteFeedArgs struct {
 	Unfavorite bool   `json:"unfavorite,omitempty" jsonschema:"是否取消收藏，true为取消收藏，false或未设置则为收藏"`
 }
 
+// PublishTextImageArgs 文字配图发布的参数
+type PublishTextImageArgs struct {
+	Title            string   `json:"title" jsonschema:"内容标题（小红书限制：最多20个中文字或英文单词）"`
+	Content          string   `json:"content" jsonschema:"正文内容，不包含以#开头的标签内容，所有话题标签都用tags参数来生成和提供即可"`
+	TextImageContent string   `json:"text_image_content" jsonschema:"用于生成图片的文字内容。系统会自动将此文字生成为图片，无需提供图片文件"`
+	Tags             []string `json:"tags,omitempty" jsonschema:"话题标签列表（可选参数），如 [美食, 旅行, 生活]"`
+	ScheduleAt       string   `json:"schedule_at,omitempty" jsonschema:"定时发布时间（可选），ISO8601格式如 2024-01-20T10:30:00+08:00，支持1小时至14天内。不填则立即发布"`
+}
+
+// GetNotificationsArgs 获取通知的参数
+type GetNotificationsArgs struct{}
+
 // InitMCPServer 初始化 MCP Server
 func InitMCPServer(appServer *AppServer) *mcp.Server {
 	// 创建 MCP Server
@@ -439,7 +451,46 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	logrus.Infof("Registered %d MCP tools", 13)
+	// 工具 14: 获取通知列表
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "get_notifications",
+			Description: "获取小红书通知列表，包括点赞、收藏、评论、关注、@提及等所有类型通知",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Get Notifications",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("get_notifications", func(ctx context.Context, req *mcp.CallToolRequest, _ GetNotificationsArgs) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleGetNotifications(ctx)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	// 工具 15: 文字配图发布
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "publish_text_image",
+			Description: "发布小红书文字配图内容。输入文字后自动生成图片并发布，无需提供图片文件",
+			Annotations: &mcp.ToolAnnotations{
+				Title:           "Publish Text Image",
+				DestructiveHint: boolPtr(true),
+			},
+		},
+		withPanicRecovery("publish_text_image", func(ctx context.Context, req *mcp.CallToolRequest, args PublishTextImageArgs) (*mcp.CallToolResult, any, error) {
+			argsMap := map[string]interface{}{
+				"title":              args.Title,
+				"content":            args.Content,
+				"text_image_content": args.TextImageContent,
+				"tags":               convertStringsToInterfaces(args.Tags),
+				"schedule_at":        args.ScheduleAt,
+			}
+			result := appServer.handlePublishTextImage(ctx, argsMap)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	logrus.Infof("Registered %d MCP tools", 15)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式
