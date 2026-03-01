@@ -205,7 +205,7 @@ func uploadImages(page *rod.Page, imagesPaths []string) error {
 	validPaths := make([]string, 0, len(imagesPaths))
 	for _, path := range imagesPaths {
 		if _, err := os.Stat(path); os.IsNotExist(err) {
-			logrus.Warnf("图片文件不存在: %s", path)
+			logrus.Warnf("图片文件不存在: %s (如果使用 Docker 部署，请确保已挂载宿主机目录，例如: docker run -v /tmp:/tmp ...，或使用 HTTP URL 格式的图片链接)", path)
 			continue
 		}
 		validPaths = append(validPaths, path)
