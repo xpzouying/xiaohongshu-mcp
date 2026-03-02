@@ -134,6 +134,52 @@ func (s *AppServer) listFeedsHandler(c *gin.Context) {
 	respondSuccess(c, result, "获取Feeds列表成功")
 }
 
+// listFavoriteFeedsHandler 获取收藏列表
+func (s *AppServer) listFavoriteFeedsHandler(c *gin.Context) {
+	result, err := s.xiaohongshuService.ListFavoriteFeeds(c.Request.Context())
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "LIST_FAVORITE_FEEDS_FAILED",
+			"获取收藏列表失败", err.Error())
+		return
+	}
+
+	c.Set("account", "ai-report")
+	respondSuccess(c, result, "获取收藏列表成功")
+}
+
+// listFavoriteCategoriesHandler 获取收藏分类列表
+func (s *AppServer) listFavoriteCategoriesHandler(c *gin.Context) {
+	result, err := s.xiaohongshuService.ListFavoriteCategories(c.Request.Context())
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "LIST_FAVORITE_CATEGORIES_FAILED",
+			"获取收藏分类失败", err.Error())
+		return
+	}
+
+	c.Set("account", "ai-report")
+	respondSuccess(c, result, "获取收藏分类成功")
+}
+
+// listFavoriteFeedsByCategoryHandler 按收藏分类获取笔记
+func (s *AppServer) listFavoriteFeedsByCategoryHandler(c *gin.Context) {
+	var req FavoriteFeedsByCategoryRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
+			"请求参数错误", err.Error())
+		return
+	}
+
+	result, err := s.xiaohongshuService.ListFavoriteFeedsByCategory(c.Request.Context(), req.CategoryID, req.CategoryName, req.Limit)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "LIST_FAVORITE_FEEDS_BY_CATEGORY_FAILED",
+			"按分类获取收藏列表失败", err.Error())
+		return
+	}
+
+	c.Set("account", "ai-report")
+	respondSuccess(c, result, "按分类获取收藏列表成功")
+}
+
 // searchFeedsHandler 搜索Feeds
 func (s *AppServer) searchFeedsHandler(c *gin.Context) {
 	var keyword string
