@@ -259,13 +259,13 @@ func findCommentElement(page *rod.Page, commentID, userID string) (*rod.Element,
 
 		logrus.Infof("本次尝试未找到目标评论，继续下一轮...")
 
-		// === 7. 检查是否到达底部 === ===
+		// === 6. 检查是否到达底部 === ===
 		if checkEndContainer(page) {
 			logrus.Info("已到达评论底部，未找到目标评论")
 			break
 		}
 
-		// === 8. 等待内容加载 ===
+		// === 7. 等待内容加载 ===
 		time.Sleep(scrollInterval)
 	}
 
