@@ -2,7 +2,6 @@ package xiaohongshu
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -177,64 +176,122 @@ func waitNoteManagerReady(page *rod.Page) error {
 }
 
 func readNoteSummaries(page *rod.Page) ([]NoteSummary, error) {
-	result := page.MustEval(`() => {
-		const buttons = Array.from(document.querySelectorAll('span.control.data-del'));
-		const notes = buttons.map((btn, idx) => {
-			const card = btn.closest('.note') || btn.closest('[data-note-id],[data-id],[data-noteid]');
-			const getText = (el) => el ? el.textContent.trim() : '';
-			let noteId = '';
-			let title = '';
-			let status = '';
-			let updatedAt = '';
-			let url = '';
-
-			if (card) {
-				noteId = card.getAttribute('data-note-id') || card.getAttribute('data-id') || card.getAttribute('data-noteid') || '';
-				if (!noteId) {
-					const impression = card.getAttribute('data-impression') || '';
-					const match = impression.match(/noteId\"\s*:\"([^\"]+)/);
-					if (match && match[1]) {
-						noteId = match[1];
-					}
-				}
-				const titleEl = card.querySelector('.title');
-				title = getText(titleEl);
-				const statusEl = card.querySelector('.permission_msg');
-				status = getText(statusEl);
-				const timeEl = card.querySelector('.time');
-				updatedAt = getText(timeEl);
-				const linkEl = card.querySelector('a[href]');
-				if (linkEl && linkEl.href) {
-					url = linkEl.href;
-				}
-			}
-
-			return {
-				index: idx + 1,
-				note_id: noteId,
-				title,
-				status,
-				updated_at: updatedAt,
-				url,
-			};
-		});
-		return JSON.stringify(notes);
-	}`).String()
-
-	if result == "" {
-		return nil, fmt.Errorf("未获取到笔记列表")
+	// 找到所有删除按钮，每个按钮对应一条笔记
+	buttons, err := page.Elements(`span.control.data-del`)
+	if err != nil {
+		return nil, fmt.Errorf("查找笔记列表失败: %w", err)
 	}
 
-	var notes []NoteSummary
-	if err := json.Unmarshal([]byte(result), &notes); err != nil {
-		return nil, fmt.Errorf("解析笔记列表失败: %w", err)
-	}
-
-	if len(notes) == 0 {
+	if len(buttons) == 0 {
 		logrus.Warn("笔记列表为空")
+		return nil, nil
+	}
+
+	notes := make([]NoteSummary, 0, len(buttons))
+	for idx, btn := range buttons {
+		note := NoteSummary{Index: idx + 1}
+
+		// 向上找到最近的笔记卡片容器
+		card, err := findNoteCard(btn)
+		if err != nil {
+			logrus.Warnf("第 %d 条笔记未找到卡片容器: %v", idx+1, err)
+			notes = append(notes, note)
+			continue
+		}
+
+		// 提取 note_id（优先从 data 属性读取）
+		for _, attr := range []string{"data-note-id", "data-id", "data-noteid"} {
+			if val, err := card.Attribute(attr); err == nil && val != nil && *val != "" {
+				note.NoteID = *val
+				break
+			}
+		}
+		// 若 data 属性中没有，尝试从 data-impression 中解析
+		if note.NoteID == "" {
+			if impression, err := card.Attribute("data-impression"); err == nil && impression != nil {
+				note.NoteID = extractNoteIDFromImpression(*impression)
+			}
+		}
+
+		// 提取标题
+		note.Title = elemText(card, ".title")
+
+		// 提取状态
+		note.Status = elemText(card, ".permission_msg")
+
+		// 提取更新时间
+		note.UpdatedAt = elemText(card, ".time")
+
+		// 提取链接
+		if link, err := card.Element("a[href]"); err == nil && link != nil {
+			if href, err := link.Attribute("href"); err == nil && href != nil {
+				note.URL = *href
+			}
+		}
+
+		notes = append(notes, note)
 	}
 
 	return notes, nil
+}
+
+// findNoteCard 从删除按钮向上查找最近的笔记卡片容器
+// go-rod 没有原生的 closest API，通过「打标记 → 定位 → 清除标记」的方式实现
+func findNoteCard(btn *rod.Element) (*rod.Element, error) {
+	return findNoteCardByJS(btn)
+}
+
+// findNoteCardByJS 通过 JS 找到笔记卡片，返回对应的 rod.Element
+// go-rod 的 Eval 不传参数，JS 中用 this 引用当前元素
+func findNoteCardByJS(btn *rod.Element) (*rod.Element, error) {
+	// 给卡片元素打上临时标记，再用 go-rod 定位
+	const marker = "__rod_note_card__"
+	_, err := btn.Eval(fmt.Sprintf(`() => {
+		const card = this.closest('.note') || this.closest('[data-note-id]') || this.closest('[data-id]') || this.closest('[data-noteid]');
+		if (card) { card.setAttribute('%s', '1'); }
+		return card !== null;
+	}`, marker))
+	if err != nil {
+		return nil, fmt.Errorf("标记笔记卡片失败: %w", err)
+	}
+
+	card, err := btn.Page().Element(fmt.Sprintf("[%s]", marker))
+	if err != nil {
+		return nil, fmt.Errorf("定位笔记卡片失败: %w", err)
+	}
+
+	// 清除临时标记
+	_, _ = card.Eval(fmt.Sprintf(`() => this.removeAttribute('%s')`, marker))
+
+	return card, nil
+}
+
+// elemText 在指定容器内查找子元素并返回其文本，找不到时返回空字符串
+func elemText(parent *rod.Element, selector string) string {
+	el, err := parent.Element(selector)
+	if err != nil || el == nil {
+		return ""
+	}
+	text, err := el.Text()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(text)
+}
+
+// extractNoteIDFromImpression 从 data-impression 属性值中解析 noteId
+func extractNoteIDFromImpression(impression string) string {
+	const prefix = `noteId":"`
+	idx := strings.Index(impression, prefix)
+	if idx == -1 {
+		return ""
+	}
+	start := idx + len(prefix)
+	end := strings.Index(impression[start:], `"`)
+	if end == -1 {
+		return ""
+	}
+	return impression[start : start+end]
 }
 
 func pickTargetNote(notes []NoteSummary, opts DeleteNoteOptions) (int, NoteSummary, error) {
