@@ -842,31 +842,6 @@ func confirmOriginalDeclaration(page *rod.Page) error {
 	return nil
 }
 
-// clickConfirmButton 点击确定按钮
-func clickConfirmButton(page *rod.Page) error {
-	// 查找日期选择器弹窗中的确定按钮
-	buttons, err := page.Elements("button.el-picker-panel__link-btn")
-	if err != nil {
-		return errors.Wrap(err, "查找确定按钮失败")
-	}
-
-	for _, btn := range buttons {
-		text, err := btn.Text()
-		if err != nil {
-			continue
-		}
-		if strings.TrimSpace(text) == "确定" {
-			if err := btn.Click(proto.InputMouseButtonLeft, 1); err != nil {
-				return errors.Wrap(err, "点击确定按钮失败")
-			}
-			slog.Info("已点击确定按钮")
-			return nil
-		}
-	}
-
-	return errors.New("未找到确定按钮")
-}
-
 // bindProducts 绑定商品到发布内容
 func bindProducts(page *rod.Page, products []string) error {
 	if len(products) == 0 {
@@ -899,13 +874,17 @@ func bindProducts(page *rod.Page, products []string) error {
 	}
 
 	// 点击保存按钮
+	slog.Info("准备点击保存按钮")
 	if err := clickModalSaveButton(page, modal); err != nil {
 		return errors.Wrap(err, "点击保存按钮失败")
 	}
+	slog.Info("保存按钮点击完成，开始等待弹窗关闭")
 
 	// 等待弹窗关闭
 	if err := waitForModalClose(page); err != nil {
 		slog.Warn("等待弹窗关闭超时", "error", err)
+	} else {
+		slog.Info("弹窗已关闭")
 	}
 
 	if len(failedProducts) > 0 {
@@ -913,6 +892,7 @@ func bindProducts(page *rod.Page, products []string) error {
 	}
 
 	slog.Info("商品绑定完成", "total", len(products))
+	time.Sleep(1000 * time.Millisecond)
 	return nil
 }
 
@@ -1077,22 +1057,12 @@ func searchAndSelectProduct(page *rod.Page, modal *rod.Element, keyword string) 
 
 // clickModalSaveButton 点击保存按钮
 func clickModalSaveButton(page *rod.Page, modal *rod.Element) error {
-	// 查找保存按钮
-	buttons, err := modal.Elements(".goods-selected-footer button")
-	if err != nil {
-		return errors.Wrap(err, "查找保存按钮失败")
-	}
-
-	for _, btn := range buttons {
-		text, err := btn.Text()
-		if err != nil {
-			continue
-		}
-		// 保存按钮通常包含"保存"或"确定"文字
-		if strings.Contains(text, "保存") || strings.Contains(text, "确定") {
-			if err := btn.Click(proto.InputMouseButtonLeft, 1); err != nil {
-				return errors.Wrap(err, "点击保存按钮失败")
-			}
+	// 查找保存按钮（参考工作代码：直接查找并点击，不强制要求找到）
+	btn, err := modal.Element(".goods-selected-footer button")
+	if err == nil && btn != nil {
+		if err := btn.Click(proto.InputMouseButtonLeft, 1); err != nil {
+			slog.Warn("点击保存按钮失败", "error", err)
+		} else {
 			slog.Info("已点击保存按钮")
 			return nil
 		}
@@ -1102,29 +1072,27 @@ func clickModalSaveButton(page *rod.Page, modal *rod.Element) error {
 	primaryBtn, err := modal.Element(".goods-selected-footer .d-button--primary")
 	if err == nil && primaryBtn != nil {
 		if err := primaryBtn.Click(proto.InputMouseButtonLeft, 1); err != nil {
-			return errors.Wrap(err, "点击主按钮失败")
+			slog.Warn("点击主按钮失败", "error", err)
+		} else {
+			slog.Info("已点击主按钮")
+			return nil
 		}
-		slog.Info("已点击主按钮")
-		return nil
 	}
 
-	return errors.New("未找到保存按钮")
+	slog.Warn("未找到保存按钮，继续执行")
+	return nil
 }
 
 // waitForModalClose 等待弹窗关闭
 func waitForModalClose(page *rod.Page) error {
 	deadline := time.Now().Add(5 * time.Second)
+	slog.Info("开始等待弹窗关闭")
 
 	for time.Now().Before(deadline) {
-		modal, err := page.Element(".multi-goods-selector-modal")
-		if err != nil {
-			return nil // 弹窗已关闭
-		}
-		if modal == nil {
-			return nil
-		}
-		visible, _ := modal.Visible()
-		if !visible {
+		// 使用 Has 代替 Element，避免等待元素出现的阻塞
+		has, _, err := page.Has(".multi-goods-selector-modal")
+		if err != nil || !has {
+			slog.Info("弹窗已关闭")
 			return nil
 		}
 		time.Sleep(200 * time.Millisecond)
