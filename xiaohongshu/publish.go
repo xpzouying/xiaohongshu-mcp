@@ -918,6 +918,8 @@ func bindProducts(page *rod.Page, products []string) error {
 
 // clickAddProductButton 点击"添加商品"按钮
 func clickAddProductButton(page *rod.Page) error {
+	slog.Info("开始查找添加商品按钮")
+
 	// 查找包含"添加商品"文本的元素
 	spans, err := page.Elements("span.d-text")
 	if err != nil {
@@ -930,6 +932,7 @@ func clickAddProductButton(page *rod.Page) error {
 			continue
 		}
 		if strings.TrimSpace(text) == "添加商品" {
+			slog.Info("找到添加商品文本，向上查找可点击父元素")
 			// 向上查找可点击的父元素
 			parent := span
 			for i := 0; i < 5; i++ {
@@ -951,6 +954,7 @@ func clickAddProductButton(page *rod.Page) error {
 						return errors.Wrap(err, "点击添加商品按钮失败")
 					}
 					slog.Info("已点击添加商品按钮")
+					time.Sleep(300 * time.Millisecond) // 确保弹窗动画开始
 					return nil
 				}
 
@@ -960,6 +964,7 @@ func clickAddProductButton(page *rod.Page) error {
 						return errors.Wrap(err, "点击添加商品按钮失败")
 					}
 					slog.Info("已点击添加商品按钮")
+					time.Sleep(300 * time.Millisecond) // 确保弹窗动画开始
 					return nil
 				}
 			}
@@ -978,10 +983,11 @@ func waitForProductModal(page *rod.Page) (*rod.Element, error) {
 		if err == nil && modal != nil {
 			visible, _ := modal.Visible()
 			if visible {
+				slog.Info("商品选择弹窗已出现")
 				return modal, nil
 			}
 		}
-		time.Sleep(200 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond) // 缩短轮询间隔，更快响应
 	}
 
 	return nil, errors.New("等待商品选择弹窗超时")
@@ -991,35 +997,36 @@ func waitForProductModal(page *rod.Page) (*rod.Element, error) {
 func searchAndSelectProduct(page *rod.Page, modal *rod.Element, keyword string) error {
 	slog.Info("搜索商品", "keyword", keyword)
 
-	// 获取搜索框
+	// 1. 获取搜索框
 	searchInput, err := modal.Element(`input[placeholder="搜索商品ID 或 商品名称"]`)
 	if err != nil {
 		return errors.Wrap(err, "未找到商品搜索框")
 	}
 
-	// 清空并输入关键词
+	// 2. 清空并输入关键词（使用原生 JS setter + 完整事件）
 	if err := searchInput.SelectAllText(); err != nil {
 		slog.Warn("选择搜索框文本失败", "error", err)
 	}
 	time.Sleep(100 * time.Millisecond)
 
+	// 使用 rod Input 输入关键词
 	if err := searchInput.Input(keyword); err != nil {
 		return errors.Wrap(err, "输入搜索关键词失败")
 	}
 	time.Sleep(300 * time.Millisecond)
 
-	// 模拟回车触发搜索
-	if err := searchInput.MustKeyActions().Press(input.Enter).Do(); err != nil {
+	// 3. 触发搜索（模拟键盘 Enter）
+	if err := page.Keyboard.Press(input.Enter); err != nil {
 		return errors.Wrap(err, "触发搜索失败")
 	}
 
-	// 等待搜索结果
-	time.Sleep(2 * time.Second)
+	// 4. 等待搜索结果加载
+	time.Sleep(1 * time.Second)
 
-	// 等待 loading 消失
+	// 等待 loading 消失（使用与工作代码相同的选择器）
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
-		loading, err := modal.Element(".d-loading")
+		loading, err := modal.Element(".goods-list-loading")
 		if err != nil || loading == nil {
 			break
 		}
@@ -1027,19 +1034,42 @@ func searchAndSelectProduct(page *rod.Page, modal *rod.Element, keyword string) 
 		if !visible {
 			break
 		}
-		time.Sleep(300 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 	}
-	time.Sleep(500 * time.Millisecond)
 
-	// 点击第一个商品的 checkbox
-	checkbox, err := modal.Element(".goods-item .d-checkbox")
+	// 等待商品列表渲染完成（使用与工作代码相同的选择器）
+	for time.Now().Before(deadline) {
+		productList, err := modal.Element(".goods-list-normal .good-card-container")
+		if err == nil && productList != nil {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	time.Sleep(500 * time.Millisecond) // 额外等待确保渲染完成
+
+	// 5. 点击第一个商品的 checkbox（使用与工作代码相同的选择器）
+	checkbox, err := modal.Element(".goods-list-normal .good-card-container .d-checkbox")
 	if err != nil {
 		return errors.Wrap(err, "未找到商品选择框")
+	}
+
+	// 检查是否已经选中
+	isChecked, err := checkbox.Eval(`(el) => {
+		return el.querySelector('.d-checkbox-simulator.checked') !== null ||
+			   el.querySelector('input[type="checkbox"]:checked') !== null;
+	}`)
+	if err == nil && isChecked.Value.Bool() {
+		slog.Info("商品已选中，跳过", "keyword", keyword)
+		return nil
 	}
 
 	if err := checkbox.Click(proto.InputMouseButtonLeft, 1); err != nil {
 		return errors.Wrap(err, "点击商品选择框失败")
 	}
+
+	// 6. 随机延迟模拟人为操作（800-1500ms）
+	randomDelay := 800 + rand.Intn(700)
+	time.Sleep(time.Duration(randomDelay) * time.Millisecond)
 
 	slog.Info("已选择商品", "keyword", keyword)
 	return nil
