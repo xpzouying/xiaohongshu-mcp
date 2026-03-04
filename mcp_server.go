@@ -38,6 +38,18 @@ type PublishVideoArgs struct {
 	Products   []string `json:"products,omitempty" jsonschema:"商品关键词列表（可选），用于绑定带货商品。填写商品名称或商品ID，系统会自动搜索并选择第一个匹配结果。需账号已开通商品功能。示例: [面膜, 防晒霜SPF50]"`
 }
 
+// PublishLongArticleArgs 发布长文的参数
+type PublishLongArticleArgs struct {
+	Title        string   `json:"title" jsonschema:"长文标题（小红书限制：最多20个中文字或英文单词）"`
+	Content      string   `json:"content,omitempty" jsonschema:"长文正文内容（纯文本或 Markdown，取决于 content_is_markdown）"`
+	MarkdownFile string   `json:"markdown_file,omitempty" jsonschema:"本地 Markdown 文件路径（可选）。提供后将忽略 content 并自动按 Markdown 渲染"`
+	ContentIsMD  bool     `json:"content_is_markdown,omitempty" jsonschema:"content 是否为 Markdown。true 则按 Markdown 转换为 H1/H2/列表/引用/高亮/图片/表情等格式"`
+	PostTitle    string   `json:"post_title,omitempty" jsonschema:"图文发布页标题（可选，不填则使用长文标题）"`
+	PostContent  string   `json:"post_content,omitempty" jsonschema:"图文发布页正文（必填，用于最终发布）"`
+	Tags         []string `json:"tags,omitempty" jsonschema:"话题标签列表（可选参数），如 [美食, 旅行, 生活]"`
+	ScheduleAt   string   `json:"schedule_at,omitempty" jsonschema:"定时发布时间（可选），ISO8601格式如 2024-01-20T10:30:00+08:00，支持1小时至14天内。不填则立即发布"`
+}
+
 // SearchFeedsArgs 搜索内容的参数
 type SearchFeedsArgs struct {
 	Keyword string       `json:"keyword" jsonschema:"搜索关键词"`
@@ -401,7 +413,33 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	// 工具 12: 点赞笔记
+	// 工具 12: 发布长文
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "publish_long_article",
+			Description: "发布小红书长文内容（写长文）",
+			Annotations: &mcp.ToolAnnotations{
+				Title:           "Publish Long Article",
+				DestructiveHint: boolPtr(true),
+			},
+		},
+		withPanicRecovery("publish_long_article", func(ctx context.Context, req *mcp.CallToolRequest, args PublishLongArticleArgs) (*mcp.CallToolResult, any, error) {
+			argsMap := map[string]interface{}{
+				"title":               args.Title,
+				"content":             args.Content,
+				"markdown_file":       args.MarkdownFile,
+				"content_is_markdown": args.ContentIsMD,
+				"post_title":          args.PostTitle,
+				"post_content":        args.PostContent,
+				"tags":                convertStringsToInterfaces(args.Tags),
+				"schedule_at":         args.ScheduleAt,
+			}
+			result := appServer.handlePublishLongArticle(ctx, argsMap)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	// 工具 13: 点赞笔记
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "like_feed",
@@ -422,7 +460,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	// 工具 13: 收藏笔记
+	// 工具 14: 收藏笔记
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "favorite_feed",
@@ -443,7 +481,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	logrus.Infof("Registered %d MCP tools", 13)
+	logrus.Infof("Registered %d MCP tools", 14)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式
