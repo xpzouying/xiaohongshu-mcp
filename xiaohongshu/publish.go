@@ -24,6 +24,7 @@ type PublishImageContent struct {
 	ScheduleTime *time.Time // 定时发布时间，nil 表示立即发布
 	IsOriginal   bool       // 是否声明原创
 	Visibility   string     // 可见范围: "公开可见"(默认), "仅自己可见", "仅互关好友可见"
+	Products     []string   // 商品关键词列表，用于绑定带货商品
 }
 
 type PublishAction struct {
@@ -84,9 +85,9 @@ func (p *PublishAction) Publish(ctx context.Context, content PublishImageContent
 		tags = tags[:10]
 	}
 
-	logrus.Infof("发布内容: title=%s, images=%v, tags=%v, schedule=%v, original=%v, visibility=%s", content.Title, len(content.ImagePaths), tags, content.ScheduleTime, content.IsOriginal, content.Visibility)
+	logrus.Infof("发布内容: title=%s, images=%v, tags=%v, schedule=%v, original=%v, visibility=%s, products=%v", content.Title, len(content.ImagePaths), tags, content.ScheduleTime, content.IsOriginal, content.Visibility, content.Products)
 
-	if err := submitPublish(page, content.Title, content.Content, tags, content.ScheduleTime, content.IsOriginal, content.Visibility); err != nil {
+	if err := submitPublish(page, content.Title, content.Content, tags, content.ScheduleTime, content.IsOriginal, content.Visibility, content.Products); err != nil {
 		return errors.Wrap(err, "小红书发布失败")
 	}
 
@@ -270,7 +271,7 @@ func waitForUploadComplete(page *rod.Page, expectedCount int) error {
 	return errors.Errorf("第%d张图片上传超时(60s)，请检查网络连接和图片大小", expectedCount)
 }
 
-func submitPublish(page *rod.Page, title, content string, tags []string, scheduleTime *time.Time, isOriginal bool, visibility string) error {
+func submitPublish(page *rod.Page, title, content string, tags []string, scheduleTime *time.Time, isOriginal bool, visibility string, products []string) error {
 	titleElem, err := page.Element("div.d-input input")
 	if err != nil {
 		return errors.Wrap(err, "查找标题输入框失败")
@@ -330,6 +331,11 @@ func submitPublish(page *rod.Page, title, content string, tags []string, schedul
 		} else {
 			slog.Info("已声明原创")
 		}
+	}
+
+	// 绑定商品
+	if err := bindProducts(page, products); err != nil {
+		return errors.Wrap(err, "绑定商品失败")
 	}
 
 	submitButton, err := page.Element(".publish-page-publish-btn button.bg-red")
@@ -834,4 +840,263 @@ func confirmOriginalDeclaration(page *rod.Page) error {
 	time.Sleep(300 * time.Millisecond)
 
 	return nil
+}
+
+// bindProducts 绑定商品到发布内容
+func bindProducts(page *rod.Page, products []string) error {
+	if len(products) == 0 {
+		return nil
+	}
+
+	slog.Info("开始绑定商品", "products", products)
+
+	// 点击"添加商品"按钮
+	if err := clickAddProductButton(page); err != nil {
+		return errors.Wrap(err, "点击添加商品按钮失败")
+	}
+	time.Sleep(1 * time.Second)
+
+	// 等待商品选择弹窗出现
+	modal, err := waitForProductModal(page)
+	if err != nil {
+		return errors.Wrap(err, "等待商品弹窗失败")
+	}
+	slog.Info("商品选择弹窗已打开")
+
+	// 遍历搜索并选择商品
+	var failedProducts []string
+	for _, keyword := range products {
+		if err := searchAndSelectProduct(page, modal, keyword); err != nil {
+			slog.Warn("搜索选择商品失败", "keyword", keyword, "error", err)
+			failedProducts = append(failedProducts, keyword)
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	// 点击保存按钮
+	slog.Info("准备点击保存按钮")
+	if err := clickModalSaveButton(page, modal); err != nil {
+		return errors.Wrap(err, "点击保存按钮失败")
+	}
+	slog.Info("保存按钮点击完成，开始等待弹窗关闭")
+
+	// 等待弹窗关闭
+	if err := waitForModalClose(page); err != nil {
+		slog.Warn("等待弹窗关闭超时", "error", err)
+	} else {
+		slog.Info("弹窗已关闭")
+	}
+
+	if len(failedProducts) > 0 {
+		return errors.Errorf("部分商品未找到: %v", failedProducts)
+	}
+
+	slog.Info("商品绑定完成", "total", len(products))
+	time.Sleep(1000 * time.Millisecond)
+	return nil
+}
+
+// clickAddProductButton 点击"添加商品"按钮
+func clickAddProductButton(page *rod.Page) error {
+	slog.Info("开始查找添加商品按钮")
+
+	// 查找包含"添加商品"文本的元素
+	spans, err := page.Elements("span.d-text")
+	if err != nil {
+		return errors.Wrap(err, "查找商品按钮文本失败")
+	}
+
+	for _, span := range spans {
+		text, err := span.Text()
+		if err != nil {
+			continue
+		}
+		if strings.TrimSpace(text) == "添加商品" {
+			slog.Info("找到添加商品文本，向上查找可点击父元素")
+			// 向上查找可点击的父元素
+			parent := span
+			for i := 0; i < 5; i++ {
+				p, err := parent.Parent()
+				if err != nil {
+					break
+				}
+				parent = p
+
+				tagName, err := parent.Eval(`() => this.tagName.toLowerCase()`)
+				if err != nil {
+					continue
+				}
+				tag := tagName.Value.Str()
+
+				// 检查是否为 button 或含 d-button class
+				if tag == "button" {
+					if err := parent.Click(proto.InputMouseButtonLeft, 1); err != nil {
+						return errors.Wrap(err, "点击添加商品按钮失败")
+					}
+					slog.Info("已点击添加商品按钮")
+					time.Sleep(300 * time.Millisecond) // 确保弹窗动画开始
+					return nil
+				}
+
+				cls, _ := parent.Attribute("class")
+				if cls != nil && strings.Contains(*cls, "d-button") {
+					if err := parent.Click(proto.InputMouseButtonLeft, 1); err != nil {
+						return errors.Wrap(err, "点击添加商品按钮失败")
+					}
+					slog.Info("已点击添加商品按钮")
+					time.Sleep(300 * time.Millisecond) // 确保弹窗动画开始
+					return nil
+				}
+			}
+		}
+	}
+
+	return errors.New("未找到添加商品按钮，账号可能未开通商品功能")
+}
+
+// waitForProductModal 等待商品选择弹窗出现
+func waitForProductModal(page *rod.Page) (*rod.Element, error) {
+	deadline := time.Now().Add(10 * time.Second)
+
+	for time.Now().Before(deadline) {
+		modal, err := page.Element(".multi-goods-selector-modal")
+		if err == nil && modal != nil {
+			visible, _ := modal.Visible()
+			if visible {
+				slog.Info("商品选择弹窗已出现")
+				return modal, nil
+			}
+		}
+		time.Sleep(100 * time.Millisecond) // 缩短轮询间隔，更快响应
+	}
+
+	return nil, errors.New("等待商品选择弹窗超时")
+}
+
+// searchAndSelectProduct 搜索并选择商品
+func searchAndSelectProduct(page *rod.Page, modal *rod.Element, keyword string) error {
+	slog.Info("搜索商品", "keyword", keyword)
+
+	// 1. 获取搜索框
+	searchInput, err := modal.Element(`input[placeholder="搜索商品ID 或 商品名称"]`)
+	if err != nil {
+		return errors.Wrap(err, "未找到商品搜索框")
+	}
+
+	// 2. 清空并输入关键词（使用原生 JS setter + 完整事件）
+	if err := searchInput.SelectAllText(); err != nil {
+		slog.Warn("选择搜索框文本失败", "error", err)
+	}
+	time.Sleep(100 * time.Millisecond)
+
+	// 使用 rod Input 输入关键词
+	if err := searchInput.Input(keyword); err != nil {
+		return errors.Wrap(err, "输入搜索关键词失败")
+	}
+	time.Sleep(300 * time.Millisecond)
+
+	// 3. 触发搜索（模拟键盘 Enter）
+	if err := page.Keyboard.Press(input.Enter); err != nil {
+		return errors.Wrap(err, "触发搜索失败")
+	}
+
+	// 4. 等待搜索结果加载
+	time.Sleep(1 * time.Second)
+
+	// 等待 loading 消失（使用与工作代码相同的选择器）
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		loading, err := modal.Element(".goods-list-loading")
+		if err != nil || loading == nil {
+			break
+		}
+		visible, _ := loading.Visible()
+		if !visible {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	// 等待商品列表渲染完成（使用与工作代码相同的选择器）
+	for time.Now().Before(deadline) {
+		productList, err := modal.Element(".goods-list-normal .good-card-container")
+		if err == nil && productList != nil {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	time.Sleep(500 * time.Millisecond) // 额外等待确保渲染完成
+
+	// 5. 点击第一个商品的 checkbox（使用与工作代码相同的选择器）
+	checkbox, err := modal.Element(".goods-list-normal .good-card-container .d-checkbox")
+	if err != nil {
+		return errors.Wrap(err, "未找到商品选择框")
+	}
+
+	// 检查是否已经选中
+	isChecked, err := checkbox.Eval(`(el) => {
+		return el.querySelector('.d-checkbox-simulator.checked') !== null ||
+			   el.querySelector('input[type="checkbox"]:checked') !== null;
+	}`)
+	if err == nil && isChecked.Value.Bool() {
+		slog.Info("商品已选中，跳过", "keyword", keyword)
+		return nil
+	}
+
+	if err := checkbox.Click(proto.InputMouseButtonLeft, 1); err != nil {
+		return errors.Wrap(err, "点击商品选择框失败")
+	}
+
+	// 6. 随机延迟模拟人为操作（800-1500ms）
+	randomDelay := 800 + rand.Intn(700)
+	time.Sleep(time.Duration(randomDelay) * time.Millisecond)
+
+	slog.Info("已选择商品", "keyword", keyword)
+	return nil
+}
+
+// clickModalSaveButton 点击保存按钮
+func clickModalSaveButton(page *rod.Page, modal *rod.Element) error {
+	// 查找保存按钮（参考工作代码：直接查找并点击，不强制要求找到）
+	btn, err := modal.Element(".goods-selected-footer button")
+	if err == nil && btn != nil {
+		if err := btn.Click(proto.InputMouseButtonLeft, 1); err != nil {
+			slog.Warn("点击保存按钮失败", "error", err)
+		} else {
+			slog.Info("已点击保存按钮")
+			return nil
+		}
+	}
+
+	// 尝试点击主按钮
+	primaryBtn, err := modal.Element(".goods-selected-footer .d-button--primary")
+	if err == nil && primaryBtn != nil {
+		if err := primaryBtn.Click(proto.InputMouseButtonLeft, 1); err != nil {
+			slog.Warn("点击主按钮失败", "error", err)
+		} else {
+			slog.Info("已点击主按钮")
+			return nil
+		}
+	}
+
+	slog.Warn("未找到保存按钮，继续执行")
+	return nil
+}
+
+// waitForModalClose 等待弹窗关闭
+func waitForModalClose(page *rod.Page) error {
+	deadline := time.Now().Add(5 * time.Second)
+	slog.Info("开始等待弹窗关闭")
+
+	for time.Now().Before(deadline) {
+		// 使用 Has 代替 Element，避免等待元素出现的阻塞
+		has, _, err := page.Has(".multi-goods-selector-modal")
+		if err != nil || !has {
+			slog.Info("弹窗已关闭")
+			return nil
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	return errors.New("等待弹窗关闭超时")
 }

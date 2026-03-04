@@ -35,6 +35,7 @@ type PublishRequest struct {
 	ScheduleAt string   `json:"schedule_at,omitempty"` // 定时发布时间，ISO8601格式，为空则立即发布
 	IsOriginal bool     `json:"is_original,omitempty"` // 是否声明原创
 	Visibility string   `json:"visibility,omitempty"`  // 可见范围: "公开可见"(默认), "仅自己可见", "仅互关好友可见"
+	Products   []string `json:"products,omitempty"`    // 商品关键词列表，用于绑定带货商品
 }
 
 // LoginStatusResponse 登录状态响应
@@ -67,6 +68,7 @@ type PublishVideoRequest struct {
 	Tags       []string `json:"tags,omitempty"`
 	ScheduleAt string   `json:"schedule_at,omitempty"` // 定时发布时间，ISO8601格式，为空则立即发布
 	Visibility string   `json:"visibility,omitempty"`  // 可见范围: "公开可见"(默认), "仅自己可见", "仅互关好友可见"
+	Products   []string `json:"products,omitempty"`    // 商品关键词列表，用于绑定带货商品
 }
 
 // PublishVideoResponse 发布视频响应
@@ -217,6 +219,7 @@ func (s *XiaohongshuService) PublishContent(ctx context.Context, req *PublishReq
 		ScheduleTime: scheduleTime,
 		IsOriginal:   req.IsOriginal,
 		Visibility:   req.Visibility,
+		Products:     req.Products,
 	}
 
 	// 执行发布
@@ -307,6 +310,7 @@ func (s *XiaohongshuService) PublishVideo(ctx context.Context, req *PublishVideo
 		VideoPath:    req.Video,
 		ScheduleTime: scheduleTime,
 		Visibility:   req.Visibility,
+		Products:     req.Products,
 	}
 
 	// 执行发布
