@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/go-rod/rod"
@@ -597,4 +598,40 @@ func (s *XiaohongshuService) GetMyProfile(ctx context.Context) (*UserProfileResp
 	}
 
 	return response, nil
+}
+
+// notificationsMu 保证同一时刻只有一个通知查询在运行。
+var notificationsMu sync.Mutex
+
+// GetNotifications 获取通知列表（评论和回复）
+// cursor 为空时获取最新通知，非空时获取下一页（通过滚动触发）
+// limit 为每次获取的数量（最大 20，默认 20）
+func (s *XiaohongshuService) GetNotifications(ctx context.Context, cursor string, limit int) (*xiaohongshu.NotificationsResult, error) {
+	notificationsMu.Lock()
+	defer notificationsMu.Unlock()
+
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewNotificationsAction(page)
+	return action.GetNotifications(ctx, cursor, limit)
+}
+
+// GetNotificationsSince 获取指定时间之后的所有通知（自动翻页）
+// sinceUnix 为 Unix 时间戳（秒），0 表示获取所有
+func (s *XiaohongshuService) GetNotificationsSince(ctx context.Context, sinceUnix int64) (*xiaohongshu.NotificationsResult, error) {
+	notificationsMu.Lock()
+	defer notificationsMu.Unlock()
+
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewNotificationsAction(page)
+	return action.GetNotificationsSince(ctx, sinceUnix)
 }

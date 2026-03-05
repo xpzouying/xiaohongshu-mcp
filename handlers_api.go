@@ -293,3 +293,26 @@ func (s *AppServer) myProfileHandler(c *gin.Context) {
 	c.Set("account", "ai-report")
 	respondSuccess(c, map[string]any{"data": result}, "获取我的主页成功")
 }
+
+// getNotificationsHandler 获取通知（评论/被@/回复）
+// GET /api/v1/notifications?cursor=xxx
+func (s *AppServer) getNotificationsHandler(c *gin.Context) {
+	cursor := c.Query("cursor")
+	limit := 20
+
+	result, err := s.xiaohongshuService.GetNotifications(c.Request.Context(), cursor, limit)
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"success": true,
+		"data": gin.H{
+			"notifications": result.Notifications,
+			"count":         len(result.Notifications),
+			"has_more":      result.HasMore,
+			"next_cursor":   result.NextCursor,
+		},
+	})
+}
