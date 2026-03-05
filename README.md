@@ -769,25 +769,17 @@ Cline 是一个强大的 AI 编程助手，支持 MCP 协议集成。
 ---
 
 **Q:** 在 WSL（无 GUI）里运行 `xiaohongshu-login-linux-amd64` 报 `Missing X server or $DISPLAY` 怎么办？
-**A:** `xiaohongshu-login-linux-amd64` 需要图形界面，纯 WSL 终端环境会失败。推荐使用“Windows 登录 + WSL 复用 cookies”的方式：
-
-1. 在 Windows 中先运行 `xiaohongshu-login-windows-amd64.exe` 完成登录。
-2. 把 Windows 生成的 `cookies.json` 复制到 WSL 的 `bin` 目录，并重启 Linux 版 MCP：
-   - 下面命令里的 `~/.openclaw/workspace/skills/xiaohongshu-mcp/bin` 是 OpenClaw 默认路径；如果你是手动部署，请替换成你自己的 `xiaohongshu-mcp/bin` 目录。
-
-```bash
-cd ~/.openclaw/workspace/skills/xiaohongshu-mcp/bin && cp -f /mnt/c/Users/<your-user>/.openclaw/workspace/skills/xiaohongshu-mcp/bin/cookies.json ./cookies.json && (pkill -f xiaohongshu-mcp-linux-amd64 2>/dev/null || true) && { nohup ./xiaohongshu-mcp-linux-amd64 > mcp.log 2>&1 & } && sleep 3 && curl -sS http://127.0.0.1:18060/api/v1/login/status
-```
+**A:** `xiaohongshu-login-linux-amd64` 需要图形界面。请先为 WSL 配置 GUI 支持（如 WSLg）后再运行登录工具；纯终端环境无法完成扫码登录。
 
 ---
 
 **Q:** 在 WSL 里 `search_feeds` / `publish_content` 长时间无返回怎么办？
-**A:** 常见是登录态缺失或 Chromium 运行依赖不完整，排查步骤如下：
+**A:** 常见原因是登录态缺失或 Chromium 运行依赖未满足，建议按以下顺序排查：
 
 1. 先检查登录状态：`GET /api/v1/login/status`，确认 `is_logged_in=true`。
-2. 若日志出现 `libnss3.so` 缺失，安装依赖后重启服务：
-   - `sudo apt-get update && sudo apt-get install -y libnss3 libnspr4 libgbm1 libgtk-3-0 libx11-xcb1 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libasound2t64 libatk1.0-0 libcups2 libxkbcommon0 libxshmfence1 fonts-liberation xdg-utils`
-3. 重试 `search_feeds` / `publish_content`，并查看 `bin/mcp.log` 中对应请求的耗时与报错。
+2. 若日志出现 Chromium 依赖相关错误（如缺少系统库），请按 go-rod 官方文档补齐 Linux 依赖：
+   - https://go-rod.github.io/#/compatibility?id=linux
+3. 重启 MCP 后重试，并查看 `bin/mcp.log` 中对应请求的耗时与报错。
 
 ---
 
