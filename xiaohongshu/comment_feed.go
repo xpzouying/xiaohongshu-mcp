@@ -80,7 +80,7 @@ func (f *CommentFeedAction) PostComment(ctx context.Context, feedID, xsecToken, 
 }
 
 // ReplyToComment 回复指定评论
-func (f *CommentFeedAction) ReplyToComment(ctx context.Context, feedID, xsecToken, commentID, userID, content string) error {
+func (f *CommentFeedAction) ReplyToComment(ctx context.Context, feedID, xsecToken, commentID, userID, content string, maxAttempts int) error {
 	// 增加超时时间，因为需要滚动查找评论
 	// 注意：不使用 Context(ctx)，避免继承外部 context 的超时
 	page := f.page.Timeout(5 * time.Minute)
@@ -101,7 +101,7 @@ func (f *CommentFeedAction) ReplyToComment(ctx context.Context, feedID, xsecToke
 	time.Sleep(2 * time.Second)
 
 	// 使用 Go 实现的查找逻辑
-	commentEl, err := findCommentElement(page, commentID, userID)
+	commentEl, err := findCommentElement(page, commentID, userID, maxAttempts)
 	if err != nil {
 		return fmt.Errorf("无法找到评论: %w", err)
 	}
@@ -154,10 +154,12 @@ func (f *CommentFeedAction) ReplyToComment(ctx context.Context, feedID, xsecToke
 }
 
 // findCommentElement 查找指定评论元素（参考 feed_detail.go 的滚动逻辑）
-func findCommentElement(page *rod.Page, commentID, userID string) (*rod.Element, error) {
+// maxAttempts 为调用方指定的最大尝试次数，<=0 时使用默认值 100
+func findCommentElement(page *rod.Page, commentID, userID string, maxAttempts int) (*rod.Element, error) {
+	if maxAttempts <= 0 {
+		maxAttempts = 100
+	}
 	logrus.Infof("开始查找评论 - commentID: %s, userID: %s", commentID, userID)
-
-	const maxAttempts = 100
 	const scrollInterval = 800 * time.Millisecond
 
 	// 先滚动到评论区
