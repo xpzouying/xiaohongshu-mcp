@@ -12,7 +12,7 @@ MCP for 小红书/xiaohongshu.com。
 
 - 我的博客文章：[haha.ai/xiaohongshu-mcp](https://www.haha.ai/xiaohongshu-mcp)
 
-- **🪵 Openclaw Skills：** [xiaohongshu-mcp-skills](https://github.com/autoclaw-cc/xiaohongshu-mcp-skills) - Openclaw 太火了🔥🔥🔥，一键添加：`openclaw skills add https://github.com/autoclaw-cc/xiaohongshu-mcp-skills`。
+- **🪵 Openclaw Skills：** [xiaohongshu-skills](https://github.com/autoclaw-cc/xiaohongshu-skills) （开箱即用）- 原生支持 OpenClaw Skills 及所有兼容 SKILL.md 格式的 AI Agent 平台（如：Claude Code、OpenCode 等），拥有与 xiaohongshu-mcp 一样的全部能力，使用门槛更低。
 
 
 > **📌 提交 PR 前必读：[贡献指南 | Contributing Guide](./CONTRIBUTING.md)**
