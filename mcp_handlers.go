@@ -13,6 +13,69 @@ import (
 	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
 )
 
+// handleGetNotifications 处理获取通知请求
+func (s *AppServer) handleGetNotifications(ctx context.Context, args map[string]interface{}) *MCPToolResult {
+	cursor, _ := args["cursor"].(string)
+
+	limit := 20
+	if v, ok := args["limit"]; ok && v != nil {
+		switch n := v.(type) {
+		case int:
+			limit = n
+		case float64:
+			limit = int(n)
+		}
+	}
+	if limit <= 0 || limit > 20 {
+		limit = 20
+	}
+
+	var sinceTime int64
+	if v, ok := args["since_time"]; ok && v != nil {
+		switch n := v.(type) {
+		case int64:
+			sinceTime = n
+		case float64:
+			sinceTime = int64(n)
+		case int:
+			sinceTime = int64(n)
+		}
+	}
+
+	var (
+		result *xiaohongshu.NotificationsResult
+		err    error
+	)
+
+	if sinceTime > 0 {
+		logrus.Infof("MCP: 获取通知 - since_time=%d", sinceTime)
+		result, err = s.xiaohongshuService.GetNotificationsSince(ctx, sinceTime)
+	} else {
+		logrus.Infof("MCP: 获取通知 - cursor=%q, limit=%d", cursor, limit)
+		result, err = s.xiaohongshuService.GetNotifications(ctx, cursor, limit)
+	}
+
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "获取通知失败: " + err.Error()}},
+			IsError: true,
+		}
+	}
+
+	jsonBytes, err := json.Marshal(result)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "序列化通知失败: " + err.Error()}},
+			IsError: true,
+		}
+	}
+
+	logrus.Infof("MCP: 获取通知成功 - 共 %d 条, has_more=%v", len(result.Notifications), result.HasMore)
+	return &MCPToolResult{
+		Content: []MCPContent{{Type: "text", Text: string(jsonBytes)}},
+	}
+}
+
 // MCP 工具处理函数
 
 // parseVisibility 从 MCP 参数中解析可见范围

@@ -100,6 +100,13 @@ type FavoriteFeedArgs struct {
 	Unfavorite bool   `json:"unfavorite,omitempty" jsonschema:"是否取消收藏，true为取消收藏，false或未设置则为收藏"`
 }
 
+// GetNotificationsArgs 获取通知的参数
+type GetNotificationsArgs struct {
+	Cursor    string `json:"cursor,omitempty" jsonschema:"分页游标，为空时获取最新通知，非空时获取下一页（从上次结果的 next_cursor 获取）"`
+	Limit     int    `json:"limit,omitempty" jsonschema:"返回通知数量上限，默认20，最大20"`
+	SinceTime int64  `json:"since_time,omitempty" jsonschema:"只返回此 Unix 时间戳（秒）之后的通知，0 表示不过滤"`
+}
+
 // InitMCPServer 初始化 MCP Server
 func InitMCPServer(appServer *AppServer) *mcp.Server {
 	// 创建 MCP Server
@@ -443,7 +450,28 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	logrus.Infof("Registered %d MCP tools", 13)
+	// 工具 14: 获取通知（评论/回复）
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "get_notifications",
+			Description: "获取小红书通知列表（评论、回复等），支持分页和时间过滤。可用于轮询新评论，配合 reply_comment_in_feed 实现自动回复。",
+			Annotations: &mcp.ToolAnnotations{
+				Title:           "Get Notifications",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("get_notifications", func(ctx context.Context, req *mcp.CallToolRequest, args GetNotificationsArgs) (*mcp.CallToolResult, any, error) {
+			argsMap := map[string]interface{}{
+				"cursor":     args.Cursor,
+				"limit":      args.Limit,
+				"since_time": args.SinceTime,
+			}
+			result := appServer.handleGetNotifications(ctx, argsMap)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	logrus.Infof("Registered %d MCP tools", 14)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式
