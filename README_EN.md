@@ -848,6 +848,29 @@ Use xiaohongshu-mcp's video publishing feature.
 
 ---
 
+**Q:** Running `xiaohongshu-login-linux-amd64` in WSL (without GUI) returns `Missing X server or $DISPLAY`. What should I do?
+**A:** `xiaohongshu-login-linux-amd64` requires a graphical environment. Configure GUI support for WSL first (for example, WSLg), then run the login tool. A headless terminal-only WSL session cannot complete QR login.
+
+If you do not want to enable WSL GUI yet, you can also use a minimal cookie-reuse flow (optional):
+1. Run `xiaohongshu-login-windows-amd64.exe` on Windows and finish login.
+2. In WSL, copy that `cookies.json` into the Linux MCP `bin` directory, then restart:
+
+```bash
+cd ~/.openclaw/workspace/skills/xiaohongshu-mcp/bin && cp -f /mnt/c/Users/<your-user>/.openclaw/workspace/skills/xiaohongshu-mcp/bin/cookies.json ./cookies.json && pkill -f xiaohongshu-mcp-linux-amd64 2>/dev/null || true && nohup ./xiaohongshu-mcp-linux-amd64 > mcp.log 2>&1 & sleep 3 && curl -sS http://127.0.0.1:18060/api/v1/login/status
+```
+
+---
+
+**Q:** `search_feeds` / `publish_content` hangs for a long time on WSL. How to troubleshoot?
+**A:** The usual causes are missing login state or unmet Chromium runtime dependencies:
+
+1. Check login status first: `GET /api/v1/login/status` and ensure `is_logged_in=true`.
+2. If logs show Chromium dependency errors (missing system libs), follow the go-rod Linux compatibility guide:
+   - https://go-rod.github.io/#/compatibility?id=linux
+3. Restart MCP, retry, and inspect request timing/errors in `bin/mcp.log`.
+
+---
+
 **Q:** The MCP program crashes on my device, how to resolve?
 **A:**
 

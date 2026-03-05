@@ -944,6 +944,29 @@ npx mcporter list xiaohongshu-mcp
 
 ---
 
+**Q:** 在 WSL（无 GUI）里运行 `xiaohongshu-login-linux-amd64` 报 `Missing X server or $DISPLAY` 怎么办？
+**A:** `xiaohongshu-login-linux-amd64` 需要图形界面。请先为 WSL 配置 GUI 支持（如 WSLg）后再运行登录工具；纯终端环境无法完成扫码登录。
+
+如果你暂时不启用 WSL GUI，也可以用精简的 cookies 复用方式（可选）：
+1. 先在 Windows 运行 `xiaohongshu-login-windows-amd64.exe` 完成登录。
+2. 在 WSL 将该 `cookies.json` 拷到 Linux 版 MCP 的 `bin` 目录后重启服务：
+
+```bash
+cd ~/.openclaw/workspace/skills/xiaohongshu-mcp/bin && cp -f /mnt/c/Users/<your-user>/.openclaw/workspace/skills/xiaohongshu-mcp/bin/cookies.json ./cookies.json && pkill -f xiaohongshu-mcp-linux-amd64 2>/dev/null || true && nohup ./xiaohongshu-mcp-linux-amd64 > mcp.log 2>&1 & sleep 3 && curl -sS http://127.0.0.1:18060/api/v1/login/status
+```
+
+---
+
+**Q:** 在 WSL 里 `search_feeds` / `publish_content` 长时间无返回怎么办？
+**A:** 常见原因是登录态缺失或 Chromium 运行依赖未满足，建议按以下顺序排查：
+
+1. 先检查登录状态：`GET /api/v1/login/status`，确认 `is_logged_in=true`。
+2. 若日志出现 Chromium 依赖相关错误（如缺少系统库），请按 go-rod 官方文档补齐 Linux 依赖：
+   - https://go-rod.github.io/#/compatibility?id=linux
+3. 重启 MCP 后重试，并查看 `bin/mcp.log` 中对应请求的耗时与报错。
+
+---
+
 **Q:** 在设备上运行 MCP 程序出现闪退如何解决？
 **A:**
 
