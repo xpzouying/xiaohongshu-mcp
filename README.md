@@ -771,6 +771,14 @@ Cline 是一个强大的 AI 编程助手，支持 MCP 协议集成。
 **Q:** 在 WSL（无 GUI）里运行 `xiaohongshu-login-linux-amd64` 报 `Missing X server or $DISPLAY` 怎么办？
 **A:** `xiaohongshu-login-linux-amd64` 需要图形界面。请先为 WSL 配置 GUI 支持（如 WSLg）后再运行登录工具；纯终端环境无法完成扫码登录。
 
+如果你暂时不启用 WSL GUI，也可以用精简的 cookies 复用方式（可选）：
+1. 先在 Windows 运行 `xiaohongshu-login-windows-amd64.exe` 完成登录。
+2. 在 WSL 将该 `cookies.json` 拷到 Linux 版 MCP 的 `bin` 目录后重启服务：
+
+```bash
+cd ~/.openclaw/workspace/skills/xiaohongshu-mcp/bin && cp -f /mnt/c/Users/<your-user>/.openclaw/workspace/skills/xiaohongshu-mcp/bin/cookies.json ./cookies.json && pkill -f xiaohongshu-mcp-linux-amd64 2>/dev/null || true && nohup ./xiaohongshu-mcp-linux-amd64 > mcp.log 2>&1 & sleep 3 && curl -sS http://127.0.0.1:18060/api/v1/login/status
+```
+
 ---
 
 **Q:** 在 WSL 里 `search_feeds` / `publish_content` 长时间无返回怎么办？
