@@ -888,9 +888,9 @@ Use xiaohongshu-mcp's video publishing feature.
 
 ### WeChat Group
 
-|                                             【WeChat Group 15】: Scan to join                                              |
-| :------------------------------------------------------------------------------------------------------------------------: |
-| <img src="https://github.com/user-attachments/assets/73e23573-9ac1-414d-9192-f592548e9092" alt="WechatIMG119" width="300"> |
+|                                                 WeChat Group 17                                    |                                                 WeChat Group 18                                    |
+| :------------------------------------------------------------------------------------------------: | :------------------------------------------------------------------------------------------------: |
+| <img src="https://github.com/user-attachments/assets/2317229c-311e-4339-b659-2a2467aa8c17" alt="WechatIMG119" width="300"> | <img src="https://github.com/user-attachments/assets/78f8c7a2-98ab-477b-bbb2-7b08551ffc99" alt="WechatIMG119" width="300"> |
 
 ### Feishu (Lark) Groups
 
