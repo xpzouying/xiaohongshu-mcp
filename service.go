@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"regexp"
 	"time"
 
 	"github.com/go-rod/rod"
@@ -597,4 +598,53 @@ func (s *XiaohongshuService) GetMyProfile(ctx context.Context) (*UserProfileResp
 	}
 
 	return response, nil
+}
+
+
+// GetCurrentIPResponse 获取当前IP响应
+type GetCurrentIPResponse struct {
+	IP         string `json:"ip"`
+	UsingProxy bool   `json:"using_proxy"`
+}
+
+// GetCurrentIP 获取当前出口IP地址
+func (s *XiaohongshuService) GetCurrentIP(ctx context.Context) (*GetCurrentIPResponse, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	err := page.Navigate("http://myip.ipip.net/")
+	if err != nil {
+		return nil, err
+	}
+
+	time.Sleep(2 * time.Second)
+
+	bodyText, err := page.Element("body")
+	if err != nil {
+		return nil, err
+	}
+
+	text, err := bodyText.Text()
+	if err != nil {
+		return nil, err
+	}
+
+	re := regexp.MustCompile(`(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})`)
+	matches := re.FindStringSubmatch(text)
+
+	if len(matches) < 2 {
+		return nil, fmt.Errorf("无法从页面中提取IP地址")
+	}
+
+	ip := matches[1]
+	proxyEnv := os.Getenv("XHS_PROXY")
+	usingProxy := proxyEnv != ""
+
+	return &GetCurrentIPResponse{
+		IP:         ip,
+		UsingProxy: usingProxy,
+	}, nil
 }
