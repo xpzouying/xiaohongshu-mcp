@@ -338,6 +338,24 @@ func submitPublish(page *rod.Page, title, content string, tags []string, schedul
 		return errors.Wrap(err, "绑定商品失败")
 	}
 
+	// 在提交发布前等待，确保图片完全上传处理完成
+	// 只有在使用代理的情况下才延长等待时间
+	submitWaitTime := 3 * time.Second // 默认等待 3 秒
+	if os.Getenv("XHS_PROXY") != "" {
+		submitWaitTime = 60 * time.Second // 使用代理时等待 60 秒
+		logrus.Info("检测到代理，延长等待时间以确保图片上传完成")
+	}
+	// 支持通过环境变量自定义等待时间
+	if waitTime := os.Getenv("XHS_PUBLISH_WAIT"); waitTime != "" {
+		if d, err := time.ParseDuration(waitTime); err == nil {
+			submitWaitTime = d
+		}
+	}
+	if submitWaitTime > 5*time.Second {
+		logrus.Infof("等待 %v 后提交发布，确保图片处理完成", submitWaitTime)
+	}
+	time.Sleep(submitWaitTime)
+
 	submitButton, err := page.Element(".publish-page-publish-btn button.bg-red")
 	if err != nil {
 		return errors.Wrap(err, "查找发布按钮失败")
