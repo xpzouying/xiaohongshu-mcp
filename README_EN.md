@@ -16,6 +16,8 @@ MCP for RedNote (Xiaohongshu) platform.
 
 > **📌 Please read before submitting a PR: [Contributing Guide](./CONTRIBUTING.md)**
 
+> **🤖 AI collaboration architecture: [docs/ai-collaboration-architecture.md](./docs/ai-collaboration-architecture.md)**
+
 **If you encounter any issues, be sure to check [Common Issues and Solutions](https://github.com/xpzouying/xiaohongshu-mcp/issues/56) first.**
 
 After checking the **Common Issues** list, if you still can't resolve your deployment problems, we strongly recommend using another tool I've created: [xpzouying/x-mcp](https://github.com/xpzouying/x-mcp). This tool doesn't require deployment - you only need a browser extension to drive your MCP, making it more user-friendly for non-technical users.
@@ -778,6 +780,19 @@ After successful connection, you can use the following MCP tools:
   - `click_more_replies`: Whether to expand nested replies (optional), only effective when load_all_comments=true, default false
   - `reply_limit`: Skip comments with too many replies (optional), only effective when click_more_replies=true, default 10
   - `scroll_speed`: Scroll speed (optional), `slow` | `normal` | `fast`, only effective when load_all_comments=true
+- `transcribe_feed_video` - Transcribe a video post and return TXT/SRT outputs (required: feed_id, xsec_token)
+  - `provider`: Transcribe provider (optional): `dashscope` (default) or `glm`, overridable via `VIDEO_TRANSCRIBE_PROVIDER`
+  - `api_key`: Optional transcribe API key. If provided, it takes precedence over environment variables.
+  - `model`: Model name (optional)
+    - For `provider=dashscope`: default `qwen3.5-flash`, overridable via `DASHSCOPE_VIDEO_MODEL`
+    - For `provider=glm`: default `glm-4.6v-flash`, overridable via `GLM_VIDEO_MODEL`
+  - `language`: Language hint (optional, e.g. `zh`, `en`; auto-detect when omitted)
+  - `output_dir`: Output directory (optional; defaults to `/tmp/xhs_transcripts/...`)
+  - `keep_artifacts`: Compatibility flag (optional; no local intermediate video files in current flow)
+  - Required runtime config:
+    - `provider=dashscope`: set `DASHSCOPE_API_KEY`; default endpoint `https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions`
+    - `provider=glm`: set `ZHIPUAI_API_KEY` (or `BIGMODEL_API_KEY`); default endpoint `https://open.bigmodel.cn/api/paas/v4/chat/completions`
+  - Optional runtime config: `DASHSCOPE_VIDEO_API_ENDPOINT` and `GLM_VIDEO_API_ENDPOINT`
 - `post_comment_to_feed` - Post comments to RedNote posts (required: feed_id, xsec_token, content)
 - `reply_comment_in_feed` - Reply to a specific comment under a note (required: feed_id, xsec_token, content, and at least one of comment_id or user_id)
 - `like_feed` - Like / unlike a note (required: feed_id, xsec_token)
@@ -866,6 +881,60 @@ Use xiaohongshu-mcp's video publishing feature.
 - In a **non-Docker environment**, please use your **local IPv4 address** to access.
 
 ---
+
+## 2.6 🆕 ContentRemixAgent (Beta)
+
+This repo now includes a `FastAPI + LangGraph + React + TailwindCSS` orchestration layer for remix analysis, reusing existing MCP tools:
+
+- `search_feeds`
+- `get_feed_detail`
+- `transcribe_feed_video`
+
+Directory layout:
+
+```text
+apps/content-remix/backend
+apps/content-remix/web
+```
+
+### One-command startup (Docker Compose)
+
+Run inside `docker/`:
+
+```bash
+docker compose up -d
+```
+
+Default ports:
+
+- Xiaohongshu MCP: `http://localhost:18060/mcp`
+- ContentRemix API: `http://localhost:18061`
+- ContentRemix Web: `http://localhost:5173`
+- Redis: `localhost:6379`
+
+### ContentRemix API (FastAPI)
+
+- `POST /api/remix/jobs`: submit a remix analysis job
+- `GET /api/remix/jobs/{job_id}`: query status
+- `GET /api/remix/jobs/{job_id}/result`: fetch structured output
+- `GET /api/remix/jobs`: list recent jobs
+
+Environment templates:
+
+- `apps/content-remix/backend/.env.example`
+- `apps/content-remix/web/.env.example`
+
+### Quick Verification
+
+1. Submit a job via `POST /api/remix/jobs` and get `job_id`.
+2. Poll `GET /api/remix/jobs/{job_id}` until status is `succeeded`.
+3. Call `GET /api/remix/jobs/{job_id}/result` and confirm `viral_breakdown` and `remix_ideas` exist.
+
+### Common Troubleshooting
+
+- Job stays `queued`: check `content-remix-worker` and `redis` container status first.
+- Job `failed` with MCP errors: verify login state, MCP endpoint, and `feed_id/xsec_token`.
+- Transcription failure: verify API key (`DASHSCOPE_API_KEY` or `ZHIPUAI_API_KEY`/`BIGMODEL_API_KEY`), outbound connectivity, model quota, and provider/model settings.
 
 ## 3. 🌟 Community Showcases
 

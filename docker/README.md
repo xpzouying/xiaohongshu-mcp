@@ -20,6 +20,8 @@ docker pull xpzouying/xiaohongshu-mcp
 
 Docker Hub 地址：[https://hub.docker.com/r/xpzouying/xiaohongshu-mcp](https://hub.docker.com/r/xpzouying/xiaohongshu-mcp)
 
+> ⚠️ 如果你要使用本仓库当前分支新增工具（例如 `transcribe_feed_video`）和 `ContentRemixAgent` 前端，**建议优先使用本地构建**，不要直接依赖远端旧镜像。
+
 ### 1.2 从阿里云镜像源拉取（国内用户推荐）
 
 国内用户可以使用阿里云容器镜像服务，拉取速度更快：
@@ -38,6 +40,35 @@ docker build -t xpzouying/xiaohongshu-mcp .
 ```
 
 `xpzouying/xiaohongshu-mcp`为镜像名称和版本。
+
+推荐（当前仓库）：
+
+```bash
+cd docker
+docker compose build --no-cache xiaohongshu-mcp
+```
+
+该构建会在镜像中预装：
+
+- `ffmpeg`
+
+浏览器由 `go-rod` 在运行时自动下载 Chromium（无需额外配置 `ROD_BROWSER_BIN`）。
+视频转写链路已切换为 GLM API，无需在容器内安装 `whisper.cpp`。
+
+推荐在启动前导出 API Key：
+
+```bash
+# 默认转写 provider：dashscope
+export VIDEO_TRANSCRIBE_PROVIDER=dashscope
+export DASHSCOPE_API_KEY=your_key_here
+
+# 如需切换 glm：
+# export VIDEO_TRANSCRIBE_PROVIDER=glm
+# export ZHIPUAI_API_KEY=your_key_here
+# 或 export BIGMODEL_API_KEY=your_key_here
+```
+
+然后再到 `docker/` 目录运行 compose。
 
 <img width="2576" height="874" alt="image" src="https://github.com/user-attachments/assets/fe7e87f1-623f-409f-8b54-e11d380fc7b8" />
 
@@ -82,6 +113,27 @@ docker exec -it xiaohongshu-mcp bash
 docker compose pull && docker compose up -d
 ```
 
+### 2.1 前端 Web 编排工具（ContentRemixAgent）
+
+`docker-compose.yml` 已包含：
+
+- `content-remix-api`（FastAPI）
+- `content-remix-worker`（Celery）
+- `content-remix-web`（React + Vite）
+- `redis`
+
+启动后默认地址：
+
+- MCP: `http://localhost:18060/mcp`
+- Remix API: `http://localhost:18061`
+- Remix Web: `http://localhost:5173`
+
+快速自检：
+
+```bash
+curl -s http://localhost:18061/health
+```
+
 ## 3. 使用 MCP-Inspector 进行连接
 
 **注意 IP 换成你自己的 IP**
@@ -108,7 +160,6 @@ docker run -e XHS_PROXY=http://user:pass@proxy:port xpzouying/xiaohongshu-mcp
 
 ```yaml
 environment:
-  - ROD_BROWSER_BIN=/usr/bin/google-chrome
   - COOKIES_PATH=/app/data/cookies.json
   - XHS_PROXY=http://user:pass@proxy:port
 ```
@@ -133,5 +184,3 @@ Using proxy: http://***:***@proxy:port
 扫码成功后，再次扫码后，就会提示已经完成登录了。
 
 <img width="2614" height="994" alt="image" src="https://github.com/user-attachments/assets/5356914a-3241-4bfd-b6b2-49c1cc5e3394" />
-
-
