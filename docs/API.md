@@ -794,6 +794,98 @@ Content-Type: application/json
 
 ---
 
+## ContentRemixAgent（新增伴生服务）
+
+> 说明：以下接口属于 `apps/content-remix/backend` 的 FastAPI 服务，默认端口 `18061`。  
+> 该服务不会重复实现采集和转写，而是通过 MCP 复用本项目已有工具链。
+
+### 用途
+
+- 聚合候选内容（关键词检索 + 手动指定）
+- 复用 `transcribe_feed_video` 转写视频文本
+- 输出爆款拆解结构与二创灵感建议
+
+### 前置条件
+
+- 主服务已启动并可访问 MCP 端点（默认 `http://localhost:18060/mcp`）
+- 已完成小红书登录态（否则 `search_feeds` / `get_feed_detail` 可能失败）
+- 已配置视频转写 API Key：
+  - DashScope：`DASHSCOPE_API_KEY`（默认 provider）
+  - GLM：`ZHIPUAI_API_KEY` 或 `BIGMODEL_API_KEY`
+- `content-remix` 的 API/Worker/Redis 服务已启动
+
+### 提交任务
+
+**请求**
+```http
+POST /api/remix/jobs
+Content-Type: application/json
+```
+
+**请求体**
+```json
+{
+  "keywords": ["穿搭", "职场效率"],
+  "manual_candidates": [
+    {
+      "feed_id": "6834abcd000000000f12a111",
+      "xsec_token": "token_here"
+    }
+  ],
+  "candidate_limit": 10
+}
+```
+
+### 查询任务状态
+
+**请求**
+```http
+GET /api/remix/jobs/{job_id}
+```
+
+**典型响应字段**
+- `job_id`
+- `status`: `queued` | `running` | `succeeded` | `failed`
+- `detail`: Celery 任务运行信息（可为空）
+
+### 读取任务结果
+
+**请求**
+```http
+GET /api/remix/jobs/{job_id}/result
+```
+
+**响应重点**
+- `candidates`
+- `viral_breakdown`
+- `remix_ideas`
+- `errors`
+
+### 列出最近任务
+
+**请求**
+```http
+GET /api/remix/jobs?limit=50
+```
+
+### 验证步骤
+
+1. 调用 `POST /api/remix/jobs` 提交任务，确认返回 `job_id` 与 `queued`。
+2. 轮询 `GET /api/remix/jobs/{job_id}`，直到状态变为 `succeeded` 或 `failed`。
+3. 状态为 `succeeded` 时调用 `GET /api/remix/jobs/{job_id}/result`，确认结果包含：
+   - `candidate_count`
+   - `viral_breakdown`
+   - `remix_ideas`
+
+### 失败排查入口
+
+- 状态长期停留 `queued`：检查 Celery Worker 与 Redis 连通性。
+- 状态为 `failed` 且 `detail` 含 MCP 错误：优先检查登录态、`feed_id/xsec_token`、MCP 服务可达性。
+- 结果中出现转写错误：检查 API Key、外网连通性、模型配额与服务日志中的 `*_API_ERROR`。
+- `GET /result` 返回 404：确认任务是否已成功完成，或 `job_id` 是否正确。
+
+---
+
 ## 错误代码
 
 所有 API 在发生错误时会返回统一格式的错误响应。以下是可能出现的错误代码：
@@ -838,5 +930,25 @@ Content-Type: application/json
 - **MCP 端点**: `/mcp` 和 `/mcp/*path`
 - **协议类型**: 支持 JSON 响应格式的 Streamable HTTP
 - **用途**: 可以通过MCP客户端调用相同的功能
+
+### MCP-only 工具补充
+
+以下能力当前仅通过 MCP 提供，不在 HTTP API 端点中单独开放：
+
+- `transcribe_feed_video`：转写视频帖子并输出 TXT/SRT 文件路径
+  - 必填参数：`feed_id`、`xsec_token`
+  - 可选参数：`provider`、`api_key`、`model`、`language`、`output_dir`、`keep_artifacts`
+  - `provider` 说明：`dashscope`（默认）或 `glm`
+  - `api_key` 说明：如传入则优先于环境变量（便于在 MCP Inspector 前端直接填写测试）
+  - 处理链路：通过 `feed_id + xsec_token` 解析小红书视频 URL，再将该 URL 直接传给模型 API
+  - 环境依赖：
+    - DashScope：设置 `DASHSCOPE_API_KEY`，默认调用 `https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions`
+    - GLM：设置 `ZHIPUAI_API_KEY`（或 `BIGMODEL_API_KEY`），默认调用 `https://open.bigmodel.cn/api/paas/v4/chat/completions`
+  - 可选环境变量：
+    - `VIDEO_TRANSCRIBE_PROVIDER`（默认 `dashscope`）
+    - `DASHSCOPE_VIDEO_MODEL`（默认 `qwen3.5-flash`）、`DASHSCOPE_VIDEO_API_ENDPOINT`
+    - `GLM_VIDEO_MODEL`（默认 `glm-4.6v-flash`）、`GLM_VIDEO_API_ENDPOINT`
+  - 验证步骤：可直接调用 `transcribe_feed_video`，检查返回的 `transcript_text`、`txt_path`、`srt_path` 是否非空
+  - 失败排查入口：优先检查 API Key、网络连通性、模型配额，再查看服务日志中的 `DASHSCOPE_API_ERROR`/`GLM_API_ERROR`
 
 更多MCP协议相关信息请参考 [Model Context Protocol 官方文档](https://modelcontextprotocol.io/)。

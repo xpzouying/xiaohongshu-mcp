@@ -42,3 +42,16 @@ test_*.sh
 
 # Cookies files (contain sensitive login information)
 cookies.json
+
+# Local whisper.cpp runtime (installed by scripts/setup_whisper_cpp.sh)
+third_party/whisper.cpp/
+
+# ContentRemixAgent local artifacts
+apps/content-remix/web/node_modules/
+apps/content-remix/web/dist/
+apps/content-remix/backend/.pytest_cache/
+apps/content-remix/backend/__pycache__/
+apps/content-remix/backend/**/__pycache__/
+apps/content-remix/backend/.venv/
+apps/content-remix/web/*.tsbuildinfo
+docker/data/content-remix/

@@ -17,6 +17,8 @@ MCP for 小红书/xiaohongshu.com。
 
 > **📌 提交 PR 前必读：[贡献指南 | Contributing Guide](./CONTRIBUTING.md)**
 
+> **🤖 AI 协作架构文档：[docs/ai-collaboration-architecture.md](./docs/ai-collaboration-architecture.md)**
+
 **遇到任何问题，务必要先看 [各种疑难杂症](https://github.com/xpzouying/xiaohongshu-mcp/issues/56)**。
 
 上面的 **疑难杂症** 列表后，还是解决不了你的部署问题，那么强烈推荐使用我写的另外一个工具：[xpzouying/x-mcp](https://github.com/xpzouying/x-mcp)，这个工具不需要你进行部署，只需要通过浏览器插件就能驱动你的 MCP，对于非技术同学来说更加友好。
@@ -863,6 +865,19 @@ npx mcporter list xiaohongshu-mcp
   - `click_more_replies`: 是否展开二级回复（可选），仅当 load_all_comments=true 时生效，默认 false
   - `reply_limit`: 跳过回复数过多的评论（可选），仅当 click_more_replies=true 时生效，默认 10
   - `scroll_speed`: 滚动速度（可选），`slow` | `normal` | `fast`，仅当 load_all_comments=true 时生效
+- `transcribe_feed_video` - 转写视频帖子并输出 TXT/SRT（必需：feed_id, xsec_token）
+  - `provider`: 转写服务商（可选）`dashscope`（默认）或 `glm`，可通过 `VIDEO_TRANSCRIBE_PROVIDER` 覆盖
+  - `api_key`: 转写 API Key（可选）。传入时优先于环境变量；不传时按 `provider` 读取环境变量
+  - `model`: 模型名（可选）
+    - 当 `provider=dashscope`：默认 `qwen3.5-flash`，可通过 `DASHSCOPE_VIDEO_MODEL` 覆盖
+    - 当 `provider=glm`：默认 `glm-4.6v-flash`，可通过 `GLM_VIDEO_MODEL` 覆盖
+  - `language`: 指定语言（可选，例如 `zh`、`en`，不填自动识别）
+  - `output_dir`: 输出目录（可选，不填默认 `/tmp/xhs_transcripts/...`）
+  - `keep_artifacts`: 兼容参数（可选，当前链路无本地中间视频文件）
+  - 前置依赖：
+    - `provider=dashscope`：配置 `DASHSCOPE_API_KEY`，默认地址 `https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions`
+    - `provider=glm`：配置 `ZHIPUAI_API_KEY`（或 `BIGMODEL_API_KEY`），默认地址 `https://open.bigmodel.cn/api/paas/v4/chat/completions`
+  - 可选环境变量：`DASHSCOPE_VIDEO_API_ENDPOINT`、`GLM_VIDEO_API_ENDPOINT`（自定义 API 地址）
 - `post_comment_to_feed` - 发表评论到小红书帖子（必需：feed_id, xsec_token, content）
 - `reply_comment_in_feed` - 回复笔记下的指定评论（必需：feed_id, xsec_token, content，以及 comment_id 或 user_id 至少一个）
 - `like_feed` - 点赞/取消点赞（必需：feed_id, xsec_token）
@@ -962,6 +977,60 @@ npx mcporter list xiaohongshu-mcp
 - 在 **非 Docker 环境** 下，请使用 **本机 IPv4 地址** 访问。
 
 ---
+
+## 2.6 🆕 ContentRemixAgent（Beta）
+
+仓库内新增了 `FastAPI + LangGraph + React + TailwindCSS` 的二创编排层，默认复用当前服务的 MCP 工具：
+
+- `search_feeds`
+- `get_feed_detail`
+- `transcribe_feed_video`
+
+目录结构：
+
+```text
+apps/content-remix/backend
+apps/content-remix/web
+```
+
+### 一键启动（Docker Compose）
+
+在 `docker/` 目录执行：
+
+```bash
+docker compose up -d
+```
+
+启动后默认端口：
+
+- 小红书 MCP: `http://localhost:18060/mcp`
+- ContentRemix API: `http://localhost:18061`
+- ContentRemix Web: `http://localhost:5173`
+- Redis: `localhost:6379`
+
+### ContentRemix API（FastAPI）
+
+- `POST /api/remix/jobs`：提交关键词选题池任务
+- `GET /api/remix/jobs/{job_id}`：查询任务状态
+- `GET /api/remix/jobs/{job_id}/result`：读取结构化分析结果
+- `GET /api/remix/jobs`：查看最近任务
+
+环境变量模板见：
+
+- `apps/content-remix/backend/.env.example`
+- `apps/content-remix/web/.env.example`
+
+### 快速验证
+
+1. `POST /api/remix/jobs` 提交任务，拿到 `job_id`。
+2. 轮询 `GET /api/remix/jobs/{job_id}` 直到 `succeeded`。
+3. 调用 `GET /api/remix/jobs/{job_id}/result`，确认包含 `viral_breakdown` 与 `remix_ideas`。
+
+### 常见失败排查
+
+- 一直 `queued`：优先检查 `content-remix-worker` 与 `redis` 容器状态。
+- `failed` 且报 MCP 错误：检查登录态、MCP 地址与 `feed_id/xsec_token` 有效性。
+- 转写失败：检查 API Key（`DASHSCOPE_API_KEY` 或 `ZHIPUAI_API_KEY`/`BIGMODEL_API_KEY`）、外网连通性、模型配额与 provider/model 配置。
 
 ## 3. 🌟 实战案例展示 (Community Showcases)
 
