@@ -254,7 +254,7 @@ func TestExtractMessageContent(t *testing.T) {
 	require.Contains(t, result, "第二段")
 }
 
-func TestParseGLMResponse(t *testing.T) {
+func TestParseTranscriptionResponse(t *testing.T) {
 	mockResponse := map[string]any{
 		"choices": []any{
 			map[string]any{
@@ -267,13 +267,13 @@ func TestParseGLMResponse(t *testing.T) {
 	raw, err := json.Marshal(mockResponse)
 	require.NoError(t, err)
 
-	transcriptText, subtitleText, err := parseGLMResponse(raw)
+	transcriptText, subtitleText, err := parseTranscriptionResponse(raw)
 	require.NoError(t, err)
 	require.Equal(t, "你好", transcriptText)
 	require.Contains(t, subtitleText, "00:00:00,000 --> 00:00:04,000")
 }
 
-func TestParseGLMResponse_InvalidSRTFallback(t *testing.T) {
+func TestParseTranscriptionResponse_InvalidSRTFallback(t *testing.T) {
 	mockResponse := map[string]any{
 		"choices": []any{
 			map[string]any{
@@ -286,7 +286,7 @@ func TestParseGLMResponse_InvalidSRTFallback(t *testing.T) {
 	raw, err := json.Marshal(mockResponse)
 	require.NoError(t, err)
 
-	_, subtitleText, err := parseGLMResponse(raw)
+	_, subtitleText, err := parseTranscriptionResponse(raw)
 	require.NoError(t, err)
 	require.Contains(t, subtitleText, "00:00:00,000 --> 00:00:04,000")
 	require.NotContains(t, subtitleText, "0.00 -- --")

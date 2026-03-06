@@ -25,8 +25,8 @@ const (
 	defaultDashScopeVideoFPS    = 2
 	defaultGLMModel             = "glm-4.6v-flash"
 	defaultGLMChatEndpoint      = "https://open.bigmodel.cn/api/paas/v4/chat/completions"
-	defaultGLMRequestTimeout    = 300 * time.Second
-	defaultGLMRetryTimes        = 5
+	defaultRequestTimeout       = 300 * time.Second
+	defaultRetryTimes           = 5
 	maxSubtitleCharsPerLine     = 26
 	defaultSubtitleSegmentSec   = 4
 	defaultSubtitleLanguageHint = "auto"
@@ -36,6 +36,7 @@ var (
 	transcriptFieldPattern = regexp.MustCompile(`(?s)"transcript_text"\s*:\s*"(.*?)"\s*,\s*"(?:srt_text|srt|language)"`)
 	srtFieldPattern        = regexp.MustCompile(`(?s)"srt_text"\s*:\s*"(.*?)"\s*(?:,\s*"language"|\s*})`)
 	srtTimestampPattern    = regexp.MustCompile(`\d{2}:\d{2}:\d{2},\d{3}\s+-->\s+\d{2}:\d{2}:\d{2},\d{3}`)
+	multipleNewlines       = regexp.MustCompile(`\n+`)
 )
 
 // Request 视频转写请求。
@@ -236,7 +237,7 @@ func transcribeVideoViaProvider(ctx context.Context, videoURL, provider, apiKey,
 	if err != nil {
 		return "", "", err
 	}
-	return parseGLMResponse(rawBody)
+	return parseTranscriptionResponse(rawBody)
 }
 
 func buildProviderPayload(provider, model, videoURL, prompt string) ([]byte, error) {
@@ -305,9 +306,9 @@ func buildProviderPayload(provider, model, videoURL, prompt string) ([]byte, err
 }
 
 func callTranscribeAPI(ctx context.Context, provider, apiKey, endpoint string, payloadBytes []byte) ([]byte, error) {
-	client := &http.Client{Timeout: defaultGLMRequestTimeout}
+	client := &http.Client{Timeout: defaultRequestTimeout}
 	lastErr := fmt.Errorf("%s_API_ERROR: 未发起请求", strings.ToUpper(provider))
-	for attempt := 1; attempt <= defaultGLMRetryTimes; attempt++ {
+	for attempt := 1; attempt <= defaultRetryTimes; attempt++ {
 		request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(payloadBytes))
 		if err != nil {
 			return nil, fmt.Errorf("%s_API_ERROR: 构建请求失败: %w", strings.ToUpper(provider), err)
@@ -318,7 +319,7 @@ func callTranscribeAPI(ctx context.Context, provider, apiKey, endpoint string, p
 		response, err := client.Do(request)
 		if err != nil {
 			lastErr = fmt.Errorf("%s_API_ERROR: 调用失败: %w", strings.ToUpper(provider), err)
-			if attempt < defaultGLMRetryTimes {
+			if attempt < defaultRetryTimes {
 				time.Sleep(time.Duration(attempt) * time.Second)
 				continue
 			}
@@ -329,7 +330,7 @@ func callTranscribeAPI(ctx context.Context, provider, apiKey, endpoint string, p
 		response.Body.Close()
 		if readErr != nil {
 			lastErr = fmt.Errorf("%s_API_ERROR: 读取响应失败: %w", strings.ToUpper(provider), readErr)
-			if attempt < defaultGLMRetryTimes {
+			if attempt < defaultRetryTimes {
 				time.Sleep(time.Duration(attempt) * time.Second)
 				continue
 			}
@@ -340,9 +341,9 @@ func callTranscribeAPI(ctx context.Context, provider, apiKey, endpoint string, p
 			return rawBody, nil
 		}
 
-		message := parseGLMError(rawBody)
+		message := parseProviderError(rawBody)
 		lastErr = fmt.Errorf("%s_API_ERROR: status=%d, message=%s", strings.ToUpper(provider), response.StatusCode, message)
-		if (response.StatusCode == http.StatusTooManyRequests || response.StatusCode >= http.StatusInternalServerError) && attempt < defaultGLMRetryTimes {
+		if (response.StatusCode == http.StatusTooManyRequests || response.StatusCode >= http.StatusInternalServerError) && attempt < defaultRetryTimes {
 			time.Sleep(time.Duration(attempt*2) * time.Second)
 			continue
 		}
@@ -366,7 +367,7 @@ JSON 格式如下：
 4) 输出语言优先使用：%s。`, languageHint)
 }
 
-func parseGLMResponse(rawBody []byte) (string, string, error) {
+func parseTranscriptionResponse(rawBody []byte) (string, string, error) {
 	type apiError struct {
 		Code    any    `json:"code"`
 		Message string `json:"message"`
@@ -499,7 +500,7 @@ func BuildFallbackSRT(transcript string) string {
 	}
 	normalized := strings.ReplaceAll(cleanedTranscript, "\r\n", "\n")
 	normalized = strings.ReplaceAll(normalized, "\r", "\n")
-	normalized = regexp.MustCompile(`\n+`).ReplaceAllString(normalized, "\n")
+	normalized = multipleNewlines.ReplaceAllString(normalized, "\n")
 
 	parts := make([]string, 0)
 	for _, paragraph := range strings.Split(normalized, "\n") {
@@ -566,7 +567,7 @@ func formatSRTTimestamp(totalSeconds int) string {
 	return fmt.Sprintf("%02d:%02d:%02d,000", hours, minutes, seconds)
 }
 
-func parseGLMError(rawBody []byte) string {
+func parseProviderError(rawBody []byte) string {
 	type apiError struct {
 		Error struct {
 			Message string `json:"message"`
