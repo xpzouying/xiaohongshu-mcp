@@ -1,7 +1,12 @@
 services:
   xiaohongshu-mcp:
-    # Docker Hub 镜像（默认）
-    image: xpzouying/xiaohongshu-mcp
+    # 默认使用本地源码构建，确保包含当前分支最新 MCP 工具（如 transcribe_feed_video）
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: xiaohongshu-mcp:dev1-local
+    # Docker Hub 镜像（如需快速验证可切换）
+    # image: xpzouying/xiaohongshu-mcp
     # 阿里云镜像源（国内用户推荐，拉取更快）
     # image: crpi-hocnvtkomt7w9v8t.cn-beijing.personal.cr.aliyuncs.com/xpzouying/xiaohongshu-mcp
     container_name: xiaohongshu-mcp
@@ -11,8 +16,77 @@ services:
     volumes:
       - ./data:/app/data
       - ./images:/app/images
+      - ../third_party:/app/third_party
     environment:
-      - ROD_BROWSER_BIN=/usr/bin/google-chrome
       - COOKIES_PATH=/app/data/cookies.json
+      - VIDEO_TRANSCRIBE_PROVIDER=${VIDEO_TRANSCRIBE_PROVIDER:-dashscope}
+      - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY:-}
+      - DASHSCOPE_VIDEO_MODEL=${DASHSCOPE_VIDEO_MODEL:-qwen3.5-flash}
+      - ZHIPUAI_API_KEY=${ZHIPUAI_API_KEY:-}
+      - BIGMODEL_API_KEY=${BIGMODEL_API_KEY:-}
+      - GLM_VIDEO_MODEL=${GLM_VIDEO_MODEL:-glm-4.6v-flash}
     ports:
       - "18060:18060"
+
+  redis:
+    image: redis:7-alpine
+    container_name: content-remix-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+  content-remix-api:
+    build:
+      context: ..
+      dockerfile: apps/content-remix/backend/Dockerfile
+    container_name: content-remix-api
+    restart: unless-stopped
+    depends_on:
+      - redis
+      - xiaohongshu-mcp
+    environment:
+      - CONTENT_REMIX_MCP_URL=http://xiaohongshu-mcp:18060/mcp
+      - CONTENT_REMIX_REDIS_URL=redis://redis:6379/0
+      - CONTENT_REMIX_DATA_DIR=/app/data/content-remix/jobs
+      - CONTENT_REMIX_CANDIDATE_LIMIT_DEFAULT=10
+      - CONTENT_REMIX_CANDIDATE_LIMIT_MAX=20
+      - CONTENT_REMIX_MAX_PARALLEL_CALLS=3
+      - CONTENT_REMIX_REQUEST_TIMEOUT_SECONDS=60
+    volumes:
+      - ./data:/app/data
+    ports:
+      - "18061:18061"
+
+  content-remix-worker:
+    build:
+      context: ..
+      dockerfile: apps/content-remix/backend/Dockerfile
+    container_name: content-remix-worker
+    restart: unless-stopped
+    depends_on:
+      - redis
+      - xiaohongshu-mcp
+    command: ["celery", "-A", "app.celery_worker.celery_app", "worker", "--loglevel=INFO"]
+    environment:
+      - CONTENT_REMIX_MCP_URL=http://xiaohongshu-mcp:18060/mcp
+      - CONTENT_REMIX_REDIS_URL=redis://redis:6379/0
+      - CONTENT_REMIX_DATA_DIR=/app/data/content-remix/jobs
+      - CONTENT_REMIX_CANDIDATE_LIMIT_DEFAULT=10
+      - CONTENT_REMIX_CANDIDATE_LIMIT_MAX=20
+      - CONTENT_REMIX_MAX_PARALLEL_CALLS=3
+      - CONTENT_REMIX_REQUEST_TIMEOUT_SECONDS=60
+    volumes:
+      - ./data:/app/data
+
+  content-remix-web:
+    build:
+      context: ..
+      dockerfile: apps/content-remix/web/Dockerfile
+    container_name: content-remix-web
+    restart: unless-stopped
+    depends_on:
+      - content-remix-api
+    environment:
+      - VITE_REMIX_API_BASE=http://localhost:18061
+    ports:
+      - "5173:5173"

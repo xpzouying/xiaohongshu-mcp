@@ -103,6 +103,7 @@ type FeedDetail struct {
 	User         User              `json:"user"`
 	InteractInfo InteractInfo      `json:"interactInfo"`
 	ImageList    []DetailImageInfo `json:"imageList"`
+	Video        *DetailVideo      `json:"video,omitempty"`
 }
 
 // DetailImageInfo 表示详情页的图片信息
@@ -112,6 +113,31 @@ type DetailImageInfo struct {
 	URLDefault string `json:"urlDefault"`
 	URLPre     string `json:"urlPre"`
 	LivePhoto  bool   `json:"livePhoto,omitempty"`
+}
+
+// DetailVideo 表示详情页的视频信息
+type DetailVideo struct {
+	Media DetailVideoMedia `json:"media"`
+}
+
+// DetailVideoMedia 表示视频媒体信息
+type DetailVideoMedia struct {
+	Stream         DetailVideoStream `json:"stream"`
+	OriginVideoKey string            `json:"originVideoKey"`
+}
+
+// DetailVideoStream 表示不同编码的视频流
+type DetailVideoStream struct {
+	H264 []DetailVideoStreamItem `json:"h264"`
+	H265 []DetailVideoStreamItem `json:"h265"`
+	H266 []DetailVideoStreamItem `json:"h266"`
+	AV1  []DetailVideoStreamItem `json:"av1"`
+}
+
+// DetailVideoStreamItem 表示单个视频流地址
+type DetailVideoStreamItem struct {
+	MasterURL  string   `json:"masterUrl"`
+	BackupURLs []string `json:"backupUrls"`
 }
 
 // CommentList 表示评论列表
