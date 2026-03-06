@@ -620,7 +620,9 @@ func (s *XiaohongshuService) GetCurrentIP(ctx context.Context) (*GetCurrentIPRes
 		return nil, err
 	}
 
-	time.Sleep(2 * time.Second)
+	// 等待页面加载完成，使用 rod 的等待机制而非硬编码 sleep
+	page.Timeout(10 * time.Second).MustWaitLoad()
+	page.MustWaitDOMStable(500*time.Millisecond, 0.1)
 
 	bodyText, err := page.Element("body")
 	if err != nil {
