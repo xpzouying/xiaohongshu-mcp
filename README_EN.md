@@ -867,6 +867,20 @@ Use xiaohongshu-mcp's video publishing feature.
 
 ---
 
+**Q:** Why do I always get `405` in Dify's "Agent Strategy (MCP tools supported)" or "MCP SSE / StreamableHTTP" plugin?
+**A:**
+
+`xiaohongshu-mcp` currently exposes **Streamable HTTP MCP** on `/mcp`, and tool calls are handled via **POST**. If a client starts with an SSE-style GET handshake, it will return `405 Method Not Allowed`.
+
+Troubleshooting checklist:
+
+1. In Dify, prefer **Streamable HTTP / HTTP MCP** mode (not pure SSE mode).
+2. Set MCP URL to: `http://<your-server>:18060/mcp`.
+3. Verify the endpoint first with `curl -X POST http://<your-server>:18060/mcp` or MCP Inspector.
+4. If your Dify plugin version only supports SSE handshake, use a Streamable HTTP-capable MCP client (Claude Code / Cursor / Cline), or place an MCP gateway adapter in front before connecting Dify.
+
+---
+
 ## 3. 🌟 Community Showcases
 
 > 💡 **Highly Recommended**: These are real-world use cases from community contributors, featuring detailed configuration steps and practical experiences!
