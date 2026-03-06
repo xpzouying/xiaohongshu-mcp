@@ -719,10 +719,16 @@ func (s *AppServer) handleReplyComment(ctx context.Context, args map[string]inte
 		}
 	}
 
+	// 解析可选的 max_attempts 参数
+	maxAttempts := 0
+	if v, ok := args["max_attempts"].(float64); ok {
+		maxAttempts = int(v)
+	}
+
 	logrus.Infof("MCP: 回复评论 - Feed ID: %s, Comment ID: %s, User ID: %s, 内容长度: %d", feedID, commentID, userID, len(content))
 
 	// 回复评论
-	result, err := s.xiaohongshuService.ReplyCommentToFeed(ctx, feedID, xsecToken, commentID, userID, content)
+	result, err := s.xiaohongshuService.ReplyCommentToFeed(ctx, feedID, xsecToken, commentID, userID, content, maxAttempts)
 	if err != nil {
 		return &MCPToolResult{
 			Content: []MCPContent{{
