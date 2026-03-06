@@ -5,9 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-rod/rod"
+	"github.com/go-rod/rod/lib/proto"
 	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/headless_browser"
 	"github.com/xpzouying/xiaohongshu-mcp/browser"
@@ -19,11 +22,34 @@ import (
 )
 
 // XiaohongshuService 小红书业务服务
-type XiaohongshuService struct{}
+type XiaohongshuService struct {
+	loginMu       sync.Mutex
+	loginBrowser  *headless_browser.Browser
+	loginPage     *rod.Page
+	loginDeadline time.Time
+}
 
 // NewXiaohongshuService 创建小红书服务实例
 func NewXiaohongshuService() *XiaohongshuService {
 	return &XiaohongshuService{}
+}
+
+func (s *XiaohongshuService) clearLoginSessionLocked() {
+	if s.loginPage != nil {
+		_ = s.loginPage.Close()
+		s.loginPage = nil
+	}
+	if s.loginBrowser != nil {
+		s.loginBrowser.Close()
+		s.loginBrowser = nil
+	}
+	s.loginDeadline = time.Time{}
+}
+
+func (s *XiaohongshuService) clearLoginSession() {
+	s.loginMu.Lock()
+	defer s.loginMu.Unlock()
+	s.clearLoginSessionLocked()
 }
 
 // PublishRequest 发布请求
@@ -128,46 +154,183 @@ func (s *XiaohongshuService) GetLoginQrcode(ctx context.Context) (*LoginQrcodeRe
 	b := newBrowser()
 	page := b.NewPage()
 
-	deferFunc := func() {
-		_ = page.Close()
-		b.Close()
-	}
-
 	loginAction := xiaohongshu.NewLogin(page)
 
 	img, loggedIn, err := loginAction.FetchQrcodeImage(ctx)
-	if err != nil || loggedIn {
-		defer deferFunc()
-	}
 	if err != nil {
+		_ = page.Close()
+		b.Close()
 		return nil, err
 	}
 
 	timeout := 4 * time.Minute
 
-	if !loggedIn {
-		go func() {
-			ctxTimeout, cancel := context.WithTimeout(context.Background(), timeout)
-			defer cancel()
-			defer deferFunc()
-
-			if loginAction.WaitForLogin(ctxTimeout) {
-				if er := saveCookies(page); er != nil {
-					logrus.Errorf("failed to save cookies: %v", er)
-				}
-			}
-		}()
+	if loggedIn {
+		_ = page.Close()
+		b.Close()
+		return &LoginQrcodeResponse{
+			Timeout:    "0s",
+			Img:        "",
+			IsLoggedIn: true,
+		}, nil
 	}
 
-	return &LoginQrcodeResponse{
-		Timeout: func() string {
-			if loggedIn {
-				return "0s"
+	s.loginMu.Lock()
+	s.clearLoginSessionLocked()
+	s.loginBrowser = b
+	s.loginPage = page
+	s.loginDeadline = time.Now().Add(timeout)
+	s.loginMu.Unlock()
+
+	go func(waitPage *rod.Page, waitBrowser *headless_browser.Browser) {
+		ctxTimeout, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+
+		if loginAction.WaitForLogin(ctxTimeout) {
+			if er := saveCookies(waitPage); er != nil {
+				logrus.Errorf("failed to save cookies: %v", er)
 			}
-			return timeout.String()
-		}(),
+		}
+
+		s.loginMu.Lock()
+		defer s.loginMu.Unlock()
+		if s.loginPage == waitPage {
+			s.clearLoginSessionLocked()
+		} else {
+			_ = waitPage.Close()
+			waitBrowser.Close()
+		}
+	}(page, b)
+
+	return &LoginQrcodeResponse{
+		Timeout:    timeout.String(),
 		Img:        img,
-		IsLoggedIn: loggedIn,
+		IsLoggedIn: false,
+	}, nil
+}
+
+// SubmitLoginVerificationCode 提交登录验证码（用于扫码后的人机验证/短信验证码）
+func (s *XiaohongshuService) SubmitLoginVerificationCode(ctx context.Context, code string) (*LoginStatusResponse, error) {
+	code = strings.TrimSpace(code)
+	if code == "" {
+		return nil, fmt.Errorf("验证码不能为空")
+	}
+
+	// 兜底：有些场景下验证码提交后会话已被后台流程回收，但实际上已登录。
+	checkAlreadyLoggedIn := func() (*LoginStatusResponse, error) {
+		st, err := s.CheckLoginStatus(ctx)
+		if err == nil && st != nil && st.IsLoggedIn {
+			return st, nil
+		}
+		return nil, err
+	}
+
+	s.loginMu.Lock()
+	page := s.loginPage
+	deadline := s.loginDeadline
+	s.loginMu.Unlock()
+
+	if page == nil {
+		if st, _ := checkAlreadyLoggedIn(); st != nil {
+			return st, nil
+		}
+		return nil, fmt.Errorf("当前没有待验证的登录会话，请先调用 get_login_qrcode")
+	}
+	if !deadline.IsZero() && time.Now().After(deadline) {
+		s.clearLoginSession()
+		if st, _ := checkAlreadyLoggedIn(); st != nil {
+			return st, nil
+		}
+		return nil, fmt.Errorf("登录会话已过期，请重新调用 get_login_qrcode")
+	}
+
+	pp := page.Context(ctx)
+
+	// 使用 rod API 填写验证码，避免大量 JS 注入。
+	inputSelectors := []string{
+		`input[placeholder*="验证码"]`,
+		`input[aria-label*="验证码"]`,
+		`input[inputmode="numeric"]`,
+		`input[type="tel"]`,
+		`input[type="number"]`,
+		`input[type="text"]`,
+	}
+
+	filled := false
+	for _, sel := range inputSelectors {
+		input, findErr := pp.Timeout(2 * time.Second).Element(sel)
+		if findErr != nil || input == nil {
+			continue
+		}
+		if err := input.Input(code); err == nil {
+			filled = true
+			break
+		}
+	}
+	if !filled {
+		if st, _ := checkAlreadyLoggedIn(); st != nil {
+			return st, nil
+		}
+		return nil, fmt.Errorf("未找到验证码输入框，请先调用 get_login_qrcode 并确认页面停留在验证码界面")
+	}
+
+	// 尝试点击确认按钮（若页面需要手动提交）
+	buttonKeywords := []string{"确定", "提交", "下一步", "验证", "确认", "登录"}
+	buttonSelectors := []string{"button", `[role="button"]`, ".btn", ".submit", ".confirm"}
+
+	clicked := false
+	for _, sel := range buttonSelectors {
+		buttons, findErr := pp.Timeout(2 * time.Second).Elements(sel)
+		if findErr != nil || len(buttons) == 0 {
+			continue
+		}
+		for _, btn := range buttons {
+			text, textErr := btn.Text()
+			if textErr != nil {
+				continue
+			}
+			text = strings.TrimSpace(text)
+			if text == "" {
+				continue
+			}
+			for _, kw := range buttonKeywords {
+				if strings.Contains(text, kw) {
+					if err := btn.Click(proto.InputMouseButtonLeft, 1); err == nil {
+						clicked = true
+						break
+					}
+				}
+			}
+			if clicked {
+				break
+			}
+		}
+		if clicked {
+			break
+		}
+	}
+
+	waitCtx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+	defer cancel()
+	loginAction := xiaohongshu.NewLogin(page)
+	if !loginAction.WaitForLogin(waitCtx) {
+		// 二次兜底：即使 WaitForLogin 超时，也可能已登录（DOM 变化慢/选择器漂移）
+		if st, _ := checkAlreadyLoggedIn(); st != nil {
+			_ = saveCookies(page)
+			s.clearLoginSession()
+			return st, nil
+		}
+		return nil, fmt.Errorf("验证码已提交，但未检测到登录成功，请确认验证码是否正确")
+	}
+
+	if err := saveCookies(page); err != nil {
+		return nil, fmt.Errorf("登录成功但保存 cookies 失败: %w", err)
+	}
+
+	s.clearLoginSession()
+	return &LoginStatusResponse{
+		IsLoggedIn: true,
+		Username:   configs.Username,
 	}, nil
 }
 
