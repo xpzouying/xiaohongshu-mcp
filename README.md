@@ -966,6 +966,29 @@ npx mcporter list xiaohongshu-mcp
 
 ---
 
+**Q:** Trae 里报 `list tools failed` / `fetch failed` 怎么排查？
+**A:**
+
+1. 先确认 MCP 服务已经启动：
+   - 终端有日志输出
+   - 浏览器可访问 `http://127.0.0.1:18060/ping`（返回 `pong`）
+2. Trae 配置里 URL 必须是**纯文本 HTTP 地址**，不要粘贴成 Markdown 链接。
+3. 推荐配置示例：
+
+```json
+{
+  "mcpServers": {
+    "xiaohongshu-mcp": {
+      "url": "http://127.0.0.1:18060/mcp"
+    }
+  }
+}
+```
+
+4. 如果 MCP 跑在 Docker / WSL 中，请把 `127.0.0.1` 改成宿主机可达地址（例如 `host.docker.internal` 或宿主机 IPv4）。
+
+---
+
 ## 3. 🌟 实战案例展示 (Community Showcases)
 
 > 💡 **强烈推荐查看**：这些都是社区贡献者的真实使用案例，包含详细的配置步骤和实战经验！
