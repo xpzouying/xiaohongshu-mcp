@@ -116,10 +116,14 @@ func clickEmptyPosition(page *rod.Page) {
 }
 
 func mustClickPublishTab(page *rod.Page, tabname string) error {
-	page.MustElement(`div.upload-content`).MustWaitVisible()
-
 	deadline := time.Now().Add(15 * time.Second)
 	for time.Now().Before(deadline) {
+		if err := waitForPublishPageReady(page); err != nil {
+			logrus.Warnf("发布页尚未就绪: %v", err)
+			time.Sleep(300 * time.Millisecond)
+			continue
+		}
+
 		tab, blocked, err := getTabElement(page, tabname)
 		if err != nil {
 			logrus.Warnf("获取发布 TAB 元素失败: %v", err)
@@ -149,6 +153,30 @@ func mustClickPublishTab(page *rod.Page, tabname string) error {
 	}
 
 	return errors.Errorf("没有找到发布 TAB - %s", tabname)
+}
+
+
+func waitForPublishPageReady(page *rod.Page) error {
+	deadline := time.Now().Add(20 * time.Second)
+	for time.Now().Before(deadline) {
+		has, elem, err := page.Has(`div.upload-content`)
+		if err == nil && has && elem != nil && isElementVisible(elem) {
+			if err := page.WaitDOMStable(300*time.Millisecond, 0.1); err != nil {
+				logrus.Debugf("发布页 DOM 仍在波动: %v", err)
+			} else {
+				return nil
+			}
+		}
+
+		hasTab, tabElem, err := page.Has(`div.creator-tab`)
+		if err == nil && hasTab && tabElem != nil && isElementVisible(tabElem) {
+			return nil
+		}
+
+		time.Sleep(300 * time.Millisecond)
+	}
+
+	return errors.New("等待发布页关键元素出现超时")
 }
 
 func getTabElement(page *rod.Page, tabname string) (*rod.Element, bool, error) {
