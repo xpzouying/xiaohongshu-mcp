@@ -160,6 +160,13 @@ func submitPublishVideo(page *rod.Page, title, content string, tags []string, sc
 
 	time.Sleep(1 * time.Second)
 
+	// 勾选AI内容声明
+	if err := setAIContentDeclaration(page); err != nil {
+		slog.Warn("设置AI生成内容声明失败，继续发布", "error", err)
+	} else {
+		slog.Info("已勾选AI生成内容声明")
+	}
+
 	// 处理定时发布
 	if scheduleTime != nil {
 		if err := setSchedulePublish(page, *scheduleTime); err != nil {
