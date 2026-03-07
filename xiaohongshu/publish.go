@@ -333,6 +333,13 @@ func submitPublish(page *rod.Page, title, content string, tags []string, schedul
 		}
 	}
 
+	// 自动勾选"笔记含AI生成内容"声明
+	if err := setAIContentDeclaration(page); err != nil {
+		slog.Warn("设置AI生成内容声明失败，继续发布", "error", err)
+	} else {
+		slog.Info("已勾选AI生成内容声明")
+	}
+
 	// 绑定商品
 	if err := bindProducts(page, products); err != nil {
 		return errors.Wrap(err, "绑定商品失败")
@@ -842,6 +849,75 @@ func confirmOriginalDeclaration(page *rod.Page) error {
 	return nil
 }
 
+// setAIContentDeclaration 点击"添加内容类型声明"下拉框，在弹出的 portal 菜单中选择"笔记含AI合成内容"
+func setAIContentDeclaration(page *rod.Page) error {
+	slog.Info("开始勾选AI内容声明")
+
+	// 等待页面稳定
+	page.MustWaitStable()
+
+	// 滚动到页面底部确保"内容设置"区域可见
+	page.MustEval(`() => {
+		const el = document.querySelector('.publish-page-content-content-extra');
+		if (el) el.scrollIntoView({behavior: 'instant', block: 'center'});
+	}`)
+	time.Sleep(500 * time.Millisecond)
+
+	// 1. 点击"添加内容类型声明"下拉框（d-select 组件）
+	declarationSelect, err := page.Timeout(5*time.Second).Element(
+		`.d-select-placeholder[style*="width: 226px"]`,
+	)
+	if err != nil {
+		// fallback: 用文本匹配
+		declarationSelect, err = page.Timeout(3 * time.Second).ElementR(".d-select-placeholder", "添加内容类型声明")
+		if err != nil {
+			slog.Warn("未找到'添加内容类型声明'下拉框，跳过AI声明", "error", err)
+			return nil
+		}
+	}
+
+	// 确认是正确的元素
+	text, _ := declarationSelect.Text()
+	if !strings.Contains(text, "内容类型声明") {
+		declarationSelect, err = page.Timeout(3 * time.Second).ElementR(".d-select-placeholder", "添加内容类型声明")
+		if err != nil {
+			slog.Warn("未找到正确的'添加内容类型声明'下拉框", "error", err)
+			return nil
+		}
+	}
+
+	if err := declarationSelect.Click(proto.InputMouseButtonLeft, 1); err != nil {
+		slog.Warn("点击'添加内容类型声明'下拉框失败", "error", err)
+		return nil
+	}
+	slog.Info("已点击'添加内容类型声明'下拉框")
+	time.Sleep(1 * time.Second)
+
+	// 2. 在弹出的 d-portal 下拉菜单中找到"笔记含AI合成内容"选项
+	aiOption, err := page.Timeout(5 * time.Second).ElementR(".d-option-name span", "笔记含AI合成内容")
+	if err != nil {
+		// fallback: 更宽泛匹配
+		aiOption, err = page.Timeout(3 * time.Second).ElementR(".d-option-name span", "AI合成")
+		if err != nil {
+			slog.Warn("未找到'笔记含AI合成内容'选项", "error", err)
+			return nil
+		}
+	}
+
+	if err := aiOption.Click(proto.InputMouseButtonLeft, 1); err != nil {
+		slog.Warn("点击'笔记含AI合成内容'选项失败", "error", err)
+		return nil
+	}
+	slog.Info("已勾选'笔记含AI合成内容'声明")
+	time.Sleep(500 * time.Millisecond)
+
+	// 点击空白处关闭下拉菜单
+	clickEmptyPosition(page)
+	time.Sleep(300 * time.Millisecond)
+
+	return nil
+}
+
 // bindProducts 绑定商品到发布内容
 func bindProducts(page *rod.Page, products []string) error {
 	if len(products) == 0 {
@@ -1099,4 +1175,34 @@ func waitForModalClose(page *rod.Page) error {
 	}
 
 	return errors.New("等待弹窗关闭超时")
+}
+
+func dumpAIContentDeclarationDebug(page *rod.Page) error {
+	result, err := page.Eval(`() => {
+		const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim();
+		const nodes = Array.from(document.querySelectorAll('div, label, span'))
+			.filter(node => /AI|人工智能|AIGC/i.test(node.textContent || ''))
+			.slice(0, 20)
+			.map((node, index) => {
+				const rect = node.getBoundingClientRect();
+				const input = node.querySelector('input[type="checkbox"]');
+				return {
+					index,
+					text: normalize(node.textContent).slice(0, 200),
+					tag: node.tagName,
+					className: node.className || '',
+					checked: input ? !!input.checked : null,
+					hasSwitch: !!node.querySelector('div.d-switch'),
+					hasCheckbox: !!input,
+					width: rect.width,
+					height: rect.height
+				};
+			});
+		return JSON.stringify(nodes, null, 2);
+	}`)
+	if err != nil {
+		return errors.Wrap(err, "抓取AI声明调试DOM失败")
+	}
+	slog.Warn("AI声明调试DOM", "nodes", result.Value.String())
+	return nil
 }
