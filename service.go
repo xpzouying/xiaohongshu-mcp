@@ -541,33 +541,35 @@ type BatchFavoriteResult struct {
 // BatchFavoriteFeed 批量收藏笔记（并发优化，最多 3 个并发）
 func (s *XiaohongshuService) BatchFavoriteFeed(ctx context.Context, feeds []BatchFavoriteRequest) ([]BatchFavoriteResult, error) {
 	results := make([]BatchFavoriteResult, len(feeds))
-
+	
 	// 使用 goroutine 并发收藏，最多同时 3 个（避免浏览器负载过高）
 	maxConcurrency := 3
 	semaphore := make(chan struct{}, maxConcurrency)
-
+	
 	var wg sync.WaitGroup
-
+	
 	for i, feed := range feeds {
+		// 获取信号量（限流）
+		semaphore <- struct{}{}
+		
 		wg.Add(1)
-
 		go func(idx int, req BatchFavoriteRequest) {
 			defer wg.Done()
 			defer func() {
-				// 恢复信号量
-				if _, ok := <-semaphore; ok {
-					<-semaphore
-				}
+				<-semaphore // 释放信号量
 			}()
-
+			
 			results[idx] = BatchFavoriteResult{FeedID: req.FeedID}
-
+			
 			// 创建带超时的上下文（单个收藏最多 60 秒）
 			ctxWithTimeout, cancel := context.WithTimeout(ctx, 60*time.Second)
 			defer cancel()
 			
 			// 创建独立的浏览器实例（避免并发冲突）
 			b := newBrowser()
+			defer b.Close() // 确保浏览器关闭
+			
+			// Panic 恢复
 			defer func() {
 				if r := recover(); r != nil {
 					action := "收藏"
@@ -579,7 +581,6 @@ func (s *XiaohongshuService) BatchFavoriteFeed(ctx context.Context, feeds []Batc
 					results[idx].Error = fmt.Sprintf("panic: %v", r)
 					results[idx].Message = action + "失败"
 				}
-				b.Close()
 			}()
 			
 			page := b.NewPage()
@@ -609,10 +610,10 @@ func (s *XiaohongshuService) BatchFavoriteFeed(ctx context.Context, feeds []Batc
 			}
 		}(i, feed)
 	}
-
+	
 	// 等待所有 goroutine 完成
 	wg.Wait()
-
+	
 	return results, nil
 }
 
