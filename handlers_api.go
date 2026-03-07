@@ -417,8 +417,9 @@ func (s *AppServer) batchFavoriteFeedHandler(c *gin.Context) {
 	batchFeeds := make([]BatchFavoriteRequest, len(req.Feeds))
 	for i, f := range req.Feeds {
 		batchFeeds[i] = BatchFavoriteRequest{
-			FeedID:    f.FeedID,
-			XsecToken: f.XsecToken,
+			FeedID:     f.FeedID,
+			XsecToken:  f.XsecToken,
+			Unfavorite: f.Unfavorite,
 		}
 	}
 

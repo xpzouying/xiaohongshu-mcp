@@ -525,8 +525,9 @@ func (s *XiaohongshuService) UnfavoriteFeed(ctx context.Context, feedID, xsecTok
 
 // BatchFavoriteRequest 批量收藏请求
 type BatchFavoriteRequest struct {
-	FeedID    string `json:"feed_id"`
-	XsecToken string `json:"xsec_token"`
+	FeedID     string `json:"feed_id"`
+	XsecToken  string `json:"xsec_token"`
+	Unfavorite bool   `json:"unfavorite"`
 }
 
 // BatchFavoriteResult 批量收藏结果
@@ -564,32 +565,47 @@ func (s *XiaohongshuService) BatchFavoriteFeed(ctx context.Context, feeds []Batc
 			// 创建带超时的上下文（单个收藏最多 60 秒）
 			ctxWithTimeout, cancel := context.WithTimeout(ctx, 60*time.Second)
 			defer cancel()
-
+			
 			// 创建独立的浏览器实例（避免并发冲突）
 			b := newBrowser()
 			defer func() {
 				if r := recover(); r != nil {
-					logrus.Errorf("收藏 %s 时发生 panic: %v", req.FeedID, r)
+					action := "收藏"
+					if req.Unfavorite {
+						action = "取消收藏"
+					}
+					logrus.Errorf("%s %s 时发生 panic: %v", action, req.FeedID, r)
 					results[idx].Success = false
 					results[idx].Error = fmt.Sprintf("panic: %v", r)
-					results[idx].Message = "收藏失败"
+					results[idx].Message = action + "失败"
 				}
 				b.Close()
 			}()
-
+			
 			page := b.NewPage()
 			defer page.Close()
-
+			
 			action := xiaohongshu.NewFavoriteAction(page)
-			if err := action.Favorite(ctxWithTimeout, req.FeedID, req.XsecToken); err != nil {
+			var err error
+			var actionName string
+			
+			if req.Unfavorite {
+				err = action.Unfavorite(ctxWithTimeout, req.FeedID, req.XsecToken)
+				actionName = "取消收藏"
+			} else {
+				err = action.Favorite(ctxWithTimeout, req.FeedID, req.XsecToken)
+				actionName = "收藏"
+			}
+			
+			if err != nil {
 				results[idx].Success = false
 				results[idx].Error = err.Error()
-				results[idx].Message = "收藏失败"
-				logrus.Warnf("收藏 %s 失败：%v", req.FeedID, err)
+				results[idx].Message = actionName + "失败"
+				logrus.Warnf("%s %s 失败：%v", actionName, req.FeedID, err)
 			} else {
 				results[idx].Success = true
-				results[idx].Message = "收藏成功"
-				logrus.Infof("收藏 %s 成功", req.FeedID)
+				results[idx].Message = actionName + "成功"
+				logrus.Infof("%s %s 成功", actionName, req.FeedID)
 			}
 		}(i, feed)
 	}
