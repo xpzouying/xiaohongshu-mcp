@@ -36,36 +36,44 @@ func (s *XiaohongshuService) ScreenshotFeed(ctx context.Context, feedID, xsecTok
 	time.Sleep(2 * time.Second)
 
 	// Dismiss popups
-	page.MustEval(`() => {
+	_, err := page.Eval(`() => {
 		document.querySelectorAll('button').forEach(b => {
 			if (b.textContent.includes('好的') || b.textContent.includes('我知道了')) b.click();
 		});
 	}`)
+	if err != nil {
+		logrus.Debugf("关闭弹窗时出错（可忽略）: %v", err)
+	}
 	time.Sleep(1 * time.Second)
 
-	// Step 1: Scroll right panel to bottom to show comments
-	page.MustEval(`() => {
+	// Scroll right panel to bottom to show comments
+	_, err = page.Eval(`() => {
 		const containers = document.querySelectorAll('.note-scroller, .interaction-container, [class*="scroll"], .note-content');
 		containers.forEach(c => {
 			if (c.scrollHeight > c.clientHeight) c.scrollTop = c.scrollHeight;
 		});
 	}`)
+	if err != nil {
+		logrus.Debugf("滚动评论区时出错: %v", err)
+	}
 	time.Sleep(2 * time.Second)
 
-	// Step 2: Click ALL "展开回复" / "查看回复" / reply count buttons
-	page.MustEval(`() => {
-		// Click elements that contain reply-related text
+	// Click "展开回复" buttons to expand sub-comments
+	_, err = page.Eval(`() => {
 		document.querySelectorAll('span, div, a, button, .show-more, .reply-container span').forEach(el => {
 			const t = (el.textContent || '').trim();
 			if ((t.includes('展开') || t.includes('查看') || t.includes('条回复') || t.match(/^\d+条回复$/)) && t.length < 30) {
-				try { el.click(); console.log('Clicked:', t); } catch(e) {}
+				try { el.click(); } catch(e) {}
 			}
 		});
 	}`)
+	if err != nil {
+		logrus.Debugf("展开回复时出错: %v", err)
+	}
 	time.Sleep(3 * time.Second)
 
-	// Step 3: Scroll down again after expanding
-	page.MustEval(`() => {
+	// Scroll down again after expanding
+	_, _ = page.Eval(`() => {
 		const containers = document.querySelectorAll('.note-scroller, .interaction-container, [class*="scroll"], .note-content');
 		containers.forEach(c => {
 			if (c.scrollHeight > c.clientHeight) c.scrollTop = c.scrollHeight;
@@ -73,13 +81,13 @@ func (s *XiaohongshuService) ScreenshotFeed(ctx context.Context, feedID, xsecTok
 	}`)
 	time.Sleep(1 * time.Second)
 
-	screenshots := []string{}
-
-	// Take full page screenshot
+	// Take screenshot - return error if fails
 	png, err := page.Screenshot(true, &proto.PageCaptureScreenshot{Format: proto.PageCaptureScreenshotFormatPng})
-	if err == nil {
-		screenshots = append(screenshots, base64.StdEncoding.EncodeToString(png))
+	if err != nil {
+		return nil, fmt.Errorf("截图失败: %w", err)
 	}
+
+	screenshots := []string{base64.StdEncoding.EncodeToString(png)}
 
 	logrus.Infof("截图完成，共 %d 张", len(screenshots))
 	return &ScreenshotResponse{FeedID: feedID, Screenshots: screenshots}, nil
