@@ -52,6 +52,10 @@ func (s *AppServer) Start(port string) error {
 	}()
 
 	// 等待中断信号
+	// Note: Ignore SIGCHLD to prevent container shutdown when Chrome subprocess exits
+	// Docker containers may receive SIGCHLD when child processes (like Chrome) terminate
+	signal.Ignore(syscall.SIGCHLD)
+	
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
