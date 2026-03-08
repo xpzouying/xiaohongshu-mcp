@@ -8,25 +8,32 @@
 [![爱心汇聚](https://img.shields.io/badge/爱心汇聚-CNY%201285.92-blue?style=flat-square)](./DONATIONS.md)
 [![Docker Pulls](https://img.shields.io/docker/pulls/xpzouying/xiaohongshu-mcp?style=flat-square&logo=docker)](https://hub.docker.com/r/xpzouying/xiaohongshu-mcp)
 
-MCP for 小红书/xiaohongshu.com。
+MCP for 小红书 / xiaohongshu.com。让你的 AI 助手直接访问小红书数据。
 
-- 我的博客文章：[haha.ai/xiaohongshu-mcp](https://www.haha.ai/xiaohongshu-mcp)
+### 🚀 快速开始：选择最适合你的版本
 
-- **Openclaw 太火啦 🔥🔥🔥 ，新增 Openclaw 支持，分为两种，请各位按需使用：**
+> [!IMPORTANT]
+> #### 🔥 方案 A：Openclaw 深度集成 (推荐给开发者)
+> - **Openclaw 太火啦 🔥🔥🔥 ，新增 Openclaw 支持，分为两种，请各位按需使用：**
+> - [xiaohongshu-mcp-skills](https://github.com/autoclaw-cc/xiaohongshu-mcp-skills)（适用于已部署完本项目的用户）
+> - [xiaohongshu-skills](https://github.com/autoclaw-cc/xiaohongshu-skills)（开箱即用版）
 
-  * [xiaohongshu-mcp-skills](https://github.com/autoclaw-cc/xiaohongshu-mcp-skills)（适用于已部署完 xiaohongshu-mcp 的用户）
-  * [xiaohongshu-skills](https://github.com/autoclaw-cc/xiaohongshu-skills)（开箱即用版）
+> [!TIP]
+> #### ✨ 方案 B：x-mcp 浏览器插件版 (推荐给非技术同学 / 追求极简的用户)
+> - **不想折腾 Docker 或部署环境？试试：[xpzouying/x-mcp](https://github.com/xpzouying/x-mcp)**
+> - **零配置**：安装插件即用，无需任何代码、代理或复杂的环境配置。
+> - **安全稳定**：直接在常用浏览器 (Chrome/Edge) 及本地网络运行，无服务器 IP 风险，且能解决 90% 的部署报错。
 
+### 📖 相关资源
 
-> **📌 提交 PR 前必读：[贡献指南 | Contributing Guide](./CONTRIBUTING.md)**
+- **我的博客文章**：[haha.ai/xiaohongshu-mcp](https://www.haha.ai/xiaohongshu-mcp)
+- **贡献指南**：[Contributing Guide](./CONTRIBUTING.md)
 
-**遇到任何问题，务必要先看 [各种疑难杂症](https://github.com/xpzouying/xiaohongshu-mcp/issues/56)**。
+### 🛠️ 疑难杂症
 
-上面的 **疑难杂症** 列表后，还是解决不了你的部署问题，那么强烈推荐使用我写的另外一个工具：[xpzouying/x-mcp](https://github.com/xpzouying/x-mcp)，这个工具不需要你进行部署，只需要通过浏览器插件就能驱动你的 MCP，对于非技术同学来说更加友好。
+如果您在部署传统 Docker 版本时遇到问题，**务必先查看：[各种疑难杂症 (Issues #56)](https://github.com/xpzouying/xiaohongshu-mcp/issues/56)**。
 
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=xpzouying/xiaohongshu-mcp&type=Timeline)](https://www.star-history.com/#xpzouying/xiaohongshu-mcp&Timeline)
+> *提示：如果环境排查太耗时，切换到 [x-mcp 插件版](https://github.com/xpzouying/x-mcp) 通常是更高效的选择。*
 
 ## 赞赏支持
 
