@@ -8,8 +8,8 @@
 ## 摘要
 
 - 累计收到赞赏：￥ 1285.92
-- 累计捐赠：￥ 1300
-- 最近更新时间：2026-03-01
+- 累计捐赠：￥ 1610
+- 最近更新时间：2026-03-08
 
 ---
 
@@ -40,7 +40,7 @@
 **本月小结**
 
 - 收到赞赏合计：￥ 305.98
-- 捐出合计：待更新
+- 捐出合计：¥ 310.00，捐赠给腾讯慈善「重疾儿童协助」
 
 **收到的赞赏**
 | 日期 | 昵称 | 金额 | 备注 |
@@ -54,11 +54,12 @@
 | 2026-02-22 | 小小酷 | 1.00 | 赞赏码 |
 | 2026-02-27 | 陈志 | 200.00 | 赞赏码 |
 
-捐款截图记录：
-
-![72c41e0b82559dcfe77e477ab08000f1](https://github.com/user-attachments/assets/00d75786-d6b3-41b5-9ced-d2fec8b6514e)
-
-![xiaohongshu_01](https://github.com/user-attachments/assets/5c1d1cae-3a04-4730-8022-4608f0c6f3e7)
+<table>
+  <tr>
+    <td><img height="400" alt="donation-2026-02-intro" src="https://github.com/user-attachments/assets/00d75786-d6b3-41b5-9ced-d2fec8b6514e" /></td>
+    <td><img height="400" alt="donation-2026-02" src="https://github.com/user-attachments/assets/5c1d1cae-3a04-4730-8022-4608f0c6f3e7" /></td>
+  </tr>
+</table>
 
 
 ### 2026-01
