@@ -56,6 +56,8 @@
 
 捐款截图记录：
 
+![72c41e0b82559dcfe77e477ab08000f1](https://github.com/user-attachments/assets/00d75786-d6b3-41b5-9ced-d2fec8b6514e)
+
 ![xiaohongshu_01](https://github.com/user-attachments/assets/5c1d1cae-3a04-4730-8022-4608f0c6f3e7)
 
 
