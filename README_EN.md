@@ -7,7 +7,7 @@
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 [![Philanthropy](https://img.shields.io/badge/Philanthropy-CNY%201610.00-brightgreen?style=flat-square)](./DONATIONS.md)
-[![Gratitude](https://img.shields.io/badge/Gratitude-CNY%201345.89-blue?style=flat-square)](./DONATIONS.md)
+[![Gratitude](https://img.shields.io/badge/Gratitude-CNY%201365.88-blue?style=flat-square)](./DONATIONS.md)
 [![Docker Pulls](https://img.shields.io/docker/pulls/xpzouying/xiaohongshu-mcp?style=flat-square&logo=docker)](https://hub.docker.com/r/xpzouying/xiaohongshu-mcp)
 
 MCP for RedNote (Xiaohongshu) platform.
