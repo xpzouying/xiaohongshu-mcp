@@ -54,6 +54,10 @@
 | 2026-02-22 | 小小酷 | 1.00 | 赞赏码 |
 | 2026-02-27 | 陈志 | 200.00 | 赞赏码 |
 
+捐款截图记录：
+
+![xiaohongshu_01](https://github.com/user-attachments/assets/5c1d1cae-3a04-4730-8022-4608f0c6f3e7)
+
 
 ### 2026-01
 
