@@ -598,3 +598,27 @@ func (s *XiaohongshuService) GetMyProfile(ctx context.Context) (*UserProfileResp
 
 	return response, nil
 }
+
+// FollowUser 关注用户
+func (s *XiaohongshuService) FollowUser(ctx context.Context, userID, xsecToken string) error {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewFollowAction(page)
+	return action.FollowUser(ctx, userID, xsecToken)
+}
+
+// UnfollowUser 取消关注用户
+func (s *XiaohongshuService) UnfollowUser(ctx context.Context, userID, xsecToken string) error {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewFollowAction(page)
+	return action.UnfollowUser(ctx, userID, xsecToken)
+}
