@@ -149,3 +149,29 @@ func TestDownloadImage_AntiHotlink(t *testing.T) {
 		t.Fatalf("下载文件为空")
 	}
 }
+
+// TestDownloadImage_AntiHotlink_External 集成测试：真实外网防盗链场景
+// 默认跳过，设置 XHS_RUN_NETWORK_TESTS=1 后执行。
+func TestDownloadImage_AntiHotlink_External(t *testing.T) {
+	if os.Getenv("XHS_RUN_NETWORK_TESTS") != "1" {
+		t.Skip("skip external network test; set XHS_RUN_NETWORK_TESTS=1 to enable")
+	}
+
+	testURL := "https://img1.mydrivers.com/img/20260213/s_fdac2d21214147019e629fa7f2c8802e.png"
+
+	tempDir := t.TempDir()
+	downloader := NewImageDownloader(tempDir)
+
+	filePath, err := downloader.DownloadImage(testURL)
+	if err != nil {
+		t.Fatalf("下载失败: %v", err)
+	}
+
+	info, err := os.Stat(filePath)
+	if err != nil {
+		t.Fatalf("文件不存在: %v", err)
+	}
+	if info.Size() == 0 {
+		t.Fatalf("下载文件为空")
+	}
+}
