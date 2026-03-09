@@ -1,6 +1,10 @@
 package downloader
 
 import (
+	"encoding/base64"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -102,29 +106,46 @@ func TestImageDownloader_generateFileName(t *testing.T) {
 }
 
 // TestDownloadImage_AntiHotlink 测试下载防盗链图片
-// 验证 PR #412 的修改：添加 User-Agent 和 Referer 解决 403 问题
+// 验证添加 User-Agent 和 Referer 解决 403 问题
 func TestDownloadImage_AntiHotlink(t *testing.T) {
-	// 快科技的图片，需要 User-Agent 才能下载
-	testURL := "https://img1.mydrivers.com/img/20260213/s_fdac2d21214147019e629fa7f2c8802e.png"
+	// 1x1 透明 PNG，避免依赖外部网络资源导致测试不稳定
+	const pngBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7+2X8AAAAASUVORK5CYII="
+	pngData, err := base64.StdEncoding.DecodeString(pngBase64)
+	if err != nil {
+		t.Fatalf("解析测试图片失败: %v", err)
+	}
+
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("User-Agent"); got == "" {
+			http.Error(w, "missing user-agent", http.StatusForbidden)
+			return
+		}
+
+		expectedReferer := fmt.Sprintf("%s/", server.URL)
+		if got := r.Header.Get("Referer"); got != expectedReferer {
+			http.Error(w, "invalid referer", http.StatusForbidden)
+			return
+		}
+
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write(pngData)
+	}))
+	defer server.Close()
 
 	tempDir := t.TempDir()
 	downloader := NewImageDownloader(tempDir)
 
-	filePath, err := downloader.DownloadImage(testURL)
+	filePath, err := downloader.DownloadImage(server.URL + "/image.png")
 	if err != nil {
 		t.Fatalf("下载失败: %v", err)
 	}
 
-	// 验证文件存在
 	info, err := os.Stat(filePath)
 	if err != nil {
 		t.Fatalf("文件不存在: %v", err)
 	}
-
-	// 验证文件大小合理（大于 1KB）
-	if info.Size() < 1024 {
-		t.Errorf("文件太小，可能下载失败: %d bytes", info.Size())
+	if info.Size() == 0 {
+		t.Fatalf("下载文件为空")
 	}
-
-	t.Logf("下载成功: %s (%d bytes)", filePath, info.Size())
 }
