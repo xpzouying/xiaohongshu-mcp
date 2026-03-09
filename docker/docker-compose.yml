@@ -11,7 +11,9 @@ services:
     volumes:
       - ./data:/app/data
       - ./images:/app/images
+      - /etc/localtime:/etc/localtime:ro
     environment:
+      - TZ=Asia/Shanghai
       - ROD_BROWSER_BIN=/usr/bin/google-chrome
       - COOKIES_PATH=/app/data/cookies.json
     ports:
