@@ -11,6 +11,12 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const (
+	followActionTimeout = 60 * time.Second
+	pageStableWait      = 2 * time.Second
+	clickEffectWait     = 1 * time.Second
+)
+
 // FollowAction handles follow/unfollow operations via browser automation.
 type FollowAction struct {
 	page *rod.Page
@@ -18,7 +24,7 @@ type FollowAction struct {
 
 // NewFollowAction creates a new FollowAction with the given page.
 func NewFollowAction(page *rod.Page) *FollowAction {
-	return &FollowAction{page: page.Timeout(60 * time.Second)}
+	return &FollowAction{page: page.Timeout(followActionTimeout)}
 }
 
 // FollowUser navigates to a user's profile and clicks the follow button.
@@ -46,10 +52,10 @@ func (f *FollowAction) doFollowAction(ctx context.Context, userID, xsecToken str
 		return fmt.Errorf("打开用户主页失败: %w", err)
 	}
 	page.MustWaitDOMStable()
-	time.Sleep(2 * time.Second)
+	time.Sleep(pageStableWait)
 
-	// Find the follow/unfollow button by text content
-	btn, err := findFollowButton(page, follow)
+	// Find the follow/unfollow button in the user profile header area
+	btn, err := findFollowButtonInProfile(page, follow)
 	if err != nil {
 		return fmt.Errorf("未找到%s按钮: %w", action, err)
 	}
@@ -57,17 +63,17 @@ func (f *FollowAction) doFollowAction(ctx context.Context, userID, xsecToken str
 	if err := btn.Click(proto.InputMouseButtonLeft, 1); err != nil {
 		return fmt.Errorf("点击%s按钮失败: %w", action, err)
 	}
-	time.Sleep(1 * time.Second)
+	time.Sleep(clickEffectWait)
 
 	// For unfollow, handle confirmation dialog
 	if !follow {
 		if err := dismissConfirmDialog(page); err != nil {
-			logrus.Debugf("处理确认弹窗: %v", err)
+			logrus.Warnf("取消关注确认弹窗处理失败: %v", err)
 		}
-		time.Sleep(1 * time.Second)
+		time.Sleep(clickEffectWait)
 	}
 
-	// Verify the action succeeded by checking button state changed
+	// Verify the action succeeded
 	if err := verifyFollowState(page, follow); err != nil {
 		logrus.Warnf("%s操作可能未生效: %v", action, err)
 	}
@@ -76,9 +82,31 @@ func (f *FollowAction) doFollowAction(ctx context.Context, userID, xsecToken str
 	return nil
 }
 
-// findFollowButton locates the follow/unfollow button by its text content.
-func findFollowButton(page *rod.Page, wantFollow bool) (*rod.Element, error) {
-	buttons, err := page.Elements("button")
+// findFollowButtonInProfile locates the follow/unfollow button within the
+// user profile header area, avoiding buttons from recommendation lists.
+func findFollowButtonInProfile(page *rod.Page, wantFollow bool) (*rod.Element, error) {
+	// Try to find the button within the profile header first
+	profileSelectors := []string{
+		".user-info button",
+		"[class*='profile'] button",
+		"[class*='header'] button",
+	}
+
+	for _, selector := range profileSelectors {
+		btn, err := findButtonByText(page, selector, wantFollow)
+		if err == nil {
+			return btn, nil
+		}
+	}
+
+	// Fallback: search all buttons but prefer the first match
+	// (the profile follow button typically appears before recommendation buttons)
+	return findButtonByText(page, "button", wantFollow)
+}
+
+// findButtonByText searches for a follow/unfollow button matching the given selector and state.
+func findButtonByText(page *rod.Page, selector string, wantFollow bool) (*rod.Element, error) {
+	buttons, err := page.Elements(selector)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +126,7 @@ func findFollowButton(page *rod.Page, wantFollow bool) (*rod.Element, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("未找到匹配的按钮（期望%s状态）", map[bool]string{true: "关注", false: "已关注"}[wantFollow])
+	return nil, fmt.Errorf("未找到匹配的按钮")
 }
 
 // dismissConfirmDialog handles the unfollow confirmation popup.
@@ -132,10 +160,10 @@ func verifyFollowState(page *rod.Page, didFollow bool) error {
 		}
 		text = strings.TrimSpace(text)
 		if didFollow && (text == "已关注" || strings.Contains(text, "已关注")) {
-			return nil // Successfully followed
+			return nil
 		}
 		if !didFollow && (text == "关注" || text == "+ 关注") {
-			return nil // Successfully unfollowed
+			return nil
 		}
 	}
 	return fmt.Errorf("操作后未检测到预期的按钮状态变化")
