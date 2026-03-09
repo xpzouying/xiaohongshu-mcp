@@ -12,6 +12,15 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const (
+	screenshotTimeout  = 90 * time.Second
+	pageLoadWait       = 2 * time.Second
+	scrollWait         = 2 * time.Second
+	expandWait         = 500 * time.Millisecond
+	scrollStep         = 500
+	maxScrollAttempts  = 10
+)
+
 // ScreenshotFeed captures a post page screenshot including comments section.
 func (s *XiaohongshuService) ScreenshotFeed(ctx context.Context, feedID, xsecToken string) (*ScreenshotResponse, error) {
 	b := newBrowser()
@@ -23,29 +32,23 @@ func (s *XiaohongshuService) ScreenshotFeed(ctx context.Context, feedID, xsecTok
 	url := fmt.Sprintf("https://www.xiaohongshu.com/explore/%s?xsec_token=%s&xsec_source=pc_search", feedID, xsecToken)
 	logrus.Infof("截图帖子: %s", url)
 
-	page = page.Context(ctx).Timeout(90 * time.Second)
+	page = page.Context(ctx).Timeout(screenshotTimeout)
 	page.MustNavigate(url)
 	page.MustWaitDOMStable()
-	time.Sleep(2 * time.Second)
+	time.Sleep(pageLoadWait)
 
-	// Dismiss popups using go-rod native API
+	// Dismiss popups
 	dismissPopupButtons(page)
 
-	// Scroll down to reveal comments using go-rod Mouse.Scroll
-	if err := page.Mouse.Scroll(0, 3000, 5); err != nil {
-		logrus.Debugf("滚动页面时出错（可忽略）: %v", err)
-	}
-	time.Sleep(2 * time.Second)
+	// Scroll to bottom incrementally until page stops growing
+	scrollToBottom(page)
 
-	// Click "展开回复" buttons to expand sub-comments
+	// Expand collapsed reply threads
 	expandReplyButtons(page)
-	time.Sleep(3 * time.Second)
+	time.Sleep(scrollWait)
 
-	// Scroll down again after expanding
-	if err := page.Mouse.Scroll(0, 2000, 3); err != nil {
-		logrus.Debugf("再次滚动时出错: %v", err)
-	}
-	time.Sleep(1 * time.Second)
+	// Scroll again after expanding
+	scrollToBottom(page)
 
 	// Take screenshot
 	png, err := page.Screenshot(true, &proto.PageCaptureScreenshot{Format: proto.PageCaptureScreenshotFormatPng})
@@ -61,6 +64,7 @@ func (s *XiaohongshuService) ScreenshotFeed(ctx context.Context, feedID, xsecTok
 
 // dismissPopupButtons finds and clicks common popup dismiss buttons.
 func dismissPopupButtons(page *rod.Page) {
+	dismissKeywords := []string{"好的", "我知道了"}
 	buttons, err := page.Elements("button")
 	if err != nil {
 		return
@@ -70,35 +74,88 @@ func dismissPopupButtons(page *rod.Page) {
 		if err != nil {
 			continue
 		}
-		if strings.Contains(text, "好的") || strings.Contains(text, "我知道了") {
-			if err := btn.Click(proto.InputMouseButtonLeft, 1); err != nil {
-				logrus.Debugf("关闭弹窗按钮失败: %v", err)
+		for _, keyword := range dismissKeywords {
+			if strings.Contains(text, keyword) {
+				if err := btn.Click(proto.InputMouseButtonLeft, 1); err != nil {
+					logrus.Debugf("关闭弹窗按钮失败: %v", err)
+				}
+				time.Sleep(expandWait)
+				break
 			}
-			time.Sleep(500 * time.Millisecond)
 		}
 	}
 }
 
-// expandReplyButtons finds and clicks "展开回复" style buttons.
+// scrollToBottom scrolls the page incrementally until no more content loads.
+func scrollToBottom(page *rod.Page) {
+	for i := 0; i < maxScrollAttempts; i++ {
+		prevHeight, err := getPageHeight(page)
+		if err != nil {
+			break
+		}
+		if err := page.Mouse.Scroll(0, float64(scrollStep), 3); err != nil {
+			logrus.Debugf("滚动失败: %v", err)
+			break
+		}
+		time.Sleep(scrollWait)
+		currHeight, err := getPageHeight(page)
+		if err != nil || currHeight <= prevHeight {
+			break
+		}
+	}
+}
+
+// getPageHeight returns the current document scroll height.
+func getPageHeight(page *rod.Page) (int, error) {
+	res, err := page.Eval(`() => document.documentElement.scrollHeight`)
+	if err != nil {
+		return 0, err
+	}
+	return res.Value.Int(), nil
+}
+
+// expandReplyButtons finds and clicks reply expansion buttons.
+// Uses targeted selectors to avoid scanning all DOM elements.
 func expandReplyButtons(page *rod.Page) {
-	elements, err := page.Elements("span, div, a, button")
+	expandKeywords := []string{"展开", "查看", "条回复"}
+
+	// Target elements likely to be expand buttons
+	selectors := []string{".show-more", "[class*='reply'] span", "[class*='comment'] span", "[class*='expand']"}
+	for _, selector := range selectors {
+		elements, err := page.Elements(selector)
+		if err != nil {
+			continue
+		}
+		clickExpandElements(elements, expandKeywords)
+	}
+
+	// Fallback: check all spans (narrower than "span, div, a, button")
+	spans, err := page.Elements("span")
 	if err != nil {
 		return
 	}
+	clickExpandElements(spans, expandKeywords)
+}
+
+// clickExpandElements clicks elements whose text matches expand keywords.
+func clickExpandElements(elements rod.Elements, keywords []string) {
 	for _, el := range elements {
 		text, err := el.Text()
 		if err != nil {
 			continue
 		}
 		text = strings.TrimSpace(text)
-		if len(text) > 30 {
+		if len(text) == 0 || len(text) > 30 {
 			continue
 		}
-		if strings.Contains(text, "展开") || strings.Contains(text, "查看") || strings.Contains(text, "条回复") {
-			if err := el.Click(proto.InputMouseButtonLeft, 1); err != nil {
-				logrus.Debugf("点击展开按钮失败: %v", err)
+		for _, keyword := range keywords {
+			if strings.Contains(text, keyword) {
+				if err := el.Click(proto.InputMouseButtonLeft, 1); err != nil {
+					logrus.Debugf("点击展开按钮失败: %v", err)
+				}
+				time.Sleep(expandWait)
+				break
 			}
-			time.Sleep(500 * time.Millisecond)
 		}
 	}
 }
