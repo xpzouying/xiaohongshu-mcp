@@ -109,3 +109,15 @@ type ActionResult struct {
 	Success bool   `json:"success"`
 	Message string `json:"message"`
 }
+
+// ScreenshotRequest 截取帖子页面截图请求
+type ScreenshotRequest struct {
+	FeedID    string `json:"feed_id" binding:"required"`
+	XsecToken string `json:"xsec_token" binding:"required"`
+}
+
+// ScreenshotResponse 截取帖子页面截图响应
+type ScreenshotResponse struct {
+	FeedID      string   `json:"feed_id"`
+	Screenshots []string `json:"screenshots"`
+}
