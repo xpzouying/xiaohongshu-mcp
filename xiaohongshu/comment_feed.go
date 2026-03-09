@@ -29,7 +29,7 @@ func (f *CommentFeedAction) PostComment(ctx context.Context, feedID, xsecToken, 
 	logrus.Infof("打开 feed 详情页: %s", url)
 
 	// 导航到详情页
-	page.MustNavigate(url)
+	SafeNavigate(page, url)
 	page.MustWaitDOMStable()
 	time.Sleep(1 * time.Second)
 
@@ -88,7 +88,7 @@ func (f *CommentFeedAction) ReplyToComment(ctx context.Context, feedID, xsecToke
 	logrus.Infof("打开 feed 详情页进行回复: %s", url)
 
 	// 导航到详情页
-	page.MustNavigate(url)
+	SafeNavigate(page, url)
 	page.MustWaitDOMStable()
 	time.Sleep(1 * time.Second)
 
