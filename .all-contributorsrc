@@ -250,6 +250,15 @@
         "code",
         "doc"
       ]
+    },
+    {
+      "login": "blablabiu",
+      "name": "Xinhao Chen",
+      "avatar_url": "https://avatars.githubusercontent.com/u/123888078?v=4",
+      "profile": "https://github.com/blablabiu",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
