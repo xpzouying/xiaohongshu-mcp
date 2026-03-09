@@ -293,3 +293,51 @@ func (s *AppServer) myProfileHandler(c *gin.Context) {
 	c.Set("account", "ai-report")
 	respondSuccess(c, map[string]any{"data": result}, "获取我的主页成功")
 }
+
+// followUserHandler 关注用户
+func (s *AppServer) followUserHandler(c *gin.Context) {
+	var req FollowRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
+			"请求参数错误", err.Error())
+		return
+	}
+
+	err := s.xiaohongshuService.FollowUser(c.Request.Context(), req.UserID, req.XsecToken)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "FOLLOW_FAILED",
+			"关注用户失败", err.Error())
+		return
+	}
+
+	c.Set("account", "ai-report")
+	respondSuccess(c, map[string]any{
+		"user_id": req.UserID,
+		"action":  "follow",
+		"success": true,
+	}, "关注成功")
+}
+
+// unfollowUserHandler 取消关注用户
+func (s *AppServer) unfollowUserHandler(c *gin.Context) {
+	var req FollowRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
+			"请求参数错误", err.Error())
+		return
+	}
+
+	err := s.xiaohongshuService.UnfollowUser(c.Request.Context(), req.UserID, req.XsecToken)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "UNFOLLOW_FAILED",
+			"取消关注失败", err.Error())
+		return
+	}
+
+	c.Set("account", "ai-report")
+	respondSuccess(c, map[string]any{
+		"user_id": req.UserID,
+		"action":  "unfollow",
+		"success": true,
+	}, "取消关注成功")
+}
