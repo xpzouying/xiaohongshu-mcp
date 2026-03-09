@@ -47,24 +47,28 @@ func (n *NavigateAction) ToProfilePage(ctx context.Context) error {
 // SafeNavigate navigates to the given URL and immediately injects an async JS script
 // to auto-click GDPR Cookie Consent dialogs. Returns the page so it can be chained.
 func SafeNavigate(page *rod.Page, url string) *rod.Page {
-	page.MustNavigate(url)
-	
-	page.MustEval(`() => {
+	page.MustEvalOnNewDocument(`
 		const interval = setInterval(() => {
 			let btns = Array.from(document.querySelectorAll('button, div[role="button"], span'))
 			let target = btns.find(el => {
 				let text = el.textContent ? el.textContent.toLowerCase() : "";
 				return text.includes('accept all cookies') || 
 				       text.includes('agree and continue') ||
-				       text.includes('accept cookies');
+				       text.includes('accept cookies') ||
+				       text.includes('同意') ||
+				       text.includes('接受全部') ||
+				       text.includes('允许');
 			})
 			if (target) {
 				target.click();
+				console.log('Cookie consent dialog auto-accepted');
 				clearInterval(interval);
 			}
 		}, 200);
 		setTimeout(() => clearInterval(interval), 10000);
-	}`)
+	`)
+
+	page.MustNavigate(url)
 
 	return page
 }
