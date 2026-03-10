@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/xpzouying/xiaohongshu-mcp/cookies"
@@ -292,4 +293,49 @@ func (s *AppServer) myProfileHandler(c *gin.Context) {
 
 	c.Set("account", "ai-report")
 	respondSuccess(c, map[string]any{"data": result}, "获取我的主页成功")
+}
+
+// batchFavoriteFeedHandler 批量收藏笔记（并发优化）
+func (s *AppServer) batchFavoriteFeedHandler(c *gin.Context) {
+	var req BatchFavoriteFeedRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
+			"请求参数错误", err.Error())
+		return
+	}
+
+	// 转换为 BatchFavoriteRequest
+	batchFeeds := make([]BatchFavoriteRequest, len(req.Feeds))
+	for i, f := range req.Feeds {
+		batchFeeds[i] = BatchFavoriteRequest{
+			FeedID:    f.FeedID,
+			XsecToken: f.XsecToken,
+			Action:    f.Action,
+		}
+	}
+
+	// 执行批量收藏
+	results, err := s.xiaohongshuService.BatchFavoriteFeed(c.Request.Context(), batchFeeds)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "BATCH_FAVORITE_FAILED",
+			"批量收藏失败", err.Error())
+		return
+	}
+
+	// 统计结果
+	successCount := 0
+	for _, r := range results {
+		if r.Success {
+			successCount++
+		}
+	}
+
+	c.Set("account", "ai-report")
+	respondSuccess(c, map[string]any{
+		"total":   len(results),
+		"success": successCount,
+		"failed":  len(results) - successCount,
+		"results": results,
+	}, fmt.Sprintf("批量收藏完成：成功 %d/%d", successCount, len(results)))
 }
