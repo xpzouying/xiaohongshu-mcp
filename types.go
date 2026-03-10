@@ -109,3 +109,10 @@ type ActionResult struct {
 	Success bool   `json:"success"`
 	Message string `json:"message"`
 }
+
+// LikeFeedRequest 点赞笔记请求
+type LikeFeedRequest struct {
+	FeedID    string `json:"feed_id" binding:"required"`
+	XsecToken string `json:"xsec_token" binding:"required"` // 敏感信息，请勿记录到日志
+	Action    string `json:"action,omitempty"`              // "like"=点赞, "unlike"=取消点赞，默认点赞
+}
