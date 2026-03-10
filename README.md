@@ -977,6 +977,20 @@ npx mcporter list xiaohongshu-mcp
 
 ---
 
+**Q:** 在 Dify 的「Agent 策略（支持 MCP 工具）」或「MCP SSE / StreamableHTTP」里调用一直报 `405`，怎么办？
+**A:**
+
+`xiaohongshu-mcp` 当前提供的是 **Streamable HTTP MCP**（`/mcp`）接口，工具调用走 **POST**。如果客户端按 SSE 方式先发起 GET 握手，会触发 `405 Method Not Allowed`。
+
+排查建议：
+
+1. 在 Dify 中优先选择 **Streamable HTTP / HTTP MCP** 模式（不要选纯 SSE 模式）。
+2. MCP 地址填写：`http://<你的服务地址>:18060/mcp`。
+3. 先用 `curl -X POST http://<你的服务地址>:18060/mcp` 或 MCP Inspector 验证该地址可用。
+4. 如果当前 Dify 插件版本只支持 SSE 握手，请改用支持 Streamable HTTP 的 MCP 客户端（如 Claude Code / Cursor / Cline），或增加一层 MCP 网关适配后再接入 Dify。
+
+---
+
 ## 3. 🌟 实战案例展示 (Community Showcases)
 
 > 💡 **强烈推荐查看**：这些都是社区贡献者的真实使用案例，包含详细的配置步骤和实战经验！
