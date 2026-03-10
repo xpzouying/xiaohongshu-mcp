@@ -52,3 +52,5 @@ require (
 	google.golang.org/protobuf v1.34.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/xpzouying/headless_browser => github.com/shanrichard/headless_browser v0.3.1-0.20260310034849-bd31340f733a
