@@ -51,7 +51,6 @@ func setupRoutes(appServer *AppServer) *gin.Engine {
 		api.POST("/feeds/comment", appServer.postCommentHandler)
 		api.POST("/feeds/comment/reply", appServer.replyCommentHandler)
 		api.POST("/user/follow", appServer.followUserHandler)
-		api.POST("/user/unfollow", appServer.unfollowUserHandler)
 		api.GET("/user/me", appServer.myProfileHandler)
 	}
 

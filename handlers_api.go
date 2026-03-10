@@ -294,7 +294,14 @@ func (s *AppServer) myProfileHandler(c *gin.Context) {
 	respondSuccess(c, map[string]any{"data": result}, "获取我的主页成功")
 }
 
-// followUserHandler 关注用户
+// FollowRequest 关注/取消关注请求
+type FollowRequest struct {
+	UserID    string `json:"user_id" binding:"required"`
+	XsecToken string `json:"xsec_token" binding:"required"`
+	Unfollow  bool   `json:"unfollow"`
+}
+
+// followUserHandler 关注/取消关注用户
 func (s *AppServer) followUserHandler(c *gin.Context) {
 	var req FollowRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -303,41 +310,28 @@ func (s *AppServer) followUserHandler(c *gin.Context) {
 		return
 	}
 
-	err := s.xiaohongshuService.FollowUser(c.Request.Context(), req.UserID, req.XsecToken)
+	var err error
+	if req.Unfollow {
+		err = s.xiaohongshuService.UnfollowUser(c.Request.Context(), req.UserID, req.XsecToken)
+	} else {
+		err = s.xiaohongshuService.FollowUser(c.Request.Context(), req.UserID, req.XsecToken)
+	}
+
+	action := "关注"
+	if req.Unfollow {
+		action = "取消关注"
+	}
+
 	if err != nil {
 		respondError(c, http.StatusInternalServerError, "FOLLOW_FAILED",
-			"关注用户失败", err.Error())
+			action+"用户失败", err.Error())
 		return
 	}
 
 	c.Set("account", "ai-report")
 	respondSuccess(c, map[string]any{
 		"user_id": req.UserID,
-		"action":  "follow",
+		"action":  action,
 		"success": true,
-	}, "关注成功")
-}
-
-// unfollowUserHandler 取消关注用户
-func (s *AppServer) unfollowUserHandler(c *gin.Context) {
-	var req FollowRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
-			"请求参数错误", err.Error())
-		return
-	}
-
-	err := s.xiaohongshuService.UnfollowUser(c.Request.Context(), req.UserID, req.XsecToken)
-	if err != nil {
-		respondError(c, http.StatusInternalServerError, "UNFOLLOW_FAILED",
-			"取消关注失败", err.Error())
-		return
-	}
-
-	c.Set("account", "ai-report")
-	respondSuccess(c, map[string]any{
-		"user_id": req.UserID,
-		"action":  "unfollow",
-		"success": true,
-	}, "取消关注成功")
+	}, action+"成功")
 }

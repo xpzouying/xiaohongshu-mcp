@@ -109,9 +109,3 @@ type ActionResult struct {
 	Success bool   `json:"success"`
 	Message string `json:"message"`
 }
-
-// FollowRequest 关注/取消关注请求
-type FollowRequest struct {
-	UserID    string `json:"user_id" binding:"required"`
-	XsecToken string `json:"xsec_token" binding:"required"`
-}
