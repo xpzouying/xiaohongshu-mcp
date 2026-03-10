@@ -51,6 +51,11 @@ func (s *AppServer) Start(port string) error {
 		}
 	}()
 
+	// Ignore SIGCHLD to prevent Chrome child process exits from
+	// being misdelivered to the signal channel and shutting down the server.
+	// See: https://github.com/xpzouying/xiaohongshu-mcp/issues/515
+	signal.Ignore(syscall.SIGCHLD)
+
 	// 等待中断信号
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
