@@ -293,3 +293,46 @@ func (s *AppServer) myProfileHandler(c *gin.Context) {
 	c.Set("account", "ai-report")
 	respondSuccess(c, map[string]any{"data": result}, "获取我的主页成功")
 }
+
+// favoriteFeedHandler 收藏/取消收藏笔记
+func (s *AppServer) favoriteFeedHandler(c *gin.Context) {
+	var req FavoriteFeedRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
+			"请求参数错误", err.Error())
+		return
+	}
+
+	var result *ActionResult
+	var err error
+
+	// 根据 action 判断操作类型，默认收藏
+	isUnfavorite := req.Action == "unfavorite"
+	if isUnfavorite {
+		result, err = s.xiaohongshuService.UnfavoriteFeed(c.Request.Context(), req.FeedID, req.XsecToken)
+	} else {
+		result, err = s.xiaohongshuService.FavoriteFeed(c.Request.Context(), req.FeedID, req.XsecToken)
+	}
+
+	if err != nil {
+		actionName := "收藏"
+		if isUnfavorite {
+			actionName = "取消收藏"
+		}
+		respondError(c, http.StatusInternalServerError, "FAVORITE_FAILED",
+			actionName+"失败", err.Error())
+		return
+	}
+
+	actionName := "收藏成功"
+	if isUnfavorite {
+		actionName = "取消收藏成功"
+	}
+	c.Set("account", "ai-report")
+	respondSuccess(c, map[string]any{
+		"feed_id": result.FeedID,
+		"success": result.Success,
+		"message": actionName,
+		"action":  req.Action,
+	}, actionName)
+}
