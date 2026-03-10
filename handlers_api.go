@@ -293,3 +293,58 @@ func (s *AppServer) myProfileHandler(c *gin.Context) {
 	c.Set("account", "ai-report")
 	respondSuccess(c, map[string]any{"data": result}, "获取我的主页成功")
 }
+
+// likeFeedHandler 点赞/取消点赞笔记
+func (s *AppServer) likeFeedHandler(c *gin.Context) {
+	var req LikeFeedRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
+			"请求参数错误", err.Error())
+		return
+	}
+
+	if req.FeedID == "" {
+		respondError(c, http.StatusBadRequest, "MISSING_FEED_ID",
+			"缺少 feed_id 参数", "feed_id is required")
+		return
+	}
+
+	if req.XsecToken == "" {
+		respondError(c, http.StatusBadRequest, "MISSING_XSEC_TOKEN",
+			"缺少 xsec_token 参数", "xsec_token is required")
+		return
+	}
+
+	var result *ActionResult
+	var err error
+
+	// 根据 action 判断操作类型，默认点赞
+	isUnlike := req.Action == "unlike"
+	if isUnlike {
+		result, err = s.xiaohongshuService.UnlikeFeed(c.Request.Context(), req.FeedID, req.XsecToken)
+	} else {
+		result, err = s.xiaohongshuService.LikeFeed(c.Request.Context(), req.FeedID, req.XsecToken)
+	}
+
+	if err != nil {
+		actionName := "点赞"
+		if isUnlike {
+			actionName = "取消点赞"
+		}
+		respondError(c, http.StatusInternalServerError, "LIKE_FAILED",
+			actionName+"失败", err.Error())
+		return
+	}
+
+	actionName := "点赞成功"
+	if isUnlike {
+		actionName = "取消点赞成功"
+	}
+	c.Set("account", "ai-report")
+	respondSuccess(c, map[string]any{
+		"feed_id": result.FeedID,
+		"success": result.Success,
+		"message": actionName,
+		"action":  req.Action,
+	}, actionName)
+}
