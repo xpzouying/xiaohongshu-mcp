@@ -112,14 +112,7 @@ type ActionResult struct {
 
 // FavoriteFeedRequest 收藏笔记请求
 type FavoriteFeedRequest struct {
-	FeedID     string `json:"feed_id" binding:"required"`
-	XsecToken  string `json:"xsec_token" binding:"required"`
-	Unfavorite bool   `json:"unfavorite,omitempty"` // true=取消收藏，false=收藏
-}
-
-// LikeFeedRequest 点赞笔记请求
-type LikeFeedRequest struct {
 	FeedID    string `json:"feed_id" binding:"required"`
-	XsecToken string `json:"xsec_token" binding:"required"`
-	Unlike    bool   `json:"unlike,omitempty"` // true=取消点赞，false=点赞
+	XsecToken string `json:"xsec_token" binding:"required"` // 敏感信息，请勿记录到日志
+	Action    string `json:"action,omitempty"`              // "favorite"=收藏, "unfavorite"=取消收藏，默认收藏
 }

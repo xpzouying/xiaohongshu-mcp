@@ -69,12 +69,3 @@ func (s *AppServer) Start(port string) error {
 
 	return nil
 }
-
-// Stop 停止服务器（用于外部调用）
-func (s *AppServer) Stop() {
-	if s.httpServer != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		s.httpServer.Shutdown(ctx)
-	}
-}

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/go-rod/rod"
@@ -521,83 +520,6 @@ func (s *XiaohongshuService) UnfavoriteFeed(ctx context.Context, feedID, xsecTok
 		return nil, err
 	}
 	return &ActionResult{FeedID: feedID, Success: true, Message: "取消收藏成功或未收藏"}, nil
-}
-
-// BatchFavoriteRequest 批量收藏请求
-type BatchFavoriteRequest struct {
-	FeedID    string `json:"feed_id"`
-	XsecToken string `json:"xsec_token"`
-}
-
-// BatchFavoriteResult 批量收藏结果
-type BatchFavoriteResult struct {
-	FeedID  string `json:"feed_id"`
-	Success bool   `json:"success"`
-	Message string `json:"message"`
-	Error   string `json:"error,omitempty"`
-}
-
-// BatchFavoriteFeed 批量收藏笔记（并发优化，最多 3 个并发）
-func (s *XiaohongshuService) BatchFavoriteFeed(ctx context.Context, feeds []BatchFavoriteRequest) ([]BatchFavoriteResult, error) {
-	results := make([]BatchFavoriteResult, len(feeds))
-
-	// 使用 goroutine 并发收藏，最多同时 3 个（避免浏览器负载过高）
-	maxConcurrency := 3
-	semaphore := make(chan struct{}, maxConcurrency)
-
-	var wg sync.WaitGroup
-
-	for i, feed := range feeds {
-		wg.Add(1)
-
-		go func(idx int, req BatchFavoriteRequest) {
-			defer wg.Done()
-			defer func() {
-				// 恢复信号量
-				if _, ok := <-semaphore; ok {
-					<-semaphore
-				}
-			}()
-
-			results[idx] = BatchFavoriteResult{FeedID: req.FeedID}
-
-			// 创建带超时的上下文（单个收藏最多 60 秒）
-			ctxWithTimeout, cancel := context.WithTimeout(ctx, 60*time.Second)
-			defer cancel()
-
-			// 创建独立的浏览器实例（避免并发冲突）
-			b := newBrowser()
-			defer func() {
-				if r := recover(); r != nil {
-					logrus.Errorf("收藏 %s 时发生 panic: %v", req.FeedID, r)
-					results[idx].Success = false
-					results[idx].Error = fmt.Sprintf("panic: %v", r)
-					results[idx].Message = "收藏失败"
-				}
-				b.Close()
-			}()
-
-			page := b.NewPage()
-			defer page.Close()
-
-			action := xiaohongshu.NewFavoriteAction(page)
-			if err := action.Favorite(ctxWithTimeout, req.FeedID, req.XsecToken); err != nil {
-				results[idx].Success = false
-				results[idx].Error = err.Error()
-				results[idx].Message = "收藏失败"
-				logrus.Warnf("收藏 %s 失败：%v", req.FeedID, err)
-			} else {
-				results[idx].Success = true
-				results[idx].Message = "收藏成功"
-				logrus.Infof("收藏 %s 成功", req.FeedID)
-			}
-		}(i, feed)
-	}
-
-	// 等待所有 goroutine 完成
-	wg.Wait()
-
-	return results, nil
 }
 
 // ReplyCommentToFeed 回复指定评论

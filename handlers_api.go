@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/xpzouying/xiaohongshu-mcp/cookies"
@@ -304,145 +303,36 @@ func (s *AppServer) favoriteFeedHandler(c *gin.Context) {
 		return
 	}
 
-	if req.FeedID == "" {
-		respondError(c, http.StatusBadRequest, "MISSING_FEED_ID",
-			"缺少 feed_id 参数", "feed_id is required")
-		return
-	}
-
-	if req.XsecToken == "" {
-		respondError(c, http.StatusBadRequest, "MISSING_XSEC_TOKEN",
-			"缺少 xsec_token 参数", "xsec_token is required")
-		return
-	}
-
 	var result *ActionResult
 	var err error
 
-	if req.Unfavorite {
+	// 根据 action 判断操作类型，默认收藏
+	isUnfavorite := req.Action == "unfavorite"
+	if isUnfavorite {
 		result, err = s.xiaohongshuService.UnfavoriteFeed(c.Request.Context(), req.FeedID, req.XsecToken)
 	} else {
 		result, err = s.xiaohongshuService.FavoriteFeed(c.Request.Context(), req.FeedID, req.XsecToken)
 	}
 
 	if err != nil {
-		action := "收藏"
-		if req.Unfavorite {
-			action = "取消收藏"
+		actionName := "收藏"
+		if isUnfavorite {
+			actionName = "取消收藏"
 		}
 		respondError(c, http.StatusInternalServerError, "FAVORITE_FAILED",
-			action+"失败", err.Error())
+			actionName+"失败", err.Error())
 		return
 	}
 
-	action := "收藏成功"
-	if req.Unfavorite {
-		action = "取消收藏成功"
-	}
-	c.Set("account", "ai-report")
-	respondSuccess(c, map[string]any{
-		"feed_id":    result.FeedID,
-		"success":    result.Success,
-		"message":    action,
-		"unfavorite": req.Unfavorite,
-	}, action)
-}
-
-// likeFeedHandler 点赞/取消点赞笔记
-func (s *AppServer) likeFeedHandler(c *gin.Context) {
-	var req LikeFeedRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
-			"请求参数错误", err.Error())
-		return
-	}
-
-	if req.FeedID == "" {
-		respondError(c, http.StatusBadRequest, "MISSING_FEED_ID",
-			"缺少 feed_id 参数", "feed_id is required")
-		return
-	}
-
-	if req.XsecToken == "" {
-		respondError(c, http.StatusBadRequest, "MISSING_XSEC_TOKEN",
-			"缺少 xsec_token 参数", "xsec_token is required")
-		return
-	}
-
-	var result *ActionResult
-	var err error
-
-	if req.Unlike {
-		result, err = s.xiaohongshuService.UnlikeFeed(c.Request.Context(), req.FeedID, req.XsecToken)
-	} else {
-		result, err = s.xiaohongshuService.LikeFeed(c.Request.Context(), req.FeedID, req.XsecToken)
-	}
-
-	if err != nil {
-		action := "点赞"
-		if req.Unlike {
-			action = "取消点赞"
-		}
-		respondError(c, http.StatusInternalServerError, "LIKE_FAILED",
-			action+"失败", err.Error())
-		return
-	}
-
-	action := "点赞成功"
-	if req.Unlike {
-		action = "取消点赞成功"
+	actionName := "收藏成功"
+	if isUnfavorite {
+		actionName = "取消收藏成功"
 	}
 	c.Set("account", "ai-report")
 	respondSuccess(c, map[string]any{
 		"feed_id": result.FeedID,
 		"success": result.Success,
-		"message": action,
-		"unlike":  req.Unlike,
-	}, action)
-}
-
-// batchFavoriteFeedHandler 批量收藏笔记（并发优化）
-func (s *AppServer) batchFavoriteFeedHandler(c *gin.Context) {
-	var req struct {
-		Feeds []FavoriteFeedRequest `json:"feeds" binding:"required,min=1,max=50"`
-	}
-
-	if err := c.ShouldBindJSON(&req); err != nil {
-		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
-			"请求参数错误", err.Error())
-		return
-	}
-
-	// 转换为 BatchFavoriteRequest
-	batchFeeds := make([]BatchFavoriteRequest, len(req.Feeds))
-	for i, f := range req.Feeds {
-		batchFeeds[i] = BatchFavoriteRequest{
-			FeedID:    f.FeedID,
-			XsecToken: f.XsecToken,
-		}
-	}
-
-	// 执行批量收藏
-	results, err := s.xiaohongshuService.BatchFavoriteFeed(c.Request.Context(), batchFeeds)
-	if err != nil {
-		respondError(c, http.StatusInternalServerError, "BATCH_FAVORITE_FAILED",
-			"批量收藏失败", err.Error())
-		return
-	}
-
-	// 统计结果
-	successCount := 0
-	for _, r := range results {
-		if r.Success {
-			successCount++
-		}
-	}
-
-	c.Set("account", "ai-report")
-	respondSuccess(c, map[string]any{
-		"total":   len(results),
-		"success": successCount,
-		"failed":  len(results) - successCount,
-		"results": results,
-	}, fmt.Sprintf("批量收藏完成：成功 %d/%d", successCount, len(results)))
+		"message": actionName,
+		"action":  req.Action,
+	}, actionName)
 }

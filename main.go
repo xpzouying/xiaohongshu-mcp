@@ -3,8 +3,6 @@ package main
 import (
 	"flag"
 	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/xiaohongshu-mcp/configs"
@@ -33,18 +31,6 @@ func main() {
 
 	// 创建并启动应用服务器
 	appServer := NewAppServer(xiaohongshuService)
-
-	// 设置优雅关闭
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-
-	go func() {
-		<-sigChan
-		logrus.Info("正在关闭服务器...")
-		appServer.Stop()
-		os.Exit(0)
-	}()
-
 	if err := appServer.Start(port); err != nil {
 		logrus.Fatalf("failed to run server: %v", err)
 	}
