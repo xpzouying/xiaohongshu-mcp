@@ -221,7 +221,8 @@ func (s *AppServer) userProfileHandler(c *gin.Context) {
 	config := xiaohongshu.DefaultNoteScrollConfig()
 	if req.LoadAllNotes {
 		config.LoadAllNotes = true
-		if req.ScrollSpeed != "" {
+		switch req.ScrollSpeed {
+		case "slow", "normal", "fast":
 			config.ScrollSpeed = req.ScrollSpeed
 		}
 	}

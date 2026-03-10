@@ -439,7 +439,10 @@ func (s *AppServer) handleGetFeedDetail(ctx context.Context, args map[string]any
 	}
 
 	if raw, ok := args["scroll_speed"].(string); ok && raw != "" {
-		config.ScrollSpeed = raw
+		switch raw {
+		case "slow", "normal", "fast":
+			config.ScrollSpeed = raw
+		}
 	}
 
 	logrus.Infof("MCP: 获取Feed详情 - Feed ID: %s, loadAllComments=%v, config=%+v", feedID, loadAll, config)
@@ -519,7 +522,10 @@ func (s *AppServer) handleUserProfile(ctx context.Context, args map[string]any) 
 	}
 
 	if raw, ok := args["scroll_speed"].(string); ok && raw != "" {
-		config.ScrollSpeed = raw
+		switch raw {
+		case "slow", "normal", "fast":
+			config.ScrollSpeed = raw
+		}
 	}
 
 	logrus.Infof("MCP: 获取用户主页 - User ID: %s, loadAllNotes=%v", userID, config.LoadAllNotes)
