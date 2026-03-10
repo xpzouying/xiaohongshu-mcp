@@ -109,3 +109,30 @@ type ActionResult struct {
 	Success bool   `json:"success"`
 	Message string `json:"message"`
 }
+
+// BatchFavoriteFeedRequest 批量收藏笔记请求
+type BatchFavoriteFeedRequest struct {
+	Feeds []BatchFavoriteItem `json:"feeds" binding:"required,min=1,max=50"`
+}
+
+// BatchFavoriteItem 批量收藏单项
+type BatchFavoriteItem struct {
+	FeedID    string `json:"feed_id" binding:"required"`
+	XsecToken string `json:"xsec_token" binding:"required"` // 敏感信息，请勿记录到日志
+	Action    string `json:"action,omitempty"`              // "favorite"=收藏, "unfavorite"=取消收藏，默认收藏
+}
+
+// BatchFavoriteRequest 批量收藏请求（内部使用）
+type BatchFavoriteRequest struct {
+	FeedID    string `json:"feed_id"`
+	XsecToken string `json:"xsec_token"` // 敏感信息，请勿记录到日志
+	Action    string `json:"action"`     // "favorite"=收藏, "unfavorite"=取消收藏，默认收藏
+}
+
+// BatchFavoriteResult 批量收藏结果
+type BatchFavoriteResult struct {
+	FeedID  string `json:"feed_id"`
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	Error   string `json:"error,omitempty"`
+}

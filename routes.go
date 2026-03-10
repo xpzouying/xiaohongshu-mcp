@@ -51,6 +51,9 @@ func setupRoutes(appServer *AppServer) *gin.Engine {
 		api.POST("/feeds/comment", appServer.postCommentHandler)
 		api.POST("/feeds/comment/reply", appServer.replyCommentHandler)
 		api.GET("/user/me", appServer.myProfileHandler)
+
+		// 互动操作（新增 HTTP REST API）
+		api.POST("/feeds/favorite/batch", appServer.batchFavoriteFeedHandler) // 批量收藏（并发优化）
 	}
 
 	return router
