@@ -100,6 +100,11 @@ type FavoriteFeedArgs struct {
 	Unfavorite bool   `json:"unfavorite,omitempty" jsonschema:"是否取消收藏，true为取消收藏，false或未设置则为收藏"`
 }
 
+// LoginVerifyCodeArgs 登录验证码参数
+type LoginVerifyCodeArgs struct {
+	Code any `json:"code" jsonschema:"扫码后收到的验证码（支持字符串或数字）"`
+}
+
 // InitMCPServer 初始化 MCP Server
 func InitMCPServer(appServer *AppServer) *mcp.Server {
 	// 创建 MCP Server
@@ -197,6 +202,21 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		},
 		withPanicRecovery("delete_cookies", func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, any, error) {
 			result := appServer.handleDeleteCookies(ctx)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	// 工具 3.5: 提交登录验证码
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "submit_login_verification_code",
+			Description: "提交小红书登录验证码（用于扫码后的人机验证/短信验证码）",
+			Annotations: &mcp.ToolAnnotations{
+				Title: "Submit Login Verification Code",
+			},
+		},
+		withPanicRecovery("submit_login_verification_code", func(ctx context.Context, req *mcp.CallToolRequest, args LoginVerifyCodeArgs) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleSubmitLoginVerificationCode(ctx, args.Code)
 			return convertToMCPResult(result), nil, nil
 		}),
 	)
