@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net/url"
 	"time"
 
 	"github.com/go-rod/rod"
+	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/xiaohongshu-mcp/errors"
 )
 
@@ -165,7 +167,7 @@ func NewSearchAction(page *rod.Page) *SearchAction {
 	return &SearchAction{page: pp}
 }
 
-func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...FilterOption) ([]Feed, error) {
+func (s *SearchAction) Search(ctx context.Context, keyword string, limit int, filters ...FilterOption) ([]Feed, error) {
 	page := s.page.Context(ctx)
 
 	searchURL := makeSearchURL(keyword)
@@ -214,6 +216,110 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 		page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
 	}
 
+	// 提取首屏 feeds
+	feeds, err := extractSearchFeeds(page)
+	if err != nil {
+		return nil, err
+	}
+
+	// limit=0: 只返回首屏; limit>0: 加载到目标数量; limit<0: 无限滚动直到停滞
+	if limit == 0 {
+		return feeds, nil
+	}
+	if limit > 0 && len(feeds) >= limit {
+		return feeds[:limit], nil
+	}
+
+	// 滚动加载更多
+	feeds, err = s.scrollLoadMore(ctx, page, feeds, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	if limit > 0 && len(feeds) > limit {
+		feeds = feeds[:limit]
+	}
+	return feeds, nil
+}
+
+// scrollLoadMore 通过滚动页面加载更多搜索结果
+func (s *SearchAction) scrollLoadMore(ctx context.Context, page *rod.Page, feeds []Feed, limit int) ([]Feed, error) {
+	const maxStaleRounds = 5 // 连续无新数据的最大轮数
+
+	// 构建已有 feed ID 集合，用于去重
+	seen := make(map[string]bool, len(feeds))
+	for _, f := range feeds {
+		seen[f.ID] = true
+	}
+
+	staleCount := 0
+
+	for limit < 0 || len(feeds) < limit {
+		// 检查 ctx 是否已取消，取消时返回已加载的部分数据
+		if ctx.Err() != nil {
+			logrus.Infof("搜索滚动加载被取消，已加载 %d 条数据", len(feeds))
+			return feeds, nil
+		}
+
+		prevCount := len(feeds)
+
+		// 鼠标移动到页面随机位置
+		page.Mouse.MustMoveTo(float64(200+rand.Intn(600)), float64(300+rand.Intn(400)))
+
+		// 每轮拆分为 2~4 次小滚动
+		subScrolls := 2 + rand.Intn(3)
+		for i := 0; i < subScrolls; i++ {
+			deltaY := float64(300 + rand.Intn(400))
+			page.Mouse.MustScroll(0, deltaY)
+			sleepRandom(200, 500)
+		}
+
+		// 约 30% 概率向上回滚一小段，模拟真实浏览
+		if rand.Intn(100) < 30 {
+			upDelta := float64(-(50 + rand.Intn(100)))
+			page.Mouse.MustScroll(0, upDelta)
+			sleepRandom(100, 300)
+		}
+
+		// 翻页间隔：1~3 秒
+		sleepRandom(1000, 3000)
+
+		// 等待页面稳定后重新提取 feeds
+		page.MustWaitStable()
+
+		newFeeds, err := extractSearchFeeds(page)
+		if err != nil {
+			logrus.Warnf("滚动加载提取 feeds 失败: %v，返回已加载数据", err)
+			return feeds, nil
+		}
+
+		// 去重：只追加新出现的 feed
+		for _, f := range newFeeds {
+			if !seen[f.ID] {
+				seen[f.ID] = true
+				feeds = append(feeds, f)
+			}
+		}
+
+		logrus.Infof("搜索滚动加载: 当前 %d 条，目标 %d 条", len(feeds), limit)
+
+		// 停滞检测
+		if len(feeds) <= prevCount {
+			staleCount++
+			if staleCount >= maxStaleRounds {
+				logrus.Infof("搜索滚动加载: 连续 %d 轮无新数据，已到底部", maxStaleRounds)
+				return feeds, nil
+			}
+		} else {
+			staleCount = 0
+		}
+	}
+
+	return feeds, nil
+}
+
+// extractSearchFeeds 从页面提取搜索结果 feeds（通过 JS 读取 __INITIAL_STATE__），并按 ID 去重
+func extractSearchFeeds(page *rod.Page) ([]Feed, error) {
 	result := page.MustEval(`() => {
 		if (window.__INITIAL_STATE__ &&
 		    window.__INITIAL_STATE__.search &&
@@ -231,9 +337,19 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 		return nil, errors.ErrNoFeeds
 	}
 
-	var feeds []Feed
-	if err := json.Unmarshal([]byte(result), &feeds); err != nil {
+	var rawFeeds []Feed
+	if err := json.Unmarshal([]byte(result), &rawFeeds); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal feeds: %w", err)
+	}
+
+	// 按 ID 去重
+	seen := make(map[string]bool, len(rawFeeds))
+	feeds := make([]Feed, 0, len(rawFeeds))
+	for _, f := range rawFeeds {
+		if !seen[f.ID] {
+			seen[f.ID] = true
+			feeds = append(feeds, f)
+		}
 	}
 
 	return feeds, nil
