@@ -9,11 +9,15 @@ import (
 // dismissCookieConsent 处理海外用户访问时出现的 cookie 同意弹窗
 // 非阻塞：如果没有弹窗则立即返回
 func dismissCookieConsent(page *rod.Page) {
-	has, btn, err := page.Has(".cookie-banner__btn--primary")
-	if err != nil {
+	// 检测 cookie 同意弹窗是否存在
+	hasBanner, _, _ := page.Has("div.cookie-banner")
+	if !hasBanner {
 		return
 	}
-	if !has {
+
+	has, btn, err := page.Has(".cookie-banner__btn--primary")
+	if err != nil || !has {
+		logrus.Debug("检测到 cookie 弹窗容器，但未找到接受按钮（selector 可能已变更）")
 		return
 	}
 
