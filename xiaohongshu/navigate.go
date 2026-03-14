@@ -21,6 +21,8 @@ func (n *NavigateAction) ToExplorePage(ctx context.Context) error {
 		MustWaitLoad().
 		MustElement(`div#app`)
 
+	dismissCookieConsent(page)
+
 	return nil
 }
 

@@ -36,6 +36,7 @@ func NewPublishVideoAction(page *rod.Page) (*PublishAction, error) {
 	if err := pp.WaitLoad(); err != nil {
 		logrus.Warnf("等待页面加载出现问题: %v，继续尝试", err)
 	}
+	dismissCookieConsent(pp)
 	time.Sleep(2 * time.Second)
 
 	if err := pp.WaitDOMStable(time.Second, 0.1); err != nil {
