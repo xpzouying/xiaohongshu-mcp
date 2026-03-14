@@ -171,6 +171,7 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 	searchURL := makeSearchURL(keyword)
 	page.MustNavigate(searchURL)
 	page.MustWaitStable()
+	dismissCookieConsent(page)
 
 	page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
 
