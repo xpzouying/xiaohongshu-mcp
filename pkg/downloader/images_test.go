@@ -34,6 +34,74 @@ func TestIsImageURL(t *testing.T) {
 	}
 }
 
+func TestIsImageDataURL(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected bool
+	}{
+		{"data:image/png;base64,AAAA", true},
+		{"DATA:IMAGE/JPEG;BASE64,AAAA", true},
+		{"data:image/webp;base64,AAAA", true},
+		{"data:text/plain;base64,AAAA", false},
+		{"https://example.com/image.png", false},
+		{"", false},
+	}
+
+	for _, test := range tests {
+		result := IsImageDataURL(test.input)
+		if result != test.expected {
+			t.Errorf("IsImageDataURL(%q) = %v, expected %v", test.input, result, test.expected)
+		}
+	}
+}
+
+func TestParseImageDataURL(t *testing.T) {
+	const pngDataURL = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7+2X8AAAAASUVORK5CYII="
+
+	mimeType, encoded, err := ParseImageDataURL(pngDataURL)
+	if err != nil {
+		t.Fatalf("ParseImageDataURL failed: %v", err)
+	}
+	if mimeType != "image/png" {
+		t.Fatalf("mimeType = %s, expected image/png", mimeType)
+	}
+	if encoded == "" {
+		t.Fatalf("encoded data is empty")
+	}
+
+	if _, _, err := ParseImageDataURL("data:image/svg+xml;base64,PHN2Zy8+"); err == nil {
+		t.Fatalf("expected unsupported MIME error")
+	}
+
+	if _, _, err := ParseImageDataURL("data:image/png,abcd"); err == nil {
+		t.Fatalf("expected missing base64 error")
+	}
+}
+
+func TestImageDownloader_SaveDataURLImage(t *testing.T) {
+	const pngDataURL = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7+2X8AAAAASUVORK5CYII="
+
+	tempDir := t.TempDir()
+	downloader := NewImageDownloader(tempDir)
+
+	filePath, err := downloader.SaveDataURLImage(pngDataURL)
+	if err != nil {
+		t.Fatalf("SaveDataURLImage failed: %v", err)
+	}
+
+	if filepath.Ext(filePath) != ".png" {
+		t.Fatalf("expected .png file, got %s", filePath)
+	}
+
+	if _, err := os.Stat(filePath); err != nil {
+		t.Fatalf("saved file not found: %v", err)
+	}
+
+	if _, err := downloader.SaveDataURLImage("data:image/png;base64,%%%INVALID%%%"); err == nil {
+		t.Fatalf("expected invalid base64 error")
+	}
+}
+
 func TestNewImageDownloader(t *testing.T) {
 	tempDir := os.TempDir()
 	testPath := filepath.Join(tempDir, "test_downloader")
@@ -147,6 +215,34 @@ func TestDownloadImage_AntiHotlink(t *testing.T) {
 	}
 	if info.Size() == 0 {
 		t.Fatalf("下载文件为空")
+	}
+}
+
+func TestProcessImages_WithDataURLAndLocalPath(t *testing.T) {
+	const pngDataURL = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7+2X8AAAAASUVORK5CYII="
+
+	tempDir := t.TempDir()
+	localFile := filepath.Join(tempDir, "local.jpg")
+	if err := os.WriteFile(localFile, []byte("mock"), 0644); err != nil {
+		t.Fatalf("create local file failed: %v", err)
+	}
+
+	processor := &ImageProcessor{downloader: NewImageDownloader(tempDir)}
+	paths, err := processor.ProcessImages([]string{pngDataURL, localFile})
+	if err != nil {
+		t.Fatalf("ProcessImages failed: %v", err)
+	}
+
+	if len(paths) != 2 {
+		t.Fatalf("expected 2 image paths, got %d", len(paths))
+	}
+
+	if _, err := os.Stat(paths[0]); err != nil {
+		t.Fatalf("data URL converted file not found: %v", err)
+	}
+
+	if paths[1] != localFile {
+		t.Fatalf("local path changed: got %s, want %s", paths[1], localFile)
 	}
 }
 
