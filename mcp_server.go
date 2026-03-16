@@ -205,7 +205,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "publish_content",
-			Description: "发布小红书图文内容",
+			Description: "发布小红书图文内容（images 支持 HTTP/HTTPS 图片链接、data URL base64、本地图片绝对路径）",
 			Annotations: &mcp.ToolAnnotations{
 				Title:           "Publish Content",
 				DestructiveHint: boolPtr(true),
