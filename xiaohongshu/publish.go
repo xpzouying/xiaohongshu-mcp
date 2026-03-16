@@ -251,6 +251,7 @@ func waitForUploadComplete(page *rod.Page, expectedCount int) error {
 	for time.Since(start) < maxWaitTime {
 		uploadedImages, err := page.Elements(".img-preview-area .pr")
 		if err != nil {
+			slog.Debug("查找上传预览元素失败", "error", err, "elapsed", time.Since(start).Round(time.Second))
 			time.Sleep(checkInterval)
 			continue
 		}
@@ -267,6 +268,20 @@ func waitForUploadComplete(page *rod.Page, expectedCount int) error {
 		}
 
 		time.Sleep(checkInterval)
+	}
+
+	// 超时时截图和抓取页面 HTML 用于排查
+	screenshot, err := page.Screenshot(true, nil)
+	if err == nil {
+		debugPath := "/tmp/upload_timeout_debug.png"
+		os.WriteFile(debugPath, screenshot, 0644)
+		slog.Error("上传超时截图已保存", "path", debugPath)
+	}
+	html, err := page.HTML()
+	if err == nil {
+		debugHTML := "/tmp/upload_timeout_debug.html"
+		os.WriteFile(debugHTML, []byte(html), 0644)
+		slog.Error("上传超时页面HTML已保存", "path", debugHTML)
 	}
 
 	return errors.Errorf("第%d张图片上传超时(60s)，请检查网络连接和图片大小", expectedCount)
