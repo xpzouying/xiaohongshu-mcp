@@ -249,13 +249,13 @@ func (d *ImageDownloader) generateFileName(imageURL, extension string) string {
 	return fmt.Sprintf("img_%s_%d.%s", shortHash, timestamp, extension)
 }
 
+// generateContentFileName 仅基于内容 hash 生成文件名，实现真正的内容去重
 func (d *ImageDownloader) generateContentFileName(content []byte, extension string) string {
 	hash := sha256.Sum256(content)
 	hashStr := fmt.Sprintf("%x", hash)
 	shortHash := hashStr[:16]
-	timestamp := time.Now().Unix()
 
-	return fmt.Sprintf("img_%s_%d.%s", shortHash, timestamp, extension)
+	return fmt.Sprintf("img_%s.%s", shortHash, extension)
 }
 
 // IsImageURL 判断字符串是否为图片URL

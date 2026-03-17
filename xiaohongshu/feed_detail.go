@@ -422,12 +422,10 @@ func clickElementWithHumanBehavior(page *rod.Page, el *rod.Element, text string)
 	// 使用retry-go进行点击操作重试
 	err := retry.Do(
 		func() error {
-			// 滚动到元素
-			el.MustEval(`() => {
-				try {
-					this.scrollIntoView({behavior: 'smooth', block: 'center'});
-				} catch (e) {}
-			}`)
+			// 滚动到元素（使用 go-rod API 替代 JS 注入）
+			if scrollErr := el.ScrollIntoView(); scrollErr != nil {
+				logrus.Debugf("滚动到元素失败: %v", scrollErr)
+			}
 
 			sleepRandom(reactionTimeRange.min, reactionTimeRange.max)
 
