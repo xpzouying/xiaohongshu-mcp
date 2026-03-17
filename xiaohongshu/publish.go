@@ -114,7 +114,8 @@ func removePopCover(page *rod.Page) {
 func clickEmptyPosition(page *rod.Page) {
 	x := 380 + rand.Intn(100)
 	y := 20 + rand.Intn(60)
-	page.Mouse.MustMoveTo(float64(x), float64(y)).MustClick(proto.InputMouseButtonLeft)
+	_ = page.Mouse.MoveTo(proto.Point{X: float64(x), Y: float64(y)})
+	_ = page.Mouse.Click(proto.InputMouseButtonLeft, 1)
 }
 
 func mustClickPublishTab(page *rod.Page, tabname string) error {

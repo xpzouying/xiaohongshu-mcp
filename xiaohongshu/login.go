@@ -25,7 +25,10 @@ type LoginStatusResult struct {
 
 func (a *LoginAction) CheckLoginStatus(ctx context.Context) (*LoginStatusResult, error) {
 	pp := a.page.Context(ctx)
-	pp.MustNavigate("https://www.xiaohongshu.com/explore").MustWaitLoad()
+	if err := pp.Navigate("https://www.xiaohongshu.com/explore"); err != nil {
+		return nil, errors.Wrap(err, "navigate to explore failed")
+	}
+	_ = pp.WaitLoad()
 
 	time.Sleep(1 * time.Second)
 
@@ -68,7 +71,10 @@ func (a *LoginAction) Login(ctx context.Context) error {
 	pp := a.page.Context(ctx)
 
 	// 导航到小红书首页，这会触发二维码弹窗
-	pp.MustNavigate("https://www.xiaohongshu.com/explore").MustWaitLoad()
+	if err := pp.Navigate("https://www.xiaohongshu.com/explore"); err != nil {
+		return errors.Wrap(err, "navigate to explore failed")
+	}
+	_ = pp.WaitLoad()
 
 	// 等待一小段时间让页面完全加载
 	time.Sleep(2 * time.Second)
@@ -90,7 +96,10 @@ func (a *LoginAction) FetchQrcodeImage(ctx context.Context) (string, bool, error
 	pp := a.page.Context(ctx)
 
 	// 导航到小红书首页，这会触发二维码弹窗
-	pp.MustNavigate("https://www.xiaohongshu.com/explore").MustWaitLoad()
+	if err := pp.Navigate("https://www.xiaohongshu.com/explore"); err != nil {
+		return "", false, errors.Wrap(err, "navigate to explore failed")
+	}
+	_ = pp.WaitLoad()
 
 	// 等待一小段时间让页面完全加载
 	time.Sleep(2 * time.Second)
