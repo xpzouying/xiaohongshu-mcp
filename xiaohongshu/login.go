@@ -16,7 +16,13 @@ func NewLogin(page *rod.Page) *LoginAction {
 	return &LoginAction{page: page}
 }
 
-func (a *LoginAction) CheckLoginStatus(ctx context.Context) (bool, error) {
+// LoginStatusResult 登录状态结果
+type LoginStatusResult struct {
+	IsLoggedIn bool
+	Nickname   string
+}
+
+func (a *LoginAction) CheckLoginStatus(ctx context.Context) (*LoginStatusResult, error) {
 	pp := a.page.Context(ctx)
 	pp.MustNavigate("https://www.xiaohongshu.com/explore").MustWaitLoad()
 
@@ -24,14 +30,27 @@ func (a *LoginAction) CheckLoginStatus(ctx context.Context) (bool, error) {
 
 	exists, _, err := pp.Has(`.main-container .user .link-wrapper .channel`)
 	if err != nil {
-		return false, errors.Wrap(err, "check login status failed")
+		return nil, errors.Wrap(err, "check login status failed")
 	}
 
 	if !exists {
-		return false, errors.Wrap(err, "login status element not found")
+		return &LoginStatusResult{IsLoggedIn: false}, nil
 	}
 
-	return true, nil
+	// 从 __INITIAL_STATE__ 中提取当前登录用户昵称
+	nickname := pp.MustEval(`() => {
+		try {
+			const user = window.__INITIAL_STATE__?.user;
+			if (!user) return "";
+			const info = user.userPageData?.value?.basicInfo ||
+			             user.userPageData?._value?.basicInfo ||
+			             user.currentUserInfo?.value ||
+			             user.currentUserInfo?._value;
+			return info?.nickname || info?.nickName || "";
+		} catch(e) { return ""; }
+	}`).String()
+
+	return &LoginStatusResult{IsLoggedIn: true, Nickname: nickname}, nil
 }
 
 func (a *LoginAction) Login(ctx context.Context) error {

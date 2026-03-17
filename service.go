@@ -110,14 +110,19 @@ func (s *XiaohongshuService) CheckLoginStatus(ctx context.Context) (*LoginStatus
 
 	loginAction := xiaohongshu.NewLogin(page)
 
-	isLoggedIn, err := loginAction.CheckLoginStatus(ctx)
+	result, err := loginAction.CheckLoginStatus(ctx)
 	if err != nil {
 		return nil, err
 	}
 
+	username := result.Nickname
+	if username == "" {
+		username = configs.Username
+	}
+
 	response := &LoginStatusResponse{
-		IsLoggedIn: isLoggedIn,
-		Username:   configs.Username,
+		IsLoggedIn: result.IsLoggedIn,
+		Username:   username,
 	}
 
 	return response, nil
