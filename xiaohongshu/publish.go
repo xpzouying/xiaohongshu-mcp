@@ -276,13 +276,13 @@ func waitForUploadComplete(page *rod.Page, expectedCount int) error {
 	screenshot, err := page.Screenshot(true, nil)
 	if err == nil {
 		debugPath := fmt.Sprintf("/tmp/upload_timeout_%s.png", ts)
-		os.WriteFile(debugPath, screenshot, 0644)
+		_ = os.WriteFile(debugPath, screenshot, 0644)
 		slog.Error("上传超时截图已保存", "path", debugPath)
 	}
 	html, err := page.HTML()
 	if err == nil {
 		debugHTML := fmt.Sprintf("/tmp/upload_timeout_%s.html", ts)
-		os.WriteFile(debugHTML, []byte(html), 0644)
+		_ = os.WriteFile(debugHTML, []byte(html), 0644)
 		slog.Error("上传超时页面HTML已保存", "path", debugHTML)
 	}
 

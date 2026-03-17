@@ -510,7 +510,7 @@ func humanScroll(page *rod.Page, speed string, largeMode bool, pushCount int) (b
 	}
 
 	if !scrolled && pushCount > 0 {
-		page.Eval(`() => window.scrollTo(0, document.body.scrollHeight)`)
+		_, _ = page.Eval(`() => window.scrollTo(0, document.body.scrollHeight)`)
 		sleepRandom(postScrollRange.min, postScrollRange.max)
 		currentScrollTop = getScrollTop(page)
 		actualDelta = currentScrollTop - beforeTop + actualDelta
@@ -560,7 +560,7 @@ func scrollToCommentsArea(page *rod.Page) {
 
 // smartScroll 智能滚动：触发滚轮事件以正确触发懒加载
 func smartScroll(page *rod.Page, delta float64) {
-	page.Eval(`(delta) => {
+	_, _ = page.Eval(`(delta) => {
 		// 查找滚动目标元素
 		let targetElement = document.querySelector('.note-scroller') 
 			|| document.querySelector('.interaction-container') 
