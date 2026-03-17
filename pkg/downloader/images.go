@@ -140,10 +140,6 @@ func (d *ImageDownloader) SaveDataURLImage(dataURL string) (string, error) {
 		return "", err
 	}
 
-	if base64.StdEncoding.DecodedLen(len(encodedData)) > maxDataURLImageBytes {
-		return "", fmt.Errorf("data URL 图片超过大小限制(最大 %dMB)", maxDataURLImageBytes/1024/1024)
-	}
-
 	imageData, err := base64.StdEncoding.DecodeString(encodedData)
 	if err != nil {
 		return "", errors.Wrap(err, "解析 data URL base64 失败")

@@ -7,11 +7,11 @@ spec:
     - name: REPO_URL
       description: 代码仓库地址
       type: string
-      default: "https://github.com/xuanyunhui/xiaohongshu-mcp.git"
+      default: "https://github.com/xpzouying/xiaohongshu-mcp.git"
     - name: GIT_REF
       description: Git 分支、Tag 或提交哈希
       type: string
-      default: "feature/base64-image-upload"
+      default: "main"
     - name: IMAGE
       description: 构建产物镜像地址（含tag）
       type: string
@@ -100,9 +100,9 @@ spec:
     name: xiaohongshu-mcp-build
   params:
     - name: REPO_URL
-      value: "https://github.com/xuanyunhui/xiaohongshu-mcp.git"
+      value: "https://github.com/xpzouying/xiaohongshu-mcp.git"
     - name: GIT_REF
-      value: "feature/base64-image-upload"
+      value: "main"
     - name: IMAGE
       value: "image-registry.openshift-image-registry.svc:5000/mcp-servers/xiaohongshu-mcp:latest"
   workspaces:

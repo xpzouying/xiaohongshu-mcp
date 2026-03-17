@@ -22,11 +22,15 @@ import (
 // XiaohongshuService 小红书业务服务
 // 复用单个浏览器实例，每次请求创建新 Page，避免 Chrome 进程泄漏
 type XiaohongshuService struct {
-	mu             sync.Mutex
-	browser        *headless_browser.Browser
-	browserFactory func() *headless_browser.Browser // 可替换的浏览器创建函数，便于测试
-	healthCheck    bool                             // 是否启用浏览器健康检查
+	mu              sync.Mutex
+	browser         *headless_browser.Browser
+	browserFactory  func() *headless_browser.Browser // 可替换的浏览器创建函数，便于测试
+	healthCheck     bool                             // 是否启用浏览器健康检查
+	lastHealthCheck time.Time                        // 上次健康检查时间
+	browserFailed   bool                             // 上次 NewPage 是否失败，失败时触发健康检查
 }
+
+const healthCheckInterval = 30 * time.Second // 健康检查最小间隔
 
 // NewXiaohongshuService 创建小红书服务实例
 func NewXiaohongshuService() *XiaohongshuService {
@@ -36,13 +40,14 @@ func NewXiaohongshuService() *XiaohongshuService {
 	}
 }
 
-// getBrowser 获取共享浏览器实例（懒初始化，自动恢复崩溃的实例）
+// getBrowser 获取共享浏览器实例（懒初始化，失败时自动恢复）
 func (s *XiaohongshuService) getBrowser() *headless_browser.Browser {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.browser != nil && s.healthCheck {
-		// 健康检查：尝试创建一个临时 Page 验证浏览器是否存活
+	// 仅在上次操作失败或超过间隔时才做健康检查，避免每次调用都创建临时 Page
+	if s.browser != nil && s.healthCheck && s.browserFailed && time.Since(s.lastHealthCheck) > healthCheckInterval {
+		s.lastHealthCheck = time.Now()
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
@@ -52,6 +57,7 @@ func (s *XiaohongshuService) getBrowser() *headless_browser.Browser {
 			}()
 			if page := s.browser.NewPage(); page != nil {
 				page.Close()
+				s.browserFailed = false // 恢复正常
 			} else {
 				s.browser = nil
 			}
@@ -60,9 +66,17 @@ func (s *XiaohongshuService) getBrowser() *headless_browser.Browser {
 
 	if s.browser == nil {
 		s.browser = s.browserFactory()
+		s.browserFailed = false
 		logrus.Info("创建共享浏览器实例")
 	}
 	return s.browser
+}
+
+// MarkBrowserFailed 标记浏览器操作失败，下次 getBrowser 时触发健康检查
+func (s *XiaohongshuService) MarkBrowserFailed() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.browserFailed = true
 }
 
 // Close 关闭浏览器实例
@@ -71,7 +85,14 @@ func (s *XiaohongshuService) Close() {
 	defer s.mu.Unlock()
 
 	if s.browser != nil {
-		s.browser.Close()
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					logrus.Warnf("关闭浏览器时 panic: %v", r)
+				}
+			}()
+			s.browser.Close()
+		}()
 		s.browser = nil
 		logrus.Info("关闭共享浏览器实例")
 	}
