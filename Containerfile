@@ -21,6 +21,7 @@ WORKDIR /opt/app-root/src
 
 # 安装 Chromium 及其运行依赖（go-rod 无头浏览器）
 RUN dnf install -y --setopt=install_weak_deps=False \
+    chromium \
     chromium-headless \
     liberation-fonts \
     alsa-lib \
