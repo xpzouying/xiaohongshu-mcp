@@ -1,12 +1,13 @@
 # ---- build stage ----
 FROM registry.fedoraproject.org/fedora:44 AS builder
 
-# 安装 Go 编译环境和 git
-RUN dnf install -y golang git && dnf clean all
+# 安装 Go 编译环境
+RUN dnf install -y golang && dnf clean all
 
 WORKDIR /opt/app-root/src
-RUN git clone https://github.com/xpzouying/xiaohongshu-mcp.git .
+COPY go.mod go.sum ./
 RUN go mod download
+COPY . .
 # 不硬编码 GOARCH，让构建系统自动选择架构
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" .
 
