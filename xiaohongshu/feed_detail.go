@@ -20,7 +20,7 @@ import (
 // ========== 配置常量 ==========
 const (
 	defaultMaxAttempts     = 500
-	stagnantLimit          = 20
+	stagnantLimit          = 8
 	minScrollDelta         = 10
 	maxClickPerRound       = 3
 	stagnantCheckThreshold = 2 // 达到目标后需要停滞几次才确认
@@ -192,7 +192,12 @@ func (cl *commentLoader) load() error {
 
 func (cl *commentLoader) calculateMaxAttempts() int {
 	if cl.config.MaxCommentItems > 0 {
-		return cl.config.MaxCommentItems * 3
+		calculated := cl.config.MaxCommentItems * 3
+		// 确保不低于默认值，避免大量评论时尝试次数不足
+		if calculated < defaultMaxAttempts {
+			return defaultMaxAttempts
+		}
+		return calculated
 	}
 	return defaultMaxAttempts
 }

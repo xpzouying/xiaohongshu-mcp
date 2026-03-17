@@ -181,7 +181,7 @@ func findCommentElement(page *rod.Page, commentID, userID string) (*rod.Element,
 		// === 2. 获取当前评论数量 ===
 		currentCount := getCommentCount(page)
 		logrus.Infof("当前评论数: %d", currentCount)
-		
+
 		if currentCount != lastCommentCount {
 			logrus.Infof("✓ 评论数增加: %d -> %d", lastCommentCount, currentCount)
 			lastCommentCount = currentCount
@@ -202,9 +202,9 @@ func findCommentElement(page *rod.Page, commentID, userID string) (*rod.Element,
 		// === 4. 先滚动到最后一个评论（触发懒加载）===
 		if currentCount > 0 {
 			logrus.Infof("滚动到最后一个评论（共 %d 条）", currentCount)
-			
+
 			// 使用 Go 获取所有评论元素
-			elements, err := page.Timeout(2 * time.Second).Elements(".parent-comment, .comment-item, .comment")
+			elements, err := page.Timeout(2 * time.Second).Elements(commentContainerSelectorString())
 			if err == nil && len(elements) > 0 {
 				// 滚动到最后一个评论
 				lastComment := elements[len(elements)-1]
@@ -227,42 +227,38 @@ func findCommentElement(page *rod.Page, commentID, userID string) (*rod.Element,
 		time.Sleep(500 * time.Millisecond)
 
 		// === 6. 滚动后立即查找（边滚动边查找）===
-		// 优先通过 commentID 查找（使用 Timeout 避免长时间等待）
+		// 通过 commentID 多备用选择器查找
 		if commentID != "" {
-			selector := fmt.Sprintf("#comment-%s", commentID)
-			logrus.Infof("尝试通过 commentID 查找: %s", selector)
-			
-			// 使用 Timeout 避免长时间等待
-			el, err := page.Timeout(2 * time.Second).Element(selector)
-			if err == nil && el != nil {
-				logrus.Infof("✓ 通过 commentID 找到评论: %s (尝试 %d 次)", commentID, attempt+1)
-				return el, nil
+			selectors := commentSelectorsByID(commentID)
+			for _, selector := range selectors {
+				el, err := page.Timeout(1 * time.Second).Element(selector)
+				if err == nil && el != nil {
+					logrus.Infof("✓ 通过选择器 %s 找到评论 (尝试 %d 次)", selector, attempt+1)
+					return el, nil
+				}
 			}
-			logrus.Infof("未找到 commentID (2秒超时)")
+			logrus.Debugf("所有 commentID 选择器均未匹配 (尝试 %d)", attempt+1)
 		}
 
-		// 通过 userID 查找
+		// 通过 userID 多备用选择器查找
 		if userID != "" {
-			logrus.Infof("尝试通过 userID 查找: %s", userID)
-			
-			// 使用 Timeout 避免长时间等待
-			elements, err := page.Timeout(2 * time.Second).Elements(".comment-item, .comment, .parent-comment")
+			containerSelector := commentContainerSelectorString()
+			elements, err := page.Timeout(2 * time.Second).Elements(containerSelector)
 			if err == nil && len(elements) > 0 {
-				logrus.Infof("找到 %d 个评论元素", len(elements))
+				userSelectors := commentSelectorsByUser(userID)
 				for i, el := range elements {
-					// 快速检查，不等待
-					userEl, err := el.Timeout(500 * time.Millisecond).Element(fmt.Sprintf(`[data-user-id="%s"]`, userID))
-					if err == nil && userEl != nil {
-						logrus.Infof("✓ 通过 userID 在第 %d 个元素中找到评论: %s (尝试 %d 次)", i+1, userID, attempt+1)
-						return el, nil
+					for _, usel := range userSelectors {
+						userEl, err := el.Timeout(300 * time.Millisecond).Element(usel)
+						if err == nil && userEl != nil {
+							logrus.Infof("✓ 通过 %s 在第 %d 个元素中找到评论 (尝试 %d 次)", usel, i+1, attempt+1)
+							return el, nil
+						}
 					}
 				}
-				logrus.Infof("在 %d 个元素中未找到匹配的 userID", len(elements))
-			} else {
-				logrus.Infof("获取评论元素失败或超时: %v", err)
+				logrus.Debugf("在 %d 个元素中未找到匹配的 userID", len(elements))
 			}
 		}
-		
+
 		logrus.Infof("本次尝试未找到目标评论，继续下一轮...")
 
 		// === 7. 等待内容加载 ===
