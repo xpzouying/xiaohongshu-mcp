@@ -18,43 +18,43 @@ spec:
   workspaces:
     - name: shared-workspace
   tasks:
-    - name: build-and-push
+    # clone 代码
+    - name: fetch-source
       taskSpec:
         params:
           - name: REPO_URL
             type: string
           - name: GIT_REF
             type: string
+        workspaces:
+          - name: source
+        steps:
+          - name: clone
+            image: registry.fedoraproject.org/fedora:44
+            script: |
+              dnf install -y --setopt=install_weak_deps=False git && dnf clean all
+              cd $(workspaces.source.path)
+              git clone --branch $(params.GIT_REF) --single-branch --depth 1 $(params.REPO_URL) .
+              echo "Cloned $(params.REPO_URL) @ $(params.GIT_REF)"
+      params:
+        - name: REPO_URL
+          value: $(params.REPO_URL)
+        - name: GIT_REF
+          value: $(params.GIT_REF)
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+    # 使用仓库中的 Containerfile 构建并推送镜像
+    - name: build-and-push
+      runAfter:
+        - fetch-source
+      taskSpec:
+        params:
           - name: IMAGE
             type: string
         workspaces:
           - name: source
         steps:
-          # 将 Containerfile 写入 workspace
-          - name: write-containerfile
-            image: registry.fedoraproject.org/fedora:44
-            script: |
-              cat > $(workspaces.source.path)/Containerfile <<'EOF'
-              FROM registry.fedoraproject.org/fedora:44 AS builder
-              RUN dnf install -y golang git && dnf clean all
-              WORKDIR /opt/app-root/src
-              RUN git clone --branch $(params.GIT_REF) --single-branch $(params.REPO_URL) .
-              RUN go mod download
-              RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" .
-              FROM registry.fedoraproject.org/fedora:44
-              ENV TZ=Asia/Shanghai
-              RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
-              WORKDIR /opt/app-root/src
-              RUN dnf install -y --setopt=install_weak_deps=False chromium chromium-headless liberation-fonts alsa-lib at-spi2-atk atk cairo cups-libs dbus-libs expat fontconfig libgbm glib2 gtk3 nspr nss pango libX11 libX11-xcb libxcb libXcomposite libXcursor libXdamage libXext libXfixes libXi libXrandr libXrender libXScrnSaver libXtst wget xdg-utils && dnf clean all
-              COPY --from=builder /opt/app-root/src/xiaohongshu-mcp .
-              RUN mkdir -p /opt/app-root/src/images && chmod 777 /opt/app-root/src/images
-              ENV HOME=/opt/app-root/src
-              RUN chmod -R g+rwX /opt/app-root/src
-              ENV ROD_BROWSER_BIN=/usr/bin/chromium-browser
-              EXPOSE 18060
-              CMD ["./xiaohongshu-mcp"]
-              EOF
-          # 使用 buildah 构建并推送镜像
           - name: build
             image: registry.redhat.io/rhel9/buildah@sha256:4e604d18fc609d25b2fc99814281944acaac78e8cd5e47b8359709b8b505db86
             script: |
@@ -81,10 +81,6 @@ spec:
           - name: varlibcontainers
             emptyDir: {}
       params:
-        - name: REPO_URL
-          value: $(params.REPO_URL)
-        - name: GIT_REF
-          value: $(params.GIT_REF)
         - name: IMAGE
           value: $(params.IMAGE)
       workspaces:
