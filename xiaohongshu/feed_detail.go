@@ -471,7 +471,10 @@ func clickElementWithHumanBehavior(page *rod.Page, el *rod.Element, text string)
 
 func humanScroll(page *rod.Page, speed string, largeMode bool, pushCount int) (bool, int, int) {
 	beforeTop := getScrollTop(page)
-	viewportHeight := page.MustEval(`() => window.innerHeight`).Int()
+	viewportHeight := 800 // 默认值
+	if vh, err := page.Eval(`() => window.innerHeight`); err == nil {
+		viewportHeight = vh.Value.Int()
+	}
 
 	baseRatio := getScrollRatio(speed)
 	if largeMode {
@@ -484,7 +487,10 @@ func humanScroll(page *rod.Page, speed string, largeMode bool, pushCount int) (b
 
 	for i := 0; i < max(1, pushCount); i++ {
 		scrollDelta := calculateScrollDelta(viewportHeight, baseRatio)
-		page.MustEval(`(delta) => { window.scrollBy(0, delta); }`, scrollDelta)
+		if _, err := page.Eval(`(delta) => { window.scrollBy(0, delta); }`, scrollDelta); err != nil {
+			logrus.Debugf("滚动失败: %v", err)
+			break
+		}
 
 		sleepRandom(scrollWaitRange.min, scrollWaitRange.max)
 
@@ -504,7 +510,7 @@ func humanScroll(page *rod.Page, speed string, largeMode bool, pushCount int) (b
 	}
 
 	if !scrolled && pushCount > 0 {
-		page.MustEval(`() => window.scrollTo(0, document.body.scrollHeight)`)
+		page.Eval(`() => window.scrollTo(0, document.body.scrollHeight)`)
 		sleepRandom(postScrollRange.min, postScrollRange.max)
 		currentScrollTop = getScrollTop(page)
 		actualDelta = currentScrollTop - beforeTop + actualDelta
@@ -554,7 +560,7 @@ func scrollToCommentsArea(page *rod.Page) {
 
 // smartScroll 智能滚动：触发滚轮事件以正确触发懒加载
 func smartScroll(page *rod.Page, delta float64) {
-	page.MustEval(`(delta) => {
+	page.Eval(`(delta) => {
 		// 查找滚动目标元素
 		let targetElement = document.querySelector('.note-scroller') 
 			|| document.querySelector('.interaction-container') 
@@ -591,11 +597,14 @@ func getScrollTop(page *rod.Page) int {
 	// 使用retry-go来处理可能的DOM查询失败
 	err := retry.Do(
 		func() error {
-			evalResult := page.MustEval(`() => {
+			evalResult, err := page.Eval(`() => {
 				return window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
 			}`)
+			if err != nil {
+				return err
+			}
 
-			result = evalResult.Int()
+			result = evalResult.Value.Int()
 			return nil
 		},
 		retry.Attempts(3),
@@ -812,7 +821,7 @@ func (f *FeedDetailAction) extractFeedDetail(page *rod.Page, feedID string) (*Fe
 	// 使用retry-go来处理可能的DOM查询失败
 	err := retry.Do(
 		func() error {
-			evalResult := page.MustEval(`() => {
+			evalObj, err := page.Eval(`() => {
 				if (window.__INITIAL_STATE__ &&
 					window.__INITIAL_STATE__.note &&
 					window.__INITIAL_STATE__.note.noteDetailMap) {
@@ -820,8 +829,12 @@ func (f *FeedDetailAction) extractFeedDetail(page *rod.Page, feedID string) (*Fe
 					return JSON.stringify(noteDetailMap);
 				}
 				return "";
-			}`).String()
+			}`)
+			if err != nil {
+				return err
+			}
 
+			evalResult := evalObj.Value.String()
 			if evalResult != "" {
 				result = evalResult
 				return nil
