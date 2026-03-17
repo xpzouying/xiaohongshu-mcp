@@ -37,18 +37,24 @@ func (a *LoginAction) CheckLoginStatus(ctx context.Context) (*LoginStatusResult,
 		return &LoginStatusResult{IsLoggedIn: false}, nil
 	}
 
-	// 从 __INITIAL_STATE__ 中提取当前登录用户昵称
-	nickname := pp.MustEval(`() => {
-		try {
-			const user = window.__INITIAL_STATE__?.user;
-			if (!user) return "";
-			const info = user.userPageData?.value?.basicInfo ||
-			             user.userPageData?._value?.basicInfo ||
-			             user.currentUserInfo?.value ||
-			             user.currentUserInfo?._value;
-			return info?.nickname || info?.nickName || "";
-		} catch(e) { return ""; }
-	}`).String()
+	// 点击侧边栏"我"导航到个人主页，从 __INITIAL_STATE__ 获取昵称
+	nickname := ""
+	profileLink, err := pp.Element(`div.main-container li.user.side-bar-component a.link-wrapper span.channel`)
+	if err == nil && profileLink != nil {
+		profileLink.MustClick()
+		pp.MustWaitLoad()
+		time.Sleep(1 * time.Second)
+
+		nickname = pp.MustEval(`() => {
+			try {
+				const user = window.__INITIAL_STATE__?.user;
+				if (!user) return "";
+				const data = user.userPageData?.value?.basicInfo ||
+				             user.userPageData?._value?.basicInfo;
+				return data?.nickname || "";
+			} catch(e) { return ""; }
+		}`).String()
+	}
 
 	return &LoginStatusResult{IsLoggedIn: true, Nickname: nickname}, nil
 }
