@@ -742,3 +742,67 @@ func (s *AppServer) handleReplyComment(ctx context.Context, args map[string]inte
 		}},
 	}
 }
+
+// --- XHS drafts MCP (save via web automation) ---
+
+type SaveDraftArgs struct {
+	Title      string   `json:"title"`
+	Content    string   `json:"content"`
+	Images     []string `json:"images,omitempty"`
+	Video      string   `json:"video,omitempty"`
+	Tags       []string `json:"tags,omitempty"`
+	ScheduleAt string   `json:"schedule_at,omitempty"`
+	IsOriginal bool     `json:"is_original,omitempty"`
+	Visibility string   `json:"visibility,omitempty"`
+	Products   []string `json:"products,omitempty"`
+
+	// Type: image|video
+	Type string `json:"type"`
+}
+
+func (s *AppServer) handleSaveDraft(ctx context.Context, args SaveDraftArgs) *MCPToolResult {
+	// NOTE: 按需求调整：save_draft 不再走“暂存/存草稿”按钮，而是执行“发布”但强制设置为“仅自己可见”
+	// 这样可规避页面文案变化导致的草稿按钮定位失败，但会产生真实发布（私密可见）。
+	logrus.Info("MCP: 私密发布（使用 save_draft 接口，强制仅自己可见）")
+
+	if args.Type == "" {
+		args.Type = "image"
+	}
+
+	// 强制仅自己可见（覆盖传入的 visibility）
+	args.Visibility = "仅自己可见"
+
+	switch args.Type {
+	case "image":
+		req := &PublishRequest{
+			Title:      args.Title,
+			Content:    args.Content,
+			Images:     args.Images,
+			Tags:       args.Tags,
+			ScheduleAt: args.ScheduleAt,
+			IsOriginal: args.IsOriginal,
+			Visibility: args.Visibility,
+			Products:   args.Products,
+		}
+		if _, err := s.xiaohongshuService.PublishContent(ctx, req); err != nil {
+			return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: "私密发布失败: " + err.Error()}}, IsError: true}
+		}
+		return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: "已发布为仅自己可见（通过 save_draft 执行私密发布）"}}}
+	case "video":
+		req := &PublishVideoRequest{
+			Title:      args.Title,
+			Content:    args.Content,
+			Video:      args.Video,
+			Tags:       args.Tags,
+			ScheduleAt: args.ScheduleAt,
+			Visibility: args.Visibility,
+			Products:   args.Products,
+		}
+		if _, err := s.xiaohongshuService.PublishVideo(ctx, req); err != nil {
+			return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: "私密发布失败: " + err.Error()}}, IsError: true}
+		}
+		return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: "已发布为仅自己可见（通过 save_draft 执行私密发布）"}}}
+	default:
+		return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: "不支持的 type: " + args.Type}}, IsError: true}
+	}
+}

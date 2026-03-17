@@ -443,7 +443,23 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	logrus.Infof("Registered %d MCP tools", 13)
+	// 工具 14: 保存草稿
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "save_draft",
+			Description: "保存草稿（通过仅个人可见发布）",
+			Annotations: &mcp.ToolAnnotations{
+				Title:           "Save Draft",
+				DestructiveHint: boolPtr(true),
+			},
+		},
+		withPanicRecovery("save_draft", func(ctx context.Context, req *mcp.CallToolRequest, args SaveDraftArgs) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleSaveDraft(ctx, args)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	logrus.Infof("Registered %d MCP tools", 14)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式
