@@ -2,6 +2,7 @@ package xiaohongshu
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"math/rand"
 	"os"
@@ -270,16 +271,17 @@ func waitForUploadComplete(page *rod.Page, expectedCount int) error {
 		time.Sleep(checkInterval)
 	}
 
-	// 超时时截图和抓取页面 HTML 用于排查
+	// 超时时截图和抓取页面 HTML 用于排查（带时间戳避免覆盖）
+	ts := time.Now().Format("20060102_150405")
 	screenshot, err := page.Screenshot(true, nil)
 	if err == nil {
-		debugPath := "/tmp/upload_timeout_debug.png"
+		debugPath := fmt.Sprintf("/tmp/upload_timeout_%s.png", ts)
 		os.WriteFile(debugPath, screenshot, 0644)
 		slog.Error("上传超时截图已保存", "path", debugPath)
 	}
 	html, err := page.HTML()
 	if err == nil {
-		debugHTML := "/tmp/upload_timeout_debug.html"
+		debugHTML := fmt.Sprintf("/tmp/upload_timeout_%s.html", ts)
 		os.WriteFile(debugHTML, []byte(html), 0644)
 		slog.Error("上传超时页面HTML已保存", "path", debugHTML)
 	}

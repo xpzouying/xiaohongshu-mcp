@@ -100,15 +100,17 @@ func TestCloseIdempotent(t *testing.T) {
 			return &headless_browser.Browser{}
 		},
 	}
-	s.getBrowser()
 
-	// 模拟 Close：置 nil 即可（真实 Close 会调用 Browser.Close）
+	// 未初始化时 Close 不应 panic
+	s.Close()
+	s.Close()
+
+	// 初始化后置 nil 再 Close 也不应 panic
+	s.mu.Lock()
+	s.browser = &headless_browser.Browser{}
+	s.mu.Unlock()
 	s.mu.Lock()
 	s.browser = nil
 	s.mu.Unlock()
-
-	// 多次操作不应 panic
-	s.mu.Lock()
-	s.browser = nil
-	s.mu.Unlock()
+	s.Close()
 }

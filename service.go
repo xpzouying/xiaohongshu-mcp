@@ -25,19 +25,38 @@ type XiaohongshuService struct {
 	mu             sync.Mutex
 	browser        *headless_browser.Browser
 	browserFactory func() *headless_browser.Browser // 可替换的浏览器创建函数，便于测试
+	healthCheck    bool                             // 是否启用浏览器健康检查
 }
 
 // NewXiaohongshuService 创建小红书服务实例
 func NewXiaohongshuService() *XiaohongshuService {
 	return &XiaohongshuService{
 		browserFactory: newBrowser,
+		healthCheck:    true,
 	}
 }
 
-// getBrowser 获取共享浏览器实例（懒初始化）
+// getBrowser 获取共享浏览器实例（懒初始化，自动恢复崩溃的实例）
 func (s *XiaohongshuService) getBrowser() *headless_browser.Browser {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	if s.browser != nil && s.healthCheck {
+		// 健康检查：尝试创建一个临时 Page 验证浏览器是否存活
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					logrus.Warnf("浏览器健康检查失败: %v，重新创建", r)
+					s.browser = nil
+				}
+			}()
+			if page := s.browser.NewPage(); page != nil {
+				page.Close()
+			} else {
+				s.browser = nil
+			}
+		}()
+	}
 
 	if s.browser == nil {
 		s.browser = s.browserFactory()

@@ -45,7 +45,7 @@ spec:
               ENV TZ=Asia/Shanghai
               RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
               WORKDIR /opt/app-root/src
-              RUN dnf install -y --setopt=install_weak_deps=False chromium liberation-fonts alsa-lib at-spi2-atk atk cairo cups-libs dbus-libs expat fontconfig libgbm glib2 gtk3 nspr nss pango libX11 libX11-xcb libxcb libXcomposite libXcursor libXdamage libXext libXfixes libXi libXrandr libXrender libXScrnSaver libXtst wget xdg-utils && dnf clean all
+              RUN dnf install -y --setopt=install_weak_deps=False chromium-headless liberation-fonts alsa-lib at-spi2-atk atk cairo cups-libs dbus-libs expat fontconfig libgbm glib2 gtk3 nspr nss pango libX11 libX11-xcb libxcb libXcomposite libXcursor libXdamage libXext libXfixes libXi libXrandr libXrender libXScrnSaver libXtst wget xdg-utils && dnf clean all
               COPY --from=builder /opt/app-root/src/xiaohongshu-mcp .
               RUN mkdir -p /opt/app-root/src/images && chmod 777 /opt/app-root/src/images
               ENV HOME=/opt/app-root/src

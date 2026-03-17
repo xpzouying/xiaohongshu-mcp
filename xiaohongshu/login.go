@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/go-rod/rod"
+	"github.com/go-rod/rod/lib/proto"
 	"github.com/pkg/errors"
 )
 
@@ -41,19 +42,23 @@ func (a *LoginAction) CheckLoginStatus(ctx context.Context) (*LoginStatusResult,
 	nickname := ""
 	profileLink, err := pp.Element(`div.main-container li.user.side-bar-component a.link-wrapper span.channel`)
 	if err == nil && profileLink != nil {
-		profileLink.MustClick()
-		pp.MustWaitLoad()
-		time.Sleep(1 * time.Second)
+		if clickErr := profileLink.Click(proto.InputMouseButtonLeft, 1); clickErr == nil {
+			_ = pp.WaitLoad()
+			time.Sleep(1 * time.Second)
 
-		nickname = pp.MustEval(`() => {
-			try {
-				const user = window.__INITIAL_STATE__?.user;
-				if (!user) return "";
-				const data = user.userPageData?.value?.basicInfo ||
-				             user.userPageData?._value?.basicInfo;
-				return data?.nickname || "";
-			} catch(e) { return ""; }
-		}`).String()
+			result, evalErr := pp.Eval(`() => {
+				try {
+					const user = window.__INITIAL_STATE__?.user;
+					if (!user) return "";
+					const data = user.userPageData?.value?.basicInfo ||
+					             user.userPageData?._value?.basicInfo;
+					return data?.nickname || "";
+				} catch(e) { return ""; }
+			}`)
+			if evalErr == nil && result != nil {
+				nickname = result.Value.String()
+			}
+		}
 	}
 
 	return &LoginStatusResult{IsLoggedIn: true, Nickname: nickname}, nil

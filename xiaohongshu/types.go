@@ -35,6 +35,17 @@ func (f Feed) GetDisplayTitle() string {
 	return f.DisplayTitle
 }
 
+// NormalizeFields 规范化字段，将顶层字段同步到 NoteCard 中
+// 搜索结果可能把 displayTitle 放在顶层而非 NoteCard 内
+func (f *Feed) NormalizeFields() {
+	if f.NoteCard.DisplayTitle == "" && f.DisplayTitle != "" {
+		f.NoteCard.DisplayTitle = f.DisplayTitle
+	}
+	if f.NoteCard.User.Nickname == "" && f.NoteCard.User.NickName != "" {
+		f.NoteCard.User.Nickname = f.NoteCard.User.NickName
+	}
+}
+
 // NoteCard 表示笔记卡片信息
 type NoteCard struct {
 	Type         string       `json:"type"`
