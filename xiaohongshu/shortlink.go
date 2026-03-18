@@ -28,6 +28,22 @@ var shortLinkDomains = []string{
 	"xhslink.com",
 }
 
+// feedID 提取正则（包级变量，避免重复编译）
+var feedIDPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`/discovery/item/([a-zA-Z0-9]+)`),
+	regexp.MustCompile(`/explore/([a-zA-Z0-9]+)`),
+	regexp.MustCompile(`/note/([a-zA-Z0-9]+)`),
+}
+
+// 短链接专用 HTTP Client（复用连接池）
+var shortLinkClient = &http.Client{
+	Timeout: 10 * time.Second,
+	CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		// 禁止自动跟随重定向，需手动获取 Location header
+		return http.ErrUseLastResponse
+	},
+}
+
 // 移动端 User-Agent，模拟 iOS Chrome 访问
 const mobileUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/120.0.6099.119 Mobile/15E148 Safari/604.1"
 
@@ -41,16 +57,6 @@ func ResolveShortLink(ctx context.Context, shortURL string) (*ShortLinkResult, e
 
 	logrus.Infof("解析短链接: %s", normalizedURL)
 
-	// 创建 HTTP Client，禁止自动跟随重定向
-	client := &http.Client{
-		Timeout: 10 * time.Second,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			// 禁止自动跟随重定向，我们需要手动获取 Location header
-			return http.ErrUseLastResponse
-		},
-	}
-
-	// 创建请求
 	req, err := http.NewRequestWithContext(ctx, "GET", normalizedURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("创建请求失败: %w", err)
@@ -62,14 +68,15 @@ func ResolveShortLink(ctx context.Context, shortURL string) (*ShortLinkResult, e
 	req.Header.Set("Accept-Language", "zh-CN,zh-Hans;q=0.9")
 
 	// 发送请求
-	resp, err := client.Do(req)
+	resp, err := shortLinkClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("请求短链接失败: %w", err)
 	}
 	defer resp.Body.Close()
 
-	// 检查是否为重定向响应
-	if resp.StatusCode != http.StatusFound && resp.StatusCode != http.StatusMovedPermanently {
+	// 检查是否为重定向响应 (301, 302, 307, 308)
+	if resp.StatusCode != http.StatusFound && resp.StatusCode != http.StatusMovedPermanently &&
+		resp.StatusCode != http.StatusTemporaryRedirect && resp.StatusCode != http.StatusPermanentRedirect {
 		return nil, fmt.Errorf("短链接未返回重定向，状态码: %d", resp.StatusCode)
 	}
 
@@ -156,21 +163,14 @@ func parseRedirectURL(redirectURL, originalURL string) (*ShortLinkResult, error)
 		XsecSource:  query.Get("xsec_source"),
 	}
 
-	logrus.Infof("解析成功: feed_id=%s, xsec_token=%s", feedID, xsecToken)
+	logrus.Infof("解析成功: feed_id=%s", feedID)
 
 	return result, nil
 }
 
 // extractFeedIDFromPath 从 URL 路径中提取 feed_id
 func extractFeedIDFromPath(path string) string {
-	// 支持多种路径格式
-	patterns := []*regexp.Regexp{
-		regexp.MustCompile(`/discovery/item/([a-zA-Z0-9]+)`),
-		regexp.MustCompile(`/explore/([a-zA-Z0-9]+)`),
-		regexp.MustCompile(`/note/([a-zA-Z0-9]+)`),
-	}
-
-	for _, pattern := range patterns {
+	for _, pattern := range feedIDPatterns {
 		matches := pattern.FindStringSubmatch(path)
 		if len(matches) > 1 {
 			return matches[1]

@@ -459,7 +459,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 			},
 		},
 		withPanicRecovery("resolve_shortlink", func(ctx context.Context, req *mcp.CallToolRequest, args ResolveShortLinkArgs) (*mcp.CallToolResult, any, error) {
-			result := appServer.handleResolveShortLink(ctx, args.URL)
+			result := appServer.handleResolveShortLink(ctx, args)
 			return convertToMCPResult(result), nil, nil
 		}),
 	)
