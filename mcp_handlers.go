@@ -746,31 +746,38 @@ func (s *AppServer) handleReplyComment(ctx context.Context, args map[string]inte
 // --- XHS drafts MCP (save via web automation) ---
 
 type SaveDraftArgs struct {
-	Title      string   `json:"title"`
-	Content    string   `json:"content"`
-	Images     []string `json:"images,omitempty"`
-	Video      string   `json:"video,omitempty"`
-	Tags       []string `json:"tags,omitempty"`
-	ScheduleAt string   `json:"schedule_at,omitempty"`
-	IsOriginal bool     `json:"is_original,omitempty"`
-	Visibility string   `json:"visibility,omitempty"`
-	Products   []string `json:"products,omitempty"`
+	Title      string   `json:"title" jsonschema:"内容标题（小红书限制：最多20个中文字或英文单词）"`
+	Content    string   `json:"content" jsonschema:"正文内容"`
+	Images     []string `json:"images,omitempty" jsonschema:"图文模式下的图片路径列表（至少1张）。支持本地绝对路径或HTTP链接（如服务端支持下载）"`
+	Video      string   `json:"video,omitempty" jsonschema:"视频模式下的视频文件本地绝对路径（仅单个视频）"`
+	Tags       []string `json:"tags,omitempty" jsonschema:"话题标签列表（可选）"`
+	ScheduleAt string   `json:"schedule_at,omitempty" jsonschema:"定时发布时间（可选），ISO8601 格式"`
+	IsOriginal bool     `json:"is_original,omitempty" jsonschema:"是否声明原创（可选）"`
+	Visibility string   `json:"visibility,omitempty" jsonschema:"可见范围（可选），cloud模式下会强制覆盖为仅自己可见"`
+	Products   []string `json:"products,omitempty" jsonschema:"商品关键词列表（可选），用于绑定带货商品"`
 
 	// Type: image|video
-	Type string `json:"type"`
+	Type string `json:"type" jsonschema:"内容类型：image(默认)|video"`
+
+	// Mode:
+	// - cloud: 通过“仅自己可见”发布来实现云端暂存（稳定，不依赖页面草稿按钮）
+	// - local: 点击发布按钮旁边的“暂存离开”保存到草稿箱（依赖页面能力）
+	Mode string `json:"mode" jsonschema:"【必填】暂存模式：cloud（仅自己可见发布，云端暂存）；local（点击暂存离开，保存到草稿箱）"`
 }
 
 func (s *AppServer) handleSaveDraft(ctx context.Context, args SaveDraftArgs) *MCPToolResult {
-	// NOTE: 按需求调整：save_draft 不再走“暂存/存草稿”按钮，而是执行“发布”但强制设置为“仅自己可见”
-	// 这样可规避页面文案变化导致的草稿按钮定位失败，但会产生真实发布（私密可见）。
-	logrus.Info("MCP: 私密发布（使用 save_draft 接口，强制仅自己可见）")
+	// save_draft 支持两种模式：
+	// - cloud: 私密发布（仅自己可见）作为“云端暂存”
+	// - local: 点击“暂存离开”保存到草稿箱
+	logrus.Infof("MCP: save_draft mode=%s type=%s", args.Mode, args.Type)
 
 	if args.Type == "" {
 		args.Type = "image"
 	}
 
-	// 强制仅自己可见（覆盖传入的 visibility）
-	args.Visibility = "仅自己可见"
+	if args.Mode == "" {
+		args.Mode = "cloud"
+	}
 
 	switch args.Type {
 	case "image":
@@ -784,10 +791,19 @@ func (s *AppServer) handleSaveDraft(ctx context.Context, args SaveDraftArgs) *MC
 			Visibility: args.Visibility,
 			Products:   args.Products,
 		}
-		if _, err := s.xiaohongshuService.PublishContent(ctx, req); err != nil {
-			return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: "私密发布失败: " + err.Error()}}, IsError: true}
+		if args.Mode == "local" {
+			if err := s.xiaohongshuService.SaveLocalImageDraft(ctx, req); err != nil {
+				return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: "本地暂存失败: " + err.Error()}}, IsError: true}
+			}
+			return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: "已点击“暂存离开”，草稿已保存到草稿箱（如页面提供该能力）"}}}
 		}
-		return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: "已发布为仅自己可见（通过 save_draft 执行私密发布）"}}}
+
+		// cloud: 强制仅自己可见（覆盖传入的 visibility）
+		req.Visibility = "仅自己可见"
+		if _, err := s.xiaohongshuService.PublishContent(ctx, req); err != nil {
+			return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: "云端暂存失败(私密发布): " + err.Error()}}, IsError: true}
+		}
+		return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: "云端暂存完成：已发布为仅自己可见"}}}
 	case "video":
 		req := &PublishVideoRequest{
 			Title:      args.Title,
@@ -798,10 +814,19 @@ func (s *AppServer) handleSaveDraft(ctx context.Context, args SaveDraftArgs) *MC
 			Visibility: args.Visibility,
 			Products:   args.Products,
 		}
-		if _, err := s.xiaohongshuService.PublishVideo(ctx, req); err != nil {
-			return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: "私密发布失败: " + err.Error()}}, IsError: true}
+		if args.Mode == "local" {
+			if err := s.xiaohongshuService.SaveLocalVideoDraft(ctx, req); err != nil {
+				return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: "本地暂存失败: " + err.Error()}}, IsError: true}
+			}
+			return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: "已点击“暂存离开”，草稿已保存到草稿箱（如页面提供该能力）"}}}
 		}
-		return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: "已发布为仅自己可见（通过 save_draft 执行私密发布）"}}}
+
+		// cloud: 强制仅自己可见（覆盖传入的 visibility）
+		req.Visibility = "仅自己可见"
+		if _, err := s.xiaohongshuService.PublishVideo(ctx, req); err != nil {
+			return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: "云端暂存失败(私密发布): " + err.Error()}}, IsError: true}
+		}
+		return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: "云端暂存完成：已发布为仅自己可见"}}}
 	default:
 		return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: "不支持的 type: " + args.Type}}, IsError: true}
 	}

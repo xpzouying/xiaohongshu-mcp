@@ -884,6 +884,14 @@ npx mcporter list xiaohongshu-mcp
 - `favorite_feed` - 收藏/取消收藏（必需：feed_id, xsec_token）
   - `unfavorite`: 是否取消收藏（可选），true 为取消收藏，默认为收藏
 - `user_profile` - 获取用户个人主页信息（必需：user_id, xsec_token）
+- `save_draft` - 暂存内容（两种模式：云端暂存/本地暂存）
+  - `mode`: `cloud`（默认）| `local`
+    - `cloud`: 通过“发布但仅自己可见”实现云端暂存（稳定，不依赖页面草稿按钮）
+    - `local`: 通过点击发布按钮旁边的“暂存离开”保存到草稿箱（依赖页面能力）
+  - `type`: `image`（默认）| `video`
+  - 图文必需：`title`, `content`, `images`
+  - 视频必需：`title`, `content`, `video`
+  - 可选：`tags`, `schedule_at`, `is_original`, `visibility`, `products`
 
 ### 2.4. 使用示例
 

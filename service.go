@@ -238,6 +238,53 @@ func (s *XiaohongshuService) PublishContent(ctx context.Context, req *PublishReq
 	return response, nil
 }
 
+// SaveLocalImageDraft 本地暂存图文草稿：点击“暂存离开”（不发布）
+func (s *XiaohongshuService) SaveLocalImageDraft(ctx context.Context, req *PublishRequest) error {
+	// 标题长度校验（小红书限制：最大20个字）
+	if xhsutil.CalcTitleLength(req.Title) > 20 {
+		return fmt.Errorf("标题长度超过限制")
+	}
+
+	imagePaths, err := s.processImages(req.Images)
+	if err != nil {
+		return err
+	}
+
+	// 本地暂存：不强制要求/不建议设置定时发布；如调用方传了也沿用解析，避免参数无效造成困惑
+	var scheduleTime *time.Time
+	if req.ScheduleAt != "" {
+		t, err := time.Parse(time.RFC3339, req.ScheduleAt)
+		if err != nil {
+			return fmt.Errorf("定时发布时间格式错误，请使用 ISO8601 格式: %v", err)
+		}
+		scheduleTime = &t
+	}
+
+	content := xiaohongshu.PublishImageContent{
+		Title:        req.Title,
+		Content:      req.Content,
+		Tags:         req.Tags,
+		ImagePaths:   imagePaths,
+		ScheduleTime: scheduleTime,
+		IsOriginal:   req.IsOriginal,
+		Visibility:   req.Visibility,
+		Products:     req.Products,
+	}
+
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action, err := xiaohongshu.NewPublishImageAction(page)
+	if err != nil {
+		return err
+	}
+
+	return action.SaveLocalDraft(ctx, content)
+}
+
 // processImages 处理图片列表，支持URL下载和本地路径
 func (s *XiaohongshuService) processImages(images []string) ([]string, error) {
 	processor := downloader.NewImageProcessor()
@@ -325,6 +372,51 @@ func (s *XiaohongshuService) PublishVideo(ctx context.Context, req *PublishVideo
 		Status:  "发布完成",
 	}
 	return resp, nil
+}
+
+// SaveLocalVideoDraft 本地暂存视频草稿：点击“暂存离开”（不发布）
+func (s *XiaohongshuService) SaveLocalVideoDraft(ctx context.Context, req *PublishVideoRequest) error {
+	if xhsutil.CalcTitleLength(req.Title) > 20 {
+		return fmt.Errorf("标题长度超过限制")
+	}
+	if req.Video == "" {
+		return fmt.Errorf("必须提供本地视频文件")
+	}
+	if _, err := os.Stat(req.Video); err != nil {
+		return fmt.Errorf("视频文件不存在或不可访问: %v", err)
+	}
+
+	var scheduleTime *time.Time
+	if req.ScheduleAt != "" {
+		t, err := time.Parse(time.RFC3339, req.ScheduleAt)
+		if err != nil {
+			return fmt.Errorf("定时发布时间格式错误，请使用 ISO8601 格式: %v", err)
+		}
+		scheduleTime = &t
+	}
+
+	content := xiaohongshu.PublishVideoContent{
+		Title:        req.Title,
+		Content:      req.Content,
+		Tags:         req.Tags,
+		VideoPath:    req.Video,
+		ScheduleTime: scheduleTime,
+		Visibility:   req.Visibility,
+		Products:     req.Products,
+	}
+
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action, err := xiaohongshu.NewPublishVideoAction(page)
+	if err != nil {
+		return err
+	}
+
+	return action.SaveLocalVideoDraft(ctx, content)
 }
 
 // publishVideo 执行视频发布

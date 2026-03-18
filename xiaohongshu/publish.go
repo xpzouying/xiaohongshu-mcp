@@ -94,6 +94,33 @@ func (p *PublishAction) Publish(ctx context.Context, content PublishImageContent
 	return nil
 }
 
+// SaveLocalDraft 本地暂存图文草稿：点击“暂存离开”（不发布）
+func (p *PublishAction) SaveLocalDraft(ctx context.Context, content PublishImageContent) error {
+	if len(content.ImagePaths) == 0 {
+		return errors.New("图片不能为空")
+	}
+
+	page := p.page.Context(ctx)
+
+	if err := uploadImages(page, content.ImagePaths); err != nil {
+		return errors.Wrap(err, "小红书上传图片失败")
+	}
+
+	tags := content.Tags
+	if len(tags) >= 10 {
+		logrus.Warnf("标签数量超过10，截取前10个标签")
+		tags = tags[:10]
+	}
+
+	logrus.Infof("本地暂存: title=%s, images=%v, tags=%v, schedule=%v, original=%v, visibility=%s, products=%v", content.Title, len(content.ImagePaths), tags, content.ScheduleTime, content.IsOriginal, content.Visibility, content.Products)
+
+	if err := submitLocalDraft(page, content.Title, content.Content, tags, content.ScheduleTime, content.IsOriginal, content.Visibility, content.Products); err != nil {
+		return errors.Wrap(err, "小红书本地暂存失败")
+	}
+
+	return nil
+}
+
 func removePopCover(page *rod.Page) {
 
 	// 先移除弹窗封面
@@ -348,6 +375,103 @@ func submitPublish(page *rod.Page, title, content string, tags []string, schedul
 
 	time.Sleep(3 * time.Second)
 	return nil
+}
+
+func submitLocalDraft(page *rod.Page, title, content string, tags []string, scheduleTime *time.Time, isOriginal bool, visibility string, products []string) error {
+	titleElem, err := page.Element("div.d-input input")
+	if err != nil {
+		return errors.Wrap(err, "查找标题输入框失败")
+	}
+	if err := titleElem.Input(title); err != nil {
+		return errors.Wrap(err, "输入标题失败")
+	}
+
+	time.Sleep(500 * time.Millisecond)
+	if err := checkTitleMaxLength(page); err != nil {
+		return err
+	}
+
+	time.Sleep(1 * time.Second)
+
+	contentElem, ok := getContentElement(page)
+	if !ok {
+		return errors.New("没有找到内容输入框")
+	}
+	if err := contentElem.Input(content); err != nil {
+		return errors.Wrap(err, "输入正文失败")
+	}
+	if err := waitAndClickTitleInput(titleElem); err != nil {
+		return err
+	}
+	if err := inputTags(contentElem, tags); err != nil {
+		return err
+	}
+
+	time.Sleep(1 * time.Second)
+	if err := checkContentMaxLength(page); err != nil {
+		return err
+	}
+
+	// 本地暂存：尽量沿用设置项（如页面支持）
+	if scheduleTime != nil {
+		if err := setSchedulePublish(page, *scheduleTime); err != nil {
+			return errors.Wrap(err, "设置定时发布失败")
+		}
+	}
+	if err := setVisibility(page, visibility); err != nil {
+		return errors.Wrap(err, "设置可见范围失败")
+	}
+	if isOriginal {
+		if err := setOriginal(page); err != nil {
+			slog.Warn("设置原创声明失败，继续暂存", "error", err)
+		}
+	}
+	if err := bindProducts(page, products); err != nil {
+		return errors.Wrap(err, "绑定商品失败")
+	}
+
+	if err := clickStashLeaveButton(page); err != nil {
+		return err
+	}
+
+	time.Sleep(2 * time.Second)
+	return nil
+}
+
+func clickStashLeaveButton(page *rod.Page) error {
+	container, _ := page.Element(".publish-page-publish-btn")
+	var buttons []*rod.Element
+	if container != nil {
+		btns, err := container.Elements("button")
+		if err == nil {
+			buttons = append(buttons, btns...)
+		}
+	}
+	if len(buttons) == 0 {
+		btns, err := page.Elements("button")
+		if err == nil {
+			buttons = append(buttons, btns...)
+		}
+	}
+
+	for _, b := range buttons {
+		txt, err := b.Text()
+		if err != nil {
+			continue
+		}
+		t := strings.TrimSpace(txt)
+		if t == "" {
+			continue
+		}
+		if t == "暂存离开" || strings.Contains(t, "暂存") {
+			if err := b.Click(proto.InputMouseButtonLeft, 1); err != nil {
+				continue
+			}
+			slog.Info("已点击暂存离开", "text", t)
+			return nil
+		}
+	}
+	return errors.New("未找到“暂存离开”按钮（页面可能无该能力或结构变更）")
 }
 
 // waitAndClickTitleInput 在填写正文后等待 1 秒并回点标题输入框，增强后续交互稳定性

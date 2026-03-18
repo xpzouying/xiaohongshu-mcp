@@ -70,6 +70,24 @@ func (p *PublishAction) PublishVideo(ctx context.Context, content PublishVideoCo
 	return nil
 }
 
+// SaveLocalVideoDraft 本地暂存视频草稿：点击“暂存离开”（不发布）
+func (p *PublishAction) SaveLocalVideoDraft(ctx context.Context, content PublishVideoContent) error {
+	if content.VideoPath == "" {
+		return errors.New("视频不能为空")
+	}
+
+	page := p.page.Context(ctx)
+
+	if err := uploadVideo(page, content.VideoPath); err != nil {
+		return errors.Wrap(err, "小红书上传视频失败")
+	}
+
+	if err := submitLocalVideoDraft(page, content.Title, content.Content, content.Tags, content.ScheduleTime, content.Visibility, content.Products); err != nil {
+		return errors.Wrap(err, "小红书本地暂存失败")
+	}
+	return nil
+}
+
 // uploadVideo 上传单个本地视频
 func uploadVideo(page *rod.Page, videoPath string) error {
 	pp := page.Timeout(5 * time.Minute) // 视频处理耗时更长
@@ -190,5 +208,60 @@ func submitPublishVideo(page *rod.Page, title, content string, tags []string, sc
 	}
 
 	time.Sleep(3 * time.Second)
+	return nil
+}
+
+func submitLocalVideoDraft(page *rod.Page, title, content string, tags []string, scheduleTime *time.Time, visibility string, products []string) error {
+	// 标题
+	titleElem, err := page.Element("div.d-input input")
+	if err != nil {
+		return errors.Wrap(err, "查找标题输入框失败")
+	}
+	if err := titleElem.Input(title); err != nil {
+		return errors.Wrap(err, "输入标题失败")
+	}
+	time.Sleep(1 * time.Second)
+
+	// 正文 + 标签
+	contentElem, ok := getContentElement(page)
+	if !ok {
+		return errors.New("没有找到内容输入框")
+	}
+	if err := contentElem.Input(content); err != nil {
+		return errors.Wrap(err, "输入正文失败")
+	}
+	if err := waitAndClickTitleInput(titleElem); err != nil {
+		return err
+	}
+	if err := inputTags(contentElem, tags); err != nil {
+		return err
+	}
+
+	time.Sleep(1 * time.Second)
+
+	// 处理定时发布（如页面支持）
+	if scheduleTime != nil {
+		if err := setSchedulePublish(page, *scheduleTime); err != nil {
+			return errors.Wrap(err, "设置定时发布失败")
+		}
+		slog.Info("定时发布设置完成", "schedule_time", scheduleTime.Format("2006-01-02 15:04"))
+	}
+
+	// 设置可见范围
+	if err := setVisibility(page, visibility); err != nil {
+		return errors.Wrap(err, "设置可见范围失败")
+	}
+
+	// 绑定商品
+	if err := bindProducts(page, products); err != nil {
+		return errors.Wrap(err, "绑定商品失败")
+	}
+
+	// 点击“暂存离开”
+	if err := clickStashLeaveButton(page); err != nil {
+		return err
+	}
+
+	time.Sleep(2 * time.Second)
 	return nil
 }

@@ -447,7 +447,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "save_draft",
-			Description: "保存草稿（通过仅个人可见发布）",
+			Description: "保存草稿（两种模式：cloud=仅自己可见发布作为云端暂存；local=点击“暂存离开”保存到草稿箱）",
 			Annotations: &mcp.ToolAnnotations{
 				Title:           "Save Draft",
 				DestructiveHint: boolPtr(true),
