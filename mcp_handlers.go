@@ -831,3 +831,37 @@ func (s *AppServer) handleSaveDraft(ctx context.Context, args SaveDraftArgs) *MC
 		return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: "不支持的 type: " + args.Type}}, IsError: true}
 	}
 }
+
+func (s *AppServer) handleListLocalDrafts(ctx context.Context, args ListLocalDraftsArgs) *MCPToolResult {
+	draftType := strings.TrimSpace(args.Type)
+	if draftType == "" {
+		draftType = "image"
+	}
+
+	switch draftType {
+	case "image", "video", "article", "audio":
+	default:
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "不支持的 type: " + draftType + "（仅支持 image|video|article|audio）"}},
+			IsError: true,
+		}
+	}
+
+	limit := args.Limit
+	if limit < 0 {
+		limit = 0
+	}
+
+	result, err := s.xiaohongshuService.ListLocalDrafts(ctx, draftType, limit)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "读取本地草稿失败: " + err.Error()}},
+			IsError: true,
+		}
+	}
+
+	b, _ := json.MarshalIndent(result, "", "  ")
+	return &MCPToolResult{
+		Content: []MCPContent{{Type: "text", Text: string(b)}},
+	}
+}

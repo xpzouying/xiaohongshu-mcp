@@ -100,6 +100,12 @@ type FavoriteFeedArgs struct {
 	Unfavorite bool   `json:"unfavorite,omitempty" jsonschema:"是否取消收藏，true为取消收藏，false或未设置则为收藏"`
 }
 
+// ListLocalDraftsArgs 读取本地草稿参数
+type ListLocalDraftsArgs struct {
+	Type  string `json:"type,omitempty" jsonschema:"草稿类型（可选）：image(默认)|video|article|audio"`
+	Limit int    `json:"limit,omitempty" jsonschema:"返回数量上限（可选，<=0 表示不限）"`
+}
+
 // InitMCPServer 初始化 MCP Server
 func InitMCPServer(appServer *AppServer) *mcp.Server {
 	// 创建 MCP Server
@@ -459,7 +465,23 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	logrus.Infof("Registered %d MCP tools", 14)
+	// 工具 15: 读取本地草稿
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "list_local_drafts",
+			Description: "读取创作中心本地草稿（来自浏览器 IndexedDB: draft-database-v1）",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "List Local Drafts",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("list_local_drafts", func(ctx context.Context, req *mcp.CallToolRequest, args ListLocalDraftsArgs) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleListLocalDrafts(ctx, args)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	logrus.Infof("Registered %d MCP tools", 15)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式

@@ -93,6 +93,13 @@ type UserProfileResponse struct {
 	Feeds         []xiaohongshu.Feed             `json:"feeds"`
 }
 
+// DraftsListResponse 本地草稿列表响应
+type DraftsListResponse struct {
+	Type   string                 `json:"type"`
+	Count  int                    `json:"count"`
+	Drafts []xiaohongshu.LocalDraft `json:"drafts"`
+}
+
 // DeleteCookies 删除 cookies 文件，用于登录重置
 func (s *XiaohongshuService) DeleteCookies(ctx context.Context) error {
 	cookiePath := cookies.GetCookiesFilePath()
@@ -689,4 +696,25 @@ func (s *XiaohongshuService) GetMyProfile(ctx context.Context) (*UserProfileResp
 	}
 
 	return response, nil
+}
+
+// ListLocalDrafts 读取创作中心 IndexedDB 本地草稿
+func (s *XiaohongshuService) ListLocalDrafts(ctx context.Context, draftType string, limit int) (*DraftsListResponse, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewDraftAction(page)
+	drafts, err := action.ListLocalDrafts(ctx, draftType, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	return &DraftsListResponse{
+		Type:   draftType,
+		Count:  len(drafts),
+		Drafts: drafts,
+	}, nil
 }
