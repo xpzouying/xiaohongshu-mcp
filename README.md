@@ -895,6 +895,9 @@ npx mcporter list xiaohongshu-mcp
 - `list_local_drafts` - 读取创作中心本地草稿（来自浏览器 IndexedDB `draft-database-v1`）
   - `type`: 草稿类型（可选）`image`（默认）| `video` | `article` | `audio`
   - `limit`: 返回数量上限（可选，<=0 表示不限）
+- `get_local_draft_detail` - 按 draft_id 读取单条草稿完整内容（来自浏览器 IndexedDB `draft-database-v1`）
+  - `draft_id`: 草稿 ID（必填，与 `list_local_drafts` 返回的 draft_id 一致）
+  - `type`: 草稿类型（可选）`image` | `video` | `article` | `audio`，不填则在各 store 中依次查找
 
 ### 2.4. 使用示例
 

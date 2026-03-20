@@ -196,15 +196,15 @@ func submitPublishVideo(page *rod.Page, title, content string, tags []string, sc
 		return errors.Wrap(err, "绑定商品失败")
 	}
 
-	// 等待发布按钮可点击
-	btn, err := waitForPublishButtonClickable(page)
-	if err != nil {
-		return err
-	}
+		// 等待发布按钮可点击
+		btn, err := waitForPublishButtonClickable(page)
+		if err != nil {
+			return err
+		}
 
-	// 点击发布
-	if err := btn.Click(proto.InputMouseButtonLeft, 1); err != nil {
-		return errors.Wrap(err, "点击发布按钮失败")
+		// 点击发布
+		if err := btn.Click(proto.InputMouseButtonLeft, 1); err != nil {
+			return errors.Wrap(err, "点击发布按钮失败")
 	}
 
 	time.Sleep(3 * time.Second)

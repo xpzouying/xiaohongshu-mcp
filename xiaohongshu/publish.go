@@ -384,7 +384,7 @@ func submitLocalDraft(page *rod.Page, title, content string, tags []string, sche
 	}
 	if err := titleElem.Input(title); err != nil {
 		return errors.Wrap(err, "输入标题失败")
-	}
+		}
 
 	time.Sleep(500 * time.Millisecond)
 	if err := checkTitleMaxLength(page); err != nil {
@@ -402,7 +402,7 @@ func submitLocalDraft(page *rod.Page, title, content string, tags []string, sche
 	}
 	if err := waitAndClickTitleInput(titleElem); err != nil {
 		return err
-	}
+			}
 	if err := inputTags(contentElem, tags); err != nil {
 		return err
 	}
@@ -424,8 +424,8 @@ func submitLocalDraft(page *rod.Page, title, content string, tags []string, sche
 	if isOriginal {
 		if err := setOriginal(page); err != nil {
 			slog.Warn("设置原创声明失败，继续暂存", "error", err)
+			}
 		}
-	}
 	if err := bindProducts(page, products); err != nil {
 		return errors.Wrap(err, "绑定商品失败")
 	}
@@ -435,8 +435,8 @@ func submitLocalDraft(page *rod.Page, title, content string, tags []string, sche
 	}
 
 	time.Sleep(2 * time.Second)
-	return nil
-}
+			return nil
+		}
 
 func clickStashLeaveButton(page *rod.Page) error {
 	container, _ := page.Element(".publish-page-publish-btn")

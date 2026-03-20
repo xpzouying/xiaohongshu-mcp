@@ -865,3 +865,17 @@ func (s *AppServer) handleListLocalDrafts(ctx context.Context, args ListLocalDra
 		Content: []MCPContent{{Type: "text", Text: string(b)}},
 	}
 }
+
+func (s *AppServer) handleGetLocalDraftDetail(ctx context.Context, args GetLocalDraftDetailArgs) *MCPToolResult {
+	logrus.Infof("MCP: get_local_draft_detail draft_id=%s type=%s", args.DraftID, args.Type)
+	raw, err := s.xiaohongshuService.GetLocalDraftDetail(ctx, args.DraftID, args.Type)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "读取草稿详情失败: " + err.Error()}},
+			IsError: true,
+		}
+	}
+	return &MCPToolResult{
+		Content: []MCPContent{{Type: "text", Text: string(raw)}},
+	}
+}

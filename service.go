@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/go-rod/rod"
@@ -278,11 +279,14 @@ func (s *XiaohongshuService) SaveLocalImageDraft(ctx context.Context, req *Publi
 		Products:     req.Products,
 	}
 
-	b := newBrowser()
-	defer b.Close()
-
+	// 复用同一个 Chrome 实例，确保 IndexedDB 能在后续 list_local_drafts 里读到。
+	draftBrowserMu.Lock()
+	b := getDraftBrowser()
 	page := b.NewPage()
-	defer page.Close()
+	defer func() {
+		_ = page.Close()
+		draftBrowserMu.Unlock()
+	}()
 
 	action, err := xiaohongshu.NewPublishImageAction(page)
 	if err != nil {
@@ -412,11 +416,14 @@ func (s *XiaohongshuService) SaveLocalVideoDraft(ctx context.Context, req *Publi
 		Products:     req.Products,
 	}
 
-	b := newBrowser()
-	defer b.Close()
-
+	// 复用同一个 Chrome 实例，确保 IndexedDB 能在后续 list_local_drafts 里读到。
+	draftBrowserMu.Lock()
+	b := getDraftBrowser()
 	page := b.NewPage()
-	defer page.Close()
+	defer func() {
+		_ = page.Close()
+		draftBrowserMu.Unlock()
+	}()
 
 	action, err := xiaohongshu.NewPublishVideoAction(page)
 	if err != nil {
@@ -700,11 +707,14 @@ func (s *XiaohongshuService) GetMyProfile(ctx context.Context) (*UserProfileResp
 
 // ListLocalDrafts 读取创作中心 IndexedDB 本地草稿
 func (s *XiaohongshuService) ListLocalDrafts(ctx context.Context, draftType string, limit int) (*DraftsListResponse, error) {
-	b := newBrowser()
-	defer b.Close()
-
+	// 复用同一个 Chrome 实例，确保读到由 save_draft 写入的 IndexedDB。
+	draftBrowserMu.Lock()
+	b := getDraftBrowser()
 	page := b.NewPage()
-	defer page.Close()
+	defer func() {
+		_ = page.Close()
+		draftBrowserMu.Unlock()
+	}()
 
 	action := xiaohongshu.NewDraftAction(page)
 	drafts, err := action.ListLocalDrafts(ctx, draftType, limit)
@@ -717,4 +727,33 @@ func (s *XiaohongshuService) ListLocalDrafts(ctx context.Context, draftType stri
 		Count:  len(drafts),
 		Drafts: drafts,
 	}, nil
+}
+
+// GetLocalDraftDetail 读取单条本地草稿详情（IndexedDB）
+func (s *XiaohongshuService) GetLocalDraftDetail(ctx context.Context, draftID, draftType string) (json.RawMessage, error) {
+	// 复用同一个 Chrome 实例，确保读到由 save_draft 写入的 IndexedDB。
+	draftBrowserMu.Lock()
+	b := getDraftBrowser()
+	page := b.NewPage()
+	defer func() {
+		_ = page.Close()
+		draftBrowserMu.Unlock()
+	}()
+
+	action := xiaohongshu.NewDraftAction(page)
+	return action.GetLocalDraftDetail(ctx, draftID, draftType)
+}
+
+// draftBrowser 复用用于本地草稿读写：解决每次 newBrowser()+Close() 导致 IndexedDB 写入落在临时 profile、后续读不到的问题。
+var (
+	draftBrowserOnce sync.Once
+	draftBrowser     *headless_browser.Browser
+	draftBrowserMu   sync.Mutex
+)
+
+func getDraftBrowser() *headless_browser.Browser {
+	draftBrowserOnce.Do(func() {
+		draftBrowser = newBrowser()
+	})
+	return draftBrowser
 }

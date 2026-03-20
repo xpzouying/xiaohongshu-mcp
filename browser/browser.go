@@ -3,6 +3,7 @@ package browser
 import (
 	"net/url"
 	"os"
+	"path/filepath"
 
 	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/headless_browser"
@@ -39,6 +40,20 @@ func NewBrowser(headless bool, options ...Option) *headless_browser.Browser {
 	cfg := &browserConfig{}
 	for _, opt := range options {
 		opt(cfg)
+	}
+
+	// 固定 Chrome user-data-dir 到持久化目录，保证 IndexedDB（mode=local 暂存）不会因为新建浏览器/容器重启而丢失。
+	// headless_browser 内部可能会读取这些环境变量来拼接 chrome 启动参数。
+	if userDataDir := os.Getenv("XHS_USER_DATA_DIR"); userDataDir != "" {
+		userDataDir = filepath.Clean(userDataDir)
+		if err := os.MkdirAll(userDataDir, 0o755); err != nil {
+			logrus.Warnf("failed to create XHS_USER_DATA_DIR=%s: %v", userDataDir, err)
+		} else {
+			// 兼容多种可能的环境变量命名（以 headless_browser 实现为准）
+			_ = os.Setenv("ROD_BROWSER_USER_DATA_DIR", userDataDir)
+			_ = os.Setenv("ROD_USER_DATA_DIR", userDataDir)
+			_ = os.Setenv("CHROME_USER_DATA_DIR", userDataDir)
+		}
 	}
 
 	opts := []headless_browser.Option{
