@@ -429,9 +429,18 @@ func waitAndSelectGeneratedCover(page *rod.Page) error {
 	templateSelected := false
 
 	for time.Since(start) < maxWaitTime {
-		// 查找"下一步"按钮
+		// 查找"下一步"按钮（限定配图向导中的红色按钮，排除发布页的发布按钮）
 		btn, err := page.Element("button.bg-red")
 		if err == nil && btn != nil {
+			text, _ := btn.Text()
+			trimText := strings.TrimSpace(text)
+
+			// 校验按钮文本，避免误点发布按钮
+			if !strings.Contains(trimText, "下一步") {
+				time.Sleep(checkInterval)
+				continue
+			}
+
 			// 在第一次发现"下一步"按钮时，随机选择模板
 			if !templateSelected {
 				randomSelectTemplate(page)
@@ -441,26 +450,25 @@ func waitAndSelectGeneratedCover(page *rod.Page) error {
 				continue
 			}
 
-			text, _ := btn.Text()
-			trimText := strings.TrimSpace(text)
-			slog.Info("找到红色按钮", "text", trimText)
+			slog.Info("找到下一步按钮", "text", trimText)
 
-			// 确保点击的是"下一步"按钮，不是其他红色按钮
 			if err := btn.Click(proto.InputMouseButtonLeft, 1); err != nil {
 				slog.Warn("点击下一步失败，重试", "error", err)
 				time.Sleep(500 * time.Millisecond)
 				continue
 			}
 			slog.Info("已点击下一步按钮，等待发布页加载")
-			time.Sleep(3 * time.Second)
 
-			// 确认已回到发布页（预览图出现）
-			images, err := page.Elements(".img-preview-area .pr")
-			if err == nil && len(images) > 0 {
-				slog.Info("配图完成，已回到发布页", "count", len(images))
-				return nil
+			// 轮询确认已回到发布页（预览图出现）
+			for i := 0; i < 5; i++ {
+				time.Sleep(2 * time.Second)
+				images, imgErr := page.Elements(".img-preview-area .pr")
+				if imgErr == nil && len(images) > 0 {
+					slog.Info("配图完成，已回到发布页", "count", len(images))
+					return nil
+				}
 			}
-			time.Sleep(2 * time.Second)
+			slog.Warn("点击下一步后未检测到预览图，视为完成")
 			return nil
 		}
 
@@ -569,6 +577,14 @@ func submitPublish(page *rod.Page, title, content string, tags []string, schedul
 	contentElem, ok := getContentElement(page)
 	if !ok {
 		return errors.New("没有找到内容输入框")
+	}
+	// 清空已有内容（配图模式下XHS会自动填入标题文字到正文）
+	if err := contentElem.Click(proto.InputMouseButtonLeft, 1); err == nil {
+		time.Sleep(200 * time.Millisecond)
+		page.KeyActions().Press(input.ControlLeft).Type(input.KeyA).MustDo()
+		time.Sleep(200 * time.Millisecond)
+		page.KeyActions().Type(input.Backspace).MustDo()
+		time.Sleep(200 * time.Millisecond)
 	}
 	if err := contentElem.Input(content); err != nil {
 		return errors.Wrap(err, "输入正文失败")
