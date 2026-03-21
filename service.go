@@ -28,15 +28,15 @@ func NewXiaohongshuService() *XiaohongshuService {
 
 // PublishRequest 发布请求
 type PublishRequest struct {
-	Title         string   `json:"title" binding:"required"`
-	Content       string   `json:"content" binding:"required"`
-	Images        []string `json:"images"`
-	Tags          []string `json:"tags,omitempty"`
-	ScheduleAt    string   `json:"schedule_at,omitempty"`    // 定时发布时间，ISO8601格式，为空则立即发布
-	IsOriginal    bool     `json:"is_original,omitempty"`    // 是否声明原创
-	Visibility    string   `json:"visibility,omitempty"`     // 可见范围: "公开可见"(默认), "仅自己可见", "仅互关好友可见"
-	Products      []string `json:"products,omitempty"`       // 商品关键词列表，用于绑定带货商品
-	GenerateCover bool     `json:"generate_cover,omitempty"` // 是否使用智能配图（根据标题自动生成封面图）
+	Title                  string   `json:"title" binding:"required"`
+	Content                string   `json:"content" binding:"required"`
+	Images                 []string `json:"images"`
+	Tags                   []string `json:"tags,omitempty"`
+	ScheduleAt             string   `json:"schedule_at,omitempty"`               // 定时发布时间，ISO8601格式，为空则立即发布
+	IsOriginal             bool     `json:"is_original,omitempty"`               // 是否声明原创
+	Visibility             string   `json:"visibility,omitempty"`                // 可见范围: "公开可见"(默认), "仅自己可见", "仅互关好友可见"
+	Products               []string `json:"products,omitempty"`                  // 商品关键词列表，用于绑定带货商品
+	GenerateCoverFromTitle bool     `json:"generate_cover_from_title,omitempty"` // 是否使用智能配图（根据标题自动生成封面图）
 }
 
 // LoginStatusResponse 登录状态响应
@@ -180,12 +180,12 @@ func (s *XiaohongshuService) PublishContent(ctx context.Context, req *PublishReq
 	}
 
 	// 智能配图模式不需要图片，否则必须提供图片
-	if !req.GenerateCover && len(req.Images) == 0 {
-		return nil, fmt.Errorf("图片不能为空，请提供图片或启用智能配图(generate_cover)")
+	if !req.GenerateCoverFromTitle && len(req.Images) == 0 {
+		return nil, fmt.Errorf("图片不能为空，请提供图片或启用智能配图(generate_cover_from_title)")
 	}
 
 	var imagePaths []string
-	if !req.GenerateCover {
+	if !req.GenerateCoverFromTitle {
 		// 处理图片：下载URL图片或使用本地路径
 		var err error
 		imagePaths, err = s.processImages(req.Images)
@@ -222,15 +222,15 @@ func (s *XiaohongshuService) PublishContent(ctx context.Context, req *PublishReq
 
 	// 构建发布内容
 	content := xiaohongshu.PublishImageContent{
-		Title:         req.Title,
-		Content:       req.Content,
-		Tags:          req.Tags,
-		ImagePaths:    imagePaths,
-		ScheduleTime:  scheduleTime,
-		IsOriginal:    req.IsOriginal,
-		Visibility:    req.Visibility,
-		Products:      req.Products,
-		GenerateCover: req.GenerateCover,
+		Title:                  req.Title,
+		Content:                req.Content,
+		Tags:                   req.Tags,
+		ImagePaths:             imagePaths,
+		ScheduleTime:           scheduleTime,
+		IsOriginal:             req.IsOriginal,
+		Visibility:             req.Visibility,
+		Products:               req.Products,
+		GenerateCoverFromTitle: req.GenerateCoverFromTitle,
 	}
 
 	// 执行发布

@@ -17,15 +17,15 @@ import (
 
 // PublishImageContent 发布图文内容
 type PublishImageContent struct {
-	Title         string
-	Content       string
-	Tags          []string
-	ImagePaths    []string
-	ScheduleTime  *time.Time // 定时发布时间，nil 表示立即发布
-	IsOriginal    bool       // 是否声明原创
-	Visibility    string     // 可见范围: "公开可见"(默认), "仅自己可见", "仅互关好友可见"
-	Products      []string   // 商品关键词列表，用于绑定带货商品
-	GenerateCover bool       // 是否使用智能配图（根据标题自动生成封面图）
+	Title                  string
+	Content                string
+	Tags                   []string
+	ImagePaths             []string
+	ScheduleTime           *time.Time // 定时发布时间，nil 表示立即发布
+	IsOriginal             bool       // 是否声明原创
+	Visibility             string     // 可见范围: "公开可见"(默认), "仅自己可见", "仅互关好友可见"
+	Products               []string   // 商品关键词列表，用于绑定带货商品
+	GenerateCoverFromTitle bool       // 是否使用智能配图（根据标题自动生成封面图）
 }
 
 type PublishAction struct {
@@ -70,13 +70,13 @@ func NewPublishImageAction(page *rod.Page) (*PublishAction, error) {
 }
 
 func (p *PublishAction) Publish(ctx context.Context, content PublishImageContent) error {
-	if len(content.ImagePaths) == 0 && !content.GenerateCover {
+	if len(content.ImagePaths) == 0 && !content.GenerateCoverFromTitle {
 		return errors.New("图片不能为空，请提供图片或启用智能配图")
 	}
 
 	page := p.page.Context(ctx)
 
-	if content.GenerateCover {
+	if content.GenerateCoverFromTitle {
 		// 文字配图：先点击按钮打开配图界面，输入文字生成封面
 		if err := generateCoverImage(page, content.Title); err != nil {
 			return errors.Wrap(err, "文字配图失败")

@@ -160,21 +160,21 @@ func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]in
 	isOriginal, _ := args["is_original"].(bool)
 
 	// 解析智能配图参数
-	generateCover, _ := args["generate_cover"].(bool)
+	generateCover, _ := args["generate_cover_from_title"].(bool)
 
 	logrus.Infof("MCP: 发布内容 - 标题: %s, 图片数量: %d, 标签数量: %d, 定时: %s, 原创: %v, visibility: %s, 商品: %v, 智能配图: %v", title, len(imagePaths), len(tags), scheduleAt, isOriginal, visibility, products, generateCover)
 
 	// 构建发布请求
 	req := &PublishRequest{
-		Title:         title,
-		Content:       content,
-		Images:        imagePaths,
-		Tags:          tags,
-		ScheduleAt:    scheduleAt,
-		IsOriginal:    isOriginal,
-		Visibility:    visibility,
-		Products:      products,
-		GenerateCover: generateCover,
+		Title:                  title,
+		Content:                content,
+		Images:                 imagePaths,
+		Tags:                   tags,
+		ScheduleAt:             scheduleAt,
+		IsOriginal:             isOriginal,
+		Visibility:             visibility,
+		Products:               products,
+		GenerateCoverFromTitle: generateCover,
 	}
 
 	// 执行发布
