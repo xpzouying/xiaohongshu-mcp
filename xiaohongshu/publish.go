@@ -391,34 +391,77 @@ func findSmartCoverButton(page *rod.Page) (*rod.Element, error) {
 	return nil, errors.New("未找到文字配图按钮，请确认当前账号支持该功能")
 }
 
-// waitAndSelectGeneratedCover 等待配图预览页加载并点击"下一步"完成配图
+// randomSelectTemplate 在配图预览页随机选择一个样式卡片
+func randomSelectTemplate(page *rod.Page) {
+	// 使用go-rod查找样式卡片元素
+	elems, err := page.Elements("div.cover-list-container div.cover-item-container")
+	if err != nil || len(elems) <= 1 {
+		slog.Info("未找到多个样式卡片，使用默认样式")
+		return
+	}
+
+	// 过滤可见元素
+	var visible []*rod.Element
+	for _, e := range elems {
+		if isElementVisible(e) {
+			visible = append(visible, e)
+		}
+	}
+	if len(visible) <= 1 {
+		return
+	}
+
+	// 随机选择一个样式卡片
+	idx := rand.Intn(len(visible))
+	if err := visible[idx].Click(proto.InputMouseButtonLeft, 1); err != nil {
+		slog.Warn("点击随机样式卡片失败", "error", err)
+		return
+	}
+	slog.Info("随机选择了样式卡片", "index", idx+1, "total", len(visible))
+	time.Sleep(1 * time.Second)
+}
+
+// waitAndSelectGeneratedCover 等待配图预览页加载，随机选择模板，然后点击"下一步"
 func waitAndSelectGeneratedCover(page *rod.Page) error {
 	maxWaitTime := 30 * time.Second
 	checkInterval := 1 * time.Second
 	start := time.Now()
+	templateSelected := false
 
 	for time.Since(start) < maxWaitTime {
-		// 直接用CSS选择器查找"下一步"按钮（红色按钮 button.bg-red）
+		// 查找"下一步"按钮
 		btn, err := page.Element("button.bg-red")
 		if err == nil && btn != nil {
-			text, _ := btn.Text()
-			slog.Info("找到红色按钮", "text", strings.TrimSpace(text))
-
-			if err := btn.Click(proto.InputMouseButtonLeft, 1); err != nil {
-				slog.Warn("点击下一步失败", "error", err)
-			} else {
-				slog.Info("已点击下一步按钮，等待发布页加载")
-				time.Sleep(3 * time.Second)
-
-				// 确认已回到发布页（预览图出现）
-				images, err := page.Elements(".img-preview-area .pr")
-				if err == nil && len(images) > 0 {
-					slog.Info("配图完成，已回到发布页", "count", len(images))
-					return nil
-				}
+			// 在第一次发现"下一步"按钮时，随机选择模板
+			if !templateSelected {
+				randomSelectTemplate(page)
+				templateSelected = true
+				// 等待模板切换后预览重新加载
 				time.Sleep(2 * time.Second)
+				continue
+			}
+
+			text, _ := btn.Text()
+			trimText := strings.TrimSpace(text)
+			slog.Info("找到红色按钮", "text", trimText)
+
+			// 确保点击的是"下一步"按钮，不是其他红色按钮
+			if err := btn.Click(proto.InputMouseButtonLeft, 1); err != nil {
+				slog.Warn("点击下一步失败，重试", "error", err)
+				time.Sleep(500 * time.Millisecond)
+				continue
+			}
+			slog.Info("已点击下一步按钮，等待发布页加载")
+			time.Sleep(3 * time.Second)
+
+			// 确认已回到发布页（预览图出现）
+			images, err := page.Elements(".img-preview-area .pr")
+			if err == nil && len(images) > 0 {
+				slog.Info("配图完成，已回到发布页", "count", len(images))
 				return nil
 			}
+			time.Sleep(2 * time.Second)
+			return nil
 		}
 
 		// 兜底：检查是否已直接回到发布页
