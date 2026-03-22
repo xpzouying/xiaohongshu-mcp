@@ -51,6 +51,10 @@ func setupRoutes(appServer *AppServer) *gin.Engine {
 		api.POST("/feeds/comment", appServer.postCommentHandler)
 		api.POST("/feeds/comment/reply", appServer.replyCommentHandler)
 		api.GET("/user/me", appServer.myProfileHandler)
+		
+		// 收藏夹相关路由
+		api.GET("/favorites/list", appServer.getFavoriteListHandler)
+		api.POST("/favorites/list", appServer.getFavoriteListPostHandler)
 	}
 
 	return router

@@ -109,3 +109,34 @@ type ActionResult struct {
 	Success bool   `json:"success"`
 	Message string `json:"message"`
 }
+
+// FavoriteListResponse 收藏列表响应（与 xiaohongshu.FavoriteListResponse 对应）
+type FavoriteListResponse struct {
+	Items   []FavoriteItem `json:"items"`
+	Count   int            `json:"count"`
+	HasMore bool           `json:"has_more"`
+	Cursor  string         `json:"cursor"`
+}
+
+// FavoriteItem 收藏笔记项（与 xiaohongshu.FavoriteItem 对应）
+type FavoriteItem struct {
+	FeedID         string `json:"feed_id"`
+	XsecToken      string `json:"xsec_token"`
+	Title          string `json:"title"`
+	Desc           string `json:"desc"`
+	CoverURL       string `json:"cover_url"`
+	UserNickname   string `json:"user_nickname"`
+	UserID         string `json:"user_id"`
+	UserAvatar     string `json:"user_avatar"`
+	LikedCount     int    `json:"liked_count"`
+	CollectedCount int    `json:"collected_count"`
+	CommentCount   int    `json:"comment_count"`
+	CollectTime    string `json:"collect_time"`
+	NoteType       string `json:"note_type"`
+}
+
+// GetFavoriteListRequest 获取收藏列表请求
+type GetFavoriteListRequest struct {
+	Cursor   string `json:"cursor,omitempty"`
+	PageSize int    `json:"page_size,omitempty"`
+}

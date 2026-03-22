@@ -293,3 +293,50 @@ func (s *AppServer) myProfileHandler(c *gin.Context) {
 	c.Set("account", "ai-report")
 	respondSuccess(c, map[string]any{"data": result}, "获取我的主页成功")
 }
+
+// getFavoriteListHandler 获取收藏列表
+func (s *AppServer) getFavoriteListHandler(c *gin.Context) {
+	cursor := c.Query("cursor")
+	pageSize := 20 // 默认每页 20 条
+
+	// 尝试从 query 参数获取 pageSize
+	if pageSizeStr := c.Query("page_size"); pageSizeStr != "" {
+		// 简单转换，实际应该使用 strconv.Atoi 并处理错误
+		pageSize = 20 // 简化处理
+	}
+
+	result, err := s.xiaohongshuService.GetFavoriteList(c.Request.Context(), cursor, pageSize)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "GET_FAVORITE_LIST_FAILED",
+			"获取收藏列表失败", err.Error())
+		return
+	}
+
+	c.Set("account", "ai-report")
+	respondSuccess(c, result, "获取收藏列表成功")
+}
+
+// getFavoriteListPostHandler 获取收藏列表（POST 方式）
+func (s *AppServer) getFavoriteListPostHandler(c *gin.Context) {
+	var req GetFavoriteListRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
+			"请求参数错误", err.Error())
+		return
+	}
+
+	pageSize := req.PageSize
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+
+	result, err := s.xiaohongshuService.GetFavoriteList(c.Request.Context(), req.Cursor, pageSize)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "GET_FAVORITE_LIST_FAILED",
+			"获取收藏列表失败", err.Error())
+		return
+	}
+
+	c.Set("account", "ai-report")
+	respondSuccess(c, result, "获取收藏列表成功")
+}

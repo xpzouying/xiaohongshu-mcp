@@ -598,3 +598,15 @@ func (s *XiaohongshuService) GetMyProfile(ctx context.Context) (*UserProfileResp
 
 	return response, nil
 }
+
+// GetFavoriteList 获取收藏列表
+func (s *XiaohongshuService) GetFavoriteList(ctx context.Context, cursor string, pageSize int) (*FavoriteListResponse, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewFavoriteListAction(page)
+	return action.GetFavoriteList(ctx, cursor, pageSize)
+}
