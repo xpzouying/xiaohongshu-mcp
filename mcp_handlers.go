@@ -875,7 +875,45 @@ func (s *AppServer) handleGetLocalDraftDetail(ctx context.Context, args GetLocal
 			IsError: true,
 		}
 	}
-	return &MCPToolResult{
-		Content: []MCPContent{{Type: "text", Text: string(raw)}},
+
+	type localDraftDetailResp struct {
+		Found   bool            `json:"found"`
+		Store   string          `json:"store"`
+		DraftID string          `json:"draft_id"`
+		Type    string          `json:"type"`
+		Value   json.RawMessage `json:"value"`
 	}
+
+	var resp localDraftDetailResp
+	if err := json.Unmarshal(raw, &resp); err != nil {
+		// 兜底：返回结构化 JSON（不使用 markdown）。
+		out := map[string]any{
+			"found":  false,
+			"error":  "json_unmarshal_failed",
+			"raw":    string(raw),
+			"reason": err.Error(),
+		}
+		b, _ := json.MarshalIndent(out, "", "  ")
+		return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: string(b)}}}
+	}
+
+	// resp.Value 是 json.RawMessage，会保持 value 的原始 JSON 结构（只要它在 indexedDB value 中是 JSON）。
+	type outResp struct {
+		Found   bool            `json:"found"`
+		Store   string          `json:"store"`
+		DraftID string          `json:"draft_id"`
+		Type    string          `json:"type"`
+		Value   json.RawMessage `json:"value,omitempty"`
+	}
+
+	out := outResp{
+		Found:   resp.Found,
+		Store:   resp.Store,
+		DraftID: resp.DraftID,
+		Type:    resp.Type,
+		Value:   resp.Value,
+	}
+
+	b, _ := json.MarshalIndent(out, "", "  ")
+	return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: string(b)}}}
 }

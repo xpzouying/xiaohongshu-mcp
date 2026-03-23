@@ -258,10 +258,16 @@ func submitLocalVideoDraft(page *rod.Page, title, content string, tags []string,
 	}
 
 	// 点击“暂存离开”
+	startMs := time.Now().UnixMilli()
 	if err := clickStashLeaveButton(page); err != nil {
 		return err
 	}
 
-	time.Sleep(2 * time.Second)
+	// 点击后轮询 IndexedDB，直到草稿写入成功或超时。
+	if err := waitForLocalDraftWritten(page, "video-draft", title, startMs, 60*time.Second); err != nil {
+		return err
+	}
+
+	time.Sleep(1 * time.Second)
 	return nil
 }

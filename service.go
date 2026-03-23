@@ -258,15 +258,9 @@ func (s *XiaohongshuService) SaveLocalImageDraft(ctx context.Context, req *Publi
 		return err
 	}
 
-	// 本地暂存：不强制要求/不建议设置定时发布；如调用方传了也沿用解析，避免参数无效造成困惑
-	var scheduleTime *time.Time
-	if req.ScheduleAt != "" {
-		t, err := time.Parse(time.RFC3339, req.ScheduleAt)
-		if err != nil {
-			return fmt.Errorf("定时发布时间格式错误，请使用 ISO8601 格式: %v", err)
-		}
-		scheduleTime = &t
-	}
+	// 本地暂存忽略 schedule_at：页面的“暂存离开”路径不一定支持/正确处理定时发布 UI。
+	// 这里强制不传 scheduleTime，避免因 UI 不匹配导致暂存失败。
+	var scheduleTime *time.Time = nil
 
 	content := xiaohongshu.PublishImageContent{
 		Title:        req.Title,
@@ -397,14 +391,8 @@ func (s *XiaohongshuService) SaveLocalVideoDraft(ctx context.Context, req *Publi
 		return fmt.Errorf("视频文件不存在或不可访问: %v", err)
 	}
 
-	var scheduleTime *time.Time
-	if req.ScheduleAt != "" {
-		t, err := time.Parse(time.RFC3339, req.ScheduleAt)
-		if err != nil {
-			return fmt.Errorf("定时发布时间格式错误，请使用 ISO8601 格式: %v", err)
-		}
-		scheduleTime = &t
-	}
+	// 本地暂存忽略 schedule_at：同 SaveLocalImageDraft。
+	var scheduleTime *time.Time = nil
 
 	content := xiaohongshu.PublishVideoContent{
 		Title:        req.Title,

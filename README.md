@@ -891,7 +891,7 @@ npx mcporter list xiaohongshu-mcp
   - `type`: `image`（默认）| `video`
   - 图文必需：`title`, `content`, `images`
   - 视频必需：`title`, `content`, `video`
-  - 可选：`tags`, `schedule_at`, `is_original`, `visibility`, `products`
+  - 可选：`tags`, `schedule_at`, `is_original`, `visibility`, `products`（其中 `local` 模式会忽略 `schedule_at`）
 - `list_local_drafts` - 读取创作中心本地草稿（来自浏览器 IndexedDB `draft-database-v1`）
   - `type`: 草稿类型（可选）`image`（默认）| `video` | `article` | `audio`
   - `limit`: 返回数量上限（可选，<=0 表示不限）
