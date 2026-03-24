@@ -33,8 +33,23 @@ func NewAppServer(xiaohongshuService *XiaohongshuService) *AppServer {
 	return appServer
 }
 
-// Start 启动服务器
-func (s *AppServer) Start(port string) error {
+// Start 启动服务器，支持 http 和 stdio 两种传输模式
+func (s *AppServer) Start(port string, transport string) error {
+	if transport == "stdio" {
+		return s.startStdio()
+	}
+	return s.startHTTP(port)
+}
+
+// startStdio 以 stdio 模式启动，通过标准输入输出与客户端通信
+func (s *AppServer) startStdio() error {
+	logrus.SetOutput(os.Stderr) // 日志输出到 stderr，避免污染 stdio 通信
+	logrus.Infof("以 stdio 模式启动 MCP 服务器")
+	return s.mcpServer.Run(context.Background(), &mcp.StdioTransport{})
+}
+
+// startHTTP 以 HTTP 模式启动
+func (s *AppServer) startHTTP(port string) error {
 	s.router = setupRoutes(s)
 
 	s.httpServer = &http.Server{

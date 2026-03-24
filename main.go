@@ -10,13 +10,15 @@ import (
 
 func main() {
 	var (
-		headless bool
-		binPath  string // 浏览器二进制文件路径
-		port     string
+		headless  bool
+		binPath   string // 浏览器二进制文件路径
+		port      string
+		transport string // 传输模式: http 或 stdio
 	)
 	flag.BoolVar(&headless, "headless", true, "是否无头模式")
 	flag.StringVar(&binPath, "bin", "", "浏览器二进制文件路径")
 	flag.StringVar(&port, "port", ":18060", "端口")
+	flag.StringVar(&transport, "transport", "http", "传输模式: http 或 stdio")
 	flag.Parse()
 
 	if len(binPath) == 0 {
@@ -31,7 +33,7 @@ func main() {
 
 	// 创建并启动应用服务器
 	appServer := NewAppServer(xiaohongshuService)
-	if err := appServer.Start(port); err != nil {
+	if err := appServer.Start(port, transport); err != nil {
 		logrus.Fatalf("failed to run server: %v", err)
 	}
 }
