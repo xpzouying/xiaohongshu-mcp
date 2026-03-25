@@ -93,7 +93,7 @@ func uploadVideo(page *rod.Page, videoPath string) error {
 	fileInput.MustSetFiles(videoPath)
 
 	// 对于视频，等待发布按钮变为可点击即表示处理完成
-	btn, err := waitForPublishButtonClickable(pp)
+	btn, err := waitForPublishButtonClickable(pp, ".publish-page-publish-btn button.bg-red")
 	if err != nil {
 		return err
 	}
@@ -101,12 +101,11 @@ func uploadVideo(page *rod.Page, videoPath string) error {
 	return nil
 }
 
-// waitForPublishButtonClickable 等待发布按钮可点击
-func waitForPublishButtonClickable(page *rod.Page) (*rod.Element, error) {
+// waitForPublishButtonClickable 等待指定选择器的发布按钮可点击
+func waitForPublishButtonClickable(page *rod.Page, selector string) (*rod.Element, error) {
 	maxWait := 10 * time.Minute
 	interval := 1 * time.Second
 	start := time.Now()
-	selector := ".publish-page-publish-btn button.bg-red"
 
 	slog.Info("开始等待发布按钮可点击(视频)")
 
@@ -179,8 +178,15 @@ func submitPublishVideo(page *rod.Page, title, content string, tags []string, sc
 		return errors.Wrap(err, "绑定商品失败")
 	}
 
-	// 等待发布按钮可点击
-	btn, err := waitForPublishButtonClickable(page)
+	// 选择按钮：存草稿或发布，等待可点击后提交
+	btnSelector := ".publish-page-publish-btn button.bg-red"
+	if isDraft {
+		btnSelector = ".publish-page-publish-btn button.white"
+		slog.Info("准备点击存草稿按钮")
+	} else {
+		slog.Info("准备点击发布按钮")
+	}
+	btn, err := waitForPublishButtonClickable(page, btnSelector)
 	if err != nil {
 		return err
 	}

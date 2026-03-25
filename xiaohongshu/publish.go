@@ -350,6 +350,9 @@ func submitPublish(page *rod.Page, title, content string, tags []string, schedul
 
 	submitButton, err := page.Element(selector)
 	if err != nil {
+		if isDraft {
+			return errors.Wrap(err, "查找存草稿按钮失败")
+		}
 		return errors.Wrap(err, "查找发布按钮失败")
 	}
 	if err := submitButton.Click(proto.InputMouseButtonLeft, 1); err != nil {
