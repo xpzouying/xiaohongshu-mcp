@@ -42,3 +42,7 @@ test_*.sh
 
 # Cookies files (contain sensitive login information)
 cookies.json
+
+# Runtime files from xhs-lifecycle skill
+.server.pid
+.server.log

@@ -7,7 +7,7 @@ set -euo pipefail
 
 # Default to repo root (two levels up from this script)
 XHS_DIR="${1:-$(cd "$(dirname "$0")/../.." && pwd)}"
-PORT=18060
+PORT="${XHS_PORT:-18060}"
 PIDFILE="$XHS_DIR/.server.pid"
 LOGFILE="$XHS_DIR/.server.log"
 
@@ -27,10 +27,13 @@ detect_chrome_bin() {
     "/usr/bin/chromium"
     "/usr/bin/chromium-browser"
     # Windows (Git Bash / WSL)
+    # WSL paths may lack the executable bit, so we also check with -f below
     "/mnt/c/Program Files/Google/Chrome/Application/chrome.exe"
     "/c/Program Files/Google/Chrome/Application/chrome.exe"
   )
   for c in "${candidates[@]}"; do
+    # -x works on native platforms; -f is a fallback for WSL where .exe files
+    # are accessible but may not have the executable permission bit set.
     if [ -x "$c" ] || [ -f "$c" ]; then
       echo "$c"
       return
@@ -41,15 +44,28 @@ detect_chrome_bin() {
 CHROME_BIN="$(detect_chrome_bin)"
 
 # --- helpers ---
+# Port check with cross-platform fallback: lsof (macOS/most Linux) -> ss (minimal Linux) -> curl
 is_running() {
-  lsof -i ":${PORT}" -sTCP:LISTEN >/dev/null 2>&1
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -i ":${PORT}" -sTCP:LISTEN >/dev/null 2>&1
+  elif command -v ss >/dev/null 2>&1; then
+    ss -tlnp | grep -q ":${PORT} "
+  else
+    curl -s -o /dev/null --max-time 2 "http://127.0.0.1:${PORT}" 2>/dev/null
+  fi
 }
 
 wait_ready() {
+  local pid=$1
   local tries=0
   while [ $tries -lt 15 ]; do
     if is_running; then
       return 0
+    fi
+    # Detect early crash to avoid waiting the full 15 seconds
+    if ! kill -0 "$pid" 2>/dev/null; then
+      echo "ERROR: server process (pid=$pid) exited unexpectedly"
+      return 1
     fi
     sleep 1
     tries=$((tries + 1))
@@ -76,10 +92,11 @@ if [ -n "$CHROME_BIN" ]; then
   export ROD_BROWSER_BIN="$CHROME_BIN"
 fi
 nohup ./xiaohongshu-mcp -headless=true -port ":${PORT}" > "$LOGFILE" 2>&1 &
-echo $! > "$PIDFILE"
+SERVER_PID=$!
+echo $SERVER_PID > "$PIDFILE"
 
-if wait_ready; then
-  echo "OK: xiaohongshu-mcp started (pid=$(cat "$PIDFILE"))"
+if wait_ready "$SERVER_PID"; then
+  echo "OK: xiaohongshu-mcp started (pid=$SERVER_PID)"
   exit 0
 else
   echo "ERROR: server did not become ready within 15s"

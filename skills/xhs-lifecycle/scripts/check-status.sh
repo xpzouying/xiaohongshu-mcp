@@ -6,12 +6,26 @@
 set -euo pipefail
 
 XHS_DIR="${1:-$(cd "$(dirname "$0")/../.." && pwd)}"
-PORT=18060
+PORT="${XHS_PORT:-18060}"
 PIDFILE="$XHS_DIR/.server.pid"
 
-if lsof -i ":${PORT}" -sTCP:LISTEN >/dev/null 2>&1; then
-  PID=$(lsof -t -i ":${PORT}" -sTCP:LISTEN 2>/dev/null || echo "unknown")
-  echo "SERVER_UP pid=${PID} port=${PORT}"
+# Port check with cross-platform fallback: lsof -> ss -> curl
+is_listening() {
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -i ":${PORT}" -sTCP:LISTEN >/dev/null 2>&1
+  elif command -v ss >/dev/null 2>&1; then
+    ss -tlnp | grep -q ":${PORT} "
+  else
+    curl -s -o /dev/null --max-time 2 "http://127.0.0.1:${PORT}" 2>/dev/null
+  fi
+}
+
+if is_listening; then
+  PID=""
+  if command -v lsof >/dev/null 2>&1; then
+    PID=$(lsof -t -i ":${PORT}" -sTCP:LISTEN 2>/dev/null || true)
+  fi
+  echo "SERVER_UP pid=${PID:-unknown} port=${PORT}"
 else
   echo "SERVER_DOWN port=${PORT}"
   if [ -f "$PIDFILE" ]; then

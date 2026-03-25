@@ -9,7 +9,7 @@ description: >
 
 # 小红书全生命周期管理
 
-基于 xiaohongshu-mcp 的 13 个 MCP tools，覆盖搜索、阅读、发布、互动的完整操作流程。
+基于 xiaohongshu-mcp 的全部 MCP tools，覆盖搜索、阅读、发布、互动的完整操作流程。
 自动管理 server 启动和登录状态，用户无需手动配置。
 
 ## 1. 确保 MCP Server 运行
@@ -47,22 +47,15 @@ cd <repo-root> && go build -o xiaohongshu-mcp .
 服务运行后，调用 MCP tool `check_login_status` 确认小红书账号已登录。
 
 - **已登录** → 跳到步骤 3
-- **未登录** → 告诉用户需要扫码登录，然后运行登录工具：
-  ```bash
-  cd <repo-root> && go run cmd/login/main.go
-  ```
-  如果已构建 login binary：
-  ```bash
-  cd <repo-root> && ./xiaohongshu-login
-  ```
-  登录工具会弹出浏览器窗口显示二维码，用户用小红书 App 扫码。
+- **未登录** → 调用 `get_login_qrcode` 获取二维码，展示给用户扫码登录。
   登录成功后 cookies 持久化，后续重启服务无需重新登录。
+  如果需要重置登录状态，使用 `delete_cookies` 清除已保存的 cookies。
 
 ## 3. 执行用户任务
 
 登录确认后，根据用户意图调用对应的 MCP tool。
 
-### 常见场景映射
+### 场景映射
 
 | 用户意图 | MCP Tool | 注意事项 |
 |---------|----------|---------|
@@ -70,12 +63,15 @@ cd <repo-root> && go build -o xiaohongshu-mcp .
 | 浏览推荐 | `list_feeds` | 返回首页 feed |
 | 查看帖子详情 | `get_feed_detail` | 需要 feed_id + xsec_token |
 | 查看用户主页 | `user_profile` | 需要 user_id |
-| 发布图文 | `publish_content` | 标题 ≤20 字，正文 ≤1000 字 |
+| 发布图文 | `publish_content` | 标题 ≤20 字 |
 | 发布视频 | `publish_with_video` | 传入本地视频文件路径 |
 | 评论 | `post_comment_to_feed` | 需要 feed_id + xsec_token |
 | 回复评论 | `reply_comment_in_feed` | 需要 comment_id |
 | 点赞/取消 | `like_feed` | 智能切换状态 |
 | 收藏/取消 | `favorite_feed` | 智能切换状态 |
+| 检查登录 | `check_login_status` | 步骤 2 已覆盖 |
+| 扫码登录 | `get_login_qrcode` | 返回 Base64 二维码图片 |
+| 重置登录 | `delete_cookies` | 清除已保存的 cookies |
 
 ### 发布内容的额外要求
 
