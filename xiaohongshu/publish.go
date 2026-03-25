@@ -24,6 +24,7 @@ type PublishImageContent struct {
 	ScheduleTime *time.Time // 定时发布时间，nil 表示立即发布
 	IsOriginal   bool       // 是否声明原创
 	Visibility   string     // 可见范围: "公开可见"(默认), "仅自己可见", "仅互关好友可见"
+	IsDraft      bool       // 是否存为草稿
 	Products     []string   // 商品关键词列表，用于绑定带货商品
 }
 
@@ -85,9 +86,9 @@ func (p *PublishAction) Publish(ctx context.Context, content PublishImageContent
 		tags = tags[:10]
 	}
 
-	logrus.Infof("发布内容: title=%s, images=%v, tags=%v, schedule=%v, original=%v, visibility=%s, products=%v", content.Title, len(content.ImagePaths), tags, content.ScheduleTime, content.IsOriginal, content.Visibility, content.Products)
+	logrus.Infof("发布内容: title=%s, images=%v, tags=%v, schedule=%v, original=%v, visibility=%s, draft=%v, products=%v", content.Title, len(content.ImagePaths), tags, content.ScheduleTime, content.IsOriginal, content.Visibility, content.IsDraft, content.Products)
 
-	if err := submitPublish(page, content.Title, content.Content, tags, content.ScheduleTime, content.IsOriginal, content.Visibility, content.Products); err != nil {
+	if err := submitPublish(page, content.Title, content.Content, tags, content.ScheduleTime, content.IsOriginal, content.Visibility, content.IsDraft, content.Products); err != nil {
 		return errors.Wrap(err, "小红书发布失败")
 	}
 
@@ -271,7 +272,7 @@ func waitForUploadComplete(page *rod.Page, expectedCount int) error {
 	return errors.Errorf("第%d张图片上传超时(60s)，请检查网络连接和图片大小", expectedCount)
 }
 
-func submitPublish(page *rod.Page, title, content string, tags []string, scheduleTime *time.Time, isOriginal bool, visibility string, products []string) error {
+func submitPublish(page *rod.Page, title, content string, tags []string, scheduleTime *time.Time, isOriginal bool, visibility string, isDraft bool, products []string) error {
 	titleElem, err := page.Element("div.d-input input")
 	if err != nil {
 		return errors.Wrap(err, "查找标题输入框失败")
@@ -338,12 +339,21 @@ func submitPublish(page *rod.Page, title, content string, tags []string, schedul
 		return errors.Wrap(err, "绑定商品失败")
 	}
 
-	submitButton, err := page.Element(".publish-page-publish-btn button.bg-red")
+	// 选择按钮：存草稿或发布
+	selector := ".publish-page-publish-btn button.bg-red"
+	if isDraft {
+		selector = ".publish-page-publish-btn button.white"
+		slog.Info("准备点击存草稿按钮")
+	} else {
+		slog.Info("准备点击发布按钮")
+	}
+
+	submitButton, err := page.Element(selector)
 	if err != nil {
-		return errors.Wrap(err, "查找发布按钮失败")
+		return errors.Wrap(err, "查找按钮失败")
 	}
 	if err := submitButton.Click(proto.InputMouseButtonLeft, 1); err != nil {
-		return errors.Wrap(err, "点击发布按钮失败")
+		return errors.Wrap(err, "点击按钮失败")
 	}
 
 	time.Sleep(3 * time.Second)

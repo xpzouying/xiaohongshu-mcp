@@ -21,6 +21,7 @@ type PublishVideoContent struct {
 	VideoPath    string
 	ScheduleTime *time.Time // 定时发布时间，nil 表示立即发布
 	Visibility   string     // 可见范围: "公开可见"(默认), "仅自己可见", "仅互关好友可见"
+	IsDraft      bool       // 是否存为草稿
 	Products     []string   // 商品关键词列表，用于绑定带货商品
 }
 
@@ -64,7 +65,7 @@ func (p *PublishAction) PublishVideo(ctx context.Context, content PublishVideoCo
 		return errors.Wrap(err, "小红书上传视频失败")
 	}
 
-	if err := submitPublishVideo(page, content.Title, content.Content, content.Tags, content.ScheduleTime, content.Visibility, content.Products); err != nil {
+	if err := submitPublishVideo(page, content.Title, content.Content, content.Tags, content.ScheduleTime, content.Visibility, content.IsDraft, content.Products); err != nil {
 		return errors.Wrap(err, "小红书发布失败")
 	}
 	return nil
@@ -132,7 +133,7 @@ func waitForPublishButtonClickable(page *rod.Page) (*rod.Element, error) {
 }
 
 // submitPublishVideo 填写标题、正文、标签并点击发布（等待按钮可点击后再提交）
-func submitPublishVideo(page *rod.Page, title, content string, tags []string, scheduleTime *time.Time, visibility string, products []string) error {
+func submitPublishVideo(page *rod.Page, title, content string, tags []string, scheduleTime *time.Time, visibility string, isDraft bool, products []string) error {
 	// 标题
 	titleElem, err := page.Element("div.d-input input")
 	if err != nil {
@@ -178,15 +179,14 @@ func submitPublishVideo(page *rod.Page, title, content string, tags []string, sc
 		return errors.Wrap(err, "绑定商品失败")
 	}
 
-	// 等待发布按钮可点击
 	btn, err := waitForPublishButtonClickable(page)
 	if err != nil {
 		return err
 	}
 
-	// 点击发布
+	// 点击发布/暂存
 	if err := btn.Click(proto.InputMouseButtonLeft, 1); err != nil {
-		return errors.Wrap(err, "点击发布按钮失败")
+		return errors.Wrap(err, "点击按钮失败")
 	}
 
 	time.Sleep(3 * time.Second)
