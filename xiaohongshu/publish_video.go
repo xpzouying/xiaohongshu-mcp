@@ -179,6 +179,7 @@ func submitPublishVideo(page *rod.Page, title, content string, tags []string, sc
 		return errors.Wrap(err, "绑定商品失败")
 	}
 
+	// 等待发布按钮可点击
 	btn, err := waitForPublishButtonClickable(page)
 	if err != nil {
 		return err

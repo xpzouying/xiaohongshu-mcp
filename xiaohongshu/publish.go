@@ -350,10 +350,10 @@ func submitPublish(page *rod.Page, title, content string, tags []string, schedul
 
 	submitButton, err := page.Element(selector)
 	if err != nil {
-		return errors.Wrap(err, "查找按钮失败")
+		return errors.Wrap(err, "查找发布按钮失败")
 	}
 	if err := submitButton.Click(proto.InputMouseButtonLeft, 1); err != nil {
-		return errors.Wrap(err, "点击按钮失败")
+		return errors.Wrap(err, "点击发布按钮失败")
 	}
 
 	time.Sleep(3 * time.Second)
