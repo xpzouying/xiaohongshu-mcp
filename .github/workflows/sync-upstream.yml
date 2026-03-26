@@ -1,0 +1,111 @@
+name: Sync Upstream
+
+# Runs daily at 08:00 UTC (16:00 CST) and on every push to main
+on:
+  schedule:
+    - cron: '0 8 * * *'
+  push:
+    branches: [main]
+  workflow_dispatch: # Allow manual trigger
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream remote
+        run: |
+          git remote add upstream https://github.com/xpzouying/xiaohongshu-mcp.git
+          git fetch upstream main
+
+      - name: Check for upstream changes
+        id: check
+        run: |
+          BEHIND=$(git rev-list --count HEAD..upstream/main)
+          echo "behind=$BEHIND" >> "$GITHUB_OUTPUT"
+          echo "Upstream is $BEHIND commits ahead"
+
+      - name: Attempt merge
+        if: steps.check.outputs.behind != '0'
+        id: merge
+        run: |
+          git merge upstream/main --no-edit 2>&1 | tee /tmp/merge-output.txt
+          if [ ${PIPESTATUS[0]} -ne 0 ]; then
+            echo "conflict=true" >> "$GITHUB_OUTPUT"
+            git merge --abort
+          else
+            echo "conflict=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Push clean merge
+        if: steps.check.outputs.behind != '0' && steps.merge.outputs.conflict == 'false'
+        run: git push origin main
+
+      - name: Create PR for conflicts
+        if: steps.check.outputs.behind != '0' && steps.merge.outputs.conflict == 'true'
+        run: |
+          BRANCH="sync-upstream-$(date +%Y%m%d)"
+          git checkout -b "$BRANCH"
+          git merge upstream/main --no-edit || true
+
+          # Stage conflict markers so the PR shows what needs resolving
+          git add -A
+          git commit -m "chore: sync upstream (conflicts need manual resolution)" || true
+          git push origin "$BRANCH"
+
+          gh pr create \
+            --title "chore: sync upstream ($(date +%Y-%m-%d))" \
+            --body "$(cat <<'EOF'
+          ## Upstream Sync
+
+          Upstream has new commits that conflict with our fork modifications.
+
+          **Conflicts detected in:**
+          $(grep -l '<<<<<<<' $(git diff --name-only upstream/main) 2>/dev/null || echo "See merge output")
+
+          **Our modifications (likely conflict sources):**
+          - `browser/browser.go` — Chrome 132+ headless fix
+          - `Dockerfile` — Chrome auto-update disabled
+
+          **Action needed:** Resolve conflicts manually, ensuring our Chrome 132+ fixes are preserved.
+          EOF
+          )" \
+            --label "upstream-sync"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-test:
+    needs: sync
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Build
+        run: |
+          go build -o /tmp/app .
+          echo "Build successful"
+
+      - name: Docker build test
+        run: |
+          docker build -t xiaohongshu-mcp:test .
+          echo "Docker build successful"

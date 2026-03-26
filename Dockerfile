@@ -80,6 +80,10 @@ RUN mkdir -p /app/images && \
 # 5. 设置默认 Chrome 路径（rod 会用）
 ENV ROD_BROWSER_BIN=/usr/bin/google-chrome
 
+# 6. Disable Chrome auto-updates (prevents Chrome version drift breaking go-rod)
+RUN rm -f /etc/cron.daily/google-chrome /etc/apt/sources.list.d/google-chrome.list && \
+    rm -f /etc/apt/apt.conf.d/*unattended-upgrades 2>/dev/null; true
+
 EXPOSE 18060
 
 CMD ["./app"]
