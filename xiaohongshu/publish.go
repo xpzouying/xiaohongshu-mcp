@@ -338,13 +338,28 @@ func submitPublish(page *rod.Page, title, content string, tags []string, schedul
 		return errors.Wrap(err, "绑定商品失败")
 	}
 
+	// 清除可能残留的弹窗遮罩层（原创声明等弹窗的 backdrop）
+	page.Eval(`() => {
+		document.querySelectorAll('.d-modal-mask, .d-overlay, .modal-mask, .d-modal-wrapper').forEach(el => el.remove());
+	}`)
+	time.Sleep(500 * time.Millisecond)
+
+	slog.Info("开始查找发布按钮")
 	submitButton, err := page.Element(".publish-page-publish-btn button.bg-red")
 	if err != nil {
 		return errors.Wrap(err, "查找发布按钮失败")
 	}
-	if err := submitButton.Click(proto.InputMouseButtonLeft, 1); err != nil {
-		return errors.Wrap(err, "点击发布按钮失败")
+	slog.Info("已找到发布按钮，准备点击")
+
+	// 使用 JavaScript 直接点击发布按钮，绕过可能残留的不可见遮罩层
+	_, err = submitButton.Eval(`(el) => { el.click(); }`)
+	if err != nil {
+		slog.Warn("JS 点击发布按钮失败，尝试鼠标点击", "error", err)
+		if err := submitButton.Click(proto.InputMouseButtonLeft, 1); err != nil {
+			return errors.Wrap(err, "点击发布按钮失败")
+		}
 	}
+	slog.Info("已点击发布按钮")
 
 	time.Sleep(3 * time.Second)
 	return nil
