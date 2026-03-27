@@ -837,7 +837,31 @@ func confirmOriginalDeclaration(page *rod.Page) error {
 	}
 
 	slog.Info("已成功点击声明原创按钮")
-	time.Sleep(300 * time.Millisecond)
+
+	// 等待原创声明弹窗完全关闭，避免遮挡后续的发布按钮点击
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		has, _, err := page.Has("div.footer")
+		if err != nil || !has {
+			slog.Info("原创声明弹窗已关闭")
+			break
+		}
+		// 检查弹窗 footer 是否仍然包含"原创声明须知"
+		footerGone, _ := page.Eval(`() => {
+			const footers = document.querySelectorAll('div.footer');
+			for (const f of footers) {
+				if (f.textContent.includes('原创声明须知')) return false;
+			}
+			return true;
+		}`)
+		if footerGone != nil && footerGone.Value.Bool() {
+			slog.Info("原创声明弹窗已关闭")
+			break
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	// 额外等待确保弹窗动画和遮罩层完全消失
+	time.Sleep(1 * time.Second)
 
 	return nil
 }
