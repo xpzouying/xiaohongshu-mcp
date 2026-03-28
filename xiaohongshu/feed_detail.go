@@ -882,186 +882,134 @@ func (f *FeedDetailAction) extractFeedDetail(page *rod.Page, feedID string) (*Fe
 	}, nil
 }
 
+// rawVideoData 用于解析 __INITIAL_STATE__ 中的视频 JSON（复用 VideoStream 类型）
+type rawVideoData struct {
+	Consumer struct {
+		OriginVideoKey string `json:"originVideoKey"`
+	} `json:"consumer"`
+	Media struct {
+		Stream map[string][]VideoStream `json:"stream"`
+	} `json:"media"`
+	Capa struct {
+		Duration int `json:"duration"`
+	} `json:"capa"`
+}
+
 // extractVideoURL 从页面中提取视频的下载地址
 func (f *FeedDetailAction) extractVideoURL(page *rod.Page, feedID string) *FeedDetailVideo {
-	// 从 __INITIAL_STATE__ 中提取完整的视频信息
-	videoJSON := page.MustEval(`(feedID) => {
-		try {
-			if (!window.__INITIAL_STATE__ ||
-				!window.__INITIAL_STATE__.note ||
-				!window.__INITIAL_STATE__.note.noteDetailMap) {
-				return "";
-			}
-			const noteDetail = window.__INITIAL_STATE__.note.noteDetailMap[feedID];
-			if (!noteDetail || !noteDetail.note || !noteDetail.note.video) {
-				return "";
-			}
-			return JSON.stringify(noteDetail.note.video);
-		} catch(e) {
-			return "";
-		}
-	}`, feedID).String()
-
+	videoJSON := f.evalVideoJSON(page, feedID)
 	if videoJSON == "" {
-		// Fallback: 从 <video> 或 <source> 标签提取
-		videoSrc := page.MustEval(`() => {
-			const video = document.querySelector('video');
-			if (video && video.src) return video.src;
-			const source = document.querySelector('video source');
-			if (source && source.src) return source.src;
-			return "";
-		}`).String()
+		return f.evalVideoTagSrc(page)
+	}
+	return parseVideoJSON(videoJSON)
+}
 
-		if videoSrc != "" {
-			logrus.Infof("从 <video> 标签提取到视频 URL: %s", videoSrc[:min(80, len(videoSrc))])
-			return &FeedDetailVideo{URL: videoSrc}
-		}
+// evalVideoJSON 从 __INITIAL_STATE__ 中提取视频 JSON 字符串
+func (f *FeedDetailAction) evalVideoJSON(page *rod.Page, feedID string) string {
+	result, err := page.Eval(`(feedID) => {
+		try {
+			const map = window.__INITIAL_STATE__?.note?.noteDetailMap;
+			const video = map?.[feedID]?.note?.video;
+			return video ? JSON.stringify(video) : "";
+		} catch(e) { return ""; }
+	}`, feedID)
+	if err != nil {
+		logrus.Warnf("eval 视频 JSON 失败: %v", err)
+		return ""
+	}
+	return result.Value.String()
+}
+
+// evalVideoTagSrc 从 <video> 标签中提取视频 src（fallback）
+func (f *FeedDetailAction) evalVideoTagSrc(page *rod.Page) *FeedDetailVideo {
+	result, err := page.Eval(`() => {
+		const v = document.querySelector('video');
+		if (v && v.src) return v.src;
+		const s = document.querySelector('video source');
+		if (s && s.src) return s.src;
+		return "";
+	}`)
+	if err != nil || result.Value.String() == "" {
 		return nil
 	}
+	src := result.Value.String()
+	logrus.Infof("从 <video> 标签提取到视频 URL: %s", src[:min(80, len(src))])
+	return &FeedDetailVideo{URL: src}
+}
 
-	// 解析视频 JSON
-	var rawVideo struct {
-		Consumer struct {
-			OriginVideoKey string `json:"originVideoKey"`
-		} `json:"consumer"`
-		Media struct {
-			Stream map[string][]struct {
-				MasterURL  string   `json:"masterUrl"`
-				BackupURLs []string `json:"backupUrls"`
-				Width      int      `json:"width"`
-				Height     int      `json:"height"`
-				AvgBitrate int      `json:"avgBitrate"`
-			} `json:"stream"`
-		} `json:"media"`
-		Capa struct {
-			Duration int `json:"duration"`
-		} `json:"capa"`
-	}
-
-	if err := json.Unmarshal([]byte(videoJSON), &rawVideo); err != nil {
-		logrus.Warnf("解析视频 JSON 失败: %v", err)
-		return nil
-	}
-
-	logrus.Infof("视频原始数据: duration=%d, consumer.key=%s, stream codecs=%v",
-		rawVideo.Capa.Duration,
-		rawVideo.Consumer.OriginVideoKey,
-		func() []string {
-			keys := make([]string, 0)
-			for k, v := range rawVideo.Media.Stream {
-				keys = append(keys, fmt.Sprintf("%s(%d)", k, len(v)))
-			}
-			return keys
-		}())
-
-	// 如果 rawVideo 解析出的 stream 为空但 videoJSON 里有数据，直接从 JSON 提取 URL
-	if len(rawVideo.Media.Stream) == 0 || allStreamsEmpty(rawVideo.Media.Stream) {
-		logrus.Infof("rawVideo stream 为空，尝试从 JSON 直接提取 URL")
-		return extractVideoURLFromJSON(videoJSON)
+// parseVideoJSON 解析视频 JSON 并提取下载地址
+func parseVideoJSON(videoJSON string) *FeedDetailVideo {
+	var raw rawVideoData
+	if err := json.Unmarshal([]byte(videoJSON), &raw); err != nil {
+		logrus.Warnf("解析视频 JSON 失败: %v, 尝试 fallback", err)
+		return parseVideoURLFromRawJSON(videoJSON)
 	}
 
 	result := &FeedDetailVideo{
-		Duration: rawVideo.Capa.Duration,
+		Duration: raw.Capa.Duration,
 		Media: &FeedDetailVideoMedia{
 			Stream: make(map[string][]VideoStream),
 		},
 	}
 
-	// 提取所有视频流，按 codec 分组
-	// 优先选择最高分辨率的 h264 作为主 URL（兼容性最好）
+	// 收集所有流，同时选出最佳下载 URL
 	var bestURL string
 	var bestBitrate int
 
-	for _, codec := range []string{"h264", "h265", "av1", "h266"} {
-		streams, ok := rawVideo.Media.Stream[codec]
-		if !ok || len(streams) == 0 {
+	for _, codec := range videoCodecPriority {
+		streams := raw.Media.Stream[codec]
+		if len(streams) == 0 {
 			continue
 		}
+		result.Media.Stream[codec] = streams
 
 		for _, s := range streams {
-			vs := VideoStream{
-				MasterURL:  s.MasterURL,
-				BackupURLs: s.BackupURLs,
-				Width:      s.Width,
-				Height:     s.Height,
-				AvgBitrate: s.AvgBitrate,
+			url := pickStreamURL(s)
+			if url == "" {
+				continue
 			}
-			result.Media.Stream[codec] = append(result.Media.Stream[codec], vs)
-
-			// 优先选 h264 最高码率，因为兼容性最好
-			if codec == "h264" && s.AvgBitrate > bestBitrate {
-				if s.MasterURL != "" {
-					bestURL = s.MasterURL
-					bestBitrate = s.AvgBitrate
-				} else if len(s.BackupURLs) > 0 {
-					bestURL = s.BackupURLs[0]
-					bestBitrate = s.AvgBitrate
-				}
-			}
-		}
-	}
-
-	// 如果没有 h264，用任何可用的
-	if bestURL == "" {
-		for _, codec := range []string{"h265", "av1", "h266"} {
-			streams := rawVideo.Media.Stream[codec]
-			for _, s := range streams {
-				if s.MasterURL != "" {
-					bestURL = s.MasterURL
-					break
-				}
-				if len(s.BackupURLs) > 0 {
-					bestURL = s.BackupURLs[0]
-					break
-				}
-			}
-			if bestURL != "" {
-				break
+			// 优先选 h264 最高码率（兼容性最好），否则选任意最高码率
+			isPreferred := codec == "h264" || bestURL == ""
+			if isPreferred && s.AvgBitrate >= bestBitrate {
+				bestURL = url
+				bestBitrate = s.AvgBitrate
 			}
 		}
 	}
 
 	result.URL = bestURL
 
-	// Fallback: 使用 originVideoKey 构造 URL
-	if result.URL == "" && rawVideo.Consumer.OriginVideoKey != "" {
-		result.URL = "https://sns-video-bd.xhscdn.com/" + rawVideo.Consumer.OriginVideoKey
+	// Fallback: originVideoKey
+	if result.URL == "" && raw.Consumer.OriginVideoKey != "" {
+		result.URL = xhsVideoCDNBase + raw.Consumer.OriginVideoKey
+	}
+
+	// Fallback: 从原始 JSON 直接提取
+	if result.URL == "" {
+		if fb := parseVideoURLFromRawJSON(videoJSON); fb != nil && fb.URL != "" {
+			result.URL = fb.URL
+		}
 	}
 
 	if result.URL != "" {
 		logrus.Infof("提取到视频 URL: %s (时长: %ds)", result.URL[:min(80, len(result.URL))], result.Duration)
-	} else {
-		logrus.Warnf("未能从 struct 解析中提取视频 URL，尝试 JSON 直接提取")
-		if fallback := extractVideoURLFromJSON(videoJSON); fallback != nil && fallback.URL != "" {
-			result.URL = fallback.URL
-			if result.Duration == 0 {
-				result.Duration = fallback.Duration
-			}
-		}
 	}
-
 	return result
 }
 
-// allStreamsEmpty 检查所有 stream 是否为空
-func allStreamsEmpty(streams map[string][]struct {
-	MasterURL  string   `json:"masterUrl"`
-	BackupURLs []string `json:"backupUrls"`
-	Width      int      `json:"width"`
-	Height     int      `json:"height"`
-	AvgBitrate int      `json:"avgBitrate"`
-}) bool {
-	for _, s := range streams {
-		if len(s) > 0 {
-			return false
-		}
+// pickStreamURL 从单个 VideoStream 中选取可用的 URL
+func pickStreamURL(s VideoStream) string {
+	if s.MasterURL != "" {
+		return s.MasterURL
 	}
-	return true
+	if len(s.BackupURLs) > 0 {
+		return s.BackupURLs[0]
+	}
+	return ""
 }
 
-// extractVideoURLFromJSON 直接从 JSON 字符串中提取视频 URL（fallback）
-func extractVideoURLFromJSON(videoJSON string) *FeedDetailVideo {
-	// 用 map[string]interface{} 解析完整 JSON
+// parseVideoURLFromRawJSON 用 map[string]interface{} 从 JSON 直接提取视频 URL（struct 解析失败时的 fallback）
+func parseVideoURLFromRawJSON(videoJSON string) *FeedDetailVideo {
 	var raw map[string]interface{}
 	if err := json.Unmarshal([]byte(videoJSON), &raw); err != nil {
 		return nil
@@ -1077,24 +1025,26 @@ func extractVideoURLFromJSON(videoJSON string) *FeedDetailVideo {
 	}
 
 	// 从 media.stream 中提取 URL
-	if media, ok := raw["media"].(map[string]interface{}); ok {
-		if stream, ok := media["stream"].(map[string]interface{}); ok {
-			for _, codec := range []string{"h264", "h265", "av1"} {
-				if arr, ok := stream[codec].([]interface{}); ok {
-					for _, item := range arr {
-						if m, ok := item.(map[string]interface{}); ok {
-							if masterURL, ok := m["masterUrl"].(string); ok && masterURL != "" {
-								result.URL = masterURL
-								return result
-							}
-							if backups, ok := m["backupUrls"].([]interface{}); ok && len(backups) > 0 {
-								if bu, ok := backups[0].(string); ok && bu != "" {
-									result.URL = bu
-									return result
-								}
-							}
-						}
-					}
+	media, _ := raw["media"].(map[string]interface{})
+	stream, _ := media["stream"].(map[string]interface{})
+	for _, codec := range videoCodecPriority {
+		arr, ok := stream[codec].([]interface{})
+		if !ok {
+			continue
+		}
+		for _, item := range arr {
+			m, ok := item.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			if u, ok := m["masterUrl"].(string); ok && u != "" {
+				result.URL = u
+				return result
+			}
+			if backups, ok := m["backupUrls"].([]interface{}); ok && len(backups) > 0 {
+				if u, ok := backups[0].(string); ok && u != "" {
+					result.URL = u
+					return result
 				}
 			}
 		}
@@ -1103,7 +1053,7 @@ func extractVideoURLFromJSON(videoJSON string) *FeedDetailVideo {
 	// Fallback: consumer.originVideoKey
 	if consumer, ok := raw["consumer"].(map[string]interface{}); ok {
 		if key, ok := consumer["originVideoKey"].(string); ok && key != "" {
-			result.URL = "https://sns-video-bd.xhscdn.com/" + key
+			result.URL = xhsVideoCDNBase + key
 			return result
 		}
 	}

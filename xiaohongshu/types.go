@@ -125,8 +125,14 @@ type VideoStream struct {
 	BackupURLs []string `json:"backupUrls,omitempty"`
 	Width      int      `json:"width,omitempty"`
 	Height     int      `json:"height,omitempty"`
-	AvgBitrate int     `json:"avgBitrate,omitempty"`
+	AvgBitrate int      `json:"avgBitrate,omitempty"`
 }
+
+// 视频编码优先级（h264 兼容性最好）
+var videoCodecPriority = []string{"h264", "h265", "av1", "h266"}
+
+// 小红书视频 CDN 基础地址
+const xhsVideoCDNBase = "https://sns-video-bd.xhscdn.com/"
 
 // DetailImageInfo 表示详情页的图片信息
 type DetailImageInfo struct {
