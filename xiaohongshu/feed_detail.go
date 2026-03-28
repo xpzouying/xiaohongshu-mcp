@@ -856,10 +856,259 @@ func (f *FeedDetailAction) extractFeedDetail(page *rod.Page, feedID string) (*Fe
 		return nil, fmt.Errorf("feed %s not found in noteDetailMap", feedID)
 	}
 
+	// 如果是视频帖子，补充视频下载 URL
+	if noteDetail.Note.Type == "video" {
+		if noteDetail.Note.Video == nil || noteDetail.Note.Video.URL == "" {
+			videoInfo := f.extractVideoURL(page, feedID)
+			if videoInfo != nil {
+				if noteDetail.Note.Video == nil {
+					noteDetail.Note.Video = videoInfo
+				} else {
+					// 保留已有的 stream 信息，补充 URL 和 Duration
+					if noteDetail.Note.Video.URL == "" {
+						noteDetail.Note.Video.URL = videoInfo.URL
+					}
+					if noteDetail.Note.Video.Duration == 0 {
+						noteDetail.Note.Video.Duration = videoInfo.Duration
+					}
+				}
+			}
+		}
+	}
+
 	return &FeedDetailResponse{
 		Note:     noteDetail.Note,
 		Comments: noteDetail.Comments,
 	}, nil
+}
+
+// extractVideoURL 从页面中提取视频的下载地址
+func (f *FeedDetailAction) extractVideoURL(page *rod.Page, feedID string) *FeedDetailVideo {
+	// 从 __INITIAL_STATE__ 中提取完整的视频信息
+	videoJSON := page.MustEval(`(feedID) => {
+		try {
+			if (!window.__INITIAL_STATE__ ||
+				!window.__INITIAL_STATE__.note ||
+				!window.__INITIAL_STATE__.note.noteDetailMap) {
+				return "";
+			}
+			const noteDetail = window.__INITIAL_STATE__.note.noteDetailMap[feedID];
+			if (!noteDetail || !noteDetail.note || !noteDetail.note.video) {
+				return "";
+			}
+			return JSON.stringify(noteDetail.note.video);
+		} catch(e) {
+			return "";
+		}
+	}`, feedID).String()
+
+	if videoJSON == "" {
+		// Fallback: 从 <video> 或 <source> 标签提取
+		videoSrc := page.MustEval(`() => {
+			const video = document.querySelector('video');
+			if (video && video.src) return video.src;
+			const source = document.querySelector('video source');
+			if (source && source.src) return source.src;
+			return "";
+		}`).String()
+
+		if videoSrc != "" {
+			logrus.Infof("从 <video> 标签提取到视频 URL: %s", videoSrc[:min(80, len(videoSrc))])
+			return &FeedDetailVideo{URL: videoSrc}
+		}
+		return nil
+	}
+
+	// 解析视频 JSON
+	var rawVideo struct {
+		Consumer struct {
+			OriginVideoKey string `json:"originVideoKey"`
+		} `json:"consumer"`
+		Media struct {
+			Stream map[string][]struct {
+				MasterURL  string   `json:"masterUrl"`
+				BackupURLs []string `json:"backupUrls"`
+				Width      int      `json:"width"`
+				Height     int      `json:"height"`
+				AvgBitrate int      `json:"avgBitrate"`
+			} `json:"stream"`
+		} `json:"media"`
+		Capa struct {
+			Duration int `json:"duration"`
+		} `json:"capa"`
+	}
+
+	if err := json.Unmarshal([]byte(videoJSON), &rawVideo); err != nil {
+		logrus.Warnf("解析视频 JSON 失败: %v", err)
+		return nil
+	}
+
+	logrus.Infof("视频原始数据: duration=%d, consumer.key=%s, stream codecs=%v",
+		rawVideo.Capa.Duration,
+		rawVideo.Consumer.OriginVideoKey,
+		func() []string {
+			keys := make([]string, 0)
+			for k, v := range rawVideo.Media.Stream {
+				keys = append(keys, fmt.Sprintf("%s(%d)", k, len(v)))
+			}
+			return keys
+		}())
+
+	// 如果 rawVideo 解析出的 stream 为空但 videoJSON 里有数据，直接从 JSON 提取 URL
+	if len(rawVideo.Media.Stream) == 0 || allStreamsEmpty(rawVideo.Media.Stream) {
+		logrus.Infof("rawVideo stream 为空，尝试从 JSON 直接提取 URL")
+		return extractVideoURLFromJSON(videoJSON)
+	}
+
+	result := &FeedDetailVideo{
+		Duration: rawVideo.Capa.Duration,
+		Media: &FeedDetailVideoMedia{
+			Stream: make(map[string][]VideoStream),
+		},
+	}
+
+	// 提取所有视频流，按 codec 分组
+	// 优先选择最高分辨率的 h264 作为主 URL（兼容性最好）
+	var bestURL string
+	var bestBitrate int
+
+	for _, codec := range []string{"h264", "h265", "av1", "h266"} {
+		streams, ok := rawVideo.Media.Stream[codec]
+		if !ok || len(streams) == 0 {
+			continue
+		}
+
+		for _, s := range streams {
+			vs := VideoStream{
+				MasterURL:  s.MasterURL,
+				BackupURLs: s.BackupURLs,
+				Width:      s.Width,
+				Height:     s.Height,
+				AvgBitrate: s.AvgBitrate,
+			}
+			result.Media.Stream[codec] = append(result.Media.Stream[codec], vs)
+
+			// 优先选 h264 最高码率，因为兼容性最好
+			if codec == "h264" && s.AvgBitrate > bestBitrate {
+				if s.MasterURL != "" {
+					bestURL = s.MasterURL
+					bestBitrate = s.AvgBitrate
+				} else if len(s.BackupURLs) > 0 {
+					bestURL = s.BackupURLs[0]
+					bestBitrate = s.AvgBitrate
+				}
+			}
+		}
+	}
+
+	// 如果没有 h264，用任何可用的
+	if bestURL == "" {
+		for _, codec := range []string{"h265", "av1", "h266"} {
+			streams := rawVideo.Media.Stream[codec]
+			for _, s := range streams {
+				if s.MasterURL != "" {
+					bestURL = s.MasterURL
+					break
+				}
+				if len(s.BackupURLs) > 0 {
+					bestURL = s.BackupURLs[0]
+					break
+				}
+			}
+			if bestURL != "" {
+				break
+			}
+		}
+	}
+
+	result.URL = bestURL
+
+	// Fallback: 使用 originVideoKey 构造 URL
+	if result.URL == "" && rawVideo.Consumer.OriginVideoKey != "" {
+		result.URL = "https://sns-video-bd.xhscdn.com/" + rawVideo.Consumer.OriginVideoKey
+	}
+
+	if result.URL != "" {
+		logrus.Infof("提取到视频 URL: %s (时长: %ds)", result.URL[:min(80, len(result.URL))], result.Duration)
+	} else {
+		logrus.Warnf("未能从 struct 解析中提取视频 URL，尝试 JSON 直接提取")
+		if fallback := extractVideoURLFromJSON(videoJSON); fallback != nil && fallback.URL != "" {
+			result.URL = fallback.URL
+			if result.Duration == 0 {
+				result.Duration = fallback.Duration
+			}
+		}
+	}
+
+	return result
+}
+
+// allStreamsEmpty 检查所有 stream 是否为空
+func allStreamsEmpty(streams map[string][]struct {
+	MasterURL  string   `json:"masterUrl"`
+	BackupURLs []string `json:"backupUrls"`
+	Width      int      `json:"width"`
+	Height     int      `json:"height"`
+	AvgBitrate int      `json:"avgBitrate"`
+}) bool {
+	for _, s := range streams {
+		if len(s) > 0 {
+			return false
+		}
+	}
+	return true
+}
+
+// extractVideoURLFromJSON 直接从 JSON 字符串中提取视频 URL（fallback）
+func extractVideoURLFromJSON(videoJSON string) *FeedDetailVideo {
+	// 用 map[string]interface{} 解析完整 JSON
+	var raw map[string]interface{}
+	if err := json.Unmarshal([]byte(videoJSON), &raw); err != nil {
+		return nil
+	}
+
+	result := &FeedDetailVideo{}
+
+	// 提取 duration
+	if capa, ok := raw["capa"].(map[string]interface{}); ok {
+		if d, ok := capa["duration"].(float64); ok {
+			result.Duration = int(d)
+		}
+	}
+
+	// 从 media.stream 中提取 URL
+	if media, ok := raw["media"].(map[string]interface{}); ok {
+		if stream, ok := media["stream"].(map[string]interface{}); ok {
+			for _, codec := range []string{"h264", "h265", "av1"} {
+				if arr, ok := stream[codec].([]interface{}); ok {
+					for _, item := range arr {
+						if m, ok := item.(map[string]interface{}); ok {
+							if masterURL, ok := m["masterUrl"].(string); ok && masterURL != "" {
+								result.URL = masterURL
+								return result
+							}
+							if backups, ok := m["backupUrls"].([]interface{}); ok && len(backups) > 0 {
+								if bu, ok := backups[0].(string); ok && bu != "" {
+									result.URL = bu
+									return result
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Fallback: consumer.originVideoKey
+	if consumer, ok := raw["consumer"].(map[string]interface{}); ok {
+		if key, ok := consumer["originVideoKey"].(string); ok && key != "" {
+			result.URL = "https://sns-video-bd.xhscdn.com/" + key
+			return result
+		}
+	}
+
+	return result
 }
 
 func makeFeedDetailURL(feedID, xsecToken string) string {

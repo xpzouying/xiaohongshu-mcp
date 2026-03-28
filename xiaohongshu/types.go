@@ -103,6 +103,29 @@ type FeedDetail struct {
 	User         User              `json:"user"`
 	InteractInfo InteractInfo      `json:"interactInfo"`
 	ImageList    []DetailImageInfo `json:"imageList"`
+	Video        *FeedDetailVideo  `json:"video,omitempty"`
+}
+
+// FeedDetailVideo 表示详情页的视频信息
+type FeedDetailVideo struct {
+	// URL 是可直接下载的视频地址（从 media.stream 中提取的最高质量 URL）
+	URL      string                `json:"url,omitempty"`
+	Duration int                   `json:"duration,omitempty"`
+	Media    *FeedDetailVideoMedia `json:"media,omitempty"`
+}
+
+// FeedDetailVideoMedia 表示视频媒体信息
+type FeedDetailVideoMedia struct {
+	Stream map[string][]VideoStream `json:"stream,omitempty"`
+}
+
+// VideoStream 表示单个视频流
+type VideoStream struct {
+	MasterURL  string   `json:"masterUrl,omitempty"`
+	BackupURLs []string `json:"backupUrls,omitempty"`
+	Width      int      `json:"width,omitempty"`
+	Height     int      `json:"height,omitempty"`
+	AvgBitrate int     `json:"avgBitrate,omitempty"`
 }
 
 // DetailImageInfo 表示详情页的图片信息
