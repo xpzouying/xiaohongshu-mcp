@@ -1,0 +1,24 @@
+{
+  "name": "xiaohongshu-mcp",
+  "version": "0.1.0",
+  "description": "Xiaohongshu (Little Red Book) content from Codex via MCP",
+  "author": {
+    "name": "xpzouying",
+    "url": "https://github.com/xpzouying/xiaohongshu-mcp"
+  },
+  "homepage": "https://github.com/xpzouying/xiaohongshu-mcp",
+  "repository": "https://github.com/xpzouying/xiaohongshu-mcp",
+  "keywords": [
+    "mcp",
+    "codex"
+  ],
+  "mcpServers": "./.mcp.json",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Xiaohongshu MCP",
+    "shortDescription": "Xiaohongshu (Little Red Book) content from Codex via MCP",
+    "longDescription": "MCP server for xiaohongshu.com. Browse and search content from Xiaohongshu.",
+    "category": "Social",
+    "websiteURL": "https://github.com/xpzouying/xiaohongshu-mcp"
+  }
+}
