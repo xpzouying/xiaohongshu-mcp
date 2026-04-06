@@ -23,7 +23,7 @@ func TestSearch(t *testing.T) {
 
 	action := NewSearchAction(page)
 
-	feeds, err := action.Search(context.Background(), "Kimi")
+	feeds, err := action.Search(context.Background(), "Kimi", 0)
 	require.NoError(t, err)
 	require.NotEmpty(t, feeds, "feeds should not be empty")
 
@@ -55,7 +55,7 @@ func TestSearchWithFilters(t *testing.T) {
 		PublishTime: "一天内",
 	}
 
-	feeds, err := action.Search(context.Background(), "dn432", filter)
+	feeds, err := action.Search(context.Background(), "dn432", 0, filter)
 	require.NoError(t, err)
 	require.NotEmpty(t, feeds, "feeds should not be empty")
 

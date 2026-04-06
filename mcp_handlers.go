@@ -326,7 +326,13 @@ func (s *AppServer) handleSearchFeeds(ctx context.Context, args SearchFeedsArgs)
 		Location:    args.Filters.Location,
 	}
 
-	result, err := s.xiaohongshuService.SearchFeeds(ctx, args.Keyword, filter)
+	// limit 上限 200，默认 0 表示不翻页
+	limit := args.Limit
+	if limit > 200 {
+		limit = 200
+	}
+
+	result, err := s.xiaohongshuService.SearchFeeds(ctx, args.Keyword, limit, filter)
 	if err != nil {
 		return &MCPToolResult{
 			Content: []MCPContent{{

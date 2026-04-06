@@ -165,7 +165,7 @@ func NewSearchAction(page *rod.Page) *SearchAction {
 	return &SearchAction{page: pp}
 }
 
-func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...FilterOption) ([]Feed, error) {
+func (s *SearchAction) Search(ctx context.Context, keyword string, limit int, filters ...FilterOption) ([]Feed, error) {
 	page := s.page.Context(ctx)
 
 	searchURL := makeSearchURL(keyword)
@@ -214,18 +214,7 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 		page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
 	}
 
-	result := page.MustEval(`() => {
-		if (window.__INITIAL_STATE__ &&
-		    window.__INITIAL_STATE__.search &&
-		    window.__INITIAL_STATE__.search.feeds) {
-			const feeds = window.__INITIAL_STATE__.search.feeds;
-			const feedsData = feeds.value !== undefined ? feeds.value : feeds._value;
-			if (feedsData) {
-				return JSON.stringify(feedsData);
-			}
-		}
-		return "";
-	}`).String()
+	result := page.MustEval(readFeedsJS).String()
 
 	if result == "" {
 		return nil, errors.ErrNoFeeds
@@ -234,6 +223,11 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 	var feeds []Feed
 	if err := json.Unmarshal([]byte(result), &feeds); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal feeds: %w", err)
+	}
+
+	// 翻页加载更多结果
+	if limit > 0 && len(feeds) < limit {
+		feeds = scrollAndCollectFeeds(page, feeds, limit)
 	}
 
 	return feeds, nil

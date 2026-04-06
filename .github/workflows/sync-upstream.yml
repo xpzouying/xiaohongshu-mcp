@@ -1,0 +1,58 @@
+name: Sync upstream
+
+on:
+  schedule:
+    - cron: '0 1 * * 1' # 每周一 UTC 01:00 (北京时间 09:00)
+  workflow_dispatch: # 支持手动触发
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch upstream
+        run: |
+          git remote add upstream https://github.com/xpzouying/xiaohongshu-mcp.git
+          git fetch upstream
+
+      - name: Merge upstream/main
+        id: merge
+        run: |
+          if git merge upstream/main --no-edit; then
+            echo "conflict=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "conflict=true" >> "$GITHUB_OUTPUT"
+            git merge --abort
+          fi
+
+      - name: Push (no conflict)
+        if: steps.merge.outputs.conflict == 'false'
+        run: git push origin main
+
+      - name: Create conflict PR
+        if: steps.merge.outputs.conflict == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH_NAME: sync/upstream-${{ github.run_id }}
+        run: |
+          git checkout -b "$BRANCH_NAME"
+          git merge upstream/main --no-commit || true
+          git add -A
+          git commit -m "chore: sync upstream (conflicts need manual resolution)"
+          git push origin "$BRANCH_NAME"
+          gh pr create \
+            --title "chore: sync upstream (conflicts)" \
+            --body "Upstream sync 发现合并冲突，需要手动解决。"
