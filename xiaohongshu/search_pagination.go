@@ -10,6 +10,9 @@ import (
 
 // scrollAndCollectFeeds 滚动页面加载更多搜索结果，按 Feed.ID 去重
 func scrollAndCollectFeeds(page *rod.Page, initialFeeds []Feed, limit int) []Feed {
+	// 确保翻页有超时保护，防止单次 WaitStable/Eval 无限等待
+	page = page.Timeout(60 * time.Second)
+
 	seen := make(map[string]bool, len(initialFeeds))
 	var allFeeds []Feed
 	for _, f := range initialFeeds {
