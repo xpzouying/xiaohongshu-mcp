@@ -225,8 +225,11 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, limit int, fi
 		return nil, fmt.Errorf("failed to unmarshal feeds: %w", err)
 	}
 
-	// 翻页加载更多结果
-	if limit > 0 && len(feeds) < limit {
+	// 根据 limit 截断或翻页加载更多结果
+	if limit > 0 {
+		if len(feeds) >= limit {
+			return feeds[:limit], nil
+		}
 		feeds = scrollAndCollectFeeds(page, feeds, limit)
 	}
 
