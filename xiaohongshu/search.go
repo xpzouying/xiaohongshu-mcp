@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/go-rod/rod"
@@ -63,6 +64,35 @@ var filterOptionsMap = map[int][]internalFilterOption{
 		{FiltersIndex: 5, TagsIndex: 1, Text: "不限"},
 		{FiltersIndex: 5, TagsIndex: 2, Text: "同城"},
 		{FiltersIndex: 5, TagsIndex: 3, Text: "附近"},
+	},
+}
+
+// 支持常用英文别名，兼容主流调用方参数风格。
+var filterOptionAliases = map[int]map[string]string{
+	1: { // sort_by
+		"comprehensive":  "综合",
+		"latest":         "最新",
+		"most_likes":     "最多点赞",
+		"most_comments":  "最多评论",
+		"most_favorites": "最多收藏",
+	},
+	2: { // note_type
+		"video":      "视频",
+		"image_text": "图文",
+	},
+	3: { // publish_time
+		"one_day":   "一天内",
+		"one_week":  "一周内",
+		"half_year": "半年内",
+	},
+	4: { // search_scope
+		"viewed":   "已看过",
+		"unviewed": "未看过",
+		"followed": "已关注",
+	},
+	5: { // location
+		"local":  "同城",
+		"nearby": "附近",
 	},
 }
 
@@ -125,8 +155,19 @@ func findInternalOption(filtersIndex int, text string) (internalFilterOption, er
 		return internalFilterOption{}, fmt.Errorf("筛选组 %d 不存在", filtersIndex)
 	}
 
+	normalized := strings.TrimSpace(text)
+	if normalized == "" {
+		return internalFilterOption{}, fmt.Errorf("筛选组 %d 的筛选值不能为空", filtersIndex)
+	}
+
+	if aliases, ok := filterOptionAliases[filtersIndex]; ok {
+		if canonical, exists := aliases[strings.ToLower(normalized)]; exists {
+			normalized = canonical
+		}
+	}
+
 	for _, option := range options {
-		if option.Text == text {
+		if option.Text == normalized {
 			return option, nil
 		}
 	}
@@ -174,22 +215,20 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 
 	page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
 
-	// 如果有筛选条件，则应用筛选
+	// 如果有筛选条件，则先严格校验并应用筛选。
 	if len(filters) > 0 {
-		// 将所有 FilterOption 转换为内部筛选选项
 		var allInternalFilters []internalFilterOption
 		for _, filter := range filters {
 			internalFilters, err := convertToInternalFilters(filter)
 			if err != nil {
-				return nil, fmt.Errorf("筛选选项转换失败: %w", err)
+				return nil, fmt.Errorf("筛选参数无效: %w", err)
 			}
 			allInternalFilters = append(allInternalFilters, internalFilters...)
 		}
 
-		// 验证所有内部筛选选项
 		for _, filter := range allInternalFilters {
 			if err := validateInternalFilterOption(filter); err != nil {
-				return nil, fmt.Errorf("筛选选项验证失败: %w", err)
+				return nil, fmt.Errorf("筛选参数无效: %w", err)
 			}
 		}
 
