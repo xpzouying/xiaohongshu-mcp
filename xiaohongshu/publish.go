@@ -50,8 +50,11 @@ func NewPublishImageAction(page *rod.Page) (*PublishAction, error) {
 	}
 	time.Sleep(2 * time.Second)
 
-	// 等待页面稳定
-	if err := pp.WaitDOMStable(time.Second, 0.1); err != nil {
+	// 等待页面稳定。给 WaitDOMStable 独立的短超时，防止它无限占用
+	// 外层 300s 预算 —— 新版发布页存在持续动画/埋点请求，
+	// 可能让 DOMStable 一直等不到稳定态。
+	stablePage := pp.Timeout(10 * time.Second)
+	if err := stablePage.WaitDOMStable(time.Second, 0.1); err != nil {
 		logrus.Warnf("等待 DOM 稳定出现问题: %v，继续尝试", err)
 	}
 	time.Sleep(1 * time.Second)
@@ -116,7 +119,21 @@ func clickEmptyPosition(page *rod.Page) {
 }
 
 func mustClickPublishTab(page *rod.Page, tabname string) error {
-	page.MustElement(`div.upload-content`).MustWaitVisible()
+	// 等待发布页头部的 TAB 容器出现即可。
+	//
+	// 历史上这里用的是 `div.upload-content` + `MustWaitVisible`：
+	// 1) 该选择器实际指向当前 active TAB 的上传区域，
+	//    默认 active 是 "上传视频"，UI 改版后可能延迟渲染/布局变动；
+	// 2) `MustElement` 在找不到时会 panic，被上层 context 的
+	//    `page.Timeout(300s)` 吃掉后表现为 "context deadline exceeded"，
+	//    让整个发布流程卡 5 分钟才失败。
+	//
+	// 更稳健的做法：用带短 timeout 的 Element 等 `div.creator-tab`
+	// 至少出现一个，再进入重试循环。
+	waitPage := page.Timeout(15 * time.Second)
+	if _, err := waitPage.Element(`div.creator-tab`); err != nil {
+		return errors.Wrap(err, "等待发布 TAB 容器加载失败")
+	}
 
 	deadline := time.Now().Add(15 * time.Second)
 	for time.Now().Before(deadline) {
