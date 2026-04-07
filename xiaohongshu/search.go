@@ -165,6 +165,13 @@ type SearchAction struct {
 	page *rod.Page
 }
 
+const (
+	searchStateWaitTimeout      = 10 * time.Second
+	searchFeedsReadyWaitTimeout = 8 * time.Second
+	filterActivationWaitTimeout = 10 * time.Second
+	filterApplyDelay            = 1200 * time.Millisecond
+)
+
 func NewSearchAction(page *rod.Page) *SearchAction {
 	pp := page.Timeout(60 * time.Second)
 
@@ -177,6 +184,8 @@ func chooseFilterTag(tags []filterTagState, targetText string) (int, bool, error
 			return index, false, nil
 		}
 	}
+	// On the current search page DOM, duplicated tags are rendered for the same label
+	// and the interactive copy is typically the later `display:flex` node.
 	for index := len(tags) - 1; index >= 0; index-- {
 		tag := tags[index]
 		if tag.Text == targetText && tag.Display == "flex" {
@@ -192,18 +201,22 @@ func chooseFilterTag(tags []filterTagState, targetText string) (int, bool, error
 	return -1, false, fmt.Errorf("未找到筛选项: %s", targetText)
 }
 
-func (s *SearchAction) waitForSearchState(page *rod.Page) {
-	page.MustWait(`() => !!(
+func (s *SearchAction) waitForSearchState(page *rod.Page) error {
+	waitPage := page.Timeout(searchStateWaitTimeout)
+	defer waitPage.CancelTimeout()
+
+	return waitPage.Wait(rod.Eval(`() => !!(
 		window.__INITIAL_STATE__ &&
 		window.__INITIAL_STATE__.search &&
 		window.__INITIAL_STATE__.search.feeds
-	)`)
+	)`))
 }
 
 func (s *SearchAction) waitForSearchFeedsReady(page *rod.Page) {
-	waitPage := page.Timeout(8 * time.Second)
+	waitPage := page.Timeout(searchFeedsReadyWaitTimeout)
 	defer waitPage.CancelTimeout()
 
+	// Best effort: some valid searches may still render an empty feed list.
 	_ = waitPage.Wait(rod.Eval(`() => {
 		const feeds = window.__INITIAL_STATE__ &&
 			window.__INITIAL_STATE__.search &&
@@ -262,16 +275,23 @@ func (s *SearchAction) applyFilter(page *rod.Page, filter internalFilterOption) 
 		return fmt.Errorf("点击筛选项失败: %s", filter.Text)
 	}
 
-	page.Timeout(10 * time.Second).MustWait(fmt.Sprintf(`() => {
+	waitPage := page.Timeout(filterActivationWaitTimeout)
+	defer waitPage.CancelTimeout()
+
+	if err := waitPage.Wait(rod.Eval(fmt.Sprintf(`() => {
 		const groups = document.querySelectorAll('div.filter-panel div.filters');
 		const group = groups[%d];
 		if (!group) return false;
 		return Array.from(group.querySelectorAll('div.tags')).some(tag =>
 			(tag.textContent || '').trim() === %q && tag.classList.contains('active')
 		);
-	}`, filter.FiltersIndex-1, filter.Text))
+	}`, filter.FiltersIndex-1, filter.Text))); err != nil {
+		return fmt.Errorf("等待筛选项生效失败: %w", err)
+	}
 
-	time.Sleep(1200 * time.Millisecond)
+	// Give the page a short settle window after the active state flips so the
+	// subsequent feed read sees the refreshed search result data.
+	time.Sleep(filterApplyDelay)
 	return nil
 }
 
@@ -281,7 +301,9 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 	searchURL := makeSearchURL(keyword)
 	page.MustNavigate(searchURL)
 	page.MustWaitLoad()
-	s.waitForSearchState(page)
+	if err := s.waitForSearchState(page); err != nil {
+		return nil, fmt.Errorf("等待搜索结果状态初始化失败: %w", err)
+	}
 	s.waitForSearchFeedsReady(page)
 
 	// 如果有筛选条件，则应用筛选
@@ -317,7 +339,9 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 			}
 		}
 
-		s.waitForSearchState(page)
+		if err := s.waitForSearchState(page); err != nil {
+			return nil, fmt.Errorf("等待筛选后的搜索结果状态初始化失败: %w", err)
+		}
 		s.waitForSearchFeedsReady(page)
 	}
 

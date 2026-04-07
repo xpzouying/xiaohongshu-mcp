@@ -59,3 +59,39 @@ func TestChooseFilterTagPrefersInteractiveDuplicateWhenTargetNotActive(t *testin
 		t.Fatalf("expected interactive duplicate index 2, got %d", index)
 	}
 }
+
+func TestChooseFilterTagReturnsErrorWhenTargetMissing(t *testing.T) {
+	tags := []filterTagState{
+		{Text: "不限", Active: true, Display: "flex"},
+	}
+
+	_, _, err := chooseFilterTag(tags, "一周内")
+	if err == nil {
+		t.Fatalf("expected error when target tag is missing")
+	}
+}
+
+func TestChooseFilterTagReturnsErrorForEmptyTags(t *testing.T) {
+	_, _, err := chooseFilterTag(nil, "一周内")
+	if err == nil {
+		t.Fatalf("expected error for empty tag list")
+	}
+}
+
+func TestChooseFilterTagFallsBackToLastMatchingTag(t *testing.T) {
+	tags := []filterTagState{
+		{Text: "一周内", Active: false, Display: "none"},
+		{Text: "一周内", Active: false, Display: "none"},
+	}
+
+	index, shouldClick, err := chooseFilterTag(tags, "一周内")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !shouldClick {
+		t.Fatalf("expected click for fallback target")
+	}
+	if index != 1 {
+		t.Fatalf("expected fallback index 1, got %d", index)
+	}
+}
