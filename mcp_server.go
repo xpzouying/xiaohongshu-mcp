@@ -70,6 +70,11 @@ type UserProfileArgs struct {
 	XsecToken string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
 }
 
+// GetMyProfileArgs 获取当前登录用户信息的参数
+type GetMyProfileArgs struct {
+	// 当前为空，预留扩展参数
+}
+
 // PostCommentArgs 发表评论的参数
 type PostCommentArgs struct {
 	FeedID    string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
@@ -443,7 +448,23 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	logrus.Infof("Registered %d MCP tools", 13)
+	// 工具 14: 获取当前登录用户信息
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "get_my_profile",
+			Description: "获取当前登录用户的个人信息，包括用户ID、昵称、头像、粉丝数等",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Get My Profile",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("get_my_profile", func(ctx context.Context, req *mcp.CallToolRequest, args GetMyProfileArgs) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleGetMyProfile(ctx)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	logrus.Infof("Registered %d MCP tools", 14)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式
