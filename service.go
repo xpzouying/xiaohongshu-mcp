@@ -598,3 +598,29 @@ func (s *XiaohongshuService) GetMyProfile(ctx context.Context) (*UserProfileResp
 
 	return response, nil
 }
+
+// withFollowAction creates a browser/page and executes a follow action.
+func (s *XiaohongshuService) withFollowAction(ctx context.Context, fn func(*xiaohongshu.FollowAction) error) error {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewFollowAction(page)
+	return fn(action)
+}
+
+// FollowUser 关注用户
+func (s *XiaohongshuService) FollowUser(ctx context.Context, userID, xsecToken string) error {
+	return s.withFollowAction(ctx, func(a *xiaohongshu.FollowAction) error {
+		return a.FollowUser(ctx, userID, xsecToken)
+	})
+}
+
+// UnfollowUser 取消关注用户
+func (s *XiaohongshuService) UnfollowUser(ctx context.Context, userID, xsecToken string) error {
+	return s.withFollowAction(ctx, func(a *xiaohongshu.FollowAction) error {
+		return a.UnfollowUser(ctx, userID, xsecToken)
+	})
+}
