@@ -293,3 +293,23 @@ func (s *AppServer) myProfileHandler(c *gin.Context) {
 	c.Set("account", "ai-report")
 	respondSuccess(c, map[string]any{"data": result}, "获取我的主页成功")
 }
+
+// screenshotFeedHandler 截取帖子页面截图
+func (s *AppServer) screenshotFeedHandler(c *gin.Context) {
+	var req ScreenshotRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
+			"请求参数错误", err.Error())
+		return
+	}
+
+	result, err := s.xiaohongshuService.ScreenshotFeed(c.Request.Context(), req.FeedID, req.XsecToken)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "SCREENSHOT_FAILED",
+			"截图失败", err.Error())
+		return
+	}
+
+	c.Set("account", "ai-report")
+	respondSuccess(c, result, "截图成功")
+}
