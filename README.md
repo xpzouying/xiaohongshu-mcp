@@ -4,7 +4,7 @@
 [![All Contributors](https://img.shields.io/badge/all_contributors-27-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
-[![善款已捐](https://img.shields.io/badge/善款已捐-CNY%201610.00-brightgreen?style=flat-square)](./DONATIONS.md)
+[![善款已捐](https://img.shields.io/badge/善款已捐-CNY%201810.00-brightgreen?style=flat-square)](./DONATIONS.md)
 [![爱心汇聚](https://img.shields.io/badge/爱心汇聚-CNY%201524.64-blue?style=flat-square)](./DONATIONS.md)
 [![Docker Pulls](https://img.shields.io/docker/pulls/xpzouying/xiaohongshu-mcp?style=flat-square&logo=docker)](https://hub.docker.com/r/xpzouying/xiaohongshu-mcp)
 
