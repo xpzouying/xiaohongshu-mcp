@@ -4,8 +4,8 @@
 [![All Contributors](https://img.shields.io/badge/all_contributors-27-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
-[![善款已捐](https://img.shields.io/badge/善款已捐-CNY%201610.00-brightgreen?style=flat-square)](./DONATIONS.md)
-[![爱心汇聚](https://img.shields.io/badge/爱心汇聚-CNY%201365.88-blue?style=flat-square)](./DONATIONS.md)
+[![善款已捐](https://img.shields.io/badge/善款已捐-CNY%201810.00-brightgreen?style=flat-square)](./DONATIONS.md)
+[![爱心汇聚](https://img.shields.io/badge/爱心汇聚-CNY%201524.64-blue?style=flat-square)](./DONATIONS.md)
 [![Docker Pulls](https://img.shields.io/docker/pulls/xpzouying/xiaohongshu-mcp?style=flat-square&logo=docker)](https://hub.docker.com/r/xpzouying/xiaohongshu-mcp)
 
 MCP for 小红书 / xiaohongshu.com。让你的 AI 助手直接访问小红书数据。
@@ -1000,9 +1000,9 @@ npx mcporter list xiaohongshu-mcp
 **重要：在群里问问题之前，请一定要先仔细看完 README 文档以及查看 Issues。**
 
 ### 微信群
-|                                                 微信群 19 群                                        |                                                 微信群 20 群                                         |
+|                                                 微信群 20 群                                        |                                                 微信群 21 群                                         |
 | :------------------------------------------------------------------------------------------------: | :------------------------------------------------------------------------------------------------: |
-| <img src="https://github.com/user-attachments/assets/f6b7b8ce-92de-4952-bb0c-d794e7efae18" alt="WechatIMG119" width="300"> | <img src="https://github.com/user-attachments/assets/f95217d1-9578-415d-81cc-f49107e7db1d" alt="WechatIMG119" width="300"> |
+| <img src="https://github.com/user-attachments/assets/16d8fe15-bcc2-40d3-81ae-47360d0d2c10" alt="WechatIMG119" width="300"> | <img src="https://github.com/user-attachments/assets/b7d88fd3-a0e2-43e1-a3bd-0c4345a1c9b9" alt="WechatIMG119" width="300"> |
 
 ### 飞书群
 
