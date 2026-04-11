@@ -229,6 +229,27 @@ func (s *AppServer) userProfileHandler(c *gin.Context) {
 	respondSuccess(c, map[string]any{"data": result}, "result.Message")
 }
 
+// editProfileHandler 编辑个人资料
+func (s *AppServer) editProfileHandler(c *gin.Context) {
+	var req EditProfileRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
+			"请求参数错误", err.Error())
+		return
+	}
+
+	// 编辑个人资料
+	result, err := s.xiaohongshuService.EditProfile(c.Request.Context(), req)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "EDIT_PROFILE_FAILED",
+			"编辑个人资料失败", err.Error())
+		return
+	}
+
+	c.Set("account", "ai-report")
+	respondSuccess(c, result, result.Message)
+}
+
 // postCommentHandler 发表评论到Feed
 func (s *AppServer) postCommentHandler(c *gin.Context) {
 	var req PostCommentRequest

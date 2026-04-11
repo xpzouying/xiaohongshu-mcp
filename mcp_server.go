@@ -105,6 +105,12 @@ type FavoriteFeedArgs struct {
 	Unfavorite bool   `json:"unfavorite,omitempty" jsonschema:"是否取消收藏，true为取消收藏，false或未设置则为收藏"`
 }
 
+// EditProfileArgs 编辑个人资料的参数
+type EditProfileArgs struct {
+	Nickname string `json:"nickname,omitempty" jsonschema:"昵称，可选参数"`
+	Bio      string `json:"bio,omitempty" jsonschema:"简介，可选参数"`
+}
+
 // InitMCPServer 初始化 MCP Server
 func InitMCPServer(appServer *AppServer) *mcp.Server {
 	// 创建 MCP Server
@@ -464,7 +470,27 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	logrus.Infof("Registered %d MCP tools", 14)
+	// 工具 15: 编辑个人资料
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "edit_profile",
+			Description: "编辑当前登录用户的个人资料，可以修改昵称和简介",
+			Annotations: &mcp.ToolAnnotations{
+				Title:           "Edit Profile",
+				DestructiveHint: boolPtr(true),
+			},
+		},
+		withPanicRecovery("edit_profile", func(ctx context.Context, req *mcp.CallToolRequest, args EditProfileArgs) (*mcp.CallToolResult, any, error) {
+			argsMap := map[string]interface{}{
+				"nickname": args.Nickname,
+				"bio":      args.Bio,
+			}
+			result := appServer.handleEditProfile(ctx, argsMap)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	logrus.Infof("Registered %d MCP tools", 15)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式
