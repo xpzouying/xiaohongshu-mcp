@@ -742,3 +742,86 @@ func (s *AppServer) handleReplyComment(ctx context.Context, args map[string]inte
 		}},
 	}
 }
+
+// handleGetMyProfile 处理获取当前登录用户信息
+func (s *AppServer) handleGetMyProfile(ctx context.Context) *MCPToolResult {
+	logrus.Info("MCP: 获取当前登录用户信息")
+
+	result, err := s.xiaohongshuService.GetMyProfile(ctx)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "获取当前用户信息失败: " + err.Error(),
+			}},
+			IsError: true,
+		}
+	}
+
+	// 格式化输出，转换为JSON字符串
+	jsonData, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: fmt.Sprintf("获取当前用户信息成功，但序列化失败: %v", err),
+			}},
+			IsError: true,
+		}
+	}
+
+	return &MCPToolResult{
+		Content: []MCPContent{{
+			Type: "text",
+			Text: string(jsonData),
+		}},
+	}
+}
+
+// handleEditProfile 处理编辑个人资料
+func (s *AppServer) handleEditProfile(ctx context.Context, args map[string]interface{}) *MCPToolResult {
+	logrus.Info("MCP: 编辑个人资料")
+
+	// 解析参数
+	edits := EditProfileRequest{}
+	
+	if nickname, ok := args["nickname"].(string); ok && nickname != "" {
+		edits.Nickname = nickname
+	}
+	
+	if bio, ok := args["bio"].(string); ok && bio != "" {
+		edits.Bio = bio
+	}
+
+	// 检查是否至少提供了一个字段
+	if edits.Nickname == "" && edits.Bio == "" {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "编辑个人资料失败: 至少需要提供nickname或bio参数之一",
+			}},
+			IsError: true,
+		}
+	}
+
+	logrus.Infof("MCP: 编辑个人资料 - Nickname: %s, Bio: %s", edits.Nickname, edits.Bio)
+
+	// 编辑个人资料
+	result, err := s.xiaohongshuService.EditProfile(ctx, edits)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "编辑个人资料失败: " + err.Error(),
+			}},
+			IsError: true,
+		}
+	}
+
+	return &MCPToolResult{
+		Content: []MCPContent{{
+			Type: "text",
+			Text: fmt.Sprintf("个人资料编辑成功: %s", result.Message),
+		}},
+	}
+}

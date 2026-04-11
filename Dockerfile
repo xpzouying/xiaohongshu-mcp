@@ -21,16 +21,18 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 WORKDIR /app
 
-# 1. 先安装必要工具，然后配置阿里云镜像源
-RUN apt-get update && apt-get install -y ca-certificates wget gnupg && \
-    sed -i 's|http://archive.ubuntu.com|https://mirrors.aliyun.com|g' /etc/apt/sources.list && \
-    sed -i 's|http://security.ubuntu.com|https://mirrors.aliyun.com|g' /etc/apt/sources.list
+# 1. 安装基础工具和 Google Chrome APT 源配置
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    wget \
+    gnupg \
+    && rm -rf /var/lib/apt/lists/*
 
-# 2. 添加 Google Chrome APT 源并安装 Chrome（更稳定的无头浏览器）
+# 2. 添加 Google Chrome APT 源
 RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/googlechrome-linux-keyring.gpg && \
     echo "deb [arch=amd64 signed-by=/usr/share/keyrings/googlechrome-linux-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list
 
-# 3. 安装 Google Chrome + 依赖（无头模式运行 rod）
+# 3. 安装 Google Chrome + 所有依赖（一次性安装确保依赖完整性）
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     fonts-liberation \
