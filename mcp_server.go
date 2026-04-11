@@ -66,8 +66,10 @@ type FeedDetailArgs struct {
 
 // UserProfileArgs 获取用户主页的参数
 type UserProfileArgs struct {
-	UserID    string `json:"user_id" jsonschema:"小红书用户ID，从Feed列表获取"`
-	XsecToken string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
+	UserID       string `json:"user_id" jsonschema:"小红书用户ID，从Feed列表获取"`
+	XsecToken    string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
+	LoadAllNotes bool   `json:"load_all_notes,omitempty" jsonschema:"是否加载全部笔记。false仅返回首屏笔记（默认），true滚动加载所有笔记"`
+	ScrollSpeed  string `json:"scroll_speed,omitempty" jsonschema:"【仅当load_all_notes为true时生效】滚动速度slow慢速、normal正常、fast快速"`
 }
 
 // PostCommentArgs 发表评论的参数
@@ -317,8 +319,12 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		},
 		withPanicRecovery("user_profile", func(ctx context.Context, req *mcp.CallToolRequest, args UserProfileArgs) (*mcp.CallToolResult, any, error) {
 			argsMap := map[string]interface{}{
-				"user_id":    args.UserID,
-				"xsec_token": args.XsecToken,
+				"user_id":        args.UserID,
+				"xsec_token":     args.XsecToken,
+				"load_all_notes": args.LoadAllNotes,
+			}
+			if args.LoadAllNotes && args.ScrollSpeed != "" {
+				argsMap["scroll_speed"] = args.ScrollSpeed
 			}
 			result := appServer.handleUserProfile(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil

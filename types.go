@@ -99,8 +99,10 @@ type ReplyCommentResponse struct {
 
 // UserProfileRequest 用户主页请求
 type UserProfileRequest struct {
-	UserID    string `json:"user_id" binding:"required"`
-	XsecToken string `json:"xsec_token" binding:"required"`
+	UserID       string `json:"user_id" binding:"required"`
+	XsecToken    string `json:"xsec_token" binding:"required"`
+	LoadAllNotes bool   `json:"load_all_notes,omitempty"`
+	ScrollSpeed  string `json:"scroll_speed,omitempty"`
 }
 
 // ActionResult 通用动作响应（点赞/收藏等）
