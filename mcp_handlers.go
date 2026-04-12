@@ -2,12 +2,17 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/h2non/filetype"
 	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/xiaohongshu-mcp/cookies"
 	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
@@ -442,7 +447,22 @@ func (s *AppServer) handleGetFeedDetail(ctx context.Context, args map[string]any
 		config.ScrollSpeed = raw
 	}
 
-	logrus.Infof("MCP: 获取Feed详情 - Feed ID: %s, loadAllComments=%v, config=%+v", feedID, loadAll, config)
+	// 解析 include_images 参数
+	includeImages := false
+	if raw, ok := args["include_images"]; ok {
+		switch v := raw.(type) {
+		case bool:
+			includeImages = v
+		case string:
+			if parsed, err := strconv.ParseBool(v); err == nil {
+				includeImages = parsed
+			}
+		case float64:
+			includeImages = v != 0
+		}
+	}
+
+	logrus.Infof("MCP: 获取Feed详情 - Feed ID: %s, includeImages=%v, loadAllComments=%v, config=%+v", feedID, includeImages, loadAll, config)
 
 	result, err := s.xiaohongshuService.GetFeedDetailWithConfig(ctx, feedID, xsecToken, loadAll, config)
 	if err != nil {
@@ -467,12 +487,84 @@ func (s *AppServer) handleGetFeedDetail(ctx context.Context, args map[string]any
 		}
 	}
 
-	return &MCPToolResult{
-		Content: []MCPContent{{
-			Type: "text",
-			Text: string(jsonData),
-		}},
+	contents := []MCPContent{{
+		Type: "text",
+		Text: string(jsonData),
+	}}
+
+	// 当 include_images=true 时，下载预览图并以 Base64 编码返回
+	if includeImages {
+		if detailResp, ok := result.Data.(*xiaohongshu.FeedDetailResponse); ok {
+			for i, img := range detailResp.Note.ImageList {
+				imageURL := img.URLPre
+				if imageURL == "" {
+					imageURL = img.URLDefault
+				}
+				if imageURL == "" {
+					continue
+				}
+
+				imgData, mimeType, dlErr := downloadImageAsBase64(imageURL)
+				if dlErr != nil {
+					logrus.Warnf("下载图片 %d 失败: %v", i+1, dlErr)
+					contents = append(contents, MCPContent{
+						Type: "text",
+						Text: fmt.Sprintf("图片 %d 下载失败: %v", i+1, dlErr),
+					})
+					continue
+				}
+
+				contents = append(contents, MCPContent{
+					Type:     "image",
+					MimeType: mimeType,
+					Data:     imgData,
+				})
+			}
+		}
 	}
+
+	return &MCPToolResult{Content: contents}
+}
+
+// downloadImageAsBase64 下载图片并返回 Base64 编码字符串和 MIME 类型
+func downloadImageAsBase64(imageURL string) (string, string, error) {
+	req, err := http.NewRequest("GET", imageURL, nil)
+	if err != nil {
+		return "", "", fmt.Errorf("创建请求失败: %w", err)
+	}
+
+	// 设置请求头，防止防盗链拦截
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+	if parsedURL, err := url.Parse(imageURL); err == nil {
+		req.Header.Set("Referer", fmt.Sprintf("%s://%s/", parsedURL.Scheme, parsedURL.Host))
+	}
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", "", fmt.Errorf("下载失败: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", "", fmt.Errorf("下载失败，状态码: %d", resp.StatusCode)
+	}
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", "", fmt.Errorf("读取数据失败: %w", err)
+	}
+
+	// 检测图片格式
+	kind, err := filetype.Match(data)
+	if err != nil || !filetype.IsImage(data) {
+		return "", "", fmt.Errorf("非有效图片格式")
+	}
+
+	mimeType := kind.MIME.Value
+	encoded := base64.StdEncoding.EncodeToString(data)
+
+	return encoded, mimeType, nil
 }
 
 // handleUserProfile 获取用户主页
