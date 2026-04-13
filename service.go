@@ -441,9 +441,10 @@ func (s *XiaohongshuService) GetFeedDetailWithImages(ctx context.Context, feedID
 	client := &http.Client{Timeout: 30 * time.Second}
 
 	for i, img := range detailResp.Note.ImageList {
-		imageURL := img.URLDefault
+		// 优先使用预览图（体积小），回退到原图
+		imageURL := img.URLPre
 		if imageURL == "" {
-			imageURL = img.URLPre
+			imageURL = img.URLDefault
 		}
 		if imageURL == "" {
 			continue
