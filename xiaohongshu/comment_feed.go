@@ -97,8 +97,8 @@ func (f *CommentFeedAction) ReplyToComment(ctx context.Context, feedID, xsecToke
 		return err
 	}
 
-	// 等待评论容器加载
-	time.Sleep(2 * time.Second)
+	// 等待评论容器加载（增加到5秒，应对慢速网络）
+	time.Sleep(5 * time.Second)
 
 	// 使用 Go 实现的查找逻辑
 	commentEl, err := findCommentElement(page, commentID, userID)
@@ -166,20 +166,40 @@ func findCommentElement(page *rod.Page, commentID, userID string) (*rod.Element,
 
 	var lastCommentCount = 0
 	stagnantChecks := 0
+	hasScrolled := false // 标记是否已经开始滚动
 
 	logrus.Infof("开始循环查找，最大尝试次数: %d", maxAttempts)
+
+	// === 阶段1: 先等待评论加载（修复：评论区未加载完时不应检查是否到达底部）===
+	logrus.Info("等待评论加载...")
+	var currentCount int
+	for waitAttempt := 0; waitAttempt < 30; waitAttempt++ {
+		currentCount = getCommentCount(page)
+		if currentCount > 0 {
+			logrus.Infof("✓ 评论区已加载，当前有 %d 条评论", currentCount)
+			break
+		}
+		logrus.Infof("评论区尚未加载，继续等待... (%d/30)", waitAttempt+1)
+		time.Sleep(1 * time.Second)
+	}
 
 	for attempt := 0; attempt < maxAttempts; attempt++ {
 		logrus.Infof("=== 查找尝试 %d/%d ===", attempt+1, maxAttempts)
 
-		// === 1. 检查是否到达底部 ===
-		if checkEndContainer(page) {
-			logrus.Info("已到达评论底部，未找到目标评论")
-			break
-		}
+		// === 1. 获取当前评论数量 ===
+		// 注：currentCount 在上面的等待阶段已经获取过，这里重新获取以确保最新
+		currentCount = getCommentCount(page)
 
-		// === 2. 获取当前评论数量 ===
-		currentCount := getCommentCount(page)
+		// === 2. 只有在有评论且有滚动历史的情况下才检查是否到达底部 ===
+		// 修复：评论区还没加载完时，不应该因为看到底部容器就停止
+		if hasScrolled && currentCount > 0 {
+			if checkEndContainer(page) {
+				logrus.Info("已到达评论底部，未找到目标评论")
+				break
+			}
+		} else if !hasScrolled && checkEndContainer(page) {
+			logrus.Info("评论区可能还未加载，暂不判定为底部，继续等待...")
+		}
 		logrus.Infof("当前评论数: %d", currentCount)
 		
 		if currentCount != lastCommentCount {
@@ -216,6 +236,7 @@ func findCommentElement(page *rod.Page, commentID, userID string) (*rod.Element,
 				logrus.Warnf("未找到评论元素: %v", err)
 			}
 			time.Sleep(300 * time.Millisecond)
+			hasScrolled = true
 		}
 
 		// === 5. 继续向下滚动 ===
@@ -224,6 +245,7 @@ func findCommentElement(page *rod.Page, commentID, userID string) (*rod.Element,
 		if err != nil {
 			logrus.Warnf("滚动失败: %v", err)
 		}
+		hasScrolled = true
 		time.Sleep(500 * time.Millisecond)
 
 		// === 6. 滚动后立即查找（边滚动边查找）===
