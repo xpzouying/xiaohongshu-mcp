@@ -39,6 +39,7 @@ const (
 	publishImageUploadingAltText   = "图片还未上传完成"
 	publishImageUploadingRetryWait = 5 * time.Second
 	publishSuccessTimeout          = 5 * time.Minute
+	publishStateErrorLimit         = 30
 )
 
 func NewPublishImageAction(page *rod.Page) (*PublishAction, error) {
@@ -377,14 +378,20 @@ func waitForPublishSuccess(page *rod.Page) error {
 	nextRetryAt := time.Now().Add(publishImageUploadingRetryWait)
 	sawImageUploadingHint := false
 	retryCount := 0
+	consecutiveErrors := 0
 
 	for time.Now().Before(deadline) {
 		state, err := getPublishState(page)
 		if err != nil {
+			consecutiveErrors++
+			if consecutiveErrors >= publishStateErrorLimit {
+				return errors.Errorf("连续 %d 次读取页面状态失败，浏览器页面可能已异常: %v", consecutiveErrors, err)
+			}
 			slog.Warn("读取发布状态失败，继续等待", "error", err)
 			time.Sleep(time.Second)
 			continue
 		}
+		consecutiveErrors = 0
 
 		switch state {
 		case publishStateSuccess:
@@ -398,11 +405,15 @@ func waitForPublishSuccess(page *rod.Page) error {
 		}
 
 		if sawImageUploadingHint && time.Now().After(nextRetryAt) {
-			retryCount++
-			if err := clickPublishButton(page); err != nil {
-				slog.Warn("重试点击发布按钮失败，继续等待", "retry", retryCount, "error", err)
+			if state == publishStateImageUploading {
+				retryCount++
+				if err := clickPublishButton(page); err != nil {
+					slog.Warn("重试点击发布按钮失败，继续等待", "retry", retryCount, "error", err)
+				} else {
+					slog.Info("已重试点击发布按钮", "retry", retryCount)
+				}
 			} else {
-				slog.Info("已重试点击发布按钮", "retry", retryCount)
+				slog.Info("当前已不处于图片上传中，跳过重试点击", "state", state)
 			}
 			nextRetryAt = time.Now().Add(publishImageUploadingRetryWait)
 		}

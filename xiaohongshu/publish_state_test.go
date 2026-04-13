@@ -28,6 +28,16 @@ func TestDetectPublishState(t *testing.T) {
 			pageText: "正在保存草稿",
 			want:     publishStateUnknown,
 		},
+		{
+			name:     "空字符串",
+			pageText: "",
+			want:     publishStateUnknown,
+		},
+		{
+			name:     "成功优先于上传中",
+			pageText: "图片还未上传成功，但系统稍后提示发布成功",
+			want:     publishStateSuccess,
+		},
 	}
 
 	for _, tt := range tests {
