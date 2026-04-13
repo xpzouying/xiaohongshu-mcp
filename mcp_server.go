@@ -443,7 +443,71 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	logrus.Infof("Registered %d MCP tools", 13)
+	// 工具 14: 获取收藏列表
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "get_favorite_list",
+			Description: "获取当前用户的收藏列表，返回所有收藏的笔记信息（feed_id、标题、描述、作者等）",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Get Favorite List",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("get_favorite_list", func(ctx context.Context, req *mcp.CallToolRequest, args GetFavoriteListArgs) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleGetFavoriteList(ctx, args)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	// 工具 15: AI 分类收藏笔记
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "auto_classify_favorites",
+			Description: "使用 AI 对收藏笔记进行智能分类。支持自定义分类名称，也可使用内置规则自动分类。需先配置 XHS_CLASSIFY_API_KEY 和 XHS_CLASSIFY_API_URL 环境变量启用 LLM 分类，否则回退到关键词匹配",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Auto Classify Favorites",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("auto_classify_favorites", func(ctx context.Context, req *mcp.CallToolRequest, args ClassifyFavoritesArgs) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleClassifyFavorites(ctx, args)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	// 工具 16: 一键同步收藏到专辑
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "sync_favorites_to_albums",
+			Description: "一键完成：获取收藏 → AI 分类 → 创建专辑 → 同步笔记到专辑。自动处理专辑创建和笔记分配",
+			Annotations: &mcp.ToolAnnotations{
+				Title:           "Sync Favorites To Albums",
+				DestructiveHint: boolPtr(true),
+			},
+		},
+		withPanicRecovery("sync_favorites_to_albums", func(ctx context.Context, req *mcp.CallToolRequest, args SyncFavoritesToAlbumsArgs) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleSyncFavoritesToAlbums(ctx, args)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	// 工具 17: 专辑管理
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "manage_albums",
+			Description: "管理小红书专辑：list(查看专辑列表)、create(创建新专辑)。操作类型通过 action 参数指定",
+			Annotations: &mcp.ToolAnnotations{
+				Title:           "Manage Albums",
+				DestructiveHint: boolPtr(true),
+			},
+		},
+		withPanicRecovery("manage_albums", func(ctx context.Context, req *mcp.CallToolRequest, args ManageAlbumsArgs) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleManageAlbums(ctx, args)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	logrus.Infof("Registered %d MCP tools", 17)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式

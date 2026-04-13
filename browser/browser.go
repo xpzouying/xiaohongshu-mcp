@@ -48,6 +48,11 @@ func NewBrowser(headless bool, options ...Option) *headless_browser.Browser {
 		opts = append(opts, headless_browser.WithChromeBinPath(cfg.binPath))
 	}
 
+	// 设置真实的 User-Agent，避免被检测为自动化浏览器
+	userAgent := "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+	opts = append(opts, headless_browser.WithUserAgent(userAgent))
+	logrus.Debugf("Using User-Agent: %s", userAgent)
+
 	// Read proxy from environment variable
 	if proxy := os.Getenv("XHS_PROXY"); proxy != "" {
 		opts = append(opts, headless_browser.WithProxy(proxy))

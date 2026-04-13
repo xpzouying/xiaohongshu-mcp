@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/xpzouying/xiaohongshu-mcp/cookies"
@@ -339,4 +341,127 @@ func (s *AppServer) getFavoriteListPostHandler(c *gin.Context) {
 
 	c.Set("account", "ai-report")
 	respondSuccess(c, result, "获取收藏列表成功")
+}
+
+// getAlbumListHandler 获取专辑列表（使用浏览器池）
+func (s *AppServer) getAlbumListHandler(c *gin.Context) {
+	pool := GetBrowserPool()
+	page, err := pool.GetPage(c.Request.Context())
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "BROWSER_POOL_ERROR",
+			"获取浏览器失败", err.Error())
+		return
+	}
+
+	albumService := xiaohongshu.NewAlbumService(page)
+	albums, err := albumService.GetAlbumList(c.Request.Context())
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "GET_ALBUMS_FAILED",
+			"获取专辑列表失败", err.Error())
+		return
+	}
+
+	c.Set("account", "ai-report")
+	respondSuccess(c, albums, "获取专辑列表成功")
+}
+
+// createAlbumHandler 创建专辑（使用浏览器池）
+func (s *AppServer) createAlbumHandler(c *gin.Context) {
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
+			"请求参数错误", err.Error())
+		return
+	}
+
+	if req.Name == "" {
+		respondError(c, http.StatusBadRequest, "INVALID_NAME",
+			"专辑名称不能为空", nil)
+		return
+	}
+
+	pool := GetBrowserPool()
+	page, err := pool.GetPage(c.Request.Context())
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "BROWSER_POOL_ERROR",
+			"获取浏览器失败", err.Error())
+		return
+	}
+
+	albumService := xiaohongshu.NewAlbumService(page)
+	albumID, err := albumService.CreateAlbum(c.Request.Context(), req.Name)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "CREATE_ALBUM_FAILED",
+			"创建专辑失败", err.Error())
+		return
+	}
+
+	c.Set("account", "ai-report")
+	respondSuccess(c, map[string]interface{}{
+		"id":   albumID,
+		"name": req.Name,
+	}, "专辑创建成功")
+}
+
+// addNotesToAlbumHandler 添加笔记到专辑（使用浏览器池）
+func (s *AppServer) addNotesToAlbumHandler(c *gin.Context) {
+	var req struct {
+		AlbumName string   `json:"album_name"`
+		NoteIDs   []string `json:"note_ids"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
+			"请求参数错误", err.Error())
+		return
+	}
+
+	if req.AlbumName == "" {
+		respondError(c, http.StatusBadRequest, "INVALID_ALBUM",
+			"专辑名称不能为空", nil)
+		return
+	}
+
+	pool := GetBrowserPool()
+	page, err := pool.GetPage(c.Request.Context())
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "BROWSER_POOL_ERROR",
+			"获取浏览器失败", err.Error())
+		return
+	}
+
+	// 使用 JavaScript 批量添加笔记
+	noteIDsJSON, _ := json.Marshal(req.NoteIDs)
+	script := fmt.Sprintf(`async () => {
+		try {
+			const resp = await fetch('https://edith.xiaohongshu.com/api/sns/web/v1/note/collect/batch', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({
+					folder_name: '%s',
+					note_ids: %s
+				}),
+				credentials: 'include'
+			});
+			const data = await resp.json();
+			return JSON.stringify({success: data.success || data.code === 0, data: data});
+		} catch(e) {
+			return JSON.stringify({success: false, error: e.message});
+		}
+	}`, req.AlbumName, string(noteIDsJSON))
+
+	resultJSON := page.MustEval(script).String()
+	var result struct {
+		Success bool `json:"success"`
+	}
+	json.Unmarshal([]byte(resultJSON), &result)
+
+	c.Set("account", "ai-report")
+	if result.Success {
+		respondSuccess(c, nil, "添加笔记成功")
+	} else {
+		respondError(c, http.StatusInternalServerError, "ADD_NOTES_FAILED",
+			"添加笔记失败", nil)
+	}
 }
