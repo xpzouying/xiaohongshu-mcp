@@ -185,6 +185,11 @@ func findCommentElement(page *rod.Page, commentID, userID string) (*rod.Element,
 			logrus.Infof("✓ 评论区已加载，当前有 %d 条评论", currentCount)
 			break
 		}
+		// P3修复：检测到无评论区域时提前退出，不等待30秒
+		if checkEndContainer(page) {
+			logrus.Info("预检测到评论底部区域（无评论），跳过等待")
+			break
+		}
 		if i == commentWaitTimeout-1 {
 			logrus.Warnf("等待 %d 秒后评论区仍为空，将继续尝试查找", commentWaitTimeout)
 		}
@@ -195,9 +200,10 @@ func findCommentElement(page *rod.Page, commentID, userID string) (*rod.Element,
 	for attempt := 0; attempt < maxScrollAttempts; attempt++ {
 		currentCount = getCommentCount(page)
 
-		// 只有在有评论且有滚动历史的情况下才检查是否到达底部
-		// 修复：评论区还没加载完时（hasScrolled=false），即使看到底部容器也不判定为到达
-		if hasScrolled && currentCount > 0 {
+		// P1修复：底部检测必须基于评论增长信号，而不只是滚动历史
+		// 原因：hasScrolled 在第一次 scrollBy 后立即为 true，此时懒加载评论可能还未返回
+		//       如果底部容器是预渲染的，循环会在评论实际出现前就 break
+		if hasScrolled && currentCount > 0 && currentCount > lastCommentCount {
 			if checkEndContainer(page) {
 				logrus.Info("已到达评论底部，未找到目标评论")
 				break
