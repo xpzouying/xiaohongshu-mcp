@@ -122,7 +122,7 @@ func (a *CollectListAction) extractFromDOM(page *rod.Page, offset, num int) (*Co
 
 	result := page.MustEval(script).String()
 	if result == "" || result == "null" {
-		return &CollectListResponse{Feeds: []Feed{}, Count: 0}, nil
+		return &CollectListResponse{Feeds: []Feed{}, Count: 0, HasMore: false}, nil
 	}
 
 	var payload collectListDOMResult
@@ -131,7 +131,7 @@ func (a *CollectListAction) extractFromDOM(page *rod.Page, offset, num int) (*Co
 	}
 
 	// 转换为 Feed 格式
-	var feeds []Feed
+	feeds := make([]Feed, 0, len(payload.Items))
 	for _, n := range payload.Items {
 		if n.Link == "" {
 			continue
