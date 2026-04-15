@@ -742,3 +742,33 @@ func (s *AppServer) handleReplyComment(ctx context.Context, args map[string]inte
 		}},
 	}
 }
+
+// handleGetCurrentIP 处理获取当前出口IP
+func (s *AppServer) handleGetCurrentIP(ctx context.Context) *MCPToolResult {
+	logrus.Info("MCP: 获取当前出口IP")
+
+	result, err := s.xiaohongshuService.GetCurrentIP(ctx)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "获取当前IP失败: " + err.Error(),
+			}},
+			IsError: true,
+		}
+	}
+
+	var resultText string
+	if result.UsingProxy {
+		resultText = fmt.Sprintf("🌐 当前出口IP信息\n\nIP地址: %s\n代理状态: 已启用代理", result.IP)
+	} else {
+		resultText = fmt.Sprintf("🌐 当前出口IP信息\n\nIP地址: %s\n代理状态: 未使用代理", result.IP)
+	}
+
+	return &MCPToolResult{
+		Content: []MCPContent{{
+			Type: "text",
+			Text: resultText,
+		}},
+	}
+}
