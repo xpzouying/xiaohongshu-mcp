@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"math/rand"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -584,7 +585,34 @@ func isElementVisible(elem *rod.Element) bool {
 			strings.Contains(styleStr, "top: -9999px") ||
 			strings.Contains(styleStr, "position: absolute; left: -9999px") ||
 			strings.Contains(styleStr, "display: none") ||
-			strings.Contains(styleStr, "visibility: hidden") {
+			strings.Contains(styleStr, "visibility: hidden") ||
+			strings.Contains(styleStr, "opacity: 1e-05") {
+			return false
+		}
+
+		// 精确匹配 opacity: 0（不匹配 0.5、0.1 等）
+		if strings.Contains(styleStr, "opacity: 0") {
+			// 确认是 opacity: 0 而非 opacity: 0.x
+			if matched, _ := regexp.MatchString(`opacity:\s*0(\s|;|$)`, styleStr); matched {
+				return false
+			}
+		}
+	}
+
+	// 检查 aria-hidden 属性
+	ariaHidden, err := elem.Attribute("aria-hidden")
+	if err == nil && ariaHidden != nil && *ariaHidden == "true" {
+		return false
+	}
+
+	// 检查 tabindex 属性（-1 表示不可聚焦，通常也意味着不可见）
+	tabindex, err := elem.Attribute("tabindex")
+	if err == nil && tabindex != nil && *tabindex == "-1" {
+		// 结合检查是否有 active class 来判断是否是真正的隐藏
+		class, _ := elem.Attribute("class")
+		// 使用单词边界检查，避免匹配 "inactive" 等
+		if class == nil || !hasExactClass(*class, "active") {
+			// 不是激活状态的 -1 tabindex 元素，可能是隐藏的叠加层
 			return false
 		}
 	}
@@ -596,6 +624,13 @@ func isElementVisible(elem *rod.Element) bool {
 	}
 
 	return visible
+}
+
+// hasExactClass 检查 class 字符串是否包含指定的完整类名（单词边界匹配）
+func hasExactClass(classStr, className string) bool {
+	pattern := `\b` + regexp.QuoteMeta(className) + `\b`
+	matched, _ := regexp.MatchString(pattern, classStr)
+	return matched
 }
 
 // setVisibility 设置可见范围
