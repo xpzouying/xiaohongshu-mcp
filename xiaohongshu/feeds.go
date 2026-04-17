@@ -19,6 +19,7 @@ func NewFeedsListAction(page *rod.Page) *FeedsListAction {
 
 	pp.MustNavigate("https://www.xiaohongshu.com")
 	pp.MustWaitDOMStable()
+	dismissCookieConsent(pp)
 
 	return &FeedsListAction{page: pp}
 }
