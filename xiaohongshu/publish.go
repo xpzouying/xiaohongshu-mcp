@@ -95,6 +95,33 @@ func (p *PublishAction) Publish(ctx context.Context, content PublishImageContent
 	return nil
 }
 
+// SaveLocalDraft 本地暂存图文草稿：点击“暂存离开”（不发布）
+func (p *PublishAction) SaveLocalDraft(ctx context.Context, content PublishImageContent) error {
+	if len(content.ImagePaths) == 0 {
+		return errors.New("图片不能为空")
+	}
+
+	page := p.page.Context(ctx)
+
+	if err := uploadImages(page, content.ImagePaths); err != nil {
+		return errors.Wrap(err, "小红书上传图片失败")
+	}
+
+	tags := content.Tags
+	if len(tags) >= 10 {
+		logrus.Warnf("标签数量超过10，截取前10个标签")
+		tags = tags[:10]
+	}
+
+	logrus.Infof("本地暂存: title=%s, images=%v, tags=%v, schedule=%v, original=%v, visibility=%s, products=%v", content.Title, len(content.ImagePaths), tags, content.ScheduleTime, content.IsOriginal, content.Visibility, content.Products)
+
+	if err := submitLocalDraft(page, content.Title, content.Content, tags, content.ScheduleTime, content.IsOriginal, content.Visibility, content.Products); err != nil {
+		return errors.Wrap(err, "小红书本地暂存失败")
+	}
+
+	return nil
+}
+
 func removePopCover(page *rod.Page) {
 
 	// 先移除弹窗封面
@@ -349,6 +376,227 @@ func submitPublish(page *rod.Page, title, content string, tags []string, schedul
 
 	time.Sleep(3 * time.Second)
 	return nil
+}
+
+func submitLocalDraft(page *rod.Page, title, content string, tags []string, scheduleTime *time.Time, isOriginal bool, visibility string, products []string) error {
+	titleElem, err := page.Element("div.d-input input")
+	if err != nil {
+		return errors.Wrap(err, "查找标题输入框失败")
+	}
+	if err := titleElem.Input(title); err != nil {
+		return errors.Wrap(err, "输入标题失败")
+	}
+
+	time.Sleep(500 * time.Millisecond)
+	if err := checkTitleMaxLength(page); err != nil {
+		return err
+	}
+
+	time.Sleep(1 * time.Second)
+
+	contentElem, ok := getContentElement(page)
+	if !ok {
+		return errors.New("没有找到内容输入框")
+	}
+	if err := contentElem.Input(content); err != nil {
+		return errors.Wrap(err, "输入正文失败")
+	}
+	if err := waitAndClickTitleInput(titleElem); err != nil {
+		return err
+			}
+	if err := inputTags(contentElem, tags); err != nil {
+		return err
+	}
+
+	time.Sleep(1 * time.Second)
+	if err := checkContentMaxLength(page); err != nil {
+		return err
+	}
+
+	// 本地暂存：尽量沿用设置项（如页面支持）
+	if scheduleTime != nil {
+		if err := setSchedulePublish(page, *scheduleTime); err != nil {
+			return errors.Wrap(err, "设置定时发布失败")
+		}
+	}
+	if err := setVisibility(page, visibility); err != nil {
+		return errors.Wrap(err, "设置可见范围失败")
+	}
+	if isOriginal {
+		if err := setOriginal(page); err != nil {
+			slog.Warn("设置原创声明失败，继续暂存", "error", err)
+		}
+	}
+	if err := bindProducts(page, products); err != nil {
+		return errors.Wrap(err, "绑定商品失败")
+	}
+
+	startMs := time.Now().UnixMilli()
+	if err := clickStashLeaveButton(page); err != nil {
+		return err
+	}
+
+	// 点击“暂存离开”后轮询 IndexedDB，直到 draft 写入成功或超时。
+	// 这样避免固定 sleep 导致 list_local_drafts 读不到刚保存的草稿。
+	if err := waitForLocalDraftWritten(page, "image-draft", title, startMs, 60*time.Second); err != nil {
+		return err
+	}
+
+	time.Sleep(1 * time.Second)
+	return nil
+}
+
+func clickStashLeaveButton(page *rod.Page) error {
+	container, _ := page.Element(".publish-page-publish-btn")
+	var buttons []*rod.Element
+	if container != nil {
+		btns, err := container.Elements("button")
+		if err == nil {
+			buttons = append(buttons, btns...)
+		}
+	}
+	if len(buttons) == 0 {
+		btns, err := page.Elements("button")
+		if err == nil {
+			buttons = append(buttons, btns...)
+		}
+	}
+
+	for _, b := range buttons {
+		txt, err := b.Text()
+		if err != nil {
+			continue
+		}
+		t := strings.TrimSpace(txt)
+		if t == "" {
+			continue
+		}
+		// 仅匹配精确文案，避免“暂存”相关按钮因页面结构变化误触。
+		if t == "暂存离开" {
+			if err := b.Click(proto.InputMouseButtonLeft, 1); err != nil {
+				continue
+			}
+			slog.Info("已点击暂存离开", "text", t)
+			return nil
+		}
+	}
+	return errors.New("未找到“暂存离开”按钮（页面可能无该能力或结构变更）")
+}
+
+// waitForLocalDraftWritten 轮询等待 IndexedDB 里出现刚保存的草稿记录。
+// 通过 updated_at >= startMs 且（title 为空时放宽）或 title 匹配来判断“写入成功”。
+func waitForLocalDraftWritten(page *rod.Page, storeName, title string, startMs int64, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	targetTitle := strings.TrimSpace(title)
+	var lastErr error
+
+	slog.Info("等待本地草稿写入 IndexedDB", "store", storeName, "title", targetTitle, "timeout", timeout.String())
+	lastLog := time.Now().Add(-10 * time.Second)
+
+	for time.Now().Before(deadline) {
+		if time.Since(lastLog) >= 10*time.Second {
+			slog.Info("仍在等待本地草稿写入", "store", storeName, "title", targetTitle)
+			lastLog = time.Now()
+		}
+		// 给 JS Promise 加“硬超时”，避免 IndexedDB 回调迟迟不触发导致 Go 卡死。
+		found, err := page.Eval(`(draftType, targetTitle, startMs) => {
+			const normalizeTs = (ts) => {
+				const n = Number(ts || 0);
+				if (!Number.isFinite(n)) return 0;
+				// 兼容秒/毫秒：小于 1e12 认为是秒
+				return n > 0 && n < 1e12 ? n * 1000 : n;
+			};
+
+			const promiseTimeoutMs = 8000;
+			let settled = false;
+
+			function pickTitle(v) {
+				try {
+					const content = v && v.content ? v.content : {};
+					const articleStore = content.articleStore || {};
+					const draftStore = content.draftStore || {};
+					const t = articleStore.articleTitle || draftStore.title || v.title || '';
+					return String(t).trim();
+				} catch (e) {
+					return '';
+				}
+			}
+
+			return new Promise((resolve, reject) => {
+				setTimeout(() => {
+					if (settled) return;
+					settled = true;
+					// 轮询层面由 Go 决定是否重试；这里避免卡死，直接判定本轮未写入
+					resolve(false);
+				}, promiseTimeoutMs);
+
+				const req = indexedDB.open("draft-database-v1");
+				req.onerror = () => {
+					if (settled) return;
+					settled = true;
+					resolve(false);
+				};
+				req.onsuccess = () => {
+					const db = req.result;
+					try {
+						if (!db.objectStoreNames.contains(draftType)) {
+							db.close();
+							resolve(false);
+							return;
+						}
+						const tx = db.transaction(draftType, "readonly");
+						const store = tx.objectStore(draftType);
+						const cursorReq = store.openCursor();
+						cursorReq.onerror = () => {
+							try { db.close(); } catch (_) {}
+							if (settled) return;
+							settled = true;
+							resolve(false);
+						};
+						cursorReq.onsuccess = (e) => {
+							const cursor = e.target.result;
+							if (!cursor) {
+								db.close();
+								resolve(false);
+								return;
+							}
+
+							const v = cursor.value || {};
+							const upd = normalizeTs(v.timeStamp || v.updateTime || v.updatedAt || 0);
+							if (upd >= startMs) {
+								const t = pickTitle(v);
+								// targetTitle 为空时只要时间足够新就认为写入成功
+								if (!targetTitle || t === targetTitle) {
+									settled = true;
+									db.close();
+									resolve(true);
+									return;
+								}
+							}
+							cursor.continue();
+						};
+					} catch (e) {
+						try { db.close(); } catch (_) {}
+						reject(e);
+					}
+				};
+			});
+		}`, storeName, targetTitle, startMs)
+
+		// found.Value 的具体类型是 gson.JSON，不能与 nil 比较。
+		if err == nil && found != nil && found.Value.Bool() {
+			return nil
+		}
+		if err != nil {
+			lastErr = err
+		}
+		time.Sleep(1 * time.Second)
+	}
+
+	if lastErr != nil {
+		return errors.Wrap(lastErr, "等待本地草稿写入 IndexedDB 失败（超时）")
+	}
+	return errors.New("等待本地草稿写入 IndexedDB 失败（超时）")
 }
 
 // waitAndClickTitleInput 在填写正文后等待 1 秒并回点标题输入框，增强后续交互稳定性

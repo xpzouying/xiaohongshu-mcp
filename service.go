@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/go-rod/rod"
@@ -91,6 +92,13 @@ type UserProfileResponse struct {
 	UserBasicInfo xiaohongshu.UserBasicInfo      `json:"userBasicInfo"`
 	Interactions  []xiaohongshu.UserInteractions `json:"interactions"`
 	Feeds         []xiaohongshu.Feed             `json:"feeds"`
+}
+
+// DraftsListResponse 本地草稿列表响应
+type DraftsListResponse struct {
+	Type   string                 `json:"type"`
+	Count  int                    `json:"count"`
+	Drafts []xiaohongshu.LocalDraft `json:"drafts"`
 }
 
 // DeleteCookies 删除 cookies 文件，用于登录重置
@@ -238,6 +246,50 @@ func (s *XiaohongshuService) PublishContent(ctx context.Context, req *PublishReq
 	return response, nil
 }
 
+// SaveLocalImageDraft 本地暂存图文草稿：点击“暂存离开”（不发布）
+func (s *XiaohongshuService) SaveLocalImageDraft(ctx context.Context, req *PublishRequest) error {
+	// 标题长度校验（小红书限制：最大20个字）
+	if xhsutil.CalcTitleLength(req.Title) > 20 {
+		return fmt.Errorf("标题长度超过限制")
+	}
+
+	imagePaths, err := s.processImages(req.Images)
+	if err != nil {
+		return err
+	}
+
+	// 本地暂存忽略 schedule_at：页面的“暂存离开”路径不一定支持/正确处理定时发布 UI。
+	// 这里强制不传 scheduleTime，避免因 UI 不匹配导致暂存失败。
+	var scheduleTime *time.Time = nil
+
+	content := xiaohongshu.PublishImageContent{
+		Title:        req.Title,
+		Content:      req.Content,
+		Tags:         req.Tags,
+		ImagePaths:   imagePaths,
+		ScheduleTime: scheduleTime,
+		IsOriginal:   req.IsOriginal,
+		Visibility:   req.Visibility,
+		Products:     req.Products,
+	}
+
+	// 复用同一个 Chrome 实例，确保 IndexedDB 能在后续 list_local_drafts 里读到。
+	draftBrowserMu.Lock()
+	b := getDraftBrowser()
+	page := b.NewPage()
+	defer func() {
+		_ = page.Close()
+		draftBrowserMu.Unlock()
+	}()
+
+	action, err := xiaohongshu.NewPublishImageAction(page)
+	if err != nil {
+		return err
+	}
+
+	return action.SaveLocalDraft(ctx, content)
+}
+
 // processImages 处理图片列表，支持URL下载和本地路径
 func (s *XiaohongshuService) processImages(images []string) ([]string, error) {
 	processor := downloader.NewImageProcessor()
@@ -325,6 +377,48 @@ func (s *XiaohongshuService) PublishVideo(ctx context.Context, req *PublishVideo
 		Status:  "发布完成",
 	}
 	return resp, nil
+}
+
+// SaveLocalVideoDraft 本地暂存视频草稿：点击“暂存离开”（不发布）
+func (s *XiaohongshuService) SaveLocalVideoDraft(ctx context.Context, req *PublishVideoRequest) error {
+	if xhsutil.CalcTitleLength(req.Title) > 20 {
+		return fmt.Errorf("标题长度超过限制")
+	}
+	if req.Video == "" {
+		return fmt.Errorf("必须提供本地视频文件")
+	}
+	if _, err := os.Stat(req.Video); err != nil {
+		return fmt.Errorf("视频文件不存在或不可访问: %v", err)
+	}
+
+	// 本地暂存忽略 schedule_at：同 SaveLocalImageDraft。
+	var scheduleTime *time.Time = nil
+
+	content := xiaohongshu.PublishVideoContent{
+		Title:        req.Title,
+		Content:      req.Content,
+		Tags:         req.Tags,
+		VideoPath:    req.Video,
+		ScheduleTime: scheduleTime,
+		Visibility:   req.Visibility,
+		Products:     req.Products,
+	}
+
+	// 复用同一个 Chrome 实例，确保 IndexedDB 能在后续 list_local_drafts 里读到。
+	draftBrowserMu.Lock()
+	b := getDraftBrowser()
+	page := b.NewPage()
+	defer func() {
+		_ = page.Close()
+		draftBrowserMu.Unlock()
+	}()
+
+	action, err := xiaohongshu.NewPublishVideoAction(page)
+	if err != nil {
+		return err
+	}
+
+	return action.SaveLocalVideoDraft(ctx, content)
 }
 
 // publishVideo 执行视频发布
@@ -597,4 +691,57 @@ func (s *XiaohongshuService) GetMyProfile(ctx context.Context) (*UserProfileResp
 	}
 
 	return response, nil
+}
+
+// ListLocalDrafts 读取创作中心 IndexedDB 本地草稿
+func (s *XiaohongshuService) ListLocalDrafts(ctx context.Context, draftType string, limit int) (*DraftsListResponse, error) {
+	// 复用同一个 Chrome 实例，确保读到由 save_draft 写入的 IndexedDB。
+	draftBrowserMu.Lock()
+	b := getDraftBrowser()
+	page := b.NewPage()
+	defer func() {
+		_ = page.Close()
+		draftBrowserMu.Unlock()
+	}()
+
+	action := xiaohongshu.NewDraftAction(page)
+	drafts, err := action.ListLocalDrafts(ctx, draftType, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	return &DraftsListResponse{
+		Type:   draftType,
+		Count:  len(drafts),
+		Drafts: drafts,
+	}, nil
+}
+
+// GetLocalDraftDetail 读取单条本地草稿详情（IndexedDB）
+func (s *XiaohongshuService) GetLocalDraftDetail(ctx context.Context, draftID, draftType string) (json.RawMessage, error) {
+	// 复用同一个 Chrome 实例，确保读到由 save_draft 写入的 IndexedDB。
+	draftBrowserMu.Lock()
+	b := getDraftBrowser()
+	page := b.NewPage()
+	defer func() {
+		_ = page.Close()
+		draftBrowserMu.Unlock()
+	}()
+
+	action := xiaohongshu.NewDraftAction(page)
+	return action.GetLocalDraftDetail(ctx, draftID, draftType)
+}
+
+// draftBrowser 复用用于本地草稿读写：解决每次 newBrowser()+Close() 导致 IndexedDB 写入落在临时 profile、后续读不到的问题。
+var (
+	draftBrowserOnce sync.Once
+	draftBrowser     *headless_browser.Browser
+	draftBrowserMu   sync.Mutex
+)
+
+func getDraftBrowser() *headless_browser.Browser {
+	draftBrowserOnce.Do(func() {
+		draftBrowser = newBrowser()
+	})
+	return draftBrowser
 }

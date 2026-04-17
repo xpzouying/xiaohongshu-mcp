@@ -742,3 +742,178 @@ func (s *AppServer) handleReplyComment(ctx context.Context, args map[string]inte
 		}},
 	}
 }
+
+// --- XHS drafts MCP (save via web automation) ---
+
+type SaveDraftArgs struct {
+	Title      string   `json:"title" jsonschema:"内容标题（小红书限制：最多20个中文字或英文单词）"`
+	Content    string   `json:"content" jsonschema:"正文内容"`
+	Images     []string `json:"images,omitempty" jsonschema:"图文模式下的图片路径列表（至少1张）。支持本地绝对路径或HTTP链接（如服务端支持下载）"`
+	Video      string   `json:"video,omitempty" jsonschema:"视频模式下的视频文件本地绝对路径（仅单个视频）"`
+	Tags       []string `json:"tags,omitempty" jsonschema:"话题标签列表（可选）"`
+	ScheduleAt string   `json:"schedule_at,omitempty" jsonschema:"定时发布时间（可选），ISO8601 格式"`
+	IsOriginal bool     `json:"is_original,omitempty" jsonschema:"是否声明原创（可选）"`
+	Visibility string   `json:"visibility,omitempty" jsonschema:"可见范围（可选），cloud模式下会强制覆盖为仅自己可见"`
+	Products   []string `json:"products,omitempty" jsonschema:"商品关键词列表（可选），用于绑定带货商品"`
+
+	// Type: image|video
+	Type string `json:"type" jsonschema:"内容类型：image(默认)|video"`
+
+	// Mode:
+	// - cloud: 通过“仅自己可见”发布来实现云端暂存（稳定，不依赖页面草稿按钮）
+	// - local: 点击发布按钮旁边的“暂存离开”保存到草稿箱（依赖页面能力）
+	Mode string `json:"mode" jsonschema:"【必填】暂存模式：cloud（仅自己可见发布，云端暂存）；local（点击暂存离开，保存到草稿箱）"`
+}
+
+func (s *AppServer) handleSaveDraft(ctx context.Context, args SaveDraftArgs) *MCPToolResult {
+	// save_draft 支持两种模式：
+	// - cloud: 私密发布（仅自己可见）作为“云端暂存”
+	// - local: 点击“暂存离开”保存到草稿箱
+	logrus.Infof("MCP: save_draft mode=%s type=%s", args.Mode, args.Type)
+
+	if args.Type == "" {
+		args.Type = "image"
+	}
+
+	if args.Mode == "" {
+		args.Mode = "cloud"
+	}
+
+	switch args.Type {
+	case "image":
+		req := &PublishRequest{
+			Title:      args.Title,
+			Content:    args.Content,
+			Images:     args.Images,
+			Tags:       args.Tags,
+			ScheduleAt: args.ScheduleAt,
+			IsOriginal: args.IsOriginal,
+			Visibility: args.Visibility,
+			Products:   args.Products,
+		}
+		if args.Mode == "local" {
+			if err := s.xiaohongshuService.SaveLocalImageDraft(ctx, req); err != nil {
+				return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: "本地暂存失败: " + err.Error()}}, IsError: true}
+			}
+			return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: "已点击“暂存离开”，草稿已保存到草稿箱（如页面提供该能力）"}}}
+		}
+
+		// cloud: 强制仅自己可见（覆盖传入的 visibility）
+		req.Visibility = "仅自己可见"
+		if _, err := s.xiaohongshuService.PublishContent(ctx, req); err != nil {
+			return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: "云端暂存失败(私密发布): " + err.Error()}}, IsError: true}
+		}
+		return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: "云端暂存完成：已发布为仅自己可见"}}}
+	case "video":
+		req := &PublishVideoRequest{
+			Title:      args.Title,
+			Content:    args.Content,
+			Video:      args.Video,
+			Tags:       args.Tags,
+			ScheduleAt: args.ScheduleAt,
+			Visibility: args.Visibility,
+			Products:   args.Products,
+		}
+		if args.Mode == "local" {
+			if err := s.xiaohongshuService.SaveLocalVideoDraft(ctx, req); err != nil {
+				return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: "本地暂存失败: " + err.Error()}}, IsError: true}
+			}
+			return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: "已点击“暂存离开”，草稿已保存到草稿箱（如页面提供该能力）"}}}
+		}
+
+		// cloud: 强制仅自己可见（覆盖传入的 visibility）
+		req.Visibility = "仅自己可见"
+		if _, err := s.xiaohongshuService.PublishVideo(ctx, req); err != nil {
+			return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: "云端暂存失败(私密发布): " + err.Error()}}, IsError: true}
+		}
+		return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: "云端暂存完成：已发布为仅自己可见"}}}
+	default:
+		return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: "不支持的 type: " + args.Type}}, IsError: true}
+	}
+}
+
+func (s *AppServer) handleListLocalDrafts(ctx context.Context, args ListLocalDraftsArgs) *MCPToolResult {
+	draftType := strings.TrimSpace(args.Type)
+	if draftType == "" {
+		draftType = "image"
+	}
+
+	switch draftType {
+	case "image", "video", "article", "audio":
+	default:
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "不支持的 type: " + draftType + "（仅支持 image|video|article|audio）"}},
+			IsError: true,
+		}
+	}
+
+	limit := args.Limit
+	if limit < 0 {
+		limit = 0
+	}
+
+	result, err := s.xiaohongshuService.ListLocalDrafts(ctx, draftType, limit)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "读取本地草稿失败: " + err.Error()}},
+			IsError: true,
+		}
+	}
+
+	b, _ := json.MarshalIndent(result, "", "  ")
+	return &MCPToolResult{
+		Content: []MCPContent{{Type: "text", Text: string(b)}},
+	}
+}
+
+func (s *AppServer) handleGetLocalDraftDetail(ctx context.Context, args GetLocalDraftDetailArgs) *MCPToolResult {
+	logrus.Infof("MCP: get_local_draft_detail draft_id=%s type=%s", args.DraftID, args.Type)
+	raw, err := s.xiaohongshuService.GetLocalDraftDetail(ctx, args.DraftID, args.Type)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "读取草稿详情失败: " + err.Error()}},
+			IsError: true,
+		}
+	}
+
+	type localDraftDetailResp struct {
+		Found   bool            `json:"found"`
+		Store   string          `json:"store"`
+		DraftID string          `json:"draft_id"`
+		Type    string          `json:"type"`
+		Value   json.RawMessage `json:"value"`
+	}
+
+	var resp localDraftDetailResp
+	if err := json.Unmarshal(raw, &resp); err != nil {
+		// 兜底：返回结构化 JSON（不使用 markdown）。
+		out := map[string]any{
+			"found":  false,
+			"error":  "json_unmarshal_failed",
+			"raw":    string(raw),
+			"reason": err.Error(),
+		}
+		b, _ := json.MarshalIndent(out, "", "  ")
+		return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: string(b)}}}
+	}
+
+	// resp.Value 是 json.RawMessage，会保持 value 的原始 JSON 结构（只要它在 indexedDB value 中是 JSON）。
+	type outResp struct {
+		Found   bool            `json:"found"`
+		Store   string          `json:"store"`
+		DraftID string          `json:"draft_id"`
+		Type    string          `json:"type"`
+		Value   json.RawMessage `json:"value,omitempty"`
+	}
+
+	out := outResp{
+		Found:   resp.Found,
+		Store:   resp.Store,
+		DraftID: resp.DraftID,
+		Type:    resp.Type,
+		Value:   resp.Value,
+	}
+
+	b, _ := json.MarshalIndent(out, "", "  ")
+	return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: string(b)}}}
+}

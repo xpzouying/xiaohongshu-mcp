@@ -100,6 +100,18 @@ type FavoriteFeedArgs struct {
 	Unfavorite bool   `json:"unfavorite,omitempty" jsonschema:"是否取消收藏，true为取消收藏，false或未设置则为收藏"`
 }
 
+// ListLocalDraftsArgs 读取本地草稿参数
+type ListLocalDraftsArgs struct {
+	Type  string `json:"type,omitempty" jsonschema:"草稿类型（可选）：image(默认)|video|article|audio"`
+	Limit int    `json:"limit,omitempty" jsonschema:"返回数量上限（可选，填 0 或负数表示不限）"`
+}
+
+// GetLocalDraftDetailArgs 获取本地草稿详情参数
+type GetLocalDraftDetailArgs struct {
+	DraftID string `json:"draft_id" jsonschema:"草稿 ID（与 list_local_drafts 返回的 draft_id 一致）"`
+	Type    string `json:"type,omitempty" jsonschema:"可选：image|video|article|audio；不填则在各 draft store 中依次查找"`
+}
+
 // InitMCPServer 初始化 MCP Server
 func InitMCPServer(appServer *AppServer) *mcp.Server {
 	// 创建 MCP Server
@@ -443,7 +455,55 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	logrus.Infof("Registered %d MCP tools", 13)
+	// 工具 14: 保存草稿
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "save_draft",
+			Description: "保存草稿（两种模式：cloud=仅自己可见发布作为云端暂存；local=点击“暂存离开”保存到草稿箱）",
+			Annotations: &mcp.ToolAnnotations{
+				Title:           "Save Draft",
+				DestructiveHint: boolPtr(true),
+			},
+		},
+		withPanicRecovery("save_draft", func(ctx context.Context, req *mcp.CallToolRequest, args SaveDraftArgs) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleSaveDraft(ctx, args)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	// 工具 15: 读取本地草稿
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "list_local_drafts",
+			Description: "读取创作中心本地草稿（来自浏览器 IndexedDB: draft-database-v1）",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "List Local Drafts",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("list_local_drafts", func(ctx context.Context, req *mcp.CallToolRequest, args ListLocalDraftsArgs) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleListLocalDrafts(ctx, args)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	// 工具 16: 读取本地草稿详情
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "get_local_draft_detail",
+			Description: "按 draft_id 从本机浏览器 IndexedDB（draft-database-v1）读取单条草稿完整内容（JSON）。可选 type 限定 image|video|article|audio。",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Get Local Draft Detail",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("get_local_draft_detail", func(ctx context.Context, req *mcp.CallToolRequest, args GetLocalDraftDetailArgs) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleGetLocalDraftDetail(ctx, args)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	logrus.Infof("Registered %d MCP tools", 16)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式
