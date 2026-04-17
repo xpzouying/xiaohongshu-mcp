@@ -59,6 +59,63 @@ type SearchFeedsRequest struct {
 	Filters xiaohongshu.FilterOption `json:"filters,omitempty"`
 }
 
+// SearchFeedSummary MCP 搜索结果精简项
+type SearchFeedSummary struct {
+	ID        string `json:"id"`
+	XsecToken string `json:"xsecToken"`
+	Title     string `json:"title"`
+}
+
+// SearchFeedsCompactResponse MCP 搜索结果精简响应
+type SearchFeedsCompactResponse struct {
+	Feeds []SearchFeedSummary `json:"feeds"`
+	Count int                 `json:"count"`
+}
+
+// FeedDetailCompactResponse MCP 详情精简响应
+type FeedDetailCompactResponse struct {
+	FeedID          string           `json:"feed_id"`
+	XsecToken       string           `json:"xsecToken"`
+	Title           string           `json:"title"`
+	Desc            string           `json:"desc"`
+	Author          string           `json:"author"`
+	Type            string           `json:"type,omitempty"`
+	LikedCount      string           `json:"liked_count,omitempty"`
+	CommentCount    string           `json:"comment_count,omitempty"`
+	CollectedCount  string           `json:"collected_count,omitempty"`
+	SharedCount     string           `json:"shared_count,omitempty"`
+	ImageCount      int              `json:"image_count"`
+	Comments        []CommentCompact `json:"comments"`
+	CommentsLoaded  int              `json:"comments_loaded"`
+	HasMoreComments bool             `json:"has_more_comments"`
+	CommentsSortBy  string           `json:"comments_sort_by"`
+	LoadAllComments bool             `json:"load_all_comments"`
+	RepliesExpanded bool             `json:"replies_expanded"`
+}
+
+// CommentCompact MCP 评论精简项
+type CommentCompact struct {
+	ID              string           `json:"id"`
+	User            string           `json:"user"`
+	Content         string           `json:"content"`
+	LikeCount       string           `json:"like_count"`
+	SubCommentCount string           `json:"sub_comment_count,omitempty"`
+	ShowTags        []string         `json:"show_tags,omitempty"`
+	Replies         []CommentCompact `json:"replies,omitempty"`
+}
+
+// UserProfileCompactResponse MCP 用户主页精简响应
+type UserProfileCompactResponse struct {
+	Nickname     string                         `json:"nickname"`
+	RedId        string                         `json:"red_id,omitempty"`
+	Desc         string                         `json:"desc,omitempty"`
+	Gender       int                            `json:"gender,omitempty"`
+	IpLocation   string                         `json:"ip_location,omitempty"`
+	Interactions []xiaohongshu.UserInteractions `json:"interactions"`
+	Feeds        []SearchFeedSummary            `json:"feeds"`
+	FeedCount    int                            `json:"feed_count"`
+}
+
 // FeedDetailResponse Feed详情响应
 type FeedDetailResponse struct {
 	FeedID string `json:"feed_id"`
