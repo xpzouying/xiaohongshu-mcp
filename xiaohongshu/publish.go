@@ -18,14 +18,15 @@ import (
 
 // PublishImageContent 发布图文内容
 type PublishImageContent struct {
-	Title        string
-	Content      string
-	Tags         []string
-	ImagePaths   []string
-	ScheduleTime *time.Time // 定时发布时间，nil 表示立即发布
-	IsOriginal   bool       // 是否声明原创
-	Visibility   string     // 可见范围: "公开可见"(默认), "仅自己可见", "仅互关好友可见"
-	Products     []string   // 商品关键词列表，用于绑定带货商品
+	Title                  string
+	Content                string
+	Tags                   []string
+	ImagePaths             []string
+	ScheduleTime           *time.Time // 定时发布时间，nil 表示立即发布
+	IsOriginal             bool       // 是否声明原创
+	Visibility             string     // 可见范围: "公开可见"(默认), "仅自己可见", "仅互关好友可见"
+	Products               []string   // 商品关键词列表，用于绑定带货商品
+	GenerateCoverFromTitle bool       // 是否使用智能配图（根据标题自动生成封面图）
 }
 
 type PublishAction struct {
@@ -70,14 +71,30 @@ func NewPublishImageAction(page *rod.Page) (*PublishAction, error) {
 }
 
 func (p *PublishAction) Publish(ctx context.Context, content PublishImageContent) error {
-	if len(content.ImagePaths) == 0 {
-		return errors.New("图片不能为空")
+	if len(content.ImagePaths) == 0 && !content.GenerateCoverFromTitle {
+		return errors.New("图片不能为空，请提供图片或启用智能配图")
 	}
 
 	page := p.page.Context(ctx)
 
-	if err := uploadImages(page, content.ImagePaths); err != nil {
-		return errors.Wrap(err, "小红书上传图片失败")
+	if content.GenerateCoverFromTitle {
+		// 文字配图：先点击按钮打开配图界面，输入文字生成封面
+		if err := generateCoverImage(page, content.Title); err != nil {
+			return errors.Wrap(err, "文字配图失败")
+		}
+		// 配图完成后等待发布页DOM稳定
+		if err := page.WaitDOMStable(time.Second, 0.1); err != nil {
+			slog.Warn("配图后等待DOM稳定失败", "error", err)
+		}
+		time.Sleep(2 * time.Second)
+
+		// 移除可能遮挡编辑器的弹窗
+		removePopCover(page)
+		time.Sleep(1 * time.Second)
+	} else {
+		if err := uploadImages(page, content.ImagePaths); err != nil {
+			return errors.Wrap(err, "小红书上传图片失败")
+		}
 	}
 
 	tags := content.Tags
@@ -202,6 +219,273 @@ func isElementBlocked(elem *rod.Element) (bool, error) {
 	return result.Value.Bool(), nil
 }
 
+// generateCoverImage 使用文字配图功能，点击按钮后输入文字生成封面图
+func generateCoverImage(page *rod.Page, title string) error {
+	slog.Info("开始文字配图...")
+
+	// 查找"文字配图"按钮并点击
+	btn, err := findSmartCoverButton(page)
+	if err != nil {
+		return errors.Wrap(err, "查找文字配图按钮失败")
+	}
+
+	if err := btn.Click(proto.InputMouseButtonLeft, 1); err != nil {
+		return errors.Wrap(err, "点击文字配图按钮失败")
+	}
+	slog.Info("已点击文字配图按钮，等待配图界面加载...")
+	time.Sleep(2 * time.Second)
+
+	// 在配图界面输入文字内容
+	if err := inputTextForCover(page, title); err != nil {
+		return errors.Wrap(err, "输入配图文字失败")
+	}
+
+	// 点击生成按钮
+	if err := clickGenerateButton(page); err != nil {
+		return errors.Wrap(err, "点击生成按钮失败")
+	}
+
+	// 等待生成的配图出现并选择
+	if err := waitAndSelectGeneratedCover(page); err != nil {
+		return errors.Wrap(err, "选择生成的配图失败")
+	}
+
+	slog.Info("文字配图完成")
+	return nil
+}
+
+// inputTextForCover 在文字配图界面输入文字（使用剪贴板粘贴方式避免编码问题）
+func inputTextForCover(page *rod.Page, text string) error {
+	deadline := time.Now().Add(10 * time.Second)
+
+	for time.Now().Before(deadline) {
+		// 查找文字输入框（textarea或contenteditable）
+		selectors := []string{
+			"div[contenteditable='true']",
+			"textarea",
+			"input[type='text']",
+		}
+
+		for _, sel := range selectors {
+			elems, err := page.Elements(sel)
+			if err != nil {
+				continue
+			}
+			for _, elem := range elems {
+				if !isElementVisible(elem) {
+					continue
+				}
+				// 点击聚焦
+				if err := elem.Click(proto.InputMouseButtonLeft, 1); err != nil {
+					continue
+				}
+				time.Sleep(300 * time.Millisecond)
+
+				// 通过JS将文字写入剪贴板，然后模拟Ctrl+V粘贴
+				_, err = page.Eval(`(text) => {
+					const ta = document.createElement('textarea');
+					ta.value = text;
+					ta.style.position = 'fixed';
+					ta.style.left = '-9999px';
+					document.body.appendChild(ta);
+					ta.select();
+					document.execCommand('copy');
+					document.body.removeChild(ta);
+				}`, text)
+				if err != nil {
+					slog.Warn("文字配图：写入剪贴板失败", "error", err)
+					continue
+				}
+
+				// 重新聚焦目标元素并全选
+				if err := elem.Click(proto.InputMouseButtonLeft, 1); err != nil {
+					continue
+				}
+				time.Sleep(200 * time.Millisecond)
+				_ = elem.SelectAllText()
+				time.Sleep(100 * time.Millisecond)
+
+				// 模拟Ctrl+V粘贴
+				page.KeyActions().Press(input.ControlLeft).Type(input.KeyV).MustDo()
+
+				slog.Info("文字配图：已通过剪贴板粘贴文字", "text", text)
+				time.Sleep(500 * time.Millisecond)
+				return nil
+			}
+		}
+
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	return errors.New("未找到文字配图输入框")
+}
+
+// clickGenerateButton 点击生成配图按钮
+func clickGenerateButton(page *rod.Page) error {
+	deadline := time.Now().Add(10 * time.Second)
+
+	for time.Now().Before(deadline) {
+		elems, err := page.Elements("button, span, div")
+		if err != nil {
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+
+		for _, elem := range elems {
+			text, err := elem.Text()
+			if err != nil {
+				continue
+			}
+			text = strings.TrimSpace(text)
+			// 匹配各种可能的生成按钮文案
+			if text == "生成图片" || text == "生成" || text == "生成配图" || text == "AI生成" || text == "开始生成" {
+				if !isElementVisible(elem) {
+					continue
+				}
+				slog.Info("点击生成按钮", "text", text)
+				if err := elem.Click(proto.InputMouseButtonLeft, 1); err != nil {
+					continue
+				}
+				time.Sleep(3 * time.Second)
+				return nil
+			}
+		}
+
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	// 没找到明确的生成按钮，可能输入后自动生成
+	slog.Info("未找到独立生成按钮，可能已自动触发生成")
+	return nil
+}
+
+// findSmartCoverButton 查找文字配图按钮
+func findSmartCoverButton(page *rod.Page) (*rod.Element, error) {
+	deadline := time.Now().Add(15 * time.Second)
+
+	for time.Now().Before(deadline) {
+		// 尝试通过文本匹配查找按钮
+		elems, err := page.Elements("span, button, div")
+		if err != nil {
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+
+		for _, elem := range elems {
+			text, err := elem.Text()
+			if err != nil {
+				continue
+			}
+			text = strings.TrimSpace(text)
+			if text == "文字配图" || text == "智能配图" || text == "AI配图" {
+				if !isElementVisible(elem) {
+					continue
+				}
+				slog.Info("找到文字配图按钮", "text", text)
+				return elem, nil
+			}
+		}
+
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	return nil, errors.New("未找到文字配图按钮，请确认当前账号支持该功能")
+}
+
+// randomSelectTemplate 在配图预览页随机选择一个样式卡片
+func randomSelectTemplate(page *rod.Page) {
+	// 使用go-rod查找样式卡片元素
+	elems, err := page.Elements("div.cover-list-container div.cover-item-container")
+	if err != nil || len(elems) <= 1 {
+		slog.Info("未找到多个样式卡片，使用默认样式")
+		return
+	}
+
+	// 过滤可见元素
+	var visible []*rod.Element
+	for _, e := range elems {
+		if isElementVisible(e) {
+			visible = append(visible, e)
+		}
+	}
+	if len(visible) <= 1 {
+		return
+	}
+
+	// 随机选择一个样式卡片
+	idx := rand.Intn(len(visible))
+	if err := visible[idx].Click(proto.InputMouseButtonLeft, 1); err != nil {
+		slog.Warn("点击随机样式卡片失败", "error", err)
+		return
+	}
+	slog.Info("随机选择了样式卡片", "index", idx+1, "total", len(visible))
+	time.Sleep(1 * time.Second)
+}
+
+// waitAndSelectGeneratedCover 等待配图预览页加载，随机选择模板，然后点击"下一步"
+func waitAndSelectGeneratedCover(page *rod.Page) error {
+	maxWaitTime := 30 * time.Second
+	checkInterval := 1 * time.Second
+	start := time.Now()
+	templateSelected := false
+
+	for time.Since(start) < maxWaitTime {
+		// 查找"下一步"按钮（限定配图向导中的红色按钮，排除发布页的发布按钮）
+		btn, err := page.Element("button.bg-red")
+		if err == nil && btn != nil {
+			text, _ := btn.Text()
+			trimText := strings.TrimSpace(text)
+
+			// 校验按钮文本，避免误点发布按钮
+			if !strings.Contains(trimText, "下一步") {
+				time.Sleep(checkInterval)
+				continue
+			}
+
+			// 在第一次发现"下一步"按钮时，随机选择模板
+			if !templateSelected {
+				randomSelectTemplate(page)
+				templateSelected = true
+				// 等待模板切换后预览重新加载
+				time.Sleep(2 * time.Second)
+				continue
+			}
+
+			slog.Info("找到下一步按钮", "text", trimText)
+
+			if err := btn.Click(proto.InputMouseButtonLeft, 1); err != nil {
+				slog.Warn("点击下一步失败，重试", "error", err)
+				time.Sleep(500 * time.Millisecond)
+				continue
+			}
+			slog.Info("已点击下一步按钮，等待发布页加载")
+
+			// 轮询确认已回到发布页（预览图出现）
+			for i := 0; i < 5; i++ {
+				time.Sleep(2 * time.Second)
+				images, imgErr := page.Elements(".img-preview-area .pr")
+				if imgErr == nil && len(images) > 0 {
+					slog.Info("配图完成，已回到发布页", "count", len(images))
+					return nil
+				}
+			}
+			slog.Warn("点击下一步后未检测到预览图，视为完成")
+			return nil
+		}
+
+		// 兜底：检查是否已直接回到发布页
+		uploadedImages, err := page.Elements(".img-preview-area .pr")
+		if err == nil && len(uploadedImages) > 0 {
+			slog.Info("配图已生成", "count", len(uploadedImages))
+			return nil
+		}
+
+		time.Sleep(checkInterval)
+	}
+
+	return errors.New("文字配图超时(30s)，未找到下一步按钮")
+}
+
 func uploadImages(page *rod.Page, imagesPaths []string) error {
 	// 验证文件路径有效性
 	validPaths := make([]string, 0, len(imagesPaths))
@@ -277,6 +561,7 @@ func submitPublish(page *rod.Page, title, content string, tags []string, schedul
 	if err != nil {
 		return errors.Wrap(err, "查找标题输入框失败")
 	}
+
 	if err := titleElem.Input(title); err != nil {
 		return errors.Wrap(err, "输入标题失败")
 	}
@@ -293,6 +578,14 @@ func submitPublish(page *rod.Page, title, content string, tags []string, schedul
 	contentElem, ok := getContentElement(page)
 	if !ok {
 		return errors.New("没有找到内容输入框")
+	}
+	// 清空已有内容（配图模式下XHS会自动填入标题文字到正文）
+	if err := contentElem.Click(proto.InputMouseButtonLeft, 1); err == nil {
+		time.Sleep(200 * time.Millisecond)
+		page.KeyActions().Press(input.ControlLeft).Type(input.KeyA).MustDo()
+		time.Sleep(200 * time.Millisecond)
+		page.KeyActions().Type(input.Backspace).MustDo()
+		time.Sleep(200 * time.Millisecond)
 	}
 	if err := contentElem.Input(content); err != nil {
 		return errors.Wrap(err, "输入正文失败")
@@ -414,23 +707,44 @@ func makeMaxLengthError(elemText string) error {
 	return errors.Errorf("当前输入长度为%s，最大长度为%s", currLen, maxLen)
 }
 
-// 查找内容输入框 - 使用Race方法处理两种样式
+// 查找内容输入框 - 使用Race方法处理多种编辑器样式
 func getContentElement(page *rod.Page) (*rod.Element, bool) {
 	var foundElement *rod.Element
 	var found bool
 
-	page.Race().
+	// 使用独立的超时上下文，确保Race有足够重试时间
+	timedPage := page.Timeout(30 * time.Second)
+
+	_, err := timedPage.Race().
 		Element("div.ql-editor").MustHandle(func(e *rod.Element) {
+		slog.Info("通过ql-editor找到内容输入框")
 		foundElement = e
 		found = true
 	}).
-		ElementFunc(func(page *rod.Page) (*rod.Element, error) {
-			return findTextboxByPlaceholder(page)
-		}).MustHandle(func(e *rod.Element) {
+		Element("div.tiptap.ProseMirror").MustHandle(func(e *rod.Element) {
+		slog.Info("通过tiptap ProseMirror找到内容输入框")
 		foundElement = e
 		found = true
 	}).
-		MustDo()
+		Element("[contenteditable='true']").MustHandle(func(e *rod.Element) {
+		slog.Info("通过contenteditable属性找到内容输入框")
+		foundElement = e
+		found = true
+	}).
+		Do()
+
+	if err != nil {
+		// 打印页面HTML片段辅助排查
+		if html, htmlErr := page.HTML(); htmlErr == nil {
+			const maxLen = 500
+			if len(html) > maxLen {
+				html = html[:maxLen] + "..."
+			}
+			slog.Warn("查找内容输入框失败，页面片段", "html", html)
+		}
+		slog.Warn("查找内容输入框失败", "error", err)
+		return nil, false
+	}
 
 	if found {
 		return foundElement, true
@@ -516,8 +830,11 @@ func inputTag(contentElem *rod.Element, tag string) error {
 }
 
 func findTextboxByPlaceholder(page *rod.Page) (*rod.Element, error) {
-	elements := page.MustElements("p")
-	if elements == nil {
+	elements, err := page.Elements("p")
+	if err != nil {
+		return nil, errors.Wrap(err, "查找p元素失败")
+	}
+	if len(elements) == 0 {
 		return nil, errors.New("no p elements found")
 	}
 
