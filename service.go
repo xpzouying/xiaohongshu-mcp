@@ -545,6 +545,11 @@ func (s *XiaohongshuService) ReplyCommentToFeed(ctx context.Context, feedID, xse
 	}, nil
 }
 
+// ResolveShortLink 解析小红书短链接，提取 feed_id 和 xsec_token
+func (s *XiaohongshuService) ResolveShortLink(ctx context.Context, shortURL string) (*xiaohongshu.ShortLinkResult, error) {
+	return xiaohongshu.ResolveShortLink(ctx, shortURL)
+}
+
 func newBrowser() *headless_browser.Browser {
 	return browser.NewBrowser(configs.IsHeadless(), browser.WithBinPath(configs.GetBinPath()))
 }
