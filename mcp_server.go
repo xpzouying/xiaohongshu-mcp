@@ -100,6 +100,17 @@ type FavoriteFeedArgs struct {
 	Unfavorite bool   `json:"unfavorite,omitempty" jsonschema:"是否取消收藏，true为取消收藏，false或未设置则为收藏"`
 }
 
+
+// CollectListArgs 获取收藏夹列表参数
+type CollectListArgs struct {
+	Cursor string `json:"cursor,omitempty" jsonschema:"分页游标，首次请求留空，翻页时传入上次响应的cursor值"`
+	Num    int    `json:"num,omitempty" jsonschema:"每页数量，默认30"`
+}
+// LikedListArgs 获取点赞笔记列表参数
+type LikedListArgs struct {
+	Num int `json:"num,omitempty" jsonschema:"每页数量，默认30"`
+}
+
 // InitMCPServer 初始化 MCP Server
 func InitMCPServer(appServer *AppServer) *mcp.Server {
 	// 创建 MCP Server
@@ -443,7 +454,63 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	logrus.Infof("Registered %d MCP tools", 13)
+	// 工具 14: 获取收藏夹列表
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "get_collect_list",
+			Description: "获取当前登录用户的收藏笔记列表，返回收藏的笔记ID、标题、封面等信息",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Get Collect List",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("get_collect_list", func(ctx context.Context, req *mcp.CallToolRequest, args CollectListArgs) (*mcp.CallToolResult, any, error) {
+			argsMap := map[string]interface{}{
+				"cursor": args.Cursor,
+				"num":    args.Num,
+			}
+			result := appServer.handleGetCollectList(ctx, argsMap)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	// 工具 15: 获取点赞笔记列表
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "get_liked_list",
+			Description: "获取当前登录用户点赞的笔记列表，返回点赞笔记的ID、标题等信息",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Get Liked List",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("get_liked_list", func(ctx context.Context, req *mcp.CallToolRequest, args LikedListArgs) (*mcp.CallToolResult, any, error) {
+			argsMap := map[string]interface{}{
+				"num": float64(args.Num),
+			}
+			result := appServer.handleGetLikedList(ctx, argsMap)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	// 工具 16: 获取已发布笔记列表
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "get_published_list",
+			Description: "获取当前登录用户自己发布的笔记列表",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Get Published List",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("get_published_list", func(ctx context.Context, req *mcp.CallToolRequest, args LikedListArgs) (*mcp.CallToolResult, any, error) {
+			argsMap := map[string]interface{}{"num": float64(args.Num)}
+			result := appServer.handleGetPublishedList(ctx, argsMap)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	logrus.Infof("Registered %d MCP tools", 16)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式
