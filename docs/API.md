@@ -518,7 +518,17 @@ Content-Type: application/json
                 }
               }
             ],
-            "showTags": ["热评"]
+            "showTags": ["热评"],
+            "pictures": [
+              {
+                "url": "https://example.com/comment_image.jpg",
+                "urlDefault": "https://example.com/comment_image_default.jpg",
+                "urlPre": "https://example.com/comment_image_pre.jpg",
+                "width": 1080,
+                "height": 720,
+                "fileId": "abc123def456"
+              }
+            ]
           }
         ],
         "cursor": "next_cursor_value",
@@ -545,6 +555,13 @@ Content-Type: application/json
 - `comments.list[].subCommentCount`: 子评论数量
 - `comments.list[].subComments`: 子评论列表
 - `comments.list[].showTags`: 显示标签（如 "热评"）
+- `comments.list[].pictures`: 评论中附带的图片列表（可选，仅当评论包含图片时返回）
+  - `url`: 图片 URL
+  - `urlDefault`: 默认尺寸图片 URL
+  - `urlPre`: 预览图片 URL
+  - `width`: 图片宽度
+  - `height`: 图片高度
+  - `fileId`: 图片文件 ID
 - `comments.cursor`: 分页游标
 - `comments.hasMore`: 是否有更多评论
 ```
