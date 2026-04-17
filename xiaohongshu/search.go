@@ -11,6 +11,12 @@ import (
 	"github.com/xpzouying/xiaohongshu-mcp/errors"
 )
 
+type filterTagState struct {
+	Text    string `json:"text"`
+	Active  bool   `json:"active"`
+	Display string `json:"display"`
+}
+
 type SearchResult struct {
 	Search struct {
 		Feeds FeedsValue `json:"feeds"`
@@ -159,10 +165,134 @@ type SearchAction struct {
 	page *rod.Page
 }
 
+const (
+	searchStateWaitTimeout      = 10 * time.Second
+	searchFeedsReadyWaitTimeout = 8 * time.Second
+	filterActivationWaitTimeout = 10 * time.Second
+	filterApplyDelay            = 1200 * time.Millisecond
+)
+
 func NewSearchAction(page *rod.Page) *SearchAction {
 	pp := page.Timeout(60 * time.Second)
 
 	return &SearchAction{page: pp}
+}
+
+func chooseFilterTag(tags []filterTagState, targetText string) (int, bool, error) {
+	for index, tag := range tags {
+		if tag.Text == targetText && tag.Active {
+			return index, false, nil
+		}
+	}
+	// On the current search page DOM, duplicated tags are rendered for the same label
+	// and the interactive copy is typically the later `display:flex` node.
+	for index := len(tags) - 1; index >= 0; index-- {
+		tag := tags[index]
+		if tag.Text == targetText && tag.Display == "flex" {
+			return index, true, nil
+		}
+	}
+	for index := len(tags) - 1; index >= 0; index-- {
+		tag := tags[index]
+		if tag.Text == targetText {
+			return index, true, nil
+		}
+	}
+	return -1, false, fmt.Errorf("未找到筛选项: %s", targetText)
+}
+
+func (s *SearchAction) waitForSearchState(page *rod.Page) error {
+	waitPage := page.Timeout(searchStateWaitTimeout)
+	defer waitPage.CancelTimeout()
+
+	return waitPage.Wait(rod.Eval(`() => !!(
+		window.__INITIAL_STATE__ &&
+		window.__INITIAL_STATE__.search &&
+		window.__INITIAL_STATE__.search.feeds
+	)`))
+}
+
+func (s *SearchAction) waitForSearchFeedsReady(page *rod.Page) {
+	waitPage := page.Timeout(searchFeedsReadyWaitTimeout)
+	defer waitPage.CancelTimeout()
+
+	// Best effort: some valid searches may still render an empty feed list.
+	_ = waitPage.Wait(rod.Eval(`() => {
+		const feeds = window.__INITIAL_STATE__ &&
+			window.__INITIAL_STATE__.search &&
+			window.__INITIAL_STATE__.search.feeds;
+		if (!feeds) return false;
+		const feedsData = feeds.value !== undefined ? feeds.value : feeds._value;
+		return Array.isArray(feedsData) && feedsData.length > 0;
+	}`))
+}
+
+func (s *SearchAction) getFilterTags(page *rod.Page, filter internalFilterOption) ([]filterTagState, error) {
+	result := page.MustEval(fmt.Sprintf(`() => {
+		const groups = document.querySelectorAll('div.filter-panel div.filters');
+		const group = groups[%d];
+		if (!group) return "[]";
+		const tags = Array.from(group.querySelectorAll('div.tags')).map(tag => ({
+			text: (tag.textContent || '').trim(),
+			active: tag.classList.contains('active'),
+			display: getComputedStyle(tag).display
+		}));
+		return JSON.stringify(tags);
+	}`, filter.FiltersIndex-1)).String()
+
+	var tags []filterTagState
+	if err := json.Unmarshal([]byte(result), &tags); err != nil {
+		return nil, fmt.Errorf("解析筛选项失败: %w", err)
+	}
+	return tags, nil
+}
+
+func (s *SearchAction) applyFilter(page *rod.Page, filter internalFilterOption) error {
+	tags, err := s.getFilterTags(page, filter)
+	if err != nil {
+		return err
+	}
+
+	tagIndex, shouldClick, err := chooseFilterTag(tags, filter.Text)
+	if err != nil {
+		return err
+	}
+	if !shouldClick {
+		return nil
+	}
+
+	clicked := page.MustEval(fmt.Sprintf(`() => {
+		const groups = document.querySelectorAll('div.filter-panel div.filters');
+		const group = groups[%d];
+		if (!group) return false;
+		const tags = Array.from(group.querySelectorAll('div.tags'));
+		const tag = tags[%d];
+		if (!tag) return false;
+		tag.click();
+		return true;
+	}`, filter.FiltersIndex-1, tagIndex)).Bool()
+	if !clicked {
+		return fmt.Errorf("点击筛选项失败: %s", filter.Text)
+	}
+
+	waitPage := page.Timeout(filterActivationWaitTimeout)
+	defer waitPage.CancelTimeout()
+
+	if err := waitPage.Wait(rod.Eval(fmt.Sprintf(`() => {
+		const groups = document.querySelectorAll('div.filter-panel div.filters');
+		const group = groups[%d];
+		if (!group) return false;
+		return Array.from(group.querySelectorAll('div.tags')).some(tag =>
+			(tag.textContent || '').trim() === %q && tag.classList.contains('active')
+		);
+	}`, filter.FiltersIndex-1, filter.Text))); err != nil {
+		return fmt.Errorf("等待筛选项生效失败: %w", err)
+	}
+
+	// Give the page a short settle window after the active state flips so the
+	// subsequent feed read sees the refreshed search result data.
+	time.Sleep(filterApplyDelay)
+	return nil
 }
 
 func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...FilterOption) ([]Feed, error) {
@@ -170,9 +300,11 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 
 	searchURL := makeSearchURL(keyword)
 	page.MustNavigate(searchURL)
-	page.MustWaitStable()
-
-	page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
+	page.MustWaitLoad()
+	if err := s.waitForSearchState(page); err != nil {
+		return nil, fmt.Errorf("等待搜索结果状态初始化失败: %w", err)
+	}
+	s.waitForSearchFeedsReady(page)
 
 	// 如果有筛选条件，则应用筛选
 	if len(filters) > 0 {
@@ -202,16 +334,15 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 
 		// 应用所有筛选条件
 		for _, filter := range allInternalFilters {
-			selector := fmt.Sprintf(`div.filter-panel div.filters:nth-child(%d) div.tags:nth-child(%d)`,
-				filter.FiltersIndex, filter.TagsIndex)
-			option := page.MustElement(selector)
-			option.MustClick()
+			if err := s.applyFilter(page, filter); err != nil {
+				return nil, fmt.Errorf("应用筛选项失败: %w", err)
+			}
 		}
 
-		// 等待页面更新
-		page.MustWaitStable()
-		// 重新等待 __INITIAL_STATE__ 更新
-		page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
+		if err := s.waitForSearchState(page); err != nil {
+			return nil, fmt.Errorf("等待筛选后的搜索结果状态初始化失败: %w", err)
+		}
+		s.waitForSearchFeedsReady(page)
 	}
 
 	result := page.MustEval(`() => {
