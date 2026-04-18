@@ -67,5 +67,8 @@ func (s *AppServer) Start(port string) error {
 		logrus.Infof("服务器已优雅关闭")
 	}
 
+	// httpServer.Shutdown 已等待所有请求完成，此时安全关闭浏览器
+	s.xiaohongshuService.Close()
+
 	return nil
 }

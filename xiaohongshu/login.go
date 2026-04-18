@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/go-rod/rod"
+	"github.com/go-rod/rod/lib/proto"
 	"github.com/pkg/errors"
 )
 
@@ -16,29 +17,64 @@ func NewLogin(page *rod.Page) *LoginAction {
 	return &LoginAction{page: page}
 }
 
-func (a *LoginAction) CheckLoginStatus(ctx context.Context) (bool, error) {
+// LoginStatusResult 登录状态结果
+type LoginStatusResult struct {
+	IsLoggedIn bool
+	Nickname   string
+}
+
+func (a *LoginAction) CheckLoginStatus(ctx context.Context) (*LoginStatusResult, error) {
 	pp := a.page.Context(ctx)
-	pp.MustNavigate("https://www.xiaohongshu.com/explore").MustWaitLoad()
+	if err := pp.Navigate("https://www.xiaohongshu.com/explore"); err != nil {
+		return nil, errors.Wrap(err, "navigate to explore failed")
+	}
+	_ = pp.WaitLoad()
 
 	time.Sleep(1 * time.Second)
 
 	exists, _, err := pp.Has(`.main-container .user .link-wrapper .channel`)
 	if err != nil {
-		return false, errors.Wrap(err, "check login status failed")
+		return nil, errors.Wrap(err, "check login status failed")
 	}
 
 	if !exists {
-		return false, errors.Wrap(err, "login status element not found")
+		return &LoginStatusResult{IsLoggedIn: false}, nil
 	}
 
-	return true, nil
+	// 点击侧边栏"我"导航到个人主页，从 __INITIAL_STATE__ 获取昵称
+	nickname := ""
+	profileLink, err := pp.Element(`div.main-container li.user.side-bar-component a.link-wrapper span.channel`)
+	if err == nil && profileLink != nil {
+		if clickErr := profileLink.Click(proto.InputMouseButtonLeft, 1); clickErr == nil {
+			_ = pp.WaitLoad()
+			time.Sleep(1 * time.Second)
+
+			result, evalErr := pp.Eval(`() => {
+				try {
+					const user = window.__INITIAL_STATE__?.user;
+					if (!user) return "";
+					const data = user.userPageData?.value?.basicInfo ||
+					             user.userPageData?._value?.basicInfo;
+					return data?.nickname || "";
+				} catch(e) { return ""; }
+			}`)
+			if evalErr == nil && result != nil {
+				nickname = result.Value.String()
+			}
+		}
+	}
+
+	return &LoginStatusResult{IsLoggedIn: true, Nickname: nickname}, nil
 }
 
 func (a *LoginAction) Login(ctx context.Context) error {
 	pp := a.page.Context(ctx)
 
 	// 导航到小红书首页，这会触发二维码弹窗
-	pp.MustNavigate("https://www.xiaohongshu.com/explore").MustWaitLoad()
+	if err := pp.Navigate("https://www.xiaohongshu.com/explore"); err != nil {
+		return errors.Wrap(err, "navigate to explore failed")
+	}
+	_ = pp.WaitLoad()
 
 	// 等待一小段时间让页面完全加载
 	time.Sleep(2 * time.Second)
@@ -60,7 +96,10 @@ func (a *LoginAction) FetchQrcodeImage(ctx context.Context) (string, bool, error
 	pp := a.page.Context(ctx)
 
 	// 导航到小红书首页，这会触发二维码弹窗
-	pp.MustNavigate("https://www.xiaohongshu.com/explore").MustWaitLoad()
+	if err := pp.Navigate("https://www.xiaohongshu.com/explore"); err != nil {
+		return "", false, errors.Wrap(err, "navigate to explore failed")
+	}
+	_ = pp.WaitLoad()
 
 	// 等待一小段时间让页面完全加载
 	time.Sleep(2 * time.Second)

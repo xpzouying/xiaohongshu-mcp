@@ -19,11 +19,31 @@ type FeedsValue struct {
 
 // Feed 表示单个 Feed 项目
 type Feed struct {
-	XsecToken string   `json:"xsecToken"`
-	ID        string   `json:"id"`
-	ModelType string   `json:"modelType"`
-	NoteCard  NoteCard `json:"noteCard"`
-	Index     int      `json:"index"`
+	XsecToken    string   `json:"xsecToken"`
+	ID           string   `json:"id"`
+	ModelType    string   `json:"modelType"`
+	NoteCard     NoteCard `json:"noteCard"`
+	DisplayTitle string   `json:"displayTitle"` // 搜索结果可能在顶层返回标题
+	Index        int      `json:"index"`
+}
+
+// GetDisplayTitle 获取显示标题，优先取 NoteCard 中的，为空则取顶层的
+func (f Feed) GetDisplayTitle() string {
+	if f.NoteCard.DisplayTitle != "" {
+		return f.NoteCard.DisplayTitle
+	}
+	return f.DisplayTitle
+}
+
+// NormalizeFields 规范化字段，将顶层字段同步到 NoteCard 中
+// 搜索结果可能把 displayTitle 放在顶层而非 NoteCard 内
+func (f *Feed) NormalizeFields() {
+	if f.NoteCard.DisplayTitle == "" && f.DisplayTitle != "" {
+		f.NoteCard.DisplayTitle = f.DisplayTitle
+	}
+	if f.NoteCard.User.Nickname == "" && f.NoteCard.User.NickName != "" {
+		f.NoteCard.User.Nickname = f.NoteCard.User.NickName
+	}
 }
 
 // NoteCard 表示笔记卡片信息
@@ -42,6 +62,14 @@ type User struct {
 	Nickname string `json:"nickname"`
 	NickName string `json:"nickName"`
 	Avatar   string `json:"avatar"`
+}
+
+// GetNickname 获取用户昵称，兼容 nickname 和 nickName 两种字段
+func (u User) GetNickname() string {
+	if u.Nickname != "" {
+		return u.Nickname
+	}
+	return u.NickName
 }
 
 // InteractInfo 表示互动信息
