@@ -154,11 +154,27 @@ func (f *CommentFeedAction) ReplyToComment(ctx context.Context, feedID, xsecToke
 }
 
 // findCommentElement 查找指定评论元素（参考 feed_detail.go 的滚动逻辑）
+//
+// 修复说明：之前的实现里，"已到达评论底部" 和 "评论数量停滞" 这两个 early-exit
+// 条件会让循环在第 1~2 次尝试就跳出。具体表现：用户报告 "尝试次数: 1" 就失败 —
+// `checkEndContainer` 在初始 DOM 状态下偶尔会立刻返回 true（end-container 元素
+// 在评论懒加载之前就存在），导致循环根本没机会扫描完整评论列表。
+//
+// 现在的策略：
+// 1. 先尝试触发懒加载滚动一段时间，确保评论区被加载出来
+// 2. 真正进入查找循环时，**不再因为 end-container 出现就立即退出**
+//    （end-container 只在所有真正加载完后才意味着到底，但 selector 命中本身
+//     不能区分 "懒加载尚未触发" vs "真正到底"）
+// 3. 每轮都尝试多个 selector 模式：#comment-{id}、[id$="-{id}"]、
+//    [data-comment-id="{id}"]、[data-id*="{id}"]，避免单一 ID 格式假设
+// 4. 只有在 "评论总数停滞 + end-container 命中 + 已经查过至少 10 次" 三个条件
+//    都满足时才提前退出
 func findCommentElement(page *rod.Page, commentID, userID string) (*rod.Element, error) {
 	logrus.Infof("开始查找评论 - commentID: %s, userID: %s", commentID, userID)
 
 	const maxAttempts = 100
 	const scrollInterval = 800 * time.Millisecond
+	const minAttemptsBeforeBail = 10
 
 	// 先滚动到评论区
 	scrollToCommentsArea(page)
@@ -172,16 +188,10 @@ func findCommentElement(page *rod.Page, commentID, userID string) (*rod.Element,
 	for attempt := 0; attempt < maxAttempts; attempt++ {
 		logrus.Infof("=== 查找尝试 %d/%d ===", attempt+1, maxAttempts)
 
-		// === 1. 检查是否到达底部 ===
-		if checkEndContainer(page) {
-			logrus.Info("已到达评论底部，未找到目标评论")
-			break
-		}
-
-		// === 2. 获取当前评论数量 ===
+		// === 1. 获取当前评论数量 ===
 		currentCount := getCommentCount(page)
 		logrus.Infof("当前评论数: %d", currentCount)
-		
+
 		if currentCount != lastCommentCount {
 			logrus.Infof("✓ 评论数增加: %d -> %d", lastCommentCount, currentCount)
 			lastCommentCount = currentCount
@@ -193,9 +203,11 @@ func findCommentElement(page *rod.Page, commentID, userID string) (*rod.Element,
 			}
 		}
 
-		// === 3. 停滞检测 ===
-		if stagnantChecks >= 10 {
-			logrus.Info("评论数量停滞超过10次，可能已加载完所有评论")
+		// === 2. 提前退出条件（保守版）===
+		// 必须同时满足：到达底部 + 评论数停滞 + 已经查过最少次数。
+		// 防止 end-container 在懒加载前就出现导致误判。
+		if attempt >= minAttemptsBeforeBail && stagnantChecks >= 10 && checkEndContainer(page) {
+			logrus.Info("已加载完所有评论且到达底部，未找到目标评论")
 			break
 		}
 
@@ -227,18 +239,27 @@ func findCommentElement(page *rod.Page, commentID, userID string) (*rod.Element,
 		time.Sleep(500 * time.Millisecond)
 
 		// === 6. 滚动后立即查找（边滚动边查找）===
-		// 优先通过 commentID 查找（使用 Timeout 避免长时间等待）
+		// 优先通过 commentID 查找。小红书 DOM 中 comment 节点的 id 格式可能因
+		// 版本变化（曾见过 #comment-{shortId}、id 后缀匹配、data-comment-id、
+		// data-id 包含子串等多种），所以这里依次尝试多种 selector，避免对单一
+		// 格式的硬编码假设。
 		if commentID != "" {
-			selector := fmt.Sprintf("#comment-%s", commentID)
-			logrus.Infof("尝试通过 commentID 查找: %s", selector)
-			
-			// 使用 Timeout 避免长时间等待
-			el, err := page.Timeout(2 * time.Second).Element(selector)
-			if err == nil && el != nil {
-				logrus.Infof("✓ 通过 commentID 找到评论: %s (尝试 %d 次)", commentID, attempt+1)
-				return el, nil
+			selectors := []string{
+				fmt.Sprintf("#comment-%s", commentID),
+				fmt.Sprintf("[id='comment-%s']", commentID),
+				fmt.Sprintf("[id$='-%s']", commentID),
+				fmt.Sprintf("[data-comment-id='%s']", commentID),
+				fmt.Sprintf("[data-id='%s']", commentID),
+				fmt.Sprintf("[data-id*='%s']", commentID),
 			}
-			logrus.Infof("未找到 commentID (2秒超时)")
+			for _, selector := range selectors {
+				el, err := page.Timeout(2 * time.Second).Element(selector)
+				if err == nil && el != nil {
+					logrus.Infof("✓ 通过 commentID 找到评论: %s (尝试 %d 次, selector=%s)", commentID, attempt+1, selector)
+					return el, nil
+				}
+			}
+			logrus.Infof("未通过 commentID 找到 (尝试了 %d 个 selector)", len(selectors))
 		}
 
 		// 通过 userID 查找
