@@ -38,9 +38,39 @@ func (c *localCookie) LoadCookies() ([]byte, error) {
 	return data, nil
 }
 
-// SaveCookies 保存 cookies 到文件中。
+// SaveCookies 原子写入 cookies 到文件中。
+// 先写临时文件再 rename，防止写入中途崩溃导致文件损坏。
 func (c *localCookie) SaveCookies(data []byte) error {
-	return os.WriteFile(c.path, data, 0644)
+	dir := filepath.Dir(c.path)
+	tmp, err := os.CreateTemp(dir, "cookies.tmp.*")
+	if err != nil {
+		return errors.Wrap(err, "创建临时文件失败")
+	}
+	tmpPath := tmp.Name()
+
+	if err := tmp.Chmod(0644); err != nil {
+		tmp.Close()
+		os.Remove(tmpPath)
+		return errors.Wrap(err, "chmod 临时文件失败")
+	}
+
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		os.Remove(tmpPath)
+		return errors.Wrap(err, "写入临时文件失败")
+	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		os.Remove(tmpPath)
+		return errors.Wrap(err, "sync 临时文件失败")
+	}
+	tmp.Close()
+
+	if err := os.Rename(tmpPath, c.path); err != nil {
+		os.Remove(tmpPath)
+		return errors.Wrap(err, "rename 临时文件失败")
+	}
+	return nil
 }
 
 // DeleteCookies 删除 cookies 文件。
