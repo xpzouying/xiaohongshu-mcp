@@ -10,11 +10,11 @@ import (
 
 func main() {
 	var (
-		headless bool
-		binPath  string // 浏览器二进制文件路径
-		port     string
+		headlessMode string
+		binPath      string // 浏览器二进制文件路径
+		port         string
 	)
-	flag.BoolVar(&headless, "headless", true, "是否无头模式")
+	flag.StringVar(&headlessMode, "headless-mode", "new", "headless模式: new(推荐)/true/false")
 	flag.StringVar(&binPath, "bin", "", "浏览器二进制文件路径")
 	flag.StringVar(&port, "port", ":18060", "端口")
 	flag.Parse()
@@ -23,7 +23,7 @@ func main() {
 		binPath = os.Getenv("ROD_BROWSER_BIN")
 	}
 
-	configs.InitHeadless(headless)
+	configs.InitHeadlessMode(headlessMode)
 	configs.SetBinPath(binPath)
 
 	// 初始化服务
