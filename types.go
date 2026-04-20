@@ -109,3 +109,10 @@ type ActionResult struct {
 	Success bool   `json:"success"`
 	Message string `json:"message"`
 }
+
+// FavoriteFeedRequest 收藏笔记请求
+type FavoriteFeedRequest struct {
+	FeedID    string `json:"feed_id" binding:"required"`
+	XsecToken string `json:"xsec_token" binding:"required"` // 敏感信息，请勿记录到日志
+	Action    string `json:"action,omitempty"`              // "favorite"=收藏, "unfavorite"=取消收藏，默认收藏
+}
