@@ -439,7 +439,10 @@ func (s *AppServer) handleGetFeedDetail(ctx context.Context, args map[string]any
 	}
 
 	if raw, ok := args["scroll_speed"].(string); ok && raw != "" {
-		config.ScrollSpeed = raw
+		switch raw {
+		case "slow", "normal", "fast":
+			config.ScrollSpeed = raw
+		}
 	}
 
 	logrus.Infof("MCP: 获取Feed详情 - Feed ID: %s, loadAllComments=%v, config=%+v", feedID, loadAll, config)
@@ -502,9 +505,32 @@ func (s *AppServer) handleUserProfile(ctx context.Context, args map[string]any) 
 		}
 	}
 
-	logrus.Infof("MCP: 获取用户主页 - User ID: %s", userID)
+	// 解析笔记滚动配置
+	config := xiaohongshu.DefaultNoteScrollConfig()
 
-	result, err := s.xiaohongshuService.UserProfile(ctx, userID, xsecToken)
+	if raw, ok := args["load_all_notes"]; ok {
+		switch v := raw.(type) {
+		case bool:
+			config.LoadAllNotes = v
+		case string:
+			if parsed, err := strconv.ParseBool(v); err == nil {
+				config.LoadAllNotes = parsed
+			}
+		case float64:
+			config.LoadAllNotes = v != 0
+		}
+	}
+
+	if raw, ok := args["scroll_speed"].(string); ok && raw != "" {
+		switch raw {
+		case "slow", "normal", "fast":
+			config.ScrollSpeed = raw
+		}
+	}
+
+	logrus.Infof("MCP: 获取用户主页 - User ID: %s, loadAllNotes=%v", userID, config.LoadAllNotes)
+
+	result, err := s.xiaohongshuService.UserProfile(ctx, userID, xsecToken, config)
 	if err != nil {
 		return &MCPToolResult{
 			Content: []MCPContent{{
