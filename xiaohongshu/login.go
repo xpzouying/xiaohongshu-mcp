@@ -18,7 +18,7 @@ func NewLogin(page *rod.Page) *LoginAction {
 
 func (a *LoginAction) CheckLoginStatus(ctx context.Context) (bool, error) {
 	pp := a.page.Context(ctx)
-	pp.MustNavigate("https://www.xiaohongshu.com/explore").MustWaitLoad()
+	SafeNavigate(pp, "https://www.xiaohongshu.com/explore").MustWaitLoad()
 
 	time.Sleep(1 * time.Second)
 
@@ -38,7 +38,7 @@ func (a *LoginAction) Login(ctx context.Context) error {
 	pp := a.page.Context(ctx)
 
 	// 导航到小红书首页，这会触发二维码弹窗
-	pp.MustNavigate("https://www.xiaohongshu.com/explore").MustWaitLoad()
+	SafeNavigate(pp, "https://www.xiaohongshu.com/explore").MustWaitLoad()
 
 	// 等待一小段时间让页面完全加载
 	time.Sleep(2 * time.Second)
@@ -60,7 +60,7 @@ func (a *LoginAction) FetchQrcodeImage(ctx context.Context) (string, bool, error
 	pp := a.page.Context(ctx)
 
 	// 导航到小红书首页，这会触发二维码弹窗
-	pp.MustNavigate("https://www.xiaohongshu.com/explore").MustWaitLoad()
+	SafeNavigate(pp, "https://www.xiaohongshu.com/explore").MustWaitLoad()
 
 	// 等待一小段时间让页面完全加载
 	time.Sleep(2 * time.Second)

@@ -48,7 +48,7 @@ func (a *interactAction) preparePage(ctx context.Context, actionType interactAct
 	url := makeFeedDetailURL(feedID, xsecToken)
 	logrus.Infof("Opening feed detail page for %s: %s", actionType, url)
 
-	page.MustNavigate(url)
+	SafeNavigate(page, url)
 	page.MustWaitDOMStable()
 	time.Sleep(1 * time.Second)
 

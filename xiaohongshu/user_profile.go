@@ -23,7 +23,7 @@ func (u *UserProfileAction) UserProfile(ctx context.Context, userID, xsecToken s
 	page := u.page.Context(ctx)
 
 	searchURL := makeUserProfileURL(userID, xsecToken)
-	page.MustNavigate(searchURL)
+	SafeNavigate(page, searchURL)
 	page.MustWaitStable()
 
 	return u.extractUserProfileData(page)
