@@ -445,34 +445,6 @@ func (s *XiaohongshuService) UserProfile(ctx context.Context, userID, xsecToken 
 
 }
 
-// EditProfile 编辑个人资料
-func (s *XiaohongshuService) EditProfile(ctx context.Context, edits EditProfileRequest) (*EditProfileResponse, error) {
-	b := newBrowser()
-	defer b.Close()
-
-	page := b.NewPage()
-	defer page.Close()
-
-	action := xiaohongshu.NewEditProfileAction(page)
-
-	// 将 main 包中的 EditProfileRequest 转换为 xiaohongshu 包中的 EditProfileRequest
-	xiaohongshuEdits := xiaohongshu.EditProfileRequest{
-		Nickname: edits.Nickname,
-		Bio:      edits.Bio,
-	}
-
-	if err := action.EditProfile(ctx, xiaohongshuEdits); err != nil {
-		return &EditProfileResponse{
-			Success: false,
-			Message: "编辑个人资料失败: " + err.Error(),
-		}, err
-	}
-
-	return &EditProfileResponse{
-		Success: true,
-		Message: "个人资料编辑成功",
-	}, nil
-}
 
 // PostCommentToFeed 发表评论到Feed
 func (s *XiaohongshuService) PostCommentToFeed(ctx context.Context, feedID, xsecToken, content string) (*PostCommentResponse, error) {

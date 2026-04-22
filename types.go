@@ -103,17 +103,6 @@ type UserProfileRequest struct {
 	XsecToken string `json:"xsec_token" binding:"required"`
 }
 
-// EditProfileRequest 编辑个人资料请求
-type EditProfileRequest struct {
-	Nickname string `json:"nickname,omitempty"` // 昵称
-	Bio      string `json:"bio,omitempty"`      // 简介
-}
-
-// EditProfileResponse 编辑个人资料响应
-type EditProfileResponse struct {
-	Success bool   `json:"success"`
-	Message string `json:"message"`
-}
 
 // ActionResult 通用动作响应（点赞/收藏等）
 type ActionResult struct {
