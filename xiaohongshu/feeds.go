@@ -27,7 +27,16 @@ func NewFeedsListAction(page *rod.Page) *FeedsListAction {
 func (f *FeedsListAction) GetFeedsList(ctx context.Context) ([]Feed, error) {
 	page := f.page.Context(ctx)
 
-	time.Sleep(1 * time.Second)
+	// 等待页面数据加载完成
+	page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
+	page.MustWait(`() => {
+		if (window.__INITIAL_STATE__ && window.__INITIAL_STATE__.feed) {
+			const feeds = window.__INITIAL_STATE__.feed.feeds;
+			const feedsData = feeds !== undefined ? (feeds.value !== undefined ? feeds.value : feeds._value) : null;
+			return feedsData !== null && feedsData.length > 0;
+		}
+		return false;
+	}`)
 
 	result := page.MustEval(`() => {
 		if (window.__INITIAL_STATE__ &&
