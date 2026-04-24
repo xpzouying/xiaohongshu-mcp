@@ -181,9 +181,7 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 	}
 
 	// 等待 __INITIAL_STATE__ 可用
-	if err := page.Wait(`() => window.__INITIAL_STATE__ !== undefined`); err != nil {
-		return nil, fmt.Errorf("等待页面数据超时，可能遇到反爬虫验证或网络问题：%w", err)
-	}
+	page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
 
 	// 如果有筛选条件，则应用筛选
 	if len(filters) > 0 {
@@ -205,30 +203,18 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 		}
 
 		// 悬停在筛选按钮上
-		filterButton, err := page.Element(`div.filter`)
-		if err != nil {
-			return nil, fmt.Errorf("找不到筛选按钮：%w", err)
-		}
-		if err := filterButton.Hover(); err != nil {
-			return nil, fmt.Errorf("悬停筛选按钮失败：%w", err)
-		}
+		filterButton := page.MustElement(`div.filter`)
+		filterButton.MustHover()
 
 		// 等待筛选面板出现
-		if err := page.Wait(`() => document.querySelector('div.filter-panel') !== null`); err != nil {
-			return nil, fmt.Errorf("等待筛选面板出现超时：%w", err)
-		}
+		page.MustWait(`() => document.querySelector('div.filter-panel') !== null`)
 
 		// 应用所有筛选条件
 		for _, filter := range allInternalFilters {
 			selector := fmt.Sprintf(`div.filter-panel div.filters:nth-child(%d) div.tags:nth-child(%d)`,
 				filter.FiltersIndex, filter.TagsIndex)
-			option, err := page.Element(selector)
-			if err != nil {
-				return nil, fmt.Errorf("找不到筛选选项 %s: %w", selector, err)
-			}
-			if err := option.Click(); err != nil {
-				return nil, fmt.Errorf("点击筛选选项失败：%w", err)
-			}
+			option := page.MustElement(selector)
+			option.MustClick()
 		}
 
 		// 等待页面更新
