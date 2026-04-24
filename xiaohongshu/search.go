@@ -19,14 +19,14 @@ type SearchResult struct {
 
 // FilterOption 筛选选项结构体
 type FilterOption struct {
-	SortBy      string `json:"sort_by,omitempty" jsonschema:"排序依据: 综合|最新|最多点赞|最多评论|最多收藏,默认为'综合'"`
-	NoteType    string `json:"note_type,omitempty" jsonschema:"笔记类型: 不限|视频|图文,默认为'不限'"`
-	PublishTime string `json:"publish_time,omitempty" jsonschema:"发布时间: 不限|一天内|一周内|半年内,默认为'不限'"`
-	SearchScope string `json:"search_scope,omitempty" jsonschema:"搜索范围: 不限|已看过|未看过|已关注,默认为'不限'"`
-	Location    string `json:"location,omitempty" jsonschema:"位置距离: 不限|同城|附近,默认为'不限'"`
+	SortBy      string `json:"sort_by,omitempty" jsonschema:"排序依据：综合 | 最新 | 最多点赞 | 最多评论 | 最多收藏，默认为'综合'"`
+	NoteType    string `json:"note_type,omitempty" jsonschema:"笔记类型：不限 | 视频 | 图文，默认为'不限'"`
+	PublishTime string `json:"publish_time,omitempty" jsonschema:"发布时间：不限 | 一天内 | 一周内 | 半年内，默认为'不限'"`
+	SearchScope string `json:"search_scope,omitempty" jsonschema:"搜索范围：不限 | 已看过 | 未看过 | 已关注，默认为'不限'"`
+	Location    string `json:"location,omitempty" jsonschema:"位置距离：不限 | 同城 | 附近，默认为'不限'"`
 }
 
-// internalFilterOption 内部使用的筛选选项(基于索引)
+// internalFilterOption 内部使用的筛选选项 (基于索引)
 type internalFilterOption struct {
 	FiltersIndex int    // 筛选组索引
 	TagsIndex    int    // 标签索引
@@ -74,7 +74,7 @@ func convertToInternalFilters(filter FilterOption) ([]internalFilterOption, erro
 	if filter.SortBy != "" {
 		internal, err := findInternalOption(1, filter.SortBy)
 		if err != nil {
-			return nil, fmt.Errorf("排序依据错误: %w", err)
+			return nil, fmt.Errorf("排序依据错误：%w", err)
 		}
 		internalFilters = append(internalFilters, internal)
 	}
@@ -83,7 +83,7 @@ func convertToInternalFilters(filter FilterOption) ([]internalFilterOption, erro
 	if filter.NoteType != "" {
 		internal, err := findInternalOption(2, filter.NoteType)
 		if err != nil {
-			return nil, fmt.Errorf("笔记类型错误: %w", err)
+			return nil, fmt.Errorf("笔记类型错误：%w", err)
 		}
 		internalFilters = append(internalFilters, internal)
 	}
@@ -92,7 +92,7 @@ func convertToInternalFilters(filter FilterOption) ([]internalFilterOption, erro
 	if filter.PublishTime != "" {
 		internal, err := findInternalOption(3, filter.PublishTime)
 		if err != nil {
-			return nil, fmt.Errorf("发布时间错误: %w", err)
+			return nil, fmt.Errorf("发布时间错误：%w", err)
 		}
 		internalFilters = append(internalFilters, internal)
 	}
@@ -101,7 +101,7 @@ func convertToInternalFilters(filter FilterOption) ([]internalFilterOption, erro
 	if filter.SearchScope != "" {
 		internal, err := findInternalOption(4, filter.SearchScope)
 		if err != nil {
-			return nil, fmt.Errorf("搜索范围错误: %w", err)
+			return nil, fmt.Errorf("搜索范围错误：%w", err)
 		}
 		internalFilters = append(internalFilters, internal)
 	}
@@ -110,7 +110,7 @@ func convertToInternalFilters(filter FilterOption) ([]internalFilterOption, erro
 	if filter.Location != "" {
 		internal, err := findInternalOption(5, filter.Location)
 		if err != nil {
-			return nil, fmt.Errorf("位置距离错误: %w", err)
+			return nil, fmt.Errorf("位置距离错误：%w", err)
 		}
 		internalFilters = append(internalFilters, internal)
 	}
@@ -160,8 +160,8 @@ type SearchAction struct {
 }
 
 func NewSearchAction(page *rod.Page) *SearchAction {
-	pp := page.Timeout(60 * time.Second)
-
+	// 设置页面超时时间为 30 秒，避免长时间卡住
+	pp := page.Timeout(30 * time.Second)
 	return &SearchAction{page: pp}
 }
 
@@ -169,10 +169,21 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 	page := s.page.Context(ctx)
 
 	searchURL := makeSearchURL(keyword)
-	page.MustNavigate(searchURL)
-	page.MustWaitStable()
 
-	page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
+	// 导航到搜索页面
+	if err := page.Navigate(searchURL); err != nil {
+		return nil, fmt.Errorf("导航到搜索页面失败：%w", err)
+	}
+
+	// 等待页面加载完成
+	if err := page.WaitLoad(); err != nil {
+		return nil, fmt.Errorf("等待页面加载失败：%w", err)
+	}
+
+	// 等待 __INITIAL_STATE__ 可用
+	if err := page.Wait(`() => window.__INITIAL_STATE__ !== undefined`); err != nil {
+		return nil, fmt.Errorf("等待页面数据超时，可能遇到反爬虫验证或网络问题：%w", err)
+	}
 
 	// 如果有筛选条件，则应用筛选
 	if len(filters) > 0 {
@@ -181,7 +192,7 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 		for _, filter := range filters {
 			internalFilters, err := convertToInternalFilters(filter)
 			if err != nil {
-				return nil, fmt.Errorf("筛选选项转换失败: %w", err)
+				return nil, fmt.Errorf("筛选选项转换失败：%w", err)
 			}
 			allInternalFilters = append(allInternalFilters, internalFilters...)
 		}
@@ -189,29 +200,41 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 		// 验证所有内部筛选选项
 		for _, filter := range allInternalFilters {
 			if err := validateInternalFilterOption(filter); err != nil {
-				return nil, fmt.Errorf("筛选选项验证失败: %w", err)
+				return nil, fmt.Errorf("筛选选项验证失败：%w", err)
 			}
 		}
 
 		// 悬停在筛选按钮上
-		filterButton := page.MustElement(`div.filter`)
-		filterButton.MustHover()
+		filterButton, err := page.Element(`div.filter`)
+		if err != nil {
+			return nil, fmt.Errorf("找不到筛选按钮：%w", err)
+		}
+		if err := filterButton.Hover(); err != nil {
+			return nil, fmt.Errorf("悬停筛选按钮失败：%w", err)
+		}
 
 		// 等待筛选面板出现
-		page.MustWait(`() => document.querySelector('div.filter-panel') !== null`)
+		if err := page.Wait(`() => document.querySelector('div.filter-panel') !== null`); err != nil {
+			return nil, fmt.Errorf("等待筛选面板出现超时：%w", err)
+		}
 
 		// 应用所有筛选条件
 		for _, filter := range allInternalFilters {
 			selector := fmt.Sprintf(`div.filter-panel div.filters:nth-child(%d) div.tags:nth-child(%d)`,
 				filter.FiltersIndex, filter.TagsIndex)
-			option := page.MustElement(selector)
-			option.MustClick()
+			option, err := page.Element(selector)
+			if err != nil {
+				return nil, fmt.Errorf("找不到筛选选项 %s: %w", selector, err)
+			}
+			if err := option.Click(); err != nil {
+				return nil, fmt.Errorf("点击筛选选项失败：%w", err)
+			}
 		}
 
 		// 等待页面更新
-		page.MustWaitStable()
-		// 重新等待 __INITIAL_STATE__ 更新
-		page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
+		if err := page.WaitLoad(); err != nil {
+			return nil, fmt.Errorf("等待页面更新失败：%w", err)
+		}
 	}
 
 	result := page.MustEval(`() => {
@@ -233,14 +256,13 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 
 	var feeds []Feed
 	if err := json.Unmarshal([]byte(result), &feeds); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal feeds: %w", err)
+		return nil, fmt.Errorf("解析 Feeds 数据失败：%w", err)
 	}
 
 	return feeds, nil
 }
 
 func makeSearchURL(keyword string) string {
-
 	values := url.Values{}
 	values.Set("keyword", keyword)
 	values.Set("source", "web_explore_feed")
