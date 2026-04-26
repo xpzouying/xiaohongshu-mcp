@@ -21,24 +21,16 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 WORKDIR /app
 
-# 1. 安装基础工具和 Google Chrome APT 源配置
+# 1. 安装基础依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     wget \
     gnupg \
-    && rm -rf /var/lib/apt/lists/*
-
-# 2. 添加 Google Chrome APT 源
-RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/googlechrome-linux-keyring.gpg && \
-    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/googlechrome-linux-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list
-
-# 3. 安装 Google Chrome + 所有依赖（一次性安装确保依赖完整性）
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
     fonts-liberation \
     libasound2 \
     libatk-bridge2.0-0 \
     libatk1.0-0 \
+    libatspi2.0-0 \
     libc6 \
     libcairo2 \
     libcups2 \
@@ -63,13 +55,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxext6 \
     libxfixes3 \
     libxi6 \
+    libxkbcommon0 \
     libxrandr2 \
     libxrender1 \
     libxss1 \
     libxtst6 \
     lsb-release \
-    wget \
     xdg-utils \
+    libvulkan1 \
+    libgl1 \
+    libglx-mesa0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# 2. 添加 Google Chrome APT 源
+RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/googlechrome-linux-keyring.gpg && \
+    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/googlechrome-linux-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list
+
+# 3. 安装 Google Chrome
+RUN apt-get update && apt-get install -y --no-install-recommends \
     google-chrome-stable \
     && rm -rf /var/lib/apt/lists/*
 
@@ -85,4 +88,3 @@ ENV ROD_BROWSER_BIN=/usr/bin/google-chrome
 EXPOSE 18060
 
 CMD ["./app"]
-
