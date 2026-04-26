@@ -103,7 +103,6 @@ type UserProfileRequest struct {
 	XsecToken string `json:"xsec_token" binding:"required"`
 }
 
-
 // ActionResult 通用动作响应（点赞/收藏等）
 type ActionResult struct {
 	FeedID  string `json:"feed_id"`
