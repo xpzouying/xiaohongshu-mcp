@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"os"
@@ -103,12 +104,18 @@ func (d *ImageDownloader) DownloadImage(imageURL string) (string, error) {
 	return filePath, nil
 }
 
-// DownloadImages 批量下载图片
+// DownloadImages 批量下载图片（每张下载间隔随机延迟，避免触发反爬）
 func (d *ImageDownloader) DownloadImages(imageURLs []string) ([]string, error) {
 	var localPaths []string
 	var errs []error
 
-	for _, imageURL := range imageURLs {
+	for i, imageURL := range imageURLs {
+		// 非第一张图片时，随机等待 500~1500ms 再下载
+		if i > 0 {
+			delay := 500 + rand.Intn(1000)
+			time.Sleep(time.Duration(delay) * time.Millisecond)
+		}
+
 		localPath, err := d.DownloadImage(imageURL)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("failed to download %s: %w", imageURL, err))

@@ -9,7 +9,6 @@ import (
 
 	"github.com/go-rod/rod"
 	"github.com/sirupsen/logrus"
-	"github.com/xpzouying/headless_browser"
 	"github.com/xpzouying/xiaohongshu-mcp/browser"
 	"github.com/xpzouying/xiaohongshu-mcp/configs"
 	"github.com/xpzouying/xiaohongshu-mcp/cookies"
@@ -102,10 +101,7 @@ func (s *XiaohongshuService) DeleteCookies(ctx context.Context) error {
 
 // CheckLoginStatus 检查登录状态
 func (s *XiaohongshuService) CheckLoginStatus(ctx context.Context) (*LoginStatusResponse, error) {
-	b := newBrowser()
-	defer b.Close()
-
-	page := b.NewPage()
+	page := browser.GetManager().NewPage()
 	defer page.Close()
 
 	loginAction := xiaohongshu.NewLogin(page)
@@ -115,29 +111,28 @@ func (s *XiaohongshuService) CheckLoginStatus(ctx context.Context) (*LoginStatus
 		return nil, err
 	}
 
-	response := &LoginStatusResponse{
+	return &LoginStatusResponse{
 		IsLoggedIn: isLoggedIn,
 		Username:   configs.Username,
-	}
-
-	return response, nil
+	}, nil
 }
 
 // GetLoginQrcode 获取登录的扫码二维码
 func (s *XiaohongshuService) GetLoginQrcode(ctx context.Context) (*LoginQrcodeResponse, error) {
-	b := newBrowser()
-	page := b.NewPage()
+	page := browser.GetManager().NewPage()
 
 	deferFunc := func() {
 		_ = page.Close()
-		b.Close()
 	}
 
 	loginAction := xiaohongshu.NewLogin(page)
 
 	img, loggedIn, err := loginAction.FetchQrcodeImage(ctx)
 	if err != nil || loggedIn {
-		defer deferFunc()
+		defer func() {
+			saveLoginCookies(page)
+			deferFunc()
+		}()
 	}
 	if err != nil {
 		return nil, err
@@ -149,12 +144,13 @@ func (s *XiaohongshuService) GetLoginQrcode(ctx context.Context) (*LoginQrcodeRe
 		go func() {
 			ctxTimeout, cancel := context.WithTimeout(context.Background(), timeout)
 			defer cancel()
-			defer deferFunc()
+			defer func() {
+				saveLoginCookies(page)
+				deferFunc()
+			}()
 
 			if loginAction.WaitForLogin(ctxTimeout) {
-				if er := saveCookies(page); er != nil {
-					logrus.Errorf("failed to save cookies: %v", er)
-				}
+				logrus.Info("登录成功，cookie 已在持久浏览器中保持")
 			}
 		}()
 	}
@@ -169,6 +165,26 @@ func (s *XiaohongshuService) GetLoginQrcode(ctx context.Context) (*LoginQrcodeRe
 		Img:        img,
 		IsLoggedIn: loggedIn,
 	}, nil
+}
+
+// saveLoginCookies 登录后将 cookies 持久化到文件（下次启动时加载）
+func saveLoginCookies(page *rod.Page) {
+	cks, err := page.Browser().GetCookies()
+	if err != nil {
+		logrus.Errorf("获取 cookies 失败: %v", err)
+		return
+	}
+	data, err := json.Marshal(cks)
+	if err != nil {
+		logrus.Errorf("序列化 cookies 失败: %v", err)
+		return
+	}
+	cookieLoader := cookies.NewLoadCookie(cookies.GetCookiesFilePath())
+	if err := cookieLoader.SaveCookies(data); err != nil {
+		logrus.Errorf("保存 cookies 失败: %v", err)
+	} else {
+		logrus.Info("cookies 已持久化到文件")
+	}
 }
 
 // PublishContent 发布内容
@@ -228,14 +244,12 @@ func (s *XiaohongshuService) PublishContent(ctx context.Context, req *PublishReq
 		return nil, err
 	}
 
-	response := &PublishResponse{
+	return &PublishResponse{
 		Title:   req.Title,
 		Content: req.Content,
 		Images:  len(imagePaths),
 		Status:  "发布完成",
-	}
-
-	return response, nil
+	}, nil
 }
 
 // processImages 处理图片列表，支持URL下载和本地路径
@@ -246,10 +260,7 @@ func (s *XiaohongshuService) processImages(images []string) ([]string, error) {
 
 // publishContent 执行内容发布
 func (s *XiaohongshuService) publishContent(ctx context.Context, content xiaohongshu.PublishImageContent) error {
-	b := newBrowser()
-	defer b.Close()
-
-	page := b.NewPage()
+	page := browser.GetManager().NewPage()
 	defer page.Close()
 
 	action, err := xiaohongshu.NewPublishImageAction(page)
@@ -257,7 +268,6 @@ func (s *XiaohongshuService) publishContent(ctx context.Context, content xiaohon
 		return err
 	}
 
-	// 执行发布
 	return action.Publish(ctx, content)
 }
 
@@ -318,21 +328,17 @@ func (s *XiaohongshuService) PublishVideo(ctx context.Context, req *PublishVideo
 		return nil, err
 	}
 
-	resp := &PublishVideoResponse{
+	return &PublishVideoResponse{
 		Title:   req.Title,
 		Content: req.Content,
 		Video:   req.Video,
 		Status:  "发布完成",
-	}
-	return resp, nil
+	}, nil
 }
 
 // publishVideo 执行视频发布
 func (s *XiaohongshuService) publishVideo(ctx context.Context, content xiaohongshu.PublishVideoContent) error {
-	b := newBrowser()
-	defer b.Close()
-
-	page := b.NewPage()
+	page := browser.GetManager().NewPage()
 	defer page.Close()
 
 	action, err := xiaohongshu.NewPublishVideoAction(page)
@@ -345,35 +351,25 @@ func (s *XiaohongshuService) publishVideo(ctx context.Context, content xiaohongs
 
 // ListFeeds 获取Feeds列表
 func (s *XiaohongshuService) ListFeeds(ctx context.Context) (*FeedsListResponse, error) {
-	b := newBrowser()
-	defer b.Close()
-
-	page := b.NewPage()
+	page := browser.GetManager().NewPage()
 	defer page.Close()
 
-	// 创建 Feeds 列表 action
 	action := xiaohongshu.NewFeedsListAction(page)
 
-	// 获取 Feeds 列表
 	feeds, err := action.GetFeedsList(ctx)
 	if err != nil {
 		logrus.Errorf("获取 Feeds 列表失败: %v", err)
 		return nil, err
 	}
 
-	response := &FeedsListResponse{
+	return &FeedsListResponse{
 		Feeds: feeds,
 		Count: len(feeds),
-	}
-
-	return response, nil
+	}, nil
 }
 
 func (s *XiaohongshuService) SearchFeeds(ctx context.Context, keyword string, filters ...xiaohongshu.FilterOption) (*FeedsListResponse, error) {
-	b := newBrowser()
-	defer b.Close()
-
-	page := b.NewPage()
+	page := browser.GetManager().NewPage()
 	defer page.Close()
 
 	action := xiaohongshu.NewSearchAction(page)
@@ -383,12 +379,10 @@ func (s *XiaohongshuService) SearchFeeds(ctx context.Context, keyword string, fi
 		return nil, err
 	}
 
-	response := &FeedsListResponse{
+	return &FeedsListResponse{
 		Feeds: feeds,
 		Count: len(feeds),
-	}
-
-	return response, nil
+	}, nil
 }
 
 // GetFeedDetail 获取Feed详情
@@ -398,35 +392,25 @@ func (s *XiaohongshuService) GetFeedDetail(ctx context.Context, feedID, xsecToke
 
 // GetFeedDetailWithConfig 使用配置获取Feed详情
 func (s *XiaohongshuService) GetFeedDetailWithConfig(ctx context.Context, feedID, xsecToken string, loadAllComments bool, config xiaohongshu.CommentLoadConfig) (*FeedDetailResponse, error) {
-	b := newBrowser()
-	defer b.Close()
-
-	page := b.NewPage()
+	page := browser.GetManager().NewPage()
 	defer page.Close()
 
-	// 创建 Feed 详情 action
 	action := xiaohongshu.NewFeedDetailAction(page)
 
-	// 获取 Feed 详情
 	result, err := action.GetFeedDetailWithConfig(ctx, feedID, xsecToken, loadAllComments, config)
 	if err != nil {
 		return nil, err
 	}
 
-	response := &FeedDetailResponse{
+	return &FeedDetailResponse{
 		FeedID: feedID,
 		Data:   result,
-	}
-
-	return response, nil
+	}, nil
 }
 
 // UserProfile 获取用户信息
 func (s *XiaohongshuService) UserProfile(ctx context.Context, userID, xsecToken string) (*UserProfileResponse, error) {
-	b := newBrowser()
-	defer b.Close()
-
-	page := b.NewPage()
+	page := browser.GetManager().NewPage()
 	defer page.Close()
 
 	action := xiaohongshu.NewUserProfileAction(page)
@@ -435,23 +419,16 @@ func (s *XiaohongshuService) UserProfile(ctx context.Context, userID, xsecToken 
 	if err != nil {
 		return nil, err
 	}
-	response := &UserProfileResponse{
+	return &UserProfileResponse{
 		UserBasicInfo: result.UserBasicInfo,
 		Interactions:  result.Interactions,
 		Feeds:         result.Feeds,
-	}
-
-	return response, nil
-
+	}, nil
 }
-
 
 // PostCommentToFeed 发表评论到Feed
 func (s *XiaohongshuService) PostCommentToFeed(ctx context.Context, feedID, xsecToken, content string) (*PostCommentResponse, error) {
-	b := newBrowser()
-	defer b.Close()
-
-	page := b.NewPage()
+	page := browser.GetManager().NewPage()
 	defer page.Close()
 
 	action := xiaohongshu.NewCommentFeedAction(page)
@@ -465,10 +442,7 @@ func (s *XiaohongshuService) PostCommentToFeed(ctx context.Context, feedID, xsec
 
 // LikeFeed 点赞笔记
 func (s *XiaohongshuService) LikeFeed(ctx context.Context, feedID, xsecToken string) (*ActionResult, error) {
-	b := newBrowser()
-	defer b.Close()
-
-	page := b.NewPage()
+	page := browser.GetManager().NewPage()
 	defer page.Close()
 
 	action := xiaohongshu.NewLikeAction(page)
@@ -480,10 +454,7 @@ func (s *XiaohongshuService) LikeFeed(ctx context.Context, feedID, xsecToken str
 
 // UnlikeFeed 取消点赞笔记
 func (s *XiaohongshuService) UnlikeFeed(ctx context.Context, feedID, xsecToken string) (*ActionResult, error) {
-	b := newBrowser()
-	defer b.Close()
-
-	page := b.NewPage()
+	page := browser.GetManager().NewPage()
 	defer page.Close()
 
 	action := xiaohongshu.NewLikeAction(page)
@@ -495,10 +466,7 @@ func (s *XiaohongshuService) UnlikeFeed(ctx context.Context, feedID, xsecToken s
 
 // FavoriteFeed 收藏笔记
 func (s *XiaohongshuService) FavoriteFeed(ctx context.Context, feedID, xsecToken string) (*ActionResult, error) {
-	b := newBrowser()
-	defer b.Close()
-
-	page := b.NewPage()
+	page := browser.GetManager().NewPage()
 	defer page.Close()
 
 	action := xiaohongshu.NewFavoriteAction(page)
@@ -510,10 +478,7 @@ func (s *XiaohongshuService) FavoriteFeed(ctx context.Context, feedID, xsecToken
 
 // UnfavoriteFeed 取消收藏笔记
 func (s *XiaohongshuService) UnfavoriteFeed(ctx context.Context, feedID, xsecToken string) (*ActionResult, error) {
-	b := newBrowser()
-	defer b.Close()
-
-	page := b.NewPage()
+	page := browser.GetManager().NewPage()
 	defer page.Close()
 
 	action := xiaohongshu.NewFavoriteAction(page)
@@ -525,10 +490,7 @@ func (s *XiaohongshuService) UnfavoriteFeed(ctx context.Context, feedID, xsecTok
 
 // ReplyCommentToFeed 回复指定评论
 func (s *XiaohongshuService) ReplyCommentToFeed(ctx context.Context, feedID, xsecToken, commentID, userID, content string) (*ReplyCommentResponse, error) {
-	b := newBrowser()
-	defer b.Close()
-
-	page := b.NewPage()
+	page := browser.GetManager().NewPage()
 	defer page.Close()
 
 	action := xiaohongshu.NewCommentFeedAction(page)
@@ -546,56 +508,21 @@ func (s *XiaohongshuService) ReplyCommentToFeed(ctx context.Context, feedID, xse
 	}, nil
 }
 
-func newBrowser() *headless_browser.Browser {
-	return browser.NewBrowser(configs.IsHeadless(), browser.WithBinPath(configs.GetBinPath()))
-}
-
-func saveCookies(page *rod.Page) error {
-	cks, err := page.Browser().GetCookies()
-	if err != nil {
-		return err
-	}
-
-	data, err := json.Marshal(cks)
-	if err != nil {
-		return err
-	}
-
-	cookieLoader := cookies.NewLoadCookie(cookies.GetCookiesFilePath())
-	return cookieLoader.SaveCookies(data)
-}
-
-// withBrowserPage 执行需要浏览器页面的操作的通用函数
-func withBrowserPage(fn func(*rod.Page) error) error {
-	b := newBrowser()
-	defer b.Close()
-
-	page := b.NewPage()
-	defer page.Close()
-
-	return fn(page)
-}
-
 // GetMyProfile 获取当前登录用户的个人信息
 func (s *XiaohongshuService) GetMyProfile(ctx context.Context) (*UserProfileResponse, error) {
-	var result *xiaohongshu.UserProfileResponse
-	var err error
+	page := browser.GetManager().NewPage()
+	defer page.Close()
 
-	err = withBrowserPage(func(page *rod.Page) error {
-		action := xiaohongshu.NewUserProfileAction(page)
-		result, err = action.GetMyProfileViaSidebar(ctx)
-		return err
-	})
+	action := xiaohongshu.NewUserProfileAction(page)
 
+	result, err := action.GetMyProfileViaSidebar(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	response := &UserProfileResponse{
+	return &UserProfileResponse{
 		UserBasicInfo: result.UserBasicInfo,
 		Interactions:  result.Interactions,
 		Feeds:         result.Feeds,
-	}
-
-	return response, nil
+	}, nil
 }

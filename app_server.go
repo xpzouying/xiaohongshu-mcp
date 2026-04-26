@@ -11,6 +11,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/sirupsen/logrus"
+	"github.com/xpzouying/xiaohongshu-mcp/browser"
+	"github.com/xpzouying/xiaohongshu-mcp/configs"
 )
 
 // AppServer 应用服务器结构体，封装所有服务和处理器
@@ -42,6 +44,10 @@ func (s *AppServer) Start(port string) error {
 		Handler: s.router,
 	}
 
+	// 初始化持久浏览器（在服务启动时创建，在关闭时销毁）
+	browser.InitManager(configs.IsHeadless(), browser.WithBinPath(configs.GetBinPath()))
+	logrus.Info("持久浏览器已启动")
+
 	// 启动服务器的 goroutine
 	go func() {
 		logrus.Infof("启动 HTTP 服务器: %s", port)
@@ -58,13 +64,19 @@ func (s *AppServer) Start(port string) error {
 
 	logrus.Infof("正在关闭服务器...")
 
+	// 关闭 HTTP 服务
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	if err := s.httpServer.Shutdown(ctx); err != nil {
 		logrus.Warnf("等待连接关闭超时，强制退出: %v", err)
 	} else {
-		logrus.Infof("服务器已优雅关闭")
+		logrus.Infof("HTTP 服务器已关闭")
+	}
+
+	// 关闭持久浏览器
+	if mgr := browser.GetManager(); mgr != nil {
+		mgr.Close()
 	}
 
 	return nil

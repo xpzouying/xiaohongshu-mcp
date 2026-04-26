@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/go-rod/rod"
-	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	myerrors "github.com/xpzouying/xiaohongshu-mcp/errors"
 )
@@ -46,18 +45,22 @@ func newInteractAction(page *rod.Page) *interactAction {
 func (a *interactAction) preparePage(ctx context.Context, actionType interactActionType, feedID, xsecToken string) *rod.Page {
 	page := a.page.Context(ctx).Timeout(60 * time.Second)
 	url := makeFeedDetailURL(feedID, xsecToken)
-	logrus.Infof("Opening feed detail page for %s: %s", actionType, url)
+	logrus.Infof("打开 feed 详情页进行 %s: %s", actionType, url)
 
-	page.MustNavigate(url)
-	page.MustWaitDOMStable()
-	time.Sleep(1 * time.Second)
-
+	// 拟人导航：先访问首页，再跳转到目标页
+	_ = NavigateWithLanding(page, url, false)
 	return page
 }
 
 func (a *interactAction) performClick(page *rod.Page, selector string) {
 	element := page.MustElement(selector)
-	element.MustClick()
+	// 使用拟人点击替代直接点击
+	if err := ClickWithHumanBehavior(page, element); err != nil {
+		logrus.Warnf("拟人点击失败，回退到直接点击: %v", err)
+		element.MustClick()
+	}
+	// 点击后等待状态更新
+	RandomDelay(2000, 3500)
 }
 
 // LikeAction 负责处理点赞相关交互
@@ -89,16 +92,16 @@ func (a *LikeAction) perform(ctx context.Context, feedID, xsecToken string, targ
 
 	liked, _, err := a.getInteractState(page, feedID)
 	if err != nil {
-		logrus.Warnf("failed to read interact state: %v (continue to try clicking)", err)
+		logrus.Warnf("读取交互状态失败: %v（继续尝试点击）", err)
 		return a.toggleLike(page, feedID, targetLiked, actionType)
 	}
 
 	if targetLiked && liked {
-		logrus.Infof("feed %s already liked, skip clicking", feedID)
+		logrus.Infof("feed %s 已点赞，跳过", feedID)
 		return nil
 	}
 	if !targetLiked && !liked {
-		logrus.Infof("feed %s not liked yet, skip clicking", feedID)
+		logrus.Infof("feed %s 未点赞，跳过", feedID)
 		return nil
 	}
 
@@ -107,7 +110,6 @@ func (a *LikeAction) perform(ctx context.Context, feedID, xsecToken string, targ
 
 func (a *LikeAction) toggleLike(page *rod.Page, feedID string, targetLiked bool, actionType interactActionType) error {
 	a.performClick(page, SelectorLikeButton)
-	time.Sleep(3 * time.Second)
 
 	liked, _, err := a.getInteractState(page, feedID)
 	if err != nil {
@@ -119,9 +121,10 @@ func (a *LikeAction) toggleLike(page *rod.Page, feedID string, targetLiked bool,
 		return nil
 	}
 
-	logrus.Warnf("feed %s %s可能未成功，状态未变化，尝试再次点击", feedID, actionType)
+	// 等待后重试一次
+	logrus.Warnf("feed %s %s可能未成功，状态未变化，稍后重试", feedID, actionType)
+	RandomDelay(1500, 2500)
 	a.performClick(page, SelectorLikeButton)
-	time.Sleep(2 * time.Second)
 
 	liked, _, err = a.getInteractState(page, feedID)
 	if err != nil {
@@ -165,16 +168,16 @@ func (a *FavoriteAction) perform(ctx context.Context, feedID, xsecToken string, 
 
 	_, collected, err := a.getInteractState(page, feedID)
 	if err != nil {
-		logrus.Warnf("failed to read interact state: %v (continue to try clicking)", err)
+		logrus.Warnf("读取交互状态失败: %v（继续尝试点击）", err)
 		return a.toggleFavorite(page, feedID, targetCollected, actionType)
 	}
 
 	if targetCollected && collected {
-		logrus.Infof("feed %s already favorited, skip clicking", feedID)
+		logrus.Infof("feed %s 已收藏，跳过", feedID)
 		return nil
 	}
 	if !targetCollected && !collected {
-		logrus.Infof("feed %s not favorited yet, skip clicking", feedID)
+		logrus.Infof("feed %s 未收藏，跳过", feedID)
 		return nil
 	}
 
@@ -183,7 +186,6 @@ func (a *FavoriteAction) perform(ctx context.Context, feedID, xsecToken string, 
 
 func (a *FavoriteAction) toggleFavorite(page *rod.Page, feedID string, targetCollected bool, actionType interactActionType) error {
 	a.performClick(page, SelectorCollectButton)
-	time.Sleep(3 * time.Second)
 
 	_, collected, err := a.getInteractState(page, feedID)
 	if err != nil {
@@ -195,9 +197,10 @@ func (a *FavoriteAction) toggleFavorite(page *rod.Page, feedID string, targetCol
 		return nil
 	}
 
-	logrus.Warnf("feed %s %s可能未成功，状态未变化，尝试再次点击", feedID, actionType)
+	// 等待后重试一次
+	logrus.Warnf("feed %s %s可能未成功，状态未变化，稍后重试", feedID, actionType)
+	RandomDelay(1500, 2500)
 	a.performClick(page, SelectorCollectButton)
-	time.Sleep(2 * time.Second)
 
 	_, collected, err = a.getInteractState(page, feedID)
 	if err != nil {
@@ -214,6 +217,8 @@ func (a *FavoriteAction) toggleFavorite(page *rod.Page, feedID string, targetCol
 
 // getInteractState 从 __INITIAL_STATE__ 读取笔记的点赞/收藏状态
 func (a *interactAction) getInteractState(page *rod.Page, feedID string) (liked bool, collected bool, err error) {
+	// 等待一会再读取状态，确保页面 JS 已执行完毕
+	RandomDelay(500, 1200)
 
 	result := page.MustEval(`() => {
 		if (window.__INITIAL_STATE__ &&
@@ -227,7 +232,6 @@ func (a *interactAction) getInteractState(page *rod.Page, feedID string) (liked 
 		return false, false, myerrors.ErrNoFeedDetail
 	}
 
-	// 直接解析为 noteDetailMap
 	var noteDetailMap map[string]struct {
 		Note struct {
 			InteractInfo struct {
@@ -237,12 +241,12 @@ func (a *interactAction) getInteractState(page *rod.Page, feedID string) (liked 
 		} `json:"note"`
 	}
 	if err := json.Unmarshal([]byte(result), &noteDetailMap); err != nil {
-		return false, false, errors.Wrap(err, "unmarshal noteDetailMap failed")
+		return false, false, fmt.Errorf("unmarshal noteDetailMap 失败: %w", err)
 	}
 
 	detail, ok := noteDetailMap[feedID]
 	if !ok {
-		return false, false, fmt.Errorf("feed %s not in noteDetailMap", feedID)
+		return false, false, fmt.Errorf("feed %s 不在 noteDetailMap 中", feedID)
 	}
 	return detail.Note.InteractInfo.Liked, detail.Note.InteractInfo.Collected, nil
 }

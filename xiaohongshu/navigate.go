@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/go-rod/rod"
+	"github.com/sirupsen/logrus"
 )
 
 type NavigateAction struct {
@@ -41,7 +41,7 @@ func (n *NavigateAction) ToProfilePage(ctx context.Context) error {
 	}
 
 	page.MustWaitStable()
-	
+
 	// 等待页面完全加载
 	logrus.Info("[Navigate] 等待页面完全加载")
 	time.Sleep(2 * time.Second)
@@ -67,12 +67,12 @@ func (n *NavigateAction) ToProfilePage(ctx context.Context) error {
 
 	if profileLink == nil {
 		logrus.Error("[Navigate] 所有选择器都未能找到个人主页链接")
-		
+
 		// 调试：截图当前页面状态
 		if screenshot, err := page.Screenshot(false, nil); err == nil {
 			logrus.Infof("[Navigate] 当前页面截图大小: %d bytes", len(screenshot))
 		}
-		
+
 		// 获取页面HTML进行调试
 		if html, err := page.HTML(); err == nil {
 			logrus.Infof("[Navigate] 页面HTML长度: %d characters", len(html))
@@ -81,7 +81,7 @@ func (n *NavigateAction) ToProfilePage(ctx context.Context) error {
 				logrus.Debugf("[Navigate] 页面头部HTML: %s", html[:500])
 			}
 		}
-		
+
 		return fmt.Errorf("profile link not found")
 	}
 
