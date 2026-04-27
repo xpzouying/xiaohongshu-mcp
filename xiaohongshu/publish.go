@@ -34,6 +34,13 @@ type PublishAction struct {
 
 const (
 	urlOfPublic = `https://creator.xiaohongshu.com/publish/publish?source=official`
+
+	publishSuccessText             = "发布成功"
+	publishImageUploadingText      = "图片还未上传成功"
+	publishImageUploadingAltText   = "图片还未上传完成"
+	publishImageUploadingRetryWait = 5 * time.Second
+	publishSuccessTimeout          = 5 * time.Minute
+	publishStateErrorLimit         = 30
 )
 
 func NewPublishImageAction(page *rod.Page) (*PublishAction, error) {
@@ -339,6 +346,22 @@ func submitPublish(page *rod.Page, title, content string, tags []string, schedul
 		return errors.Wrap(err, "绑定商品失败")
 	}
 
+	if err := clickPublishButton(page); err != nil {
+		return err
+	}
+
+	return waitForPublishSuccess(page)
+}
+
+type publishState int
+
+const (
+	publishStateUnknown publishState = iota
+	publishStateSuccess
+	publishStateImageUploading
+)
+
+func clickPublishButton(page *rod.Page) error {
 	submitButton, err := page.Element(".publish-page-publish-btn button.bg-red")
 	if err != nil {
 		return errors.Wrap(err, "查找发布按钮失败")
@@ -347,8 +370,85 @@ func submitPublish(page *rod.Page, title, content string, tags []string, schedul
 		return errors.Wrap(err, "点击发布按钮失败")
 	}
 
-	time.Sleep(3 * time.Second)
+	slog.Info("已点击发布按钮，等待页面反馈")
 	return nil
+}
+
+func waitForPublishSuccess(page *rod.Page) error {
+	deadline := time.Now().Add(publishSuccessTimeout)
+	nextRetryAt := time.Now().Add(publishImageUploadingRetryWait)
+	sawImageUploadingHint := false
+	retryCount := 0
+	consecutiveErrors := 0
+
+	for time.Now().Before(deadline) {
+		state, err := getPublishState(page)
+		if err != nil {
+			consecutiveErrors++
+			if consecutiveErrors >= publishStateErrorLimit {
+				return errors.Errorf("连续 %d 次读取页面状态失败，浏览器页面可能已异常: %v", consecutiveErrors, err)
+			}
+			slog.Warn("读取发布状态失败，继续等待", "error", err)
+			time.Sleep(time.Second)
+			continue
+		}
+		consecutiveErrors = 0
+
+		switch state {
+		case publishStateSuccess:
+			slog.Info("检测到发布成功文案")
+			return nil
+		case publishStateImageUploading:
+			if !sawImageUploadingHint {
+				slog.Warn("检测到图片仍在上传，等待后重试发布")
+			}
+			sawImageUploadingHint = true
+		}
+
+		if sawImageUploadingHint && time.Now().After(nextRetryAt) {
+			if state == publishStateImageUploading {
+				retryCount++
+				if err := clickPublishButton(page); err != nil {
+					slog.Warn("重试点击发布按钮失败，继续等待", "retry", retryCount, "error", err)
+				} else {
+					slog.Info("已重试点击发布按钮", "retry", retryCount)
+				}
+			} else {
+				slog.Info("当前已不处于图片上传中，跳过重试点击", "state", state)
+			}
+			nextRetryAt = time.Now().Add(publishImageUploadingRetryWait)
+		}
+
+		time.Sleep(time.Second)
+	}
+
+	return errors.Errorf("等待页面出现“%s”超时", publishSuccessText)
+}
+
+func getPublishState(page *rod.Page) (publishState, error) {
+	body, err := page.Element("body")
+	if err != nil {
+		return publishStateUnknown, errors.Wrap(err, "查找页面 body 失败")
+	}
+
+	text, err := body.Text()
+	if err != nil {
+		return publishStateUnknown, errors.Wrap(err, "读取页面文本失败")
+	}
+
+	return detectPublishState(text), nil
+}
+
+func detectPublishState(pageText string) publishState {
+	switch {
+	case strings.Contains(pageText, publishSuccessText):
+		return publishStateSuccess
+	case strings.Contains(pageText, publishImageUploadingText),
+		strings.Contains(pageText, publishImageUploadingAltText):
+		return publishStateImageUploading
+	default:
+		return publishStateUnknown
+	}
 }
 
 // waitAndClickTitleInput 在填写正文后等待 1 秒并回点标题输入框，增强后续交互稳定性
