@@ -67,5 +67,8 @@ func (s *AppServer) Start(port string) error {
 		logrus.Infof("服务器已优雅关闭")
 	}
 
+	// 关闭共享 headless browser，触发 rod launcher Cleanup。
+	s.xiaohongshuService.Shutdown()
+
 	return nil
 }
