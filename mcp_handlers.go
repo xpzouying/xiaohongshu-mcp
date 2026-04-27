@@ -475,6 +475,93 @@ func (s *AppServer) handleGetFeedDetail(ctx context.Context, args map[string]any
 	}
 }
 
+// handleTranscribeFeedVideo 转写视频帖子
+func (s *AppServer) handleTranscribeFeedVideo(ctx context.Context, args map[string]any) *MCPToolResult {
+	logrus.Info("MCP: 转写视频帖子")
+
+	feedID, ok := args["feed_id"].(string)
+	if !ok || feedID == "" {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "转写失败: 缺少feed_id参数",
+			}},
+			IsError: true,
+		}
+	}
+
+	xsecToken, ok := args["xsec_token"].(string)
+	if !ok || xsecToken == "" {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "转写失败: 缺少xsec_token参数",
+			}},
+			IsError: true,
+		}
+	}
+
+	model, _ := args["model"].(string)
+	provider, _ := args["provider"].(string)
+	apiKey, _ := args["api_key"].(string)
+	language, _ := args["language"].(string)
+	outputDir, _ := args["output_dir"].(string)
+
+	keepArtifacts := false
+	if raw, exists := args["keep_artifacts"]; exists {
+		switch v := raw.(type) {
+		case bool:
+			keepArtifacts = v
+		case string:
+			if parsed, err := strconv.ParseBool(v); err == nil {
+				keepArtifacts = parsed
+			}
+		case float64:
+			keepArtifacts = v != 0
+		}
+	}
+
+	logrus.Infof("MCP: 转写视频帖子 - Feed ID: %s, provider=%s, model=%s, language=%s, keepArtifacts=%v", feedID, provider, model, language, keepArtifacts)
+
+	result, err := s.xiaohongshuService.TranscribeFeedVideo(ctx, &TranscribeFeedVideoRequest{
+		FeedID:        feedID,
+		XsecToken:     xsecToken,
+		Provider:      provider,
+		APIKey:        apiKey,
+		Model:         model,
+		Language:      language,
+		OutputDir:     outputDir,
+		KeepArtifacts: keepArtifacts,
+	})
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "转写失败: " + err.Error(),
+			}},
+			IsError: true,
+		}
+	}
+
+	jsonData, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: fmt.Sprintf("转写成功，但序列化失败: %v", err),
+			}},
+			IsError: true,
+		}
+	}
+
+	return &MCPToolResult{
+		Content: []MCPContent{{
+			Type: "text",
+			Text: string(jsonData),
+		}},
+	}
+}
+
 // handleUserProfile 获取用户主页
 func (s *AppServer) handleUserProfile(ctx context.Context, args map[string]any) *MCPToolResult {
 	logrus.Info("MCP: 获取用户主页")

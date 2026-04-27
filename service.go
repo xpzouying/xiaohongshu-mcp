@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/go-rod/rod"
@@ -14,6 +15,7 @@ import (
 	"github.com/xpzouying/xiaohongshu-mcp/configs"
 	"github.com/xpzouying/xiaohongshu-mcp/cookies"
 	"github.com/xpzouying/xiaohongshu-mcp/pkg/downloader"
+	"github.com/xpzouying/xiaohongshu-mcp/pkg/transcribe"
 	"github.com/xpzouying/xiaohongshu-mcp/pkg/xhsutil"
 	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
 )
@@ -78,6 +80,29 @@ type PublishVideoResponse struct {
 	Video   string `json:"video"`
 	Status  string `json:"status"`
 	PostID  string `json:"post_id,omitempty"`
+}
+
+// TranscribeFeedVideoRequest 视频转写请求
+type TranscribeFeedVideoRequest struct {
+	FeedID        string `json:"feed_id"`
+	XsecToken     string `json:"xsec_token"`
+	Provider      string `json:"provider,omitempty"`
+	APIKey        string `json:"api_key,omitempty"`
+	Model         string `json:"model,omitempty"`
+	Language      string `json:"language,omitempty"`
+	OutputDir     string `json:"output_dir,omitempty"`
+	KeepArtifacts bool   `json:"keep_artifacts,omitempty"`
+}
+
+// TranscribeFeedVideoResponse 视频转写响应
+type TranscribeFeedVideoResponse struct {
+	FeedID           string `json:"feed_id"`
+	TranscriptText   string `json:"transcript_text"`
+	TXTPath          string `json:"txt_path"`
+	SRTPath          string `json:"srt_path"`
+	OutputDir        string `json:"output_dir"`
+	LanguageUsed     string `json:"language_used"`
+	ArtifactsCleaned bool   `json:"artifacts_cleaned"`
 }
 
 // FeedsListResponse Feeds列表响应
@@ -419,6 +444,63 @@ func (s *XiaohongshuService) GetFeedDetailWithConfig(ctx context.Context, feedID
 	}
 
 	return response, nil
+}
+
+// TranscribeFeedVideo 转写 feed 视频内容
+func (s *XiaohongshuService) TranscribeFeedVideo(ctx context.Context, req *TranscribeFeedVideoRequest) (*TranscribeFeedVideoResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("VALIDATION_ERROR: 请求参数不能为空")
+	}
+	if req.FeedID == "" {
+		return nil, fmt.Errorf("VALIDATION_ERROR: feed_id 不能为空")
+	}
+	if req.XsecToken == "" {
+		return nil, fmt.Errorf("VALIDATION_ERROR: xsec_token 不能为空")
+	}
+
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewFeedDetailAction(page)
+	detail, err := action.GetFeedDetailWithConfig(ctx, req.FeedID, req.XsecToken, false, xiaohongshu.DefaultCommentLoadConfig())
+	if err != nil {
+		return nil, fmt.Errorf("VIDEO_RESOLVE_ERROR: 获取帖子详情失败: %w", err)
+	}
+
+	videoURL := xiaohongshu.ResolveVideoURLFromDetail(detail.Note)
+	if videoURL == "" {
+		videoURL, _ = xiaohongshu.ResolveVideoURLFromPage(page)
+	}
+	if videoURL == "" {
+		return nil, fmt.Errorf("VIDEO_RESOLVE_ERROR: 未解析到视频地址，当前帖子可能不是视频或页面结构已变化")
+	}
+
+	transcribeResult, err := transcribe.TranscribeVideo(ctx, transcribe.Request{
+		FeedID:        req.FeedID,
+		VideoURL:      videoURL,
+		Provider:      strings.TrimSpace(req.Provider),
+		APIKey:        strings.TrimSpace(req.APIKey),
+		Model:         strings.TrimSpace(req.Model),
+		Language:      req.Language,
+		OutputDir:     req.OutputDir,
+		KeepArtifacts: req.KeepArtifacts,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &TranscribeFeedVideoResponse{
+		FeedID:           transcribeResult.FeedID,
+		TranscriptText:   transcribeResult.TranscriptText,
+		TXTPath:          transcribeResult.TXTPath,
+		SRTPath:          transcribeResult.SRTPath,
+		OutputDir:        transcribeResult.OutputDir,
+		LanguageUsed:     transcribeResult.LanguageUsed,
+		ArtifactsCleaned: transcribeResult.ArtifactsCleaned,
+	}, nil
 }
 
 // UserProfile 获取用户信息
