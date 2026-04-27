@@ -884,6 +884,20 @@ npx mcporter list xiaohongshu-mcp
 - `favorite_feed` - 收藏/取消收藏（必需：feed_id, xsec_token）
   - `unfavorite`: 是否取消收藏（可选），true 为取消收藏，默认为收藏
 - `user_profile` - 获取用户个人主页信息（必需：user_id, xsec_token）
+- `save_draft` - 暂存内容（两种模式：云端暂存/本地暂存）
+  - `mode`: `cloud`（默认）| `local`
+    - `cloud`: 通过“发布但仅自己可见”实现云端暂存（稳定，不依赖页面草稿按钮）
+    - `local`: 通过点击发布按钮旁边的“暂存离开”保存到草稿箱（依赖页面能力）
+  - `type`: `image`（默认）| `video`
+  - 图文必需：`title`, `content`, `images`
+  - 视频必需：`title`, `content`, `video`
+  - 可选：`tags`, `schedule_at`, `is_original`, `visibility`, `products`（其中 `local` 模式会忽略 `schedule_at`）
+- `list_local_drafts` - 读取创作中心本地草稿（来自浏览器 IndexedDB `draft-database-v1`）
+  - `type`: 草稿类型（可选）`image`（默认）| `video` | `article` | `audio`
+  - `limit`: 返回数量上限（可选，<=0 表示不限）
+- `get_local_draft_detail` - 按 draft_id 读取单条草稿完整内容（来自浏览器 IndexedDB `draft-database-v1`）
+  - `draft_id`: 草稿 ID（必填，与 `list_local_drafts` 返回的 draft_id 一致）
+  - `type`: 草稿类型（可选）`image` | `video` | `article` | `audio`，不填则在各 store 中依次查找
 
 ### 2.4. 使用示例
 
