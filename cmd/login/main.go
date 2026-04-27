@@ -28,14 +28,14 @@ func main() {
 
 	action := xiaohongshu.NewLogin(page)
 
-	status, err := action.CheckLoginStatus(context.Background())
+	result, err := action.CheckLoginStatus(context.Background())
 	if err != nil {
 		logrus.Fatalf("failed to check login status: %v", err)
 	}
 
-	logrus.Infof("当前登录状态: %v", status)
+	logrus.Infof("当前登录状态: %v, 昵称: %s", result.IsLoggedIn, result.Nickname)
 
-	if status {
+	if result.IsLoggedIn {
 		return
 	}
 
@@ -50,13 +50,13 @@ func main() {
 	}
 
 	// 再次检查登录状态确认成功
-	status, err = action.CheckLoginStatus(context.Background())
+	result, err = action.CheckLoginStatus(context.Background())
 	if err != nil {
 		logrus.Fatalf("failed to check login status after login: %v", err)
 	}
 
-	if status {
-		logrus.Info("登录成功！")
+	if result.IsLoggedIn {
+		logrus.Infof("登录成功！昵称: %s", result.Nickname)
 	} else {
 		logrus.Error("登录流程完成但仍未登录")
 	}

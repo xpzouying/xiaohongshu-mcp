@@ -2,6 +2,7 @@ package xiaohongshu
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"math/rand"
 	"os"
@@ -113,7 +114,8 @@ func removePopCover(page *rod.Page) {
 func clickEmptyPosition(page *rod.Page) {
 	x := 380 + rand.Intn(100)
 	y := 20 + rand.Intn(60)
-	page.Mouse.MustMoveTo(float64(x), float64(y)).MustClick(proto.InputMouseButtonLeft)
+	_ = page.Mouse.MoveTo(proto.Point{X: float64(x), Y: float64(y)})
+	_ = page.Mouse.Click(proto.InputMouseButtonLeft, 1)
 }
 
 func mustClickPublishTab(page *rod.Page, tabname string) error {
@@ -251,6 +253,7 @@ func waitForUploadComplete(page *rod.Page, expectedCount int) error {
 	for time.Since(start) < maxWaitTime {
 		uploadedImages, err := page.Elements(".img-preview-area .pr")
 		if err != nil {
+			slog.Debug("查找上传预览元素失败", "error", err, "elapsed", time.Since(start).Round(time.Second))
 			time.Sleep(checkInterval)
 			continue
 		}
@@ -267,6 +270,21 @@ func waitForUploadComplete(page *rod.Page, expectedCount int) error {
 		}
 
 		time.Sleep(checkInterval)
+	}
+
+	// 超时时截图和抓取页面 HTML 用于排查（带时间戳避免覆盖）
+	ts := time.Now().Format("20060102_150405")
+	screenshot, err := page.Screenshot(true, nil)
+	if err == nil {
+		debugPath := fmt.Sprintf("/tmp/upload_timeout_%s.png", ts)
+		_ = os.WriteFile(debugPath, screenshot, 0644)
+		slog.Error("上传超时截图已保存", "path", debugPath)
+	}
+	html, err := page.HTML()
+	if err == nil {
+		debugHTML := fmt.Sprintf("/tmp/upload_timeout_%s.html", ts)
+		_ = os.WriteFile(debugHTML, []byte(html), 0644)
+		slog.Error("上传超时页面HTML已保存", "path", debugHTML)
 	}
 
 	return errors.Errorf("第%d张图片上传超时(60s)，请检查网络连接和图片大小", expectedCount)
@@ -343,8 +361,25 @@ func submitPublish(page *rod.Page, title, content string, tags []string, schedul
 	if err != nil {
 		return errors.Wrap(err, "查找发布按钮失败")
 	}
+
+	// 检查按钮是否已禁用（防止重复提交）
+	disabled, _ := submitButton.Eval(`() => this.disabled || this.classList.contains('disabled')`)
+	if disabled != nil && disabled.Value.Bool() {
+		return errors.New("发布按钮处于禁用状态，可能已提交")
+	}
+
 	if err := submitButton.Click(proto.InputMouseButtonLeft, 1); err != nil {
 		return errors.Wrap(err, "点击发布按钮失败")
+	}
+
+	// 等待按钮变为禁用状态，确认提交已被受理
+	for i := 0; i < 6; i++ {
+		time.Sleep(500 * time.Millisecond)
+		disabled, _ := submitButton.Eval(`() => this.disabled || this.classList.contains('disabled')`)
+		if disabled != nil && disabled.Value.Bool() {
+			slog.Info("发布按钮已禁用，提交已受理")
+			break
+		}
 	}
 
 	time.Sleep(3 * time.Second)
@@ -797,25 +832,27 @@ func confirmOriginalDeclaration(page *rod.Page) error {
 	// 等待确认弹窗出现
 	time.Sleep(800 * time.Millisecond)
 
-	// 使用 JavaScript 直接处理弹窗，更可靠
+	// 使用 JavaScript 处理弹窗，通过 dispatchEvent 触发框架事件
 	result, err := page.Eval(`
 		() => {
 			// 查找包含"原创声明须知"的 footer 区域
 			const footers = document.querySelectorAll('div.footer');
 			for (const footer of footers) {
-				// 检查是否包含原创声明相关内容
 				if (!footer.textContent.includes('原创声明须知')) {
 					continue;
 				}
 
-				// 找到 checkbox 并勾选
+				// 找到 checkbox 并勾选（兼容 React/Vue 框架）
 				const checkbox = footer.querySelector('div.d-checkbox input[type="checkbox"]');
 				if (checkbox && !checkbox.checked) {
-					checkbox.click();
-					console.log('已勾选原创声明须知 checkbox');
+					// 先设置 checked 属性
+					checkbox.checked = true;
+					// 触发原生事件让框架感知变化
+					checkbox.dispatchEvent(new Event('input', { bubbles: true }));
+					checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+					checkbox.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 				}
 
-				// 等待一下让按钮变为可用
 				return 'found_footer';
 			}
 			return 'footer_not_found';
@@ -829,52 +866,57 @@ func confirmOriginalDeclaration(page *rod.Page) error {
 
 	time.Sleep(500 * time.Millisecond)
 
-	// 再次使用 JavaScript 点击声明原创按钮
-	result2, err := page.Eval(`
-		() => {
-			const footers = document.querySelectorAll('div.footer');
-			for (const footer of footers) {
-				if (!footer.textContent.includes('声明原创')) {
-					continue;
-				}
+	// 等待按钮可用后点击（最多重试 5 次）
+	for attempt := 0; attempt < 5; attempt++ {
+		time.Sleep(500 * time.Millisecond)
 
-				// 找到声明原创按钮
-				const btn = footer.querySelector('button.custom-button');
-				if (btn) {
-					// 检查是否禁用
+		result2, err := page.Eval(`
+			() => {
+				const footers = document.querySelectorAll('div.footer');
+				for (const footer of footers) {
+					if (!footer.textContent.includes('声明原创')) {
+						continue;
+					}
+					const btn = footer.querySelector('button.custom-button');
+					if (!btn) return 'button_not_found';
+
 					if (btn.classList.contains('disabled') || btn.disabled) {
-						// 尝试再次勾选 checkbox
+						// 按钮仍禁用，重新勾选 checkbox
 						const checkbox = footer.querySelector('div.d-checkbox input[type="checkbox"]');
 						if (checkbox && !checkbox.checked) {
-							checkbox.click();
+							checkbox.checked = true;
+							checkbox.dispatchEvent(new Event('input', { bubbles: true }));
+							checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+							checkbox.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 						}
 						return 'button_disabled';
 					}
 					btn.click();
 					return 'clicked';
 				}
+				return 'button_not_found';
 			}
-			return 'button_not_found';
+		`)
+		if err != nil {
+			slog.Warn("执行点击按钮脚本失败", "attempt", attempt+1, "error", err)
+			continue
 		}
-	`)
-	if err != nil {
-		return errors.Wrap(err, "执行点击按钮脚本失败")
+
+		status := result2.Value.String()
+		slog.Info("原创声明确认结果", "status", status, "attempt", attempt+1)
+
+		if status == "clicked" {
+			slog.Info("已成功点击声明原创按钮")
+			time.Sleep(300 * time.Millisecond)
+			return nil
+		}
+		if status == "button_not_found" {
+			return errors.New("未找到声明原创按钮")
+		}
+		// button_disabled: 继续重试
 	}
 
-	status := result2.Value.String()
-	slog.Info("原创声明确认结果", "status", status)
-
-	if status == "button_not_found" {
-		return errors.New("未找到声明原创按钮")
-	}
-	if status == "button_disabled" {
-		return errors.New("声明原创按钮仍处于禁用状态")
-	}
-
-	slog.Info("已成功点击声明原创按钮")
-	time.Sleep(300 * time.Millisecond)
-
-	return nil
+	return errors.New("声明原创按钮在多次重试后仍处于禁用状态")
 }
 
 // bindProducts 绑定商品到发布内容

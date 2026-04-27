@@ -1,0 +1,112 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: xiaohongshu-mcp-build
+spec:
+  params:
+    - name: REPO_URL
+      description: 代码仓库地址
+      type: string
+      default: "https://github.com/xpzouying/xiaohongshu-mcp.git"
+    - name: GIT_REF
+      description: Git 分支、Tag 或提交哈希
+      type: string
+      default: "main"
+    - name: IMAGE
+      description: 构建产物镜像地址（含tag）
+      type: string
+  workspaces:
+    - name: shared-workspace
+  tasks:
+    # clone 代码
+    - name: fetch-source
+      taskSpec:
+        params:
+          - name: REPO_URL
+            type: string
+          - name: GIT_REF
+            type: string
+        workspaces:
+          - name: source
+        steps:
+          - name: clone
+            image: registry.fedoraproject.org/fedora:44
+            script: |
+              dnf install -y --setopt=install_weak_deps=False git && dnf clean all
+              cd $(workspaces.source.path)
+              git clone --branch $(params.GIT_REF) --single-branch --depth 1 $(params.REPO_URL) .
+              echo "Cloned $(params.REPO_URL) @ $(params.GIT_REF)"
+      params:
+        - name: REPO_URL
+          value: $(params.REPO_URL)
+        - name: GIT_REF
+          value: $(params.GIT_REF)
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+    # 使用仓库中的 Containerfile 构建并推送镜像
+    - name: build-and-push
+      runAfter:
+        - fetch-source
+      taskSpec:
+        params:
+          - name: IMAGE
+            type: string
+        workspaces:
+          - name: source
+        steps:
+          - name: build
+            image: registry.redhat.io/rhel9/buildah@sha256:4e604d18fc609d25b2fc99814281944acaac78e8cd5e47b8359709b8b505db86
+            script: |
+              buildah bud \
+                --storage-driver=vfs \
+                --format oci \
+                --layers \
+                -t $(params.IMAGE) \
+                -f $(workspaces.source.path)/Containerfile \
+                $(workspaces.source.path)
+
+              buildah push \
+                --storage-driver=vfs \
+                $(params.IMAGE) \
+                docker://$(params.IMAGE)
+            securityContext:
+              capabilities:
+                add:
+                  - SETFCAP
+            volumeMounts:
+              - name: varlibcontainers
+                mountPath: /var/lib/containers
+        volumes:
+          - name: varlibcontainers
+            emptyDir: {}
+      params:
+        - name: IMAGE
+          value: $(params.IMAGE)
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+---
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: xiaohongshu-mcp-build-run-
+spec:
+  pipelineRef:
+    name: xiaohongshu-mcp-build
+  params:
+    - name: REPO_URL
+      value: "https://github.com/xpzouying/xiaohongshu-mcp.git"
+    - name: GIT_REF
+      value: "main"
+    - name: IMAGE
+      value: "image-registry.openshift-image-registry.svc:5000/mcp-servers/xiaohongshu-mcp:latest"
+  workspaces:
+    - name: shared-workspace
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 2Gi

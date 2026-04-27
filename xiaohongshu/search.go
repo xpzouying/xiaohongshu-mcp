@@ -236,6 +236,11 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 		return nil, fmt.Errorf("failed to unmarshal feeds: %w", err)
 	}
 
+	// 规范化字段：确保 NoteCard 中的 DisplayTitle 和 User 有值
+	for i := range feeds {
+		feeds[i].NormalizeFields()
+	}
+
 	return feeds, nil
 }
 
