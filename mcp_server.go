@@ -100,6 +100,17 @@ type FavoriteFeedArgs struct {
 	Unfavorite bool   `json:"unfavorite,omitempty" jsonschema:"是否取消收藏，true为取消收藏，false或未设置则为收藏"`
 }
 
+// GetHotFeedsArgs 搜索爆款帖子的参数
+type GetHotFeedsArgs struct {
+	Keyword      string `json:"keyword" jsonschema:"搜索关键词"`
+	SortBy       string `json:"sort_by,omitempty" jsonschema:"排序依据: 最多点赞(默认)|最多收藏|最多评论"`
+	Period       string `json:"period,omitempty" jsonschema:"时间范围: 一周内(默认)|一天内|半年内|不限"`
+	NoteType     string `json:"note_type,omitempty" jsonschema:"笔记类型: 不限(默认)|图文|视频"`
+	MinLikes     int    `json:"min_likes,omitempty" jsonschema:"最低点赞数阈值（可选），过滤低于此值的帖子，0表示不限"`
+	MinFavorites int    `json:"min_favorites,omitempty" jsonschema:"最低收藏数阈值（可选），0表示不限"`
+	MinComments  int    `json:"min_comments,omitempty" jsonschema:"最低评论数阈值（可选），0表示不限"`
+}
+
 // InitMCPServer 初始化 MCP Server
 func InitMCPServer(appServer *AppServer) *mcp.Server {
 	// 创建 MCP Server
@@ -443,7 +454,23 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	logrus.Infof("Registered %d MCP tools", 13)
+	// 工具 14: 搜索爆款帖子
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "get_hot_feeds",
+			Description: "搜索小红书爆款帖子，按互动数排序并支持最低阈值过滤（需要已登录）",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Get Hot Feeds",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("get_hot_feeds", func(ctx context.Context, req *mcp.CallToolRequest, args GetHotFeedsArgs) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleGetHotFeeds(ctx, args)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	logrus.Infof("Registered %d MCP tools", 14)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式

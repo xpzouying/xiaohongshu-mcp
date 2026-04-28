@@ -391,6 +391,39 @@ func (s *XiaohongshuService) SearchFeeds(ctx context.Context, keyword string, fi
 	return response, nil
 }
 
+// HotFeedsOption 爆款 Feed 筛选参数
+type HotFeedsOption struct {
+	SortBy       string // 排序依据: 最多点赞|最多收藏|最多评论
+	Period       string // 时间范围: 不限|一天内|一周内|半年内
+	NoteType     string // 笔记类型: 不限|图文|视频
+	MinLikes     int    // 最低点赞数，0 表示不限
+	MinFavorites int    // 最低收藏数，0 表示不限
+	MinComments  int    // 最低评论数，0 表示不限
+}
+
+// GetHotFeeds 搜索爆款帖子：直接搜索后在 Go 层排序+过滤，避免 headless hover 超时
+func (s *XiaohongshuService) GetHotFeeds(ctx context.Context, keyword string, opt HotFeedsOption) (*FeedsListResponse, error) {
+	if opt.SortBy == "" {
+		opt.SortBy = "最多点赞"
+	}
+
+	// 不传 UI filter，避免 hover 触发面板失败导致超时
+	result, err := s.SearchFeeds(ctx, keyword)
+	if err != nil {
+		return nil, err
+	}
+
+	// 客户端排序
+	feeds := xiaohongshu.SortFeeds(result.Feeds, opt.SortBy)
+	// 按阈值过滤
+	feeds = xiaohongshu.FilterByThreshold(feeds, opt.MinLikes, opt.MinFavorites, opt.MinComments)
+
+	return &FeedsListResponse{
+		Feeds: feeds,
+		Count: len(feeds),
+	}, nil
+}
+
 // GetFeedDetail 获取Feed详情
 func (s *XiaohongshuService) GetFeedDetail(ctx context.Context, feedID, xsecToken string, loadAllComments bool) (*FeedDetailResponse, error) {
 	return s.GetFeedDetailWithConfig(ctx, feedID, xsecToken, loadAllComments, xiaohongshu.DefaultCommentLoadConfig())

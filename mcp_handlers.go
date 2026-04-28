@@ -607,6 +607,65 @@ func (s *AppServer) handleFavoriteFeed(ctx context.Context, args map[string]inte
 	return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: fmt.Sprintf("%s成功 - Feed ID: %s", action, res.FeedID)}}}
 }
 
+// handleGetHotFeeds 搜索爆款帖子，按互动数排序并支持阈值过滤
+func (s *AppServer) handleGetHotFeeds(ctx context.Context, args GetHotFeedsArgs) *MCPToolResult {
+	logrus.Infof("MCP: 搜索爆款帖子 - 关键词: %s", args.Keyword)
+
+	if args.Keyword == "" {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "缺少关键词参数"}},
+			IsError: true,
+		}
+	}
+
+	opt := HotFeedsOption{
+		SortBy:       args.SortBy,
+		Period:       args.Period,
+		NoteType:     args.NoteType,
+		MinLikes:     args.MinLikes,
+		MinFavorites: args.MinFavorites,
+		MinComments:  args.MinComments,
+	}
+
+	// browser 操作用独立 context，避免 SSE 连接断开时 MustXxx panic
+	opCtx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+
+	result, err := s.xiaohongshuService.GetHotFeeds(opCtx, args.Keyword, opt)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "搜索爆款帖子失败: " + err.Error()}},
+			IsError: true,
+		}
+	}
+
+	if result.Count == 0 {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "未找到符合条件的爆款帖子，可尝试降低阈值或放宽时间范围"}},
+		}
+	}
+
+	// 生成摘要 + 原始数据
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("找到 %d 篇爆款帖子（关键词: %s）\n\n", result.Count, args.Keyword))
+	for i, f := range result.Feeds {
+		info := f.NoteCard.InteractInfo
+		sb.WriteString(fmt.Sprintf("%d. 【%s】\n", i+1, f.NoteCard.DisplayTitle))
+		sb.WriteString(fmt.Sprintf("   作者: %s\n", f.NoteCard.User.Nickname))
+		sb.WriteString(fmt.Sprintf("   点赞: %s  收藏: %s  评论: %s\n", info.LikedCount, info.CollectedCount, info.CommentCount))
+		sb.WriteString(fmt.Sprintf("   类型: %s\n", f.NoteCard.Type))
+		sb.WriteString(fmt.Sprintf("   feed_id: %s  xsec_token: %s\n\n", f.ID, f.XsecToken))
+	}
+
+	jsonData, _ := json.MarshalIndent(result.Feeds, "", "  ")
+	sb.WriteString("---\n原始数据:\n")
+	sb.WriteString(string(jsonData))
+
+	return &MCPToolResult{
+		Content: []MCPContent{{Type: "text", Text: sb.String()}},
+	}
+}
+
 // handlePostComment 处理发表评论到Feed
 func (s *AppServer) handlePostComment(ctx context.Context, args map[string]interface{}) *MCPToolResult {
 	logrus.Info("MCP: 发表评论到Feed")

@@ -1,0 +1,3 @@
+services:
+  xiaohongshu-mcp:
+    image: xiaohongshu-mcp-local
