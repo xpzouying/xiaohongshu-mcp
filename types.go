@@ -81,11 +81,12 @@ type PostCommentResponse struct {
 
 // ReplyCommentRequest 回复评论请求
 type ReplyCommentRequest struct {
-	FeedID    string `json:"feed_id" binding:"required"`
-	XsecToken string `json:"xsec_token" binding:"required"`
-	CommentID string `json:"comment_id" binding:"required_without=UserID"`
-	UserID    string `json:"user_id" binding:"required_without=CommentID"`
-	Content   string `json:"content" binding:"required"`
+	FeedID      string `json:"feed_id" binding:"required"`
+	XsecToken   string `json:"xsec_token" binding:"required"`
+	CommentID   string `json:"comment_id" binding:"required_without=UserID"`
+	UserID      string `json:"user_id" binding:"required_without=CommentID"`
+	Content     string `json:"content" binding:"required"`
+	MaxAttempts int    `json:"max_attempts,omitempty"` // 查找评论的最大尝试次数，默认 100
 }
 
 // ReplyCommentResponse 回复评论响应

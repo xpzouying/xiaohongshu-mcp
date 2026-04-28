@@ -523,7 +523,7 @@ func (s *XiaohongshuService) UnfavoriteFeed(ctx context.Context, feedID, xsecTok
 }
 
 // ReplyCommentToFeed 回复指定评论
-func (s *XiaohongshuService) ReplyCommentToFeed(ctx context.Context, feedID, xsecToken, commentID, userID, content string) (*ReplyCommentResponse, error) {
+func (s *XiaohongshuService) ReplyCommentToFeed(ctx context.Context, feedID, xsecToken, commentID, userID, content string, maxAttempts int) (*ReplyCommentResponse, error) {
 	b := newBrowser()
 	defer b.Close()
 
@@ -532,7 +532,7 @@ func (s *XiaohongshuService) ReplyCommentToFeed(ctx context.Context, feedID, xse
 
 	action := xiaohongshu.NewCommentFeedAction(page)
 
-	if err := action.ReplyToComment(ctx, feedID, xsecToken, commentID, userID, content); err != nil {
+	if err := action.ReplyToComment(ctx, feedID, xsecToken, commentID, userID, content, maxAttempts); err != nil {
 		return nil, err
 	}
 
