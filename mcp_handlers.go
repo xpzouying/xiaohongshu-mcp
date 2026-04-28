@@ -31,7 +31,11 @@ func parseVisibility(args map[string]interface{}) string {
 func (s *AppServer) handleCheckLoginStatus(ctx context.Context) *MCPToolResult {
 	logrus.Info("MCP: 检查登录状态")
 
-	status, err := s.xiaohongshuService.CheckLoginStatus(ctx)
+	// browser 操作用独立 context，避免 SSE 连接断开时 MustXxx panic
+	opCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	status, err := s.xiaohongshuService.CheckLoginStatus(opCtx)
 	if err != nil {
 		return &MCPToolResult{
 			Content: []MCPContent{{

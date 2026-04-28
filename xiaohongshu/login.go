@@ -18,7 +18,13 @@ func NewLogin(page *rod.Page) *LoginAction {
 
 func (a *LoginAction) CheckLoginStatus(ctx context.Context) (bool, error) {
 	pp := a.page.Context(ctx)
-	pp.MustNavigate("https://www.xiaohongshu.com/explore").MustWaitLoad()
+
+	if err := pp.Navigate("https://www.xiaohongshu.com/explore"); err != nil {
+		return false, errors.Wrap(err, "navigate failed")
+	}
+	if err := pp.WaitLoad(); err != nil {
+		return false, errors.Wrap(err, "wait dom failed")
+	}
 
 	time.Sleep(1 * time.Second)
 
@@ -27,11 +33,7 @@ func (a *LoginAction) CheckLoginStatus(ctx context.Context) (bool, error) {
 		return false, errors.Wrap(err, "check login status failed")
 	}
 
-	if !exists {
-		return false, errors.Wrap(err, "login status element not found")
-	}
-
-	return true, nil
+	return exists, nil
 }
 
 func (a *LoginAction) Login(ctx context.Context) error {

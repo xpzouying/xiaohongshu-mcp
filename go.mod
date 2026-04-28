@@ -7,6 +7,7 @@ require (
 	github.com/gin-gonic/gin v1.10.1
 	github.com/go-rod/rod v0.116.2
 	github.com/h2non/filetype v1.1.3
+	github.com/larksuite/oapi-sdk-go/v3 v3.6.1
 	github.com/modelcontextprotocol/go-sdk v0.7.0
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.9.3
@@ -27,7 +28,9 @@ require (
 	github.com/go-playground/validator/v10 v10.20.0 // indirect
 	github.com/go-rod/stealth v0.4.9 // indirect
 	github.com/goccy/go-json v0.10.2 // indirect
+	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/google/jsonschema-go v0.3.0 // indirect
+	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.7 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect

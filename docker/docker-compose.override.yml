@@ -1,3 +1,17 @@
 services:
   xiaohongshu-mcp:
     image: xiaohongshu-mcp-local
+
+  feishu-bot:
+    build:
+      context: ..
+      dockerfile: Dockerfile.feishu-bot
+    image: feishu-bot-local
+    container_name: feishu-bot
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      - MCP_SERVER_URL=http://xiaohongshu-mcp:18060/mcp
+    depends_on:
+      - xiaohongshu-mcp
