@@ -43,3 +43,27 @@ A: 给出六类注意事项：
 - Docker Desktop 出现 502 Bad Gateway 无法启动新容器，需重启 Docker Desktop
 
 **待确认**：get_hot_feeds 在最新版（客户端排序）下是否正常返回结果（cookies 是否有效）。
+
+### 飞书 bot 接入（@机器人 + 关键词触发流水线）
+
+**目标**：群里 @机器人 输入关键词，自动跑 search→详情→DMXAPI 分析→推送飞书的完整流水线。
+
+**实现内容**：
+
+1. `cmd/feishu-bot/main.go`：基于 lark-sdk v3 的长连接（larkws）模式，监听 P2MessageReceiveV1 事件，解析 mention 后剥离 @ 占位符拿到关键词，立即回执"收到"，goroutine 异步跑 pipeline，10 分钟超时。
+2. `internal/pipeline/pipeline.go`：封装 search → detail → DMXAPI → 飞书 webhook 推送的完整链路，MCPServerURL 默认走 Docker 网络内服务名 `xiaohongshu-mcp:18060`。
+3. `Dockerfile.feishu-bot` + `docker/docker-compose.override.yml`：容器化部署，依赖 mcp 主服务。
+
+**踩坑记录**：
+
+- 最初用飞书"机器人助手"的 webhook 流程编排（第一张图），日志反复报"机器人不在群组内，请手动将机器人添加到群组中" → webhook 类机器人和应用机器人是两套主体，要在群里加的是飞书开放平台创建的应用机器人，不是 botbuilder 流程对应的那个。
+- 解决：放弃 webhook 流程，改走应用机器人 + 长连接（larkws）订阅消息事件，无需公网回调地址。
+- 群里 @机器人 时 content 里是 `@_user_1` 占位，要用 message.Mentions 里的 Key 反查再 ReplaceAll 才能拿干净的关键词。
+
+**验证**：群"zyh, 杨柳晶"中 `@小红书MCP 陕西申论` → 收到回执 → 数分钟后推送"完成！「陕西申论」分析结果已推送。"，链路打通。
+
+**遗留**：
+
+- 仓库里误提交了 `feishu-bot`、`scheduler` 两个 build 产物（约 17MB / 15MB），按规约应删除并加 .gitignore。
+- `cmd/scheduler/test_run.py`、`cmd/scheduler/keywords.txt` 是测试用脚本/数据，按规约也应清理。
+
