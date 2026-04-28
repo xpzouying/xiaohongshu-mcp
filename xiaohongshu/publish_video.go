@@ -151,9 +151,19 @@ func submitPublishVideo(page *rod.Page, title, content string, tags []string, sc
 	if err := contentElem.Input(content); err != nil {
 		return errors.Wrap(err, "输入正文失败")
 	}
-	if err := waitAndClickTitleInput(titleElem); err != nil {
-		return err
-	}
+	// Best-effort: on the video publish page, titleElem becomes stale after
+	// video processing reflows the DOM, causing the inner Click to block
+	// indefinitely (vanilla v8 hangs here until ctx cancellation, manifesting
+	// as the "假成功 / context deadline exceeded" symptom in #583, #672). The
+	// "click back to title" step exists in publish.go to retrigger Vue state
+	// for the image flow; for the video flow it is empirically unnecessary
+	// because the publish button is already enabled after video upload. Wrap
+	// in a short page-level timeout so we continue gracefully if the click
+	// can't complete within a reasonable window.
+	_ = rod.Try(func() {
+		freshTitle := page.Timeout(2 * time.Second).MustElement("div.d-input input")
+		freshTitle.MustClick()
+	})
 	if err := inputTags(contentElem, tags); err != nil {
 		return err
 	}
