@@ -36,6 +36,30 @@ go.work.sum
 
 # Build artifacts
 xiaohongshu-mcp
+xiaohongshu-mcp-local
+album-sync
+auto-album-sync
+auto-album-sync-api
+auto-album-sync-cdp
+auto-album-sync-csp
+auto-album-sync-http
+auto-album-sync-pool
+auto-album-sync-simple
+*.pyc
+__pycache__/
+*.log
+
+# Large JSON data files
+收藏列表_145
+favorites_145.json
+favorites_21.json
+
+# Python venv
+.venv/
+venv/
+
+# Superpower test output
+superpower/output/
 
 # Test scripts
 test_*.sh

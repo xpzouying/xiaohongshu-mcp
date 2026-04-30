@@ -1,0 +1,70 @@
+{
+  "total": 145,
+  "albums": [
+    {
+      "name": "汽车交通",
+      "count": 15,
+      "album_id": "",
+      "success": false,
+      "success_count": 0,
+      "failed_count": 0,
+      "message": "失败: 创建专辑失败 (code=-1): network error: status=0"
+    },
+    {
+      "name": "育儿母婴",
+      "count": 18,
+      "album_id": "",
+      "success": false,
+      "success_count": 0,
+      "failed_count": 0,
+      "message": "失败: 创建专辑失败 (code=-1): network error: status=0"
+    },
+    {
+      "name": "美食烹饪",
+      "count": 65,
+      "album_id": "",
+      "success": false,
+      "success_count": 0,
+      "failed_count": 0,
+      "message": "失败: 创建专辑失败 (code=-1): network error: status=0"
+    },
+    {
+      "name": "家居生活",
+      "count": 1,
+      "album_id": "",
+      "success": false,
+      "success_count": 0,
+      "failed_count": 0,
+      "message": "失败: 创建专辑失败 (code=-1): network error: status=0"
+    },
+    {
+      "name": "电商创业",
+      "count": 1,
+      "album_id": "",
+      "success": false,
+      "success_count": 0,
+      "failed_count": 0,
+      "message": "失败: 创建专辑失败 (code=-1): network error: status=0"
+    },
+    {
+      "name": "健康医疗",
+      "count": 4,
+      "album_id": "",
+      "success": false,
+      "success_count": 0,
+      "failed_count": 0,
+      "message": "失败: 创建专辑失败 (code=-1): network error: status=0"
+    },
+    {
+      "name": "股票理财",
+      "count": 12,
+      "album_id": "",
+      "success": false,
+      "success_count": 0,
+      "failed_count": 0,
+      "message": "失败: 创建专辑失败 (code=-1): network error: status=0"
+    }
+  ],
+  "success": 0,
+  "failed": 7
+}

@@ -1,0 +1,49 @@
+{
+  "total": 145,
+  "success": 0,
+  "failed": 7,
+  "albums": [
+    {
+      "name": "育儿母婴",
+      "count": 18,
+      "success": false,
+      "message": "部分笔记同步失败"
+    },
+    {
+      "name": "美食烹饪",
+      "count": 65,
+      "success": false,
+      "message": "部分笔记同步失败"
+    },
+    {
+      "name": "家居生活",
+      "count": 1,
+      "success": false,
+      "message": "部分笔记同步失败"
+    },
+    {
+      "name": "电商创业",
+      "count": 1,
+      "success": false,
+      "message": "部分笔记同步失败"
+    },
+    {
+      "name": "健康医疗",
+      "count": 4,
+      "success": false,
+      "message": "部分笔记同步失败"
+    },
+    {
+      "name": "股票理财",
+      "count": 12,
+      "success": false,
+      "message": "部分笔记同步失败"
+    },
+    {
+      "name": "汽车交通",
+      "count": 15,
+      "success": false,
+      "message": "部分笔记同步失败"
+    }
+  ]
+}
