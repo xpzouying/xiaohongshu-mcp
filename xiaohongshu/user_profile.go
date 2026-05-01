@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/go-rod/rod"
+	"github.com/xpzouying/xiaohongshu-mcp/configs"
 )
 
 type UserProfileAction struct {
@@ -101,7 +102,7 @@ func (u *UserProfileAction) extractUserProfileData(page *rod.Page) (*UserProfile
 }
 
 func makeUserProfileURL(userID, xsecToken string) string {
-	return fmt.Sprintf("https://www.xiaohongshu.com/user/profile/%s?xsec_token=%s&xsec_source=pc_note", userID, xsecToken)
+	return configs.UserProfileURL(userID, xsecToken)
 }
 
 func (u *UserProfileAction) GetMyProfileViaSidebar(ctx context.Context) (*UserProfileResponse, error) {
