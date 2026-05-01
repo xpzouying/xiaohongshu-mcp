@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
+	"os"
 
 	"github.com/go-rod/rod"
 	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/xiaohongshu-mcp/browser"
+	"github.com/xpzouying/xiaohongshu-mcp/configs"
 	"github.com/xpzouying/xiaohongshu-mcp/cookies"
 	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
 )
@@ -15,9 +17,19 @@ import (
 func main() {
 	var (
 		binPath string // 浏览器二进制文件路径
+		domain  string // 站点域名
 	)
 	flag.StringVar(&binPath, "bin", "", "浏览器二进制文件路径")
+	flag.StringVar(&domain, "domain", "", "站点域名，默认 www.xiaohongshu.com，国际版用 www.rednote.com")
 	flag.Parse()
+
+	// 支持环境变量
+	if len(domain) == 0 {
+		domain = os.Getenv("XHS_DOMAIN")
+	}
+	if len(domain) > 0 {
+		configs.SetSiteDomain(domain)
+	}
 
 	// 登录的时候，需要界面，所以不能无头模式
 	b := browser.NewBrowser(false, browser.WithBinPath(binPath))
