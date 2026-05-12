@@ -205,13 +205,18 @@ func parseImageSources(value interface{}) []downloader.ImageSource {
 		case map[string]interface{}:
 			data, err := json.Marshal(v)
 			if err != nil {
+				logrus.Warnf("MCP: 图片参数序列化失败: %v", err)
 				continue
 			}
 
 			var source downloader.ImageSource
-			if err := json.Unmarshal(data, &source); err == nil {
-				images = append(images, source)
+			if err := json.Unmarshal(data, &source); err != nil {
+				logrus.Warnf("MCP: 图片参数解析失败: %v", err)
+				continue
 			}
+			images = append(images, source)
+		default:
+			logrus.Warnf("MCP: 不支持的图片参数类型: %T", item)
 		}
 	}
 

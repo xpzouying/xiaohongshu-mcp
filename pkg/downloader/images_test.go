@@ -123,6 +123,30 @@ func TestImageSourceUnmarshalString(t *testing.T) {
 	}
 }
 
+func TestImageSourceUnmarshalObject(t *testing.T) {
+	var source ImageSource
+	input := []byte(`{"type":"base64","data":"abc","mime_type":"image/png"}`)
+	if err := json.Unmarshal(input, &source); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+
+	if source.Type != "base64" || source.Data != "abc" || source.MIMEType != "image/png" {
+		t.Fatalf("unexpected base64 source: %+v", source)
+	}
+}
+
+func TestImageSourceUnmarshalObjectInfersType(t *testing.T) {
+	var source ImageSource
+	input := []byte(`{"data":"abc","mime_type":"image/png"}`)
+	if err := json.Unmarshal(input, &source); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+
+	if source.Type != "base64" {
+		t.Fatalf("expected inferred base64 type, got %+v", source)
+	}
+}
+
 func TestImageDownloader_SaveBase64Image(t *testing.T) {
 	const pngBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7+2X8AAAAASUVORK5CYII="
 
@@ -146,6 +170,27 @@ func TestImageDownloader_SaveBase64Image(t *testing.T) {
 	}
 }
 
+func TestDecodeBase64ImageDataErrors(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     string
+		mimeType string
+	}{
+		{name: "empty data", data: "", mimeType: "image/png"},
+		{name: "invalid data url", data: "data:image/png,abc", mimeType: "image/png"},
+		{name: "non image mime type", data: "abc", mimeType: "text/plain"},
+		{name: "invalid base64", data: "not base64", mimeType: "image/png"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if _, err := decodeBase64ImageData(test.data, test.mimeType); err == nil {
+				t.Fatalf("expected error")
+			}
+		})
+	}
+}
+
 func TestImageProcessor_ProcessImagesBase64(t *testing.T) {
 	const pngDataURL = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7+2X8AAAAASUVORK5CYII="
 
@@ -162,6 +207,14 @@ func TestImageProcessor_ProcessImagesBase64(t *testing.T) {
 	}
 	if _, err := os.Stat(paths[0]); err != nil {
 		t.Fatalf("processed file does not exist: %v", err)
+	}
+}
+
+func TestImageProcessor_ProcessImagesEmptyPath(t *testing.T) {
+	processor := &ImageProcessor{downloader: NewImageDownloader(t.TempDir())}
+	_, err := processor.ProcessImages([]ImageSource{{Type: "path"}})
+	if err == nil {
+		t.Fatalf("expected empty path error")
 	}
 }
 

@@ -47,6 +47,9 @@ func (p *ImageProcessor) ProcessImages(images []ImageSource) ([]string, error) {
 			localPaths = append(localPaths, localPath)
 
 		case "path", "":
+			if image.Path == "" {
+				return nil, fmt.Errorf("image path is empty")
+			}
 			// 本地路径直接使用
 			localPaths = append(localPaths, image.Path)
 

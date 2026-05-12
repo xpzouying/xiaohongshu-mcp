@@ -208,6 +208,10 @@ func decodeBase64ImageData(data, mimeType string) ([]byte, error) {
 		return nil, errors.New("base64 image data is empty")
 	}
 
+	if mimeType != "" && !strings.HasPrefix(strings.ToLower(mimeType), "image/") {
+		return nil, errors.New("mime_type must be an image MIME type")
+	}
+
 	if strings.HasPrefix(strings.ToLower(value), "data:") {
 		parts := strings.SplitN(value, ",", 2)
 		if len(parts) != 2 || !strings.Contains(strings.ToLower(parts[0]), ";base64") {
@@ -219,10 +223,6 @@ func decodeBase64ImageData(data, mimeType string) ([]byte, error) {
 	imageData, err := base64.StdEncoding.DecodeString(value)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to decode base64 image data")
-	}
-
-	if mimeType != "" && !strings.HasPrefix(strings.ToLower(mimeType), "image/") {
-		return nil, errors.New("mime_type must be an image MIME type")
 	}
 
 	return imageData, nil
