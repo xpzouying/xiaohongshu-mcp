@@ -2,6 +2,7 @@ package downloader
 
 import (
 	"crypto/sha256"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
@@ -124,6 +125,36 @@ func (d *ImageDownloader) DownloadImages(imageURLs []string) ([]string, error) {
 	return localPaths, nil
 }
 
+// SaveBase64Image 将 base64 图片数据保存为本地文件。
+func (d *ImageDownloader) SaveBase64Image(data, mimeType string) (string, error) {
+	imageData, err := decodeBase64ImageData(data, mimeType)
+	if err != nil {
+		return "", err
+	}
+
+	kind, err := filetype.Match(imageData)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to detect file type")
+	}
+
+	if !filetype.IsImage(imageData) {
+		return "", errors.New("base64 data is not a valid image")
+	}
+
+	fileName := d.generateDataFileName(imageData, kind.Extension)
+	filePath := filepath.Join(d.savePath, fileName)
+
+	if _, err := os.Stat(filePath); err == nil {
+		return filePath, nil
+	}
+
+	if err := os.WriteFile(filePath, imageData, 0644); err != nil {
+		return "", errors.Wrap(err, "failed to save image")
+	}
+
+	return filePath, nil
+}
+
 // isValidImageURL 检查是否为有效的图片URL
 func (d *ImageDownloader) isValidImageURL(rawURL string) bool {
 	// 检查是否以http/https开头
@@ -156,8 +187,43 @@ func (d *ImageDownloader) generateFileName(imageURL, extension string) string {
 	return fmt.Sprintf("img_%s_%d.%s", shortHash, timestamp, extension)
 }
 
+// generateDataFileName 为内联图片数据生成稳定文件名。
+func (d *ImageDownloader) generateDataFileName(imageData []byte, extension string) string {
+	hash := sha256.Sum256(imageData)
+	hashStr := fmt.Sprintf("%x", hash)
+	shortHash := hashStr[:16]
+
+	return fmt.Sprintf("img_%s.%s", shortHash, extension)
+}
+
 // IsImageURL 判断字符串是否为图片URL
 func IsImageURL(path string) bool {
 	return strings.HasPrefix(strings.ToLower(path), "http://") ||
 		strings.HasPrefix(strings.ToLower(path), "https://")
+}
+
+func decodeBase64ImageData(data, mimeType string) ([]byte, error) {
+	value := strings.TrimSpace(data)
+	if value == "" {
+		return nil, errors.New("base64 image data is empty")
+	}
+
+	if strings.HasPrefix(strings.ToLower(value), "data:") {
+		parts := strings.SplitN(value, ",", 2)
+		if len(parts) != 2 || !strings.Contains(strings.ToLower(parts[0]), ";base64") {
+			return nil, errors.New("invalid data URL image format")
+		}
+		value = parts[1]
+	}
+
+	imageData, err := base64.StdEncoding.DecodeString(value)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to decode base64 image data")
+	}
+
+	if mimeType != "" && !strings.HasPrefix(strings.ToLower(mimeType), "image/") {
+		return nil, errors.New("mime_type must be an image MIME type")
+	}
+
+	return imageData, nil
 }

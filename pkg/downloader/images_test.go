@@ -2,6 +2,7 @@ package downloader
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -102,6 +103,65 @@ func TestImageDownloader_generateFileName(t *testing.T) {
 	fileName2 := downloader.generateFileName(url2, extension)
 	if fileName1 == fileName2 {
 		t.Errorf("different URLs should generate different file names")
+	}
+}
+
+func TestImageSourceUnmarshalString(t *testing.T) {
+	var source ImageSource
+	if err := json.Unmarshal([]byte(`"https://example.com/image.png"`), &source); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+	if source.Type != "url" || source.URL != "https://example.com/image.png" {
+		t.Fatalf("unexpected URL source: %+v", source)
+	}
+
+	if err := json.Unmarshal([]byte(`"/tmp/image.png"`), &source); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+	if source.Type != "path" || source.Path != "/tmp/image.png" {
+		t.Fatalf("unexpected path source: %+v", source)
+	}
+}
+
+func TestImageDownloader_SaveBase64Image(t *testing.T) {
+	const pngBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7+2X8AAAAASUVORK5CYII="
+
+	tempDir := t.TempDir()
+	downloader := NewImageDownloader(tempDir)
+
+	filePath, err := downloader.SaveBase64Image(pngBase64, "image/png")
+	if err != nil {
+		t.Fatalf("save base64 image failed: %v", err)
+	}
+
+	info, err := os.Stat(filePath)
+	if err != nil {
+		t.Fatalf("file does not exist: %v", err)
+	}
+	if info.Size() == 0 {
+		t.Fatalf("saved file is empty")
+	}
+	if filepath.Ext(filePath) != ".png" {
+		t.Fatalf("expected .png extension, got %s", filepath.Ext(filePath))
+	}
+}
+
+func TestImageProcessor_ProcessImagesBase64(t *testing.T) {
+	const pngDataURL = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7+2X8AAAAASUVORK5CYII="
+
+	processor := &ImageProcessor{downloader: NewImageDownloader(t.TempDir())}
+	paths, err := processor.ProcessImages([]ImageSource{{
+		Type: "base64",
+		Data: pngDataURL,
+	}})
+	if err != nil {
+		t.Fatalf("process images failed: %v", err)
+	}
+	if len(paths) != 1 {
+		t.Fatalf("expected 1 path, got %d", len(paths))
+	}
+	if _, err := os.Stat(paths[0]); err != nil {
+		t.Fatalf("processed file does not exist: %v", err)
 	}
 }
 
