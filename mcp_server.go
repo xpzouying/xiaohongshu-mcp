@@ -13,6 +13,10 @@ import (
 // Helper functions for annotation pointers
 func boolPtr(b bool) *bool { return &b }
 
+// NoArgs 用于无参数工具的空结构体，确保 inputSchema 包含 properties: {}
+// 修复 https://github.com/xpzouying/xiaohongshu-mcp/issues/677
+type NoArgs struct{}
+
 // MCP 工具参数结构体定义
 
 // PublishContentArgs 发布内容的参数
@@ -163,7 +167,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				ReadOnlyHint: true,
 			},
 		},
-		withPanicRecovery("check_login_status", func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, any, error) {
+		withPanicRecovery("check_login_status", func(ctx context.Context, req *mcp.CallToolRequest, _ NoArgs) (*mcp.CallToolResult, any, error) {
 			result := appServer.handleCheckLoginStatus(ctx)
 			return convertToMCPResult(result), nil, nil
 		}),
@@ -179,7 +183,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				ReadOnlyHint: true,
 			},
 		},
-		withPanicRecovery("get_login_qrcode", func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, any, error) {
+		withPanicRecovery("get_login_qrcode", func(ctx context.Context, req *mcp.CallToolRequest, _ NoArgs) (*mcp.CallToolResult, any, error) {
 			result := appServer.handleGetLoginQrcode(ctx)
 			return convertToMCPResult(result), nil, nil
 		}),
@@ -195,7 +199,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				DestructiveHint: boolPtr(true),
 			},
 		},
-		withPanicRecovery("delete_cookies", func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, any, error) {
+		withPanicRecovery("delete_cookies", func(ctx context.Context, req *mcp.CallToolRequest, _ NoArgs) (*mcp.CallToolResult, any, error) {
 			result := appServer.handleDeleteCookies(ctx)
 			return convertToMCPResult(result), nil, nil
 		}),
@@ -238,7 +242,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				ReadOnlyHint: true,
 			},
 		},
-		withPanicRecovery("list_feeds", func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, any, error) {
+		withPanicRecovery("list_feeds", func(ctx context.Context, req *mcp.CallToolRequest, _ NoArgs) (*mcp.CallToolResult, any, error) {
 			result := appServer.handleListFeeds(ctx)
 			return convertToMCPResult(result), nil, nil
 		}),
