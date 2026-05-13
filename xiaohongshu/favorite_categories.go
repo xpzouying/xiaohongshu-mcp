@@ -4,9 +4,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
+	"regexp"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-rod/rod"
+	"github.com/go-rod/rod/lib/proto"
+)
+
+var (
+	categoryNameCountRegexp = regexp.MustCompile(`^(.+?)\s*笔记[・·]\s*(\d+)`)
+	categoryCountRegexp     = regexp.MustCompile(`笔记[・·]\s*(\d+)`)
 )
 
 // GetFavoriteCategories 获取收藏下的专辑分类列表
@@ -16,62 +26,104 @@ func (f *FavoriteFeedsAction) GetFavoriteCategories(ctx context.Context) ([]Favo
 		return nil, err
 	}
 
-	result := page.MustEval(`() => {
-		const anchors = Array.from(document.querySelectorAll('a[href*="/board/"]'));
-		const map = new Map();
+	return f.collectFavoriteCategoriesFromPage(page)
+}
 
-		const parseBoardId = (href) => {
-			try {
-				const u = new URL(href, location.origin);
-				const m = u.pathname.match(/\/board\/([^/?#]+)/);
-				return m && m[1] ? m[1] : "";
-			} catch {
-				return "";
-			}
-		};
+func (f *FavoriteFeedsAction) collectFavoriteCategoriesFromPage(page *rod.Page) ([]FavoriteCategory, error) {
+	anchors, err := page.Elements(`a[href*="/board/"]`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find favorite category links: %w", err)
+	}
 
-		for (const a of anchors) {
-			const href = a.getAttribute("href") || "";
-			const id = parseBoardId(href);
-			if (!id) continue;
-
-			const card = a.closest("section, article, li, .board-item, .album-item, .note-item") || a;
-			const text = (card.textContent || a.textContent || "").replace(/\s+/g, " ").trim();
-			let name = text;
-			let count = 0;
-			const strict = text.match(/^(.+?)\\s*笔记・\\s*(\\d+)/);
-			if (strict) {
-				name = strict[1].trim();
-				count = Number(strict[2]) || 0;
-			} else {
-				const countMatch = text.match(/笔记・(\\d+)/);
-				if (countMatch) {
-					count = Number(countMatch[1]) || 0;
-					name = text.slice(0, countMatch.index).trim();
-				}
-			}
-			if (!name) name = "未命名专辑";
-			name = name.replace(/\s*笔记[・·]\s*\d+.*$/, "").trim() || name;
-
-			if (!map.has(id)) {
-				map.set(id, {
-					id,
-					name,
-					noteCount: count,
-					url: new URL(href, location.origin).toString(),
-				});
-			}
+	categories := make([]FavoriteCategory, 0, len(anchors))
+	seen := make(map[string]struct{}, len(anchors))
+	for _, anchor := range anchors {
+		href, ok := readElementAttr(anchor, "href")
+		if !ok {
+			continue
 		}
 
-		return JSON.stringify(Array.from(map.values()));
-	}`).String()
+		category, ok := buildFavoriteCategoryFromBoardLink(anchor, href)
+		if !ok {
+			continue
+		}
+		if _, exists := seen[category.ID]; exists {
+			continue
+		}
 
-	var categories []FavoriteCategory
-	if err := json.Unmarshal([]byte(result), &categories); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal favorite categories: %w", err)
+		seen[category.ID] = struct{}{}
+		categories = append(categories, category)
 	}
 
 	return categories, nil
+}
+
+func buildFavoriteCategoryFromBoardLink(anchor *rod.Element, href string) (FavoriteCategory, bool) {
+	link, err := parseXHSURL(href)
+	if err != nil {
+		return FavoriteCategory{}, false
+	}
+
+	categoryID := extractBoardIDFromPath(link.Path)
+	if categoryID == "" {
+		return FavoriteCategory{}, false
+	}
+
+	text, err := anchor.Text()
+	if err != nil {
+		text = ""
+	}
+	name, noteCount := parseFavoriteCategoryText(text)
+
+	return FavoriteCategory{
+		ID:        categoryID,
+		Name:      name,
+		NoteCount: noteCount,
+		URL:       link.String(),
+	}, true
+}
+
+func parseXHSURL(rawURL string) (*url.URL, error) {
+	link, err := url.Parse(rawURL)
+	if err != nil {
+		return nil, err
+	}
+	if link.IsAbs() {
+		return link, nil
+	}
+
+	base, _ := url.Parse("https://www.xiaohongshu.com")
+	return base.ResolveReference(link), nil
+}
+
+func extractBoardIDFromPath(path string) string {
+	parts := strings.Split(strings.Trim(path, "/"), "/")
+	for i, part := range parts {
+		if part == "board" && i+1 < len(parts) {
+			return parts[i+1]
+		}
+	}
+
+	return ""
+}
+
+func parseFavoriteCategoryText(text string) (string, int) {
+	text = strings.Join(strings.Fields(text), " ")
+	name := text
+	noteCount := 0
+
+	if matches := categoryNameCountRegexp.FindStringSubmatch(text); len(matches) == 3 {
+		name = strings.TrimSpace(matches[1])
+		noteCount, _ = strconv.Atoi(matches[2])
+	} else if matches := categoryCountRegexp.FindStringSubmatch(text); len(matches) == 2 {
+		noteCount, _ = strconv.Atoi(matches[1])
+		name = strings.TrimSpace(text[:strings.Index(text, matches[0])])
+	}
+
+	if name == "" {
+		name = "未命名专辑"
+	}
+	return name, noteCount
 }
 
 // GetFavoriteFeedsByCategory 获取指定收藏专辑下的笔记
@@ -300,36 +352,41 @@ func (f *FavoriteFeedsAction) navigateToFavoriteBoardTab(ctx context.Context, pa
 	}
 	page.MustWaitDOMStable()
 
-	clickedFav := page.MustEval(`() => {
-		const sels=['span.channel','.reds-tab-item','.tab-item','div[class*="tab"]'];
-		for(const s of sels){
-			const n=[...document.querySelectorAll(s)].find(x=>(x.textContent||'').trim()==='收藏');
-			if(n){n.click();return true;}
-		}
-		return false;
-	}`).Bool()
-	if !clickedFav {
+	if !clickTabByText(page, "收藏") {
 		return fmt.Errorf("failed to switch to favorite tab")
 	}
 
 	page.MustWaitDOMStable()
 	time.Sleep(500 * time.Millisecond)
 
-	clickedBoard := page.MustEval(`() => {
-		const sels=['span.channel','.reds-tab-item','.tab-item','div[class*="tab"]'];
-		for(const s of sels){
-			const nodes=[...document.querySelectorAll(s)];
-			const n=nodes.find(x=>(x.textContent||'').trim().startsWith('专辑'));
-			if(n){n.click();return true;}
-		}
-		// already in subTab=board also consider success
-		return location.search.includes('subTab=board');
-	}`).Bool()
-	if !clickedBoard {
+	if !clickTabByTextPrefix(page, "专辑") {
 		return fmt.Errorf("failed to switch to board tab")
 	}
 
 	page.MustWaitDOMStable()
 	time.Sleep(700 * time.Millisecond)
 	return nil
+}
+
+func clickTabByTextPrefix(page *rod.Page, tabTextPrefix string) bool {
+	selectors := []string{"span.channel", ".reds-tab-item", ".tab-item", "div[class*=\"tab\"]"}
+	for _, selector := range selectors {
+		elements, err := page.Elements(selector)
+		if err != nil {
+			continue
+		}
+
+		for _, element := range elements {
+			text, err := element.Text()
+			if err != nil || !strings.HasPrefix(strings.TrimSpace(text), tabTextPrefix) {
+				continue
+			}
+
+			if err := element.Click(proto.InputMouseButtonLeft, 1); err == nil {
+				return true
+			}
+		}
+	}
+
+	return false
 }
