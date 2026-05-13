@@ -6,13 +6,15 @@
 
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
-[![Philanthropy](https://img.shields.io/badge/Philanthropy-CNY%201300.00-brightgreen?style=flat-square)](./DONATIONS.md)
-[![Gratitude](https://img.shields.io/badge/Gratitude-CNY%201069.93-blue?style=flat-square)](./DONATIONS.md)
+[![Philanthropy](https://img.shields.io/badge/Philanthropy-CNY%201810.00-brightgreen?style=flat-square)](./DONATIONS.md)
+[![Gratitude](https://img.shields.io/badge/Gratitude-CNY%201524.64-blue?style=flat-square)](./DONATIONS.md)
 [![Docker Pulls](https://img.shields.io/docker/pulls/xpzouying/xiaohongshu-mcp?style=flat-square&logo=docker)](https://hub.docker.com/r/xpzouying/xiaohongshu-mcp)
 
 MCP for RedNote (Xiaohongshu) platform.
 
 - My blog article: [haha.ai/xiaohongshu-mcp](https://www.haha.ai/xiaohongshu-mcp)
+
+> **📌 Please read before submitting a PR: [Contributing Guide](./CONTRIBUTING.md)**
 
 **If you encounter any issues, be sure to check [Common Issues and Solutions](https://github.com/xpzouying/xiaohongshu-mcp/issues/56) first.**
 
@@ -209,6 +211,61 @@ Get RedNote user's personal profile information, including basic user informatio
 - User basic info: nickname, bio, avatar, verification status
 - Statistics: following count, follower count, likes count, note count
 - Note list: all public notes published by the user
+
+</details>
+
+<details>
+<summary><b>9. Reply to Comments</b></summary>
+
+Reply to a specific comment under a note, supporting precise replies to specific users' comments.
+
+**Feature Description:**
+
+- Reply to a specific comment under a note
+- Support locating target comment by comment ID or user ID
+- Requires feed_id, xsec_token, comment_id/user_id, and reply content
+
+**⚠️ Important Note:**
+
+- Must login first to use this feature
+- At least one of comment_id or user_id must be provided
+- These parameters can be obtained from the comment list in post details
+
+</details>
+
+<details>
+<summary><b>10. Like / Unlike</b></summary>
+
+Like or unlike a note, with smart detection of current status to avoid duplicate operations.
+
+**Feature Description:**
+
+- Like or unlike a specified note
+- Smart detection: skips liking if already liked, skips unliking if not liked
+- Requires feed_id and xsec_token
+
+**⚠️ Important Note:**
+
+- Must login first to use this feature
+- Default action is like, set unlike=true to unlike
+
+</details>
+
+<details>
+<summary><b>11. Favorite / Unfavorite</b></summary>
+
+Favorite a note or unfavorite it, with smart detection of current status to avoid duplicate operations.
+
+**Feature Description:**
+
+- Favorite or unfavorite a specified note
+- Smart detection: skips favoriting if already favorited, skips unfavoriting if not favorited
+- Requires feed_id and xsec_token
+
+**⚠️ Important Note:**
+
+- Must login first to use this feature
+- Default action is favorite, set unfavorite=true to unfavorite
 
 </details>
 
@@ -615,7 +672,7 @@ Usage steps:
 
 - Use MCP Inspector to test connection
 - Test Ping Server functionality to verify connection
-- Check if List Tools returns 6 tools
+- Check if List Tools returns 13 tools
 
 </details>
 
@@ -694,17 +751,42 @@ Basic configuration template:
 After successful connection, you can use the following MCP tools:
 
 - `check_login_status` - Check RedNote login status (no parameters)
+- `get_login_qrcode` - Get login QR code, returns Base64 image and timeout (no parameters)
+- `delete_cookies` - Delete cookies file, reset login status, requires re-login after deletion (no parameters)
 - `publish_content` - Publish image-text content to RedNote (required: title, content, images)
-  - `images`: Supports HTTP links or local absolute paths, local paths recommended
+  - `images`: Image path list (minimum 1), supports HTTP links or local absolute paths, local paths recommended
+  - `tags`: Topic tags list (optional), e.g. `["food", "travel", "lifestyle"]`
+  - `schedule_at`: Scheduled publish time (optional), ISO8601 format, supports 1 hour to 14 days ahead
+  - `is_original`: Declare as original content (optional), default is not declared
+  - `visibility`: Visibility scope (optional), supports `public` (default), `self-only`, `friends-only`
 - `publish_with_video` - Publish video content to RedNote (required: title, content, video)
-  - `video`: Only supports local video file absolute paths
+  - `video`: Local video file absolute path (single file only)
+  - `tags`: Topic tags list (optional), e.g. `["food", "travel", "lifestyle"]`
+  - `schedule_at`: Scheduled publish time (optional), ISO8601 format, supports 1 hour to 14 days ahead
+  - `visibility`: Visibility scope (optional), supports `public` (default), `self-only`, `friends-only`
 - `list_feeds` - Get RedNote homepage recommendation list (no parameters)
 - `list_favorite_feeds` - Get current logged-in user's favorite notes list (no parameters)
 - `list_favorite_categories` - Get favorite album categories for current logged-in user (no parameters)
 - `list_favorite_feeds_by_category` - Get favorite notes by category (optional: category_id/category_name/limit)
 - `search_feeds` - Search RedNote content (required: keyword)
-- `get_feed_detail` - Get post details (required: feed_id, xsec_token)
+  - `filters`: Filter options (optional)
+    - `sort_by`: Sort by - `comprehensive` (default) | `latest` | `most liked` | `most comments` | `most saved`
+    - `note_type`: Note type - `unlimited` (default) | `video` | `image-text`
+    - `publish_time`: Publish time - `unlimited` (default) | `last day` | `last week` | `last 6 months`
+    - `search_scope`: Search scope - `unlimited` (default) | `viewed` | `not viewed` | `followed`
+    - `location`: Location - `unlimited` (default) | `same city` | `nearby`
+- `get_feed_detail` - Get post details including interaction data and comments (required: feed_id, xsec_token)
+  - `load_all_comments`: Whether to load all comments (optional), default false returns only first 10 top-level comments
+  - `limit`: Limit number of top-level comments to load (optional), only effective when load_all_comments=true, default 20
+  - `click_more_replies`: Whether to expand nested replies (optional), only effective when load_all_comments=true, default false
+  - `reply_limit`: Skip comments with too many replies (optional), only effective when click_more_replies=true, default 10
+  - `scroll_speed`: Scroll speed (optional), `slow` | `normal` | `fast`, only effective when load_all_comments=true
 - `post_comment_to_feed` - Post comments to RedNote posts (required: feed_id, xsec_token, content)
+- `reply_comment_in_feed` - Reply to a specific comment under a note (required: feed_id, xsec_token, content, and at least one of comment_id or user_id)
+- `like_feed` - Like / unlike a note (required: feed_id, xsec_token)
+  - `unlike`: Whether to unlike (optional), true to unlike, default is like
+- `favorite_feed` - Favorite / unfavorite a note (required: feed_id, xsec_token)
+  - `unfavorite`: Whether to unfavorite (optional), true to unfavorite, default is favorite
 - `user_profile` - Get user profile information (required: user_id, xsec_token)
 
 ### 2.4. Usage Examples
@@ -809,9 +891,9 @@ Use xiaohongshu-mcp's video publishing feature.
 
 ### WeChat Group
 
-|                                             【WeChat Group 15】: Scan to join                                              |
-| :------------------------------------------------------------------------------------------------------------------------: |
-| <img src="https://github.com/user-attachments/assets/73e23573-9ac1-414d-9192-f592548e9092" alt="WechatIMG119" width="300"> |
+|                                                 WeChat Group 17                                    |                                                 WeChat Group 18                                    |
+| :------------------------------------------------------------------------------------------------: | :------------------------------------------------------------------------------------------------: |
+| <img src="https://github.com/user-attachments/assets/2317229c-311e-4339-b659-2a2467aa8c17" alt="WechatIMG119" width="300"> | <img src="https://github.com/user-attachments/assets/78f8c7a2-98ab-477b-bbb2-7b08551ffc99" alt="WechatIMG119" width="300"> |
 
 ### Feishu (Lark) Groups
 

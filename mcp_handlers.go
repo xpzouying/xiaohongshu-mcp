@@ -129,6 +129,7 @@ func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]in
 	content, _ := args["content"].(string)
 	imagePathsInterface, _ := args["images"].([]interface{})
 	tagsInterface, _ := args["tags"].([]interface{})
+	productsInterface, _ := args["products"].([]interface{})
 
 	var imagePaths []string
 	for _, path := range imagePathsInterface {
@@ -144,6 +145,13 @@ func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]in
 		}
 	}
 
+	var products []string
+	for _, p := range productsInterface {
+		if pStr, ok := p.(string); ok {
+			products = append(products, pStr)
+		}
+	}
+
 	// 解析定时发布参数
 	scheduleAt, _ := args["schedule_at"].(string)
 	visibility := parseVisibility(args)
@@ -151,7 +159,7 @@ func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]in
 	// 解析原创参数
 	isOriginal, _ := args["is_original"].(bool)
 
-	logrus.Infof("MCP: 发布内容 - 标题: %s, 图片数量: %d, 标签数量: %d, 定时: %s, 原创: %v, visibility: %s", title, len(imagePaths), len(tags), scheduleAt, isOriginal, visibility)
+	logrus.Infof("MCP: 发布内容 - 标题: %s, 图片数量: %d, 标签数量: %d, 定时: %s, 原创: %v, visibility: %s, 商品: %v", title, len(imagePaths), len(tags), scheduleAt, isOriginal, visibility, products)
 
 	// 构建发布请求
 	req := &PublishRequest{
@@ -162,6 +170,7 @@ func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]in
 		ScheduleAt: scheduleAt,
 		IsOriginal: isOriginal,
 		Visibility: visibility,
+		Products:   products,
 	}
 
 	// 执行发布
@@ -193,11 +202,19 @@ func (s *AppServer) handlePublishVideo(ctx context.Context, args map[string]inte
 	content, _ := args["content"].(string)
 	videoPath, _ := args["video"].(string)
 	tagsInterface, _ := args["tags"].([]interface{})
+	productsInterface, _ := args["products"].([]interface{})
 
 	var tags []string
 	for _, tag := range tagsInterface {
 		if tagStr, ok := tag.(string); ok {
 			tags = append(tags, tagStr)
+		}
+	}
+
+	var products []string
+	for _, p := range productsInterface {
+		if pStr, ok := p.(string); ok {
+			products = append(products, pStr)
 		}
 	}
 
@@ -215,7 +232,7 @@ func (s *AppServer) handlePublishVideo(ctx context.Context, args map[string]inte
 	scheduleAt, _ := args["schedule_at"].(string)
 	visibility := parseVisibility(args)
 
-	logrus.Infof("MCP: 发布视频 - 标题: %s, 标签数量: %d, 定时: %s, visibility: %s", title, len(tags), scheduleAt, visibility)
+	logrus.Infof("MCP: 发布视频 - 标题: %s, 标签数量: %d, 定时: %s, visibility: %s, 商品: %v", title, len(tags), scheduleAt, visibility, products)
 
 	// 构建发布请求
 	req := &PublishVideoRequest{
@@ -225,6 +242,7 @@ func (s *AppServer) handlePublishVideo(ctx context.Context, args map[string]inte
 		Tags:       tags,
 		ScheduleAt: scheduleAt,
 		Visibility: visibility,
+		Products:   products,
 	}
 
 	// 执行发布
