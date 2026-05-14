@@ -302,10 +302,10 @@ func (s *AppServer) handleListFeeds(ctx context.Context) *MCPToolResult {
 }
 
 // handleListFavoriteFeeds 处理获取收藏列表
-func (s *AppServer) handleListFavoriteFeeds(ctx context.Context) *MCPToolResult {
-	logrus.Info("MCP: 获取收藏列表")
+func (s *AppServer) handleListFavoriteFeeds(ctx context.Context, args FavoriteListArgs) *MCPToolResult {
+	logrus.Infof("MCP: 获取收藏列表 - limit=%d", args.Limit)
 
-	result, err := s.xiaohongshuService.ListFavoriteFeeds(ctx)
+	result, err := s.xiaohongshuService.ListFavoriteFeeds(ctx, args.Limit)
 	if err != nil {
 		return &MCPToolResult{
 			Content: []MCPContent{{
@@ -336,10 +336,10 @@ func (s *AppServer) handleListFavoriteFeeds(ctx context.Context) *MCPToolResult 
 }
 
 // handleListFavoriteCategories 处理获取收藏分类
-func (s *AppServer) handleListFavoriteCategories(ctx context.Context) *MCPToolResult {
-	logrus.Info("MCP: 获取收藏分类")
+func (s *AppServer) handleListFavoriteCategories(ctx context.Context, args FavoriteListArgs) *MCPToolResult {
+	logrus.Infof("MCP: 获取收藏分类 - limit=%d", args.Limit)
 
-	result, err := s.xiaohongshuService.ListFavoriteCategories(ctx)
+	result, err := s.xiaohongshuService.ListFavoriteCategories(ctx, args.Limit)
 	if err != nil {
 		return &MCPToolResult{
 			Content: []MCPContent{{

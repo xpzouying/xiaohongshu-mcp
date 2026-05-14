@@ -3,6 +3,7 @@ package xiaohongshu
 import (
 	"context"
 	"fmt"
+	"math"
 	"net/url"
 	"strings"
 	"time"
@@ -10,6 +11,11 @@ import (
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/proto"
 	"github.com/xpzouying/xiaohongshu-mcp/errors"
+)
+
+const (
+	favoriteScrollRoundsWhenUnlimited = 30
+	favoriteScrollIdleRounds          = 3
 )
 
 type FavoriteFeedsAction struct {
@@ -22,14 +28,14 @@ func NewFavoriteFeedsAction(page *rod.Page) *FavoriteFeedsAction {
 }
 
 // GetFavoriteFeeds 获取当前登录用户的收藏笔记列表
-func (f *FavoriteFeedsAction) GetFavoriteFeeds(ctx context.Context) ([]Feed, error) {
+func (f *FavoriteFeedsAction) GetFavoriteFeeds(ctx context.Context, limit int) ([]Feed, error) {
 	page := f.page.Context(ctx)
 
 	if err := f.navigateToFavoriteFeedsTab(ctx, page); err != nil {
 		return nil, err
 	}
 
-	feeds, err := f.collectFavoriteFeedsFromPage(page)
+	feeds, err := f.collectFavoriteFeedsWithScroll(page, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -38,6 +44,50 @@ func (f *FavoriteFeedsAction) GetFavoriteFeeds(ctx context.Context) ([]Feed, err
 	}
 
 	return feeds, nil
+}
+
+func (f *FavoriteFeedsAction) collectFavoriteFeedsWithScroll(page *rod.Page, limit int) ([]Feed, error) {
+	feeds := make([]Feed, 0)
+	seen := make(map[string]struct{})
+	idleRounds := 0
+
+	for round := 0; round <= maxFavoriteScrollRounds(limit); round++ {
+		added, err := f.collectFavoriteFeedsFromPage(page, &feeds, seen, limit)
+		if err != nil {
+			return nil, err
+		}
+		if limit > 0 && len(feeds) >= limit {
+			return feeds[:limit], nil
+		}
+
+		if added == 0 {
+			idleRounds++
+			if idleRounds >= favoriteScrollIdleRounds {
+				break
+			}
+		} else {
+			idleRounds = 0
+		}
+
+		scrollFavoritePage(page)
+	}
+
+	return feeds, nil
+}
+
+func maxFavoriteScrollRounds(limit int) int {
+	if limit <= 0 {
+		return favoriteScrollRoundsWhenUnlimited
+	}
+
+	// 每轮通常加载若干卡片，这里按 limit 给滚动留足余量。
+	return int(math.Ceil(float64(limit)/6.0)) + favoriteScrollIdleRounds
+}
+
+func scrollFavoritePage(page *rod.Page) {
+	page.Mouse.MustScroll(0, 900)
+	time.Sleep(700 * time.Millisecond)
+	page.MustWaitDOMStable()
 }
 
 func (f *FavoriteFeedsAction) navigateToFavoriteFeedsTab(ctx context.Context, page *rod.Page) error {
@@ -79,21 +129,20 @@ func clickTabByText(page *rod.Page, tabText string) bool {
 	return false
 }
 
-func (f *FavoriteFeedsAction) collectFavoriteFeedsFromPage(page *rod.Page) ([]Feed, error) {
+func (f *FavoriteFeedsAction) collectFavoriteFeedsFromPage(page *rod.Page, feeds *[]Feed, seen map[string]struct{}, limit int) (int, error) {
 	anchors, err := page.Elements(`a[href*="/explore/"], a[href*="/discovery/item/"], a[href*="/user/profile/"]`)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find favorite feed links: %w", err)
+		return 0, fmt.Errorf("failed to find favorite feed links: %w", err)
 	}
 
-	feeds := make([]Feed, 0, len(anchors))
-	seen := make(map[string]struct{}, len(anchors))
+	added := 0
 	for _, anchor := range anchors {
 		href, ok := readElementAttr(anchor, "href")
 		if !ok {
 			continue
 		}
 
-		feed, ok := buildFeedFromFavoriteLink(anchor, href, len(feeds))
+		feed, ok := buildFeedFromFavoriteLink(anchor, href, len(*feeds))
 		if !ok {
 			continue
 		}
@@ -103,10 +152,15 @@ func (f *FavoriteFeedsAction) collectFavoriteFeedsFromPage(page *rod.Page) ([]Fe
 			continue
 		}
 		seen[key] = struct{}{}
-		feeds = append(feeds, feed)
+		*feeds = append(*feeds, feed)
+		added++
+
+		if limit > 0 && len(*feeds) >= limit {
+			break
+		}
 	}
 
-	return feeds, nil
+	return added, nil
 }
 
 func buildFeedFromFavoriteLink(anchor *rod.Element, href string, index int) (Feed, bool) {

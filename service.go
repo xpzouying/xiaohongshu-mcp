@@ -403,7 +403,7 @@ func (s *XiaohongshuService) SearchFeeds(ctx context.Context, keyword string, fi
 }
 
 // ListFavoriteFeeds 获取当前登录用户收藏列表
-func (s *XiaohongshuService) ListFavoriteFeeds(ctx context.Context) (*FeedsListResponse, error) {
+func (s *XiaohongshuService) ListFavoriteFeeds(ctx context.Context, limit int) (*FeedsListResponse, error) {
 	b := newBrowser()
 	defer b.Close()
 
@@ -412,7 +412,7 @@ func (s *XiaohongshuService) ListFavoriteFeeds(ctx context.Context) (*FeedsListR
 
 	action := xiaohongshu.NewFavoriteFeedsAction(page)
 
-	feeds, err := action.GetFavoriteFeeds(ctx)
+	feeds, err := action.GetFavoriteFeeds(ctx, limit)
 	if err != nil {
 		logrus.Errorf("获取收藏列表失败: %v", err)
 		return nil, err
@@ -426,7 +426,7 @@ func (s *XiaohongshuService) ListFavoriteFeeds(ctx context.Context) (*FeedsListR
 	return response, nil
 }
 
-func (s *XiaohongshuService) ListFavoriteCategories(ctx context.Context) (*FavoriteCategoryListResponse, error) {
+func (s *XiaohongshuService) ListFavoriteCategories(ctx context.Context, limit int) (*FavoriteCategoryListResponse, error) {
 	b := newBrowser()
 	defer b.Close()
 
@@ -434,7 +434,7 @@ func (s *XiaohongshuService) ListFavoriteCategories(ctx context.Context) (*Favor
 	defer page.Close()
 
 	action := xiaohongshu.NewFavoriteFeedsAction(page)
-	categories, err := action.GetFavoriteCategories(ctx)
+	categories, err := action.GetFavoriteCategories(ctx, limit)
 	if err != nil {
 		logrus.Errorf("获取收藏分类失败: %v", err)
 		return nil, err

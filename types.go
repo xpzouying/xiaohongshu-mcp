@@ -109,6 +109,10 @@ type FavoriteFeedsByCategoryRequest struct {
 	Limit        int    `json:"limit,omitempty"`
 }
 
+type FavoriteListRequest struct {
+	Limit int `json:"limit,omitempty" form:"limit"`
+}
+
 // ActionResult 通用动作响应（点赞/收藏等）
 type ActionResult struct {
 	FeedID  string `json:"feed_id"`

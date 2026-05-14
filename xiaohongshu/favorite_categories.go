@@ -19,23 +19,51 @@ var (
 )
 
 // GetFavoriteCategories 获取收藏下的专辑分类列表
-func (f *FavoriteFeedsAction) GetFavoriteCategories(ctx context.Context) ([]FavoriteCategory, error) {
+func (f *FavoriteFeedsAction) GetFavoriteCategories(ctx context.Context, limit int) ([]FavoriteCategory, error) {
 	page := f.page.Context(ctx)
 	if err := f.navigateToFavoriteBoardTab(ctx, page); err != nil {
 		return nil, err
 	}
 
-	return f.collectFavoriteCategoriesFromPage(page)
+	return f.collectFavoriteCategoriesWithScroll(page, limit)
 }
 
-func (f *FavoriteFeedsAction) collectFavoriteCategoriesFromPage(page *rod.Page) ([]FavoriteCategory, error) {
-	anchors, err := page.Elements(`a[href*="/board/"]`)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find favorite category links: %w", err)
+func (f *FavoriteFeedsAction) collectFavoriteCategoriesWithScroll(page *rod.Page, limit int) ([]FavoriteCategory, error) {
+	categories := make([]FavoriteCategory, 0)
+	seen := make(map[string]struct{})
+	idleRounds := 0
+
+	for round := 0; round <= maxFavoriteScrollRounds(limit); round++ {
+		added, err := f.collectFavoriteCategoriesFromPage(page, &categories, seen, limit)
+		if err != nil {
+			return nil, err
+		}
+		if limit > 0 && len(categories) >= limit {
+			return categories[:limit], nil
+		}
+
+		if added == 0 {
+			idleRounds++
+			if idleRounds >= favoriteScrollIdleRounds {
+				break
+			}
+		} else {
+			idleRounds = 0
+		}
+
+		scrollFavoritePage(page)
 	}
 
-	categories := make([]FavoriteCategory, 0, len(anchors))
-	seen := make(map[string]struct{}, len(anchors))
+	return categories, nil
+}
+
+func (f *FavoriteFeedsAction) collectFavoriteCategoriesFromPage(page *rod.Page, categories *[]FavoriteCategory, seen map[string]struct{}, limit int) (int, error) {
+	anchors, err := page.Elements(`a[href*="/board/"]`)
+	if err != nil {
+		return 0, fmt.Errorf("failed to find favorite category links: %w", err)
+	}
+
+	added := 0
 	for _, anchor := range anchors {
 		href, ok := readElementAttr(anchor, "href")
 		if !ok {
@@ -51,10 +79,15 @@ func (f *FavoriteFeedsAction) collectFavoriteCategoriesFromPage(page *rod.Page) 
 		}
 
 		seen[category.ID] = struct{}{}
-		categories = append(categories, category)
+		*categories = append(*categories, category)
+		added++
+
+		if limit > 0 && len(*categories) >= limit {
+			break
+		}
 	}
 
-	return categories, nil
+	return added, nil
 }
 
 func buildFavoriteCategoryFromBoardLink(anchor *rod.Element, href string) (FavoriteCategory, bool) {
@@ -132,7 +165,7 @@ func (f *FavoriteFeedsAction) GetFavoriteFeedsByCategory(ctx context.Context, ca
 		return nil, nil, err
 	}
 
-	categories, err := f.collectFavoriteCategoriesFromPage(page)
+	categories, err := f.collectFavoriteCategoriesWithScroll(page, 0)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -145,14 +178,10 @@ func (f *FavoriteFeedsAction) GetFavoriteFeedsByCategory(ctx context.Context, ca
 	page.MustNavigate(target.URL).MustWaitLoad().MustWaitDOMStable()
 	time.Sleep(800 * time.Millisecond)
 
-	feeds, err := f.collectFavoriteFeedsFromPage(page)
+	feeds, err := f.collectFavoriteFeedsWithScroll(page, limit)
 	if err != nil {
 		return nil, nil, err
 	}
-	if limit > 0 && len(feeds) > limit {
-		feeds = feeds[:limit]
-	}
-
 	return feeds, target, nil
 }
 

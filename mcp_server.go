@@ -100,6 +100,11 @@ type FavoriteFeedArgs struct {
 	Unfavorite bool   `json:"unfavorite,omitempty" jsonschema:"是否取消收藏，true为取消收藏，false或未设置则为收藏"`
 }
 
+// FavoriteListArgs 收藏列表参数
+type FavoriteListArgs struct {
+	Limit int `json:"limit,omitempty" jsonschema:"返回数量上限，默认不限制"`
+}
+
 // FavoriteFeedsByCategoryArgs 按分类获取收藏
 type FavoriteFeedsByCategoryArgs struct {
 	CategoryID   string `json:"category_id,omitempty" jsonschema:"收藏分类ID（专辑ID），优先匹配此参数"`
@@ -261,8 +266,8 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				ReadOnlyHint: true,
 			},
 		},
-		withPanicRecovery("list_favorite_feeds", func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, any, error) {
-			result := appServer.handleListFavoriteFeeds(ctx)
+		withPanicRecovery("list_favorite_feeds", func(ctx context.Context, req *mcp.CallToolRequest, args FavoriteListArgs) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleListFavoriteFeeds(ctx, args)
 			return convertToMCPResult(result), nil, nil
 		}),
 	)
@@ -277,8 +282,8 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				ReadOnlyHint: true,
 			},
 		},
-		withPanicRecovery("list_favorite_categories", func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, any, error) {
-			result := appServer.handleListFavoriteCategories(ctx)
+		withPanicRecovery("list_favorite_categories", func(ctx context.Context, req *mcp.CallToolRequest, args FavoriteListArgs) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleListFavoriteCategories(ctx, args)
 			return convertToMCPResult(result), nil, nil
 		}),
 	)
