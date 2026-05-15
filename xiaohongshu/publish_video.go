@@ -4,11 +4,9 @@ import (
 	"context"
 	"log/slog"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/go-rod/rod"
-	"github.com/go-rod/rod/lib/proto"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
@@ -92,43 +90,12 @@ func uploadVideo(page *rod.Page, videoPath string) error {
 	fileInput.MustSetFiles(videoPath)
 
 	// 对于视频，等待发布按钮变为可点击即表示处理完成
-	btn, err := waitForPublishButtonClickable(pp)
+	btn, err := waitForPublishButtonClickable(pp, 10*time.Minute)
 	if err != nil {
 		return err
 	}
 	slog.Info("视频上传/处理完成，发布按钮可点击", "btn", btn)
 	return nil
-}
-
-// waitForPublishButtonClickable 等待发布按钮可点击
-func waitForPublishButtonClickable(page *rod.Page) (*rod.Element, error) {
-	maxWait := 10 * time.Minute
-	interval := 1 * time.Second
-	start := time.Now()
-	selector := ".publish-page-publish-btn button.bg-red"
-
-	slog.Info("开始等待发布按钮可点击(视频)")
-
-	for time.Since(start) < maxWait {
-		btn, err := page.Element(selector)
-		if err == nil && btn != nil {
-			// 可见性
-			vis, verr := btn.Visible()
-			if verr == nil && vis {
-				// 检查 disabled 属性
-				if disabled, _ := btn.Attribute("disabled"); disabled == nil {
-					// 再通过 class 名粗略判断不在禁用态
-					if cls, _ := btn.Attribute("class"); cls != nil && !strings.Contains(*cls, "disabled") {
-						return btn, nil
-					}
-					// 即使 class 包含 disabled，只要没有 disabled 属性，也尝试点击一次以确认
-					return btn, nil
-				}
-			}
-		}
-		time.Sleep(interval)
-	}
-	return nil, errors.New("等待发布按钮可点击超时")
 }
 
 // submitPublishVideo 填写标题、正文、标签并点击发布（等待按钮可点击后再提交）
@@ -178,15 +145,8 @@ func submitPublishVideo(page *rod.Page, title, content string, tags []string, sc
 		return errors.Wrap(err, "绑定商品失败")
 	}
 
-	// 等待发布按钮可点击
-	btn, err := waitForPublishButtonClickable(page)
-	if err != nil {
+	if err := clickPublishButton(page); err != nil {
 		return err
-	}
-
-	// 点击发布
-	if err := btn.Click(proto.InputMouseButtonLeft, 1); err != nil {
-		return errors.Wrap(err, "点击发布按钮失败")
 	}
 
 	time.Sleep(3 * time.Second)

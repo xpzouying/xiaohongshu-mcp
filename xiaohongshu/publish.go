@@ -339,15 +339,171 @@ func submitPublish(page *rod.Page, title, content string, tags []string, schedul
 		return errors.Wrap(err, "绑定商品失败")
 	}
 
-	submitButton, err := page.Element(".publish-page-publish-btn button.bg-red")
-	if err != nil {
-		return errors.Wrap(err, "查找发布按钮失败")
-	}
-	if err := submitButton.Click(proto.InputMouseButtonLeft, 1); err != nil {
-		return errors.Wrap(err, "点击发布按钮失败")
+	if err := clickPublishButton(page); err != nil {
+		return err
 	}
 
 	time.Sleep(3 * time.Second)
+	return nil
+}
+
+type publishButton struct {
+	elem     *rod.Element
+	isWidget bool
+}
+
+func clickPublishButton(page *rod.Page) error {
+	btn, err := waitForPublishButtonClickable(page, 15*time.Second)
+	if err != nil {
+		return err
+	}
+
+	if btn.isWidget {
+		return clickPublishWidget(page, btn.elem)
+	}
+
+	if err := btn.elem.Click(proto.InputMouseButtonLeft, 1); err != nil {
+		return errors.Wrap(err, "点击发布按钮失败")
+	}
+	return nil
+}
+
+// waitForPublishButtonClickable 等待新版 xhs-publish-btn 或旧版 button.bg-red 可点击。
+func waitForPublishButtonClickable(page *rod.Page, maxWait time.Duration) (*publishButton, error) {
+	interval := 1 * time.Second
+	start := time.Now()
+	var lastDisabledReason string
+
+	slog.Info("开始等待发布按钮可点击")
+
+	for time.Since(start) < maxWait {
+		btn, disabledReason, err := findPublishButton(page)
+		if err != nil {
+			slog.Warn("查找发布按钮失败，继续等待", "error", err)
+			time.Sleep(interval)
+			continue
+		}
+		if btn != nil && disabledReason == "" {
+			return btn, nil
+		}
+		if disabledReason != "" {
+			lastDisabledReason = disabledReason
+		}
+		time.Sleep(interval)
+	}
+
+	if lastDisabledReason != "" {
+		return nil, errors.Errorf("等待发布按钮可点击超时: %s", lastDisabledReason)
+	}
+	return nil, errors.New("等待发布按钮可点击超时")
+}
+
+func findPublishButton(page *rod.Page) (*publishButton, string, error) {
+	widgets, err := page.Elements("xhs-publish-btn")
+	if err != nil {
+		return nil, "", errors.Wrap(err, "查找新版发布按钮失败")
+	}
+
+	for _, widget := range widgets {
+		if !isElementVisible(widget) {
+			continue
+		}
+
+		isPublish, err := widget.Attribute("is-publish")
+		if err != nil {
+			return nil, "", errors.Wrap(err, "读取新版发布按钮 is-publish 属性失败")
+		}
+		if isPublish != nil && *isPublish == "false" {
+			continue
+		}
+
+		submitDisabled, err := widget.Attribute("submit-disabled")
+		if err != nil {
+			return nil, "", errors.Wrap(err, "读取新版发布按钮 submit-disabled 属性失败")
+		}
+		if submitDisabled != nil && *submitDisabled == "true" {
+			return &publishButton{elem: widget, isWidget: true}, "新版发布按钮不可点击", nil
+		}
+
+		return &publishButton{elem: widget, isWidget: true}, "", nil
+	}
+
+	oldButtons, err := page.Elements(".publish-page-publish-btn button.bg-red")
+	if err != nil {
+		return nil, "", errors.Wrap(err, "查找旧版发布按钮失败")
+	}
+
+	for _, oldButton := range oldButtons {
+		if !isElementVisible(oldButton) {
+			continue
+		}
+
+		if disabled, err := oldButton.Attribute("disabled"); err != nil {
+			return nil, "", errors.Wrap(err, "读取旧版发布按钮 disabled 属性失败")
+		} else if disabled != nil {
+			return &publishButton{elem: oldButton}, "旧版发布按钮 disabled", nil
+		}
+
+		if ariaDisabled, err := oldButton.Attribute("aria-disabled"); err != nil {
+			return nil, "", errors.Wrap(err, "读取旧版发布按钮 aria-disabled 属性失败")
+		} else if ariaDisabled != nil && *ariaDisabled == "true" {
+			return &publishButton{elem: oldButton}, "旧版发布按钮 aria-disabled=true", nil
+		}
+
+		if cls, err := oldButton.Attribute("class"); err != nil {
+			return nil, "", errors.Wrap(err, "读取旧版发布按钮 class 属性失败")
+		} else if cls != nil && hasExactClass(*cls, "disabled") {
+			return &publishButton{elem: oldButton}, "旧版发布按钮包含 disabled class", nil
+		}
+
+		return &publishButton{elem: oldButton}, "", nil
+	}
+
+	return nil, "", nil
+}
+
+func clickPublishWidget(page *rod.Page, widget *rod.Element) error {
+	if err := widget.ScrollIntoView(); err != nil {
+		return errors.Wrap(err, "滚动新版发布按钮到可视区域失败")
+	}
+	time.Sleep(200 * time.Millisecond)
+
+	shape, err := widget.Shape()
+	if err != nil {
+		return errors.Wrap(err, "获取新版发布按钮位置失败")
+	}
+	if len(shape.Quads) == 0 {
+		return errors.New("获取新版发布按钮位置失败: 无可点击区域")
+	}
+
+	quad := shape.Quads[0]
+	minX, maxX := quad[0], quad[0]
+	minY, maxY := quad[1], quad[1]
+	for i := 0; i < quad.Len(); i++ {
+		x := quad[i*2]
+		y := quad[i*2+1]
+		if x < minX {
+			minX = x
+		}
+		if x > maxX {
+			maxX = x
+		}
+		if y < minY {
+			minY = y
+		}
+		if y > maxY {
+			maxY = y
+		}
+	}
+
+	x := minX + (maxX-minX)*0.65
+	y := minY + (maxY-minY)/2
+	if err := page.Mouse.MoveTo(proto.Point{X: x, Y: y}); err != nil {
+		return errors.Wrap(err, "移动到新版发布按钮失败")
+	}
+	if err := page.Mouse.Click(proto.InputMouseButtonLeft, 1); err != nil {
+		return errors.Wrap(err, "点击发布按钮失败")
+	}
 	return nil
 }
 
