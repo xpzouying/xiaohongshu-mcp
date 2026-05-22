@@ -997,15 +997,15 @@ npx mcporter list xiaohongshu-mcp
 **重要：在群里问问题之前，请一定要先仔细看完 README 文档以及查看 Issues。**
 
 ### 微信群
-|                                                 微信群 21 群                                        |                                                 微信群 22 群                                         |
+|                                                 微信群 23 群                                        |                                                 微信群 24 群                                         |
 | :------------------------------------------------------------------------------------------------: | :------------------------------------------------------------------------------------------------: |
-| <img src="https://github.com/user-attachments/assets/ff02e60c-e850-4931-87de-c10e32919a74" alt="WechatIMG119" width="300"> | <img src="https://github.com/user-attachments/assets/7a923529-425d-4005-bad8-64a3ecb5a819" alt="WechatIMG119" width="300">|
+| <img src="https://github.com/user-attachments/assets/1ada898c-3ce7-4b92-a435-a97fcfb5597d" alt="WechatIMG119" width="300"> | <img src="https://github.com/user-attachments/assets/6a326ab0-a9c7-4480-9c8e-2db550309cff" alt="WechatIMG119" width="300">|
 
 ### 飞书群
 
-|                                                         飞书 1 群                                                         |                                                         飞书 2 群                                                         |                                                         飞书 3 群                                                         |                                                         飞书 4 群                                                         |
+|                                                         飞书 2 群                                                         |                                                         飞书 3 群                                                         |                                                         飞书 4 群                                                         |                                                         飞书 5 群                                                         |
 | :-----------------------------------------------------------------------------------------------------------------------: | :-----------------------------------------------------------------------------------------------------------------------: | :-----------------------------------------------------------------------------------------------------------------------: | :-----------------------------------------------------------------------------------------------------------------------: |
-| <img src="https://github.com/user-attachments/assets/65579771-3543-4661-9b48-def48eed609b" alt="qr-feishu01" width="260"> | <img src="https://github.com/user-attachments/assets/4983ea42-ce5b-4e26-a8c0-33889093b579" alt="qr-feishu02" width="260"> | <img src="https://github.com/user-attachments/assets/c77b45da-6028-4d3a-b421-ccc6c7210695" alt="qr-feishu03" width="260"> | <img src="https://github.com/user-attachments/assets/c42f5595-71cd-4d9b-b7f8-0c333bd25e2b" alt="qr-feishu04" width="260"> |
+| <img src="https://github.com/user-attachments/assets/4983ea42-ce5b-4e26-a8c0-33889093b579" alt="qr-feishu02" width="260"> | <img src="https://github.com/user-attachments/assets/c77b45da-6028-4d3a-b421-ccc6c7210695" alt="qr-feishu03" width="260"> | <img src="https://github.com/user-attachments/assets/c42f5595-71cd-4d9b-b7f8-0c333bd25e2b" alt="qr-feishu04" width="260"> | <img src="https://github.com/user-attachments/assets/c032801c-bf02-4e8e-81ad-fb8471b3d765" alt="qr-feishu05" width="260"> |
 
 > **注意：**
 >
