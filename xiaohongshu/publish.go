@@ -14,6 +14,7 @@ import (
 	"github.com/go-rod/rod/lib/proto"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"github.com/xpzouying/xiaohongshu-mcp/configs"
 )
 
 // PublishImageContent 发布图文内容
@@ -32,16 +33,16 @@ type PublishAction struct {
 	page *rod.Page
 }
 
-const (
-	urlOfPublic = `https://creator.xiaohongshu.com/publish/publish?source=official`
-)
+func getPublishURL() string {
+	return "https://" + configs.GetCreatorDomain() + "/publish/publish?source=official"
+}
 
 func NewPublishImageAction(page *rod.Page) (*PublishAction, error) {
 
 	pp := page.Timeout(300 * time.Second)
 
 	// 使用更稳健的导航和等待策略
-	if err := pp.Navigate(urlOfPublic); err != nil {
+	if err := pp.Navigate(getPublishURL()); err != nil {
 		return nil, errors.Wrap(err, "导航到发布页面失败")
 	}
 

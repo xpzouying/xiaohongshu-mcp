@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/go-rod/rod"
+	"github.com/xpzouying/xiaohongshu-mcp/configs"
 )
 
 type NavigateAction struct {
@@ -17,7 +18,7 @@ func NewNavigate(page *rod.Page) *NavigateAction {
 func (n *NavigateAction) ToExplorePage(ctx context.Context) error {
 	page := n.page.Context(ctx)
 
-	page.MustNavigate("https://www.xiaohongshu.com/explore").
+	page.MustNavigate(configs.GetBaseURL() + "/explore").
 		MustWaitLoad().
 		MustElement(`div#app`)
 
