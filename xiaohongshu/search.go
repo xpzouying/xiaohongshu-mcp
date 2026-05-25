@@ -3,12 +3,14 @@ package xiaohongshu
 import (
 	"context"
 	"encoding/json"
+	stderrors "errors"
 	"fmt"
 	"net/url"
 	"time"
 
 	"github.com/go-rod/rod"
-	"github.com/xpzouying/xiaohongshu-mcp/errors"
+	"github.com/sirupsen/logrus"
+	xhserrors "github.com/xpzouying/xiaohongshu-mcp/errors"
 )
 
 type SearchResult struct {
@@ -155,6 +157,25 @@ func validateInternalFilterOption(filter internalFilterOption) error {
 	return nil
 }
 
+func collectInternalFilters(filters []FilterOption) ([]internalFilterOption, error) {
+	var allInternalFilters []internalFilterOption
+	for _, filter := range filters {
+		internalFilters, err := convertToInternalFilters(filter)
+		if err != nil {
+			return nil, err
+		}
+		allInternalFilters = append(allInternalFilters, internalFilters...)
+	}
+
+	for _, filter := range allInternalFilters {
+		if err := validateInternalFilterOption(filter); err != nil {
+			return nil, err
+		}
+	}
+
+	return allInternalFilters, nil
+}
+
 type SearchAction struct {
 	page *rod.Page
 }
@@ -166,54 +187,80 @@ func NewSearchAction(page *rod.Page) *SearchAction {
 }
 
 func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...FilterOption) ([]Feed, error) {
+	var feeds []Feed
+	var searchErr error
+	err := recoverSearchPanic(func() {
+		feeds, searchErr = s.search(ctx, keyword, filters...)
+	})
+	if err != nil {
+		return nil, err
+	}
+	if searchErr != nil {
+		return nil, searchErr
+	}
+
+	return feeds, nil
+}
+
+func (s *SearchAction) search(ctx context.Context, keyword string, filters ...FilterOption) ([]Feed, error) {
 	page := s.page.Context(ctx)
 
 	searchURL := makeSearchURL(keyword)
-	page.MustNavigate(searchURL)
-	page.MustWaitStable()
+	logrus.Infof("搜索Feeds: 打开搜索页 url=%s", searchURL)
+	page.Timeout(30 * time.Second).MustNavigate(searchURL)
 
-	page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
+	logrus.Info("搜索Feeds: 等待搜索页初始数据")
+	page.Timeout(20 * time.Second).MustWait(`() => {
+		return window.__INITIAL_STATE__ !== undefined &&
+			window.__INITIAL_STATE__.search !== undefined &&
+			window.__INITIAL_STATE__.search.feeds !== undefined;
+	}`)
+	page.Timeout(15 * time.Second).MustWait(`() => {
+		const feeds = window.__INITIAL_STATE__?.search?.feeds;
+		const feedsData = feeds?.value !== undefined ? feeds.value : feeds?._value;
+		return Array.isArray(feedsData) && feedsData.length > 0;
+	}`)
 
-	// 如果有筛选条件，则应用筛选
-	if len(filters) > 0 {
-		// 将所有 FilterOption 转换为内部筛选选项
-		var allInternalFilters []internalFilterOption
-		for _, filter := range filters {
-			internalFilters, err := convertToInternalFilters(filter)
-			if err != nil {
-				return nil, fmt.Errorf("筛选选项转换失败: %w", err)
-			}
-			allInternalFilters = append(allInternalFilters, internalFilters...)
-		}
+	allInternalFilters, err := collectInternalFilters(filters)
+	if err != nil {
+		return nil, fmt.Errorf("筛选选项转换失败: %w", err)
+	}
 
-		// 验证所有内部筛选选项
-		for _, filter := range allInternalFilters {
-			if err := validateInternalFilterOption(filter); err != nil {
-				return nil, fmt.Errorf("筛选选项验证失败: %w", err)
-			}
-		}
-
-		// 悬停在筛选按钮上
-		filterButton := page.MustElement(`div.filter`)
-		filterButton.MustHover()
-
-		// 等待筛选面板出现
-		page.MustWait(`() => document.querySelector('div.filter-panel') !== null`)
+	// 如果有实际筛选条件，则应用筛选
+	if len(allInternalFilters) > 0 {
+		logrus.Infof("搜索Feeds: 应用筛选条件数量=%d", len(allInternalFilters))
 
 		// 应用所有筛选条件
 		for _, filter := range allInternalFilters {
-			selector := fmt.Sprintf(`div.filter-panel div.filters:nth-child(%d) div.tags:nth-child(%d)`,
-				filter.FiltersIndex, filter.TagsIndex)
-			option := page.MustElement(selector)
+			// 筛选面板由 hover 触发，点击后可能收起；每次点击前都重新展开。
+			logrus.Debug("搜索Feeds: 查找筛选按钮")
+			filterButton := page.Timeout(5 * time.Second).MustElement(`div.filter`)
+			filterButton.MustHover()
+
+			logrus.Debug("搜索Feeds: 等待筛选面板")
+			page.Timeout(5 * time.Second).MustWait(`() => document.querySelector('div.filter-panel') !== null`)
+
+			selector := fmt.Sprintf(`div.filter-panel div.filters:nth-child(%d) div.tags:not([aria-hidden="true"])`,
+				filter.FiltersIndex)
+			logrus.Infof("搜索Feeds: 查找可见筛选项 %s selector=%s index=%d", filter.Text, selector, filter.TagsIndex)
+			options := page.Timeout(5 * time.Second).MustElements(selector)
+			if len(options) < filter.TagsIndex {
+				return nil, fmt.Errorf("筛选项 %s 不存在: selector=%s index=%d visibleCount=%d",
+					filter.Text, selector, filter.TagsIndex, len(options))
+			}
+			option := options[filter.TagsIndex-1]
+			logrus.Infof("搜索Feeds: 点击筛选项 %s", filter.Text)
 			option.MustClick()
+			logrus.Infof("搜索Feeds: 已点击筛选项 %s", filter.Text)
 		}
 
-		// 等待页面更新
-		page.MustWaitStable()
-		// 重新等待 __INITIAL_STATE__ 更新
-		page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
+		// 点击筛选后页面会异步刷新数据，避免等待整页 stable 或依赖易变的 loading 状态。
+		time.Sleep(1500 * time.Millisecond)
+	} else {
+		logrus.Info("搜索Feeds: 无实际筛选条件，跳过筛选面板")
 	}
 
+	logrus.Info("搜索Feeds: 读取 feeds 数据")
 	result := page.MustEval(`() => {
 		if (window.__INITIAL_STATE__ &&
 		    window.__INITIAL_STATE__.search &&
@@ -228,15 +275,56 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 	}`).String()
 
 	if result == "" {
-		return nil, errors.ErrNoFeeds
+		logSearchState(page)
+		return nil, xhserrors.ErrNoFeeds
 	}
 
 	var feeds []Feed
 	if err := json.Unmarshal([]byte(result), &feeds); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal feeds: %w", err)
 	}
+	logrus.Infof("搜索Feeds: 读取 feeds 完成 count=%d", len(feeds))
 
 	return feeds, nil
+}
+
+func logSearchState(page *rod.Page) {
+	state := page.Timeout(2 * time.Second).MustEval(`() => JSON.stringify({
+		url: location.href,
+		title: document.title,
+		bodyText: document.body?.innerText?.slice(0, 300) ?? "",
+		hasInitialState: !!window.__INITIAL_STATE__,
+		searchKeys: Object.keys(window.__INITIAL_STATE__?.search ?? {}),
+		feedsType: typeof (window.__INITIAL_STATE__?.search?.feeds),
+		feedsValueType: typeof (window.__INITIAL_STATE__?.search?.feeds?.value),
+		feedsValueLength: Array.isArray(window.__INITIAL_STATE__?.search?.feeds?.value)
+			? window.__INITIAL_STATE__.search.feeds.value.length
+			: null,
+		feedsRawLength: Array.isArray(window.__INITIAL_STATE__?.search?.feeds?._value)
+			? window.__INITIAL_STATE__.search.feeds._value.length
+			: null,
+	})`).String()
+	logrus.Warnf("搜索Feeds: 未捕获到 feeds 数据，页面状态=%s", state)
+}
+
+func recoverSearchPanic(fn func()) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			if panicErr, ok := r.(error); ok {
+				if stderrors.Is(panicErr, context.Canceled) || stderrors.Is(panicErr, context.DeadlineExceeded) {
+					err = panicErr
+					return
+				}
+				err = fmt.Errorf("搜索页面操作失败: %w", panicErr)
+				return
+			}
+
+			panic(r)
+		}
+	}()
+
+	fn()
+	return nil
 }
 
 func makeSearchURL(keyword string) string {
