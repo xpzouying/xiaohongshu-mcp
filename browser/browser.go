@@ -18,8 +18,7 @@ import (
 const defaultUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 
 type browserConfig struct {
-	binPath      string
-	cloakBrowser bool
+	binPath string
 }
 
 type Browser struct {
@@ -57,8 +56,8 @@ func NewBrowser(headless bool, options ...Option) *Browser {
 		opt(cfg)
 	}
 
-	binPath := resolveBrowserBinPathConfig(cfg)
-	cloakBrowser := cfg.cloakBrowser || isCloakBrowserBin(binPath)
+	binPath, explicitCloakBrowser := resolveBrowserBinPathConfig(cfg)
+	cloakBrowser := explicitCloakBrowser || isCloakBrowserBin(binPath)
 
 	l := launcher.New().
 		Headless(headless).
@@ -121,22 +120,20 @@ func (b *Browser) NewPage() *rod.Page {
 	return b.browser.MustPage()
 }
 
-func resolveBrowserBinPathConfig(cfg *browserConfig) string {
+func resolveBrowserBinPathConfig(cfg *browserConfig) (string, bool) {
 	if cfg.binPath != "" {
-		return cfg.binPath
+		return cfg.binPath, false
 	}
 	if envPath := os.Getenv("ROD_BROWSER_BIN"); envPath != "" {
-		return envPath
+		return envPath, false
 	}
 	if envPath := os.Getenv("CLOAKBROWSER_BINARY_PATH"); envPath != "" {
-		cfg.cloakBrowser = true
-		return envPath
+		return envPath, true
 	}
-	return ""
+	return "", false
 }
 
 func isCloakBrowserBin(binPath string) bool {
 	normalized := strings.ToLower(filepath.ToSlash(binPath))
-	return strings.Contains(normalized, "cloakbrowser") ||
-		strings.Contains(normalized, ".cloakbrowser")
+	return strings.Contains(normalized, "cloakbrowser")
 }
