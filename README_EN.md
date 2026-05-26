@@ -462,6 +462,22 @@ go run .
 go run . -headless=false
 ```
 
+**Using CloakBrowser (Optional):**
+
+If CloakBrowser is installed, you can explicitly specify its browser binary with `CLOAKBROWSER_BINARY_PATH`:
+
+```bash
+CLOAKBROWSER_BINARY_PATH=/path/to/cloakbrowser/chrome go run .
+```
+
+You can also continue to use the existing `-bin` flag:
+
+```bash
+go run . -bin /path/to/cloakbrowser/chrome
+```
+
+CloakBrowser mode is enabled only when the CloakBrowser binary path is explicitly provided. In that mode, the service will not override the browser's own User-Agent and will not enable `go-rod/stealth` injection, avoiding conflicts with CloakBrowser's own runtime environment. Regular Chrome/Chromium launches keep the existing behavior.
+
 ## 1.4. Verify MCP
 
 ```bash
