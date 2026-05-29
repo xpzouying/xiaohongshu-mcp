@@ -867,6 +867,29 @@ Use xiaohongshu-mcp's video publishing feature.
 
 ---
 
+**Q:** Trae shows `list tools failed` / `fetch failed`. How do I troubleshoot?
+**A:**
+
+1. Confirm the MCP service is running:
+   - You can see logs in terminal
+   - `http://127.0.0.1:18060/ping` returns `pong`
+2. In Trae config, the URL must be a **plain HTTP URL** (not a Markdown link).
+3. Recommended config:
+
+```json
+{
+  "mcpServers": {
+    "xiaohongshu-mcp": {
+      "url": "http://127.0.0.1:18060/mcp"
+    }
+  }
+}
+```
+
+4. If MCP runs in Docker/WSL, replace `127.0.0.1` with a host-reachable address (for example `host.docker.internal` or your host IPv4).
+
+---
+
 ## 3. 🌟 Community Showcases
 
 > 💡 **Highly Recommended**: These are real-world use cases from community contributors, featuring detailed configuration steps and practical experiences!
