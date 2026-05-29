@@ -213,6 +213,7 @@ https://github.com/user-attachments/assets/cc385b6c-422c-489b-a5fc-63e92c695b80
 - 获取用户基本信息（昵称、简介、头像等）
 - 获取关注数、粉丝数、获赞量统计
 - 获取用户发布的笔记内容列表
+- 支持滚动加载全部笔记
 - 支持 HTTP API 和 MCP 工具调用
 
 **⚠️ 重要提示：**
@@ -884,6 +885,8 @@ npx mcporter list xiaohongshu-mcp
 - `favorite_feed` - 收藏/取消收藏（必需：feed_id, xsec_token）
   - `unfavorite`: 是否取消收藏（可选），true 为取消收藏，默认为收藏
 - `user_profile` - 获取用户个人主页信息（必需：user_id, xsec_token）
+  - `load_all_notes`: 是否加载全部笔记（可选），默认 false 仅返回首屏笔记，true 滚动加载所有笔记
+  - `scroll_speed`: 滚动速度（可选），`slow` | `normal` | `fast`，仅当 load_all_notes=true 时生效
 
 ### 2.4. 使用示例
 

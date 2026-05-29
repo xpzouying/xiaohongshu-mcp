@@ -7,26 +7,114 @@ import (
 	"time"
 
 	"github.com/go-rod/rod"
+	"github.com/sirupsen/logrus"
 )
+
+const (
+	maxNoteScrollAttempts = 200 // 最大滚动尝试次数
+	noteStagnantLimit     = 10  // 连续无新笔记时停止
+)
+
+// NoteScrollConfig 笔记滚动加载配置
+type NoteScrollConfig struct {
+	LoadAllNotes bool
+	ScrollSpeed  string
+}
+
+func DefaultNoteScrollConfig() NoteScrollConfig {
+	return NoteScrollConfig{
+		LoadAllNotes: false,
+		ScrollSpeed:  "normal",
+	}
+}
 
 type UserProfileAction struct {
 	page *rod.Page
 }
 
 func NewUserProfileAction(page *rod.Page) *UserProfileAction {
-	pp := page.Timeout(60 * time.Second)
+	pp := page.Timeout(5 * time.Minute)
 	return &UserProfileAction{page: pp}
 }
 
 // UserProfile 获取用户基本信息及帖子
-func (u *UserProfileAction) UserProfile(ctx context.Context, userID, xsecToken string) (*UserProfileResponse, error) {
+func (u *UserProfileAction) UserProfile(ctx context.Context, userID, xsecToken string, config NoteScrollConfig) (*UserProfileResponse, error) {
 	page := u.page.Context(ctx)
 
 	searchURL := makeUserProfileURL(userID, xsecToken)
 	page.MustNavigate(searchURL)
 	page.MustWaitStable()
 
+	if config.LoadAllNotes {
+		u.scrollToLoadAllNotes(page, config.ScrollSpeed)
+	}
+
 	return u.extractUserProfileData(page)
+}
+
+// scrollToLoadAllNotes 滚动页面加载全部笔记
+func (u *UserProfileAction) scrollToLoadAllNotes(page *rod.Page, scrollSpeed string) {
+	logrus.Info("开始滚动加载全部笔记...")
+
+	scrollInterval := getScrollInterval(scrollSpeed)
+	lastCount := getNoteCount(page)
+	stagnantChecks := 0
+	lastScrollTop := 0
+
+	logrus.Infof("初始笔记数: %d", lastCount)
+
+	for attempt := 0; attempt < maxNoteScrollAttempts; attempt++ {
+		_, scrollDelta, currentScrollTop := humanScroll(page, scrollSpeed, false, 1)
+		time.Sleep(scrollInterval)
+
+		currentCount := getNoteCount(page)
+
+		if currentCount > lastCount {
+			logrus.Infof("加载新笔记: %d -> %d", lastCount, currentCount)
+			lastCount = currentCount
+			stagnantChecks = 0
+		} else if scrollDelta < minScrollDelta || currentScrollTop == lastScrollTop {
+			stagnantChecks++
+		}
+
+		lastScrollTop = currentScrollTop
+
+		if stagnantChecks >= noteStagnantLimit {
+			logrus.Infof("笔记加载完成，共 %d 条", currentCount)
+			return
+		}
+
+		// 停滞时尝试大幅滚动
+		if stagnantChecks > 0 && stagnantChecks%5 == 0 {
+			humanScroll(page, scrollSpeed, true, 3)
+			time.Sleep(scrollInterval)
+		}
+	}
+
+	logrus.Infof("达到最大滚动次数，已加载 %d 条笔记", getNoteCount(page))
+}
+
+// getNoteCount 通过 __INITIAL_STATE__ 获取当前已加载的笔记数
+func getNoteCount(page *rod.Page) int {
+	result := page.MustEval(`() => {
+		if (window.__INITIAL_STATE__ &&
+		    window.__INITIAL_STATE__.user &&
+		    window.__INITIAL_STATE__.user.notes) {
+			const notes = window.__INITIAL_STATE__.user.notes;
+			const data = notes.value !== undefined ? notes.value : notes._value;
+			if (data && Array.isArray(data)) {
+				let count = 0;
+				for (const arr of data) {
+					if (Array.isArray(arr)) {
+						count += arr.length;
+					}
+				}
+				return count;
+			}
+		}
+		return 0;
+	}`)
+	return result.Int()
 }
 
 // extractUserProfileData 从页面中提取用户资料数据的通用方法
