@@ -999,7 +999,8 @@ npx mcporter list xiaohongshu-mcp
 ### 微信群
 |                                                 微信群 23 群                                        |                                                 微信群 24 群                                         |
 | :------------------------------------------------------------------------------------------------: | :------------------------------------------------------------------------------------------------: |
-| <img src="https://github.com/user-attachments/assets/1ada898c-3ce7-4b92-a435-a97fcfb5597d" alt="WechatIMG119" width="300"> | <img src="https://github.com/user-attachments/assets/6a326ab0-a9c7-4480-9c8e-2db550309cff" alt="WechatIMG119" width="300">|
+| <img src="https://github.com/user-attachments/assets/c99651b6-7de7-4862-be12-dc2e4b7875f0" alt="WechatIMG119" width="300"> | <img src="https://github.com/user-attachments/assets/a644c280-e341-46e9-b304-09777b6f5cb4" alt="WechatIMG119" width="300">|
+
 
 ### 飞书群
 
