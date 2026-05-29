@@ -1,0 +1,17 @@
+services:
+  xiaohongshu-mcp:
+    build:
+      context: ..
+      dockerfile: Dockerfile.arm64
+    container_name: xiaohongshu-mcp-arm64
+    restart: unless-stopped
+    init: true
+    tty: true
+    volumes:
+      - ./data:/app/data
+      - ./images:/app/images
+    environment:
+      - TZ=Asia/Shanghai
+      - COOKIES_PATH=/app/data/cookies.json
+    ports:
+      - "18060:18060"
