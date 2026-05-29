@@ -109,3 +109,17 @@ type ActionResult struct {
 	Success bool   `json:"success"`
 	Message string `json:"message"`
 }
+
+// FavoriteFeedRequest 收藏笔记请求
+type FavoriteFeedRequest struct {
+	FeedID     string `json:"feed_id" binding:"required"`
+	XsecToken  string `json:"xsec_token" binding:"required"`
+	Unfavorite bool   `json:"unfavorite,omitempty"` // true=取消收藏，false=收藏
+}
+
+// LikeFeedRequest 点赞笔记请求
+type LikeFeedRequest struct {
+	FeedID    string `json:"feed_id" binding:"required"`
+	XsecToken string `json:"xsec_token" binding:"required"`
+	Unlike    bool   `json:"unlike,omitempty"` // true=取消点赞，false=点赞
+}
