@@ -443,7 +443,23 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	logrus.Infof("Registered %d MCP tools", 13)
+	// 工具 14: 获取当前出口IP
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "get_current_ip",
+			Description: "获取当前出口IP地址和代理状态，用于验证代理是否生效",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Get Current IP",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("get_current_ip", func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleGetCurrentIP(ctx)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	logrus.Infof("Registered %d MCP tools", 14)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式
