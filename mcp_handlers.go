@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -25,6 +27,158 @@ func parseVisibility(args map[string]interface{}) string {
 		return s
 	}
 	return ""
+}
+
+func buildSearchFeedsCompactResponse(result *FeedsListResponse) SearchFeedsCompactResponse {
+	if result == nil {
+		return SearchFeedsCompactResponse{
+			Feeds: []SearchFeedSummary{},
+		}
+	}
+
+	feeds := make([]SearchFeedSummary, 0, len(result.Feeds))
+	for _, feed := range result.Feeds {
+		feeds = append(feeds, SearchFeedSummary{
+			ID:        feed.ID,
+			XsecToken: feed.XsecToken,
+			Title:     feed.NoteCard.DisplayTitle,
+		})
+	}
+
+	return SearchFeedsCompactResponse{
+		Feeds: feeds,
+		Count: len(feeds),
+	}
+}
+
+func buildUserProfileCompactResponse(result *UserProfileResponse) UserProfileCompactResponse {
+	if result == nil {
+		return UserProfileCompactResponse{
+			Feeds:        []SearchFeedSummary{},
+			Interactions: []xiaohongshu.UserInteractions{},
+		}
+	}
+
+	feeds := make([]SearchFeedSummary, 0, len(result.Feeds))
+	for _, feed := range result.Feeds {
+		feeds = append(feeds, SearchFeedSummary{
+			ID:        feed.ID,
+			XsecToken: feed.XsecToken,
+			Title:     feed.NoteCard.DisplayTitle,
+		})
+	}
+
+	return UserProfileCompactResponse{
+		Nickname:     result.UserBasicInfo.Nickname,
+		RedId:        result.UserBasicInfo.RedId,
+		Desc:         result.UserBasicInfo.Desc,
+		Gender:       result.UserBasicInfo.Gender,
+		IpLocation:   result.UserBasicInfo.IpLocation,
+		Interactions: result.Interactions,
+		Feeds:        feeds,
+		FeedCount:    len(feeds),
+	}
+}
+
+func buildFeedDetailCompactResponse(result *FeedDetailResponse, loadAllComments, repliesExpanded bool) (FeedDetailCompactResponse, error) {
+	if result == nil {
+		return FeedDetailCompactResponse{
+			Comments:       []CommentCompact{},
+			CommentsSortBy: "like_count_desc",
+		}, nil
+	}
+
+	var detail *xiaohongshu.FeedDetailResponse
+	switch data := result.Data.(type) {
+	case *xiaohongshu.FeedDetailResponse:
+		detail = data
+	case xiaohongshu.FeedDetailResponse:
+		detail = &data
+	default:
+		return FeedDetailCompactResponse{}, fmt.Errorf("unexpected feed detail data type %T", result.Data)
+	}
+
+	comments := buildSortedCommentCompactList(detail.Comments.List)
+
+	return FeedDetailCompactResponse{
+		FeedID:          result.FeedID,
+		XsecToken:       detail.Note.XsecToken,
+		Title:           detail.Note.Title,
+		Desc:            detail.Note.Desc,
+		Author:          getPreferredNickname(detail.Note.User),
+		Type:            detail.Note.Type,
+		LikedCount:      detail.Note.InteractInfo.LikedCount,
+		CommentCount:    detail.Note.InteractInfo.CommentCount,
+		CollectedCount:  detail.Note.InteractInfo.CollectedCount,
+		SharedCount:     detail.Note.InteractInfo.SharedCount,
+		ImageCount:      len(detail.Note.ImageList),
+		Comments:        comments,
+		CommentsLoaded:  len(detail.Comments.List),
+		HasMoreComments: detail.Comments.HasMore,
+		CommentsSortBy:  "like_count_desc",
+		LoadAllComments: loadAllComments,
+		RepliesExpanded: repliesExpanded,
+	}, nil
+}
+
+func buildSortedCommentCompactList(comments []xiaohongshu.Comment) []CommentCompact {
+	if len(comments) == 0 {
+		return []CommentCompact{}
+	}
+
+	sortedComments := append([]xiaohongshu.Comment(nil), comments...)
+	sort.SliceStable(sortedComments, func(i, j int) bool {
+		return parseLikeCount(sortedComments[i].LikeCount) > parseLikeCount(sortedComments[j].LikeCount)
+	})
+
+	result := make([]CommentCompact, 0, len(sortedComments))
+	for _, comment := range sortedComments {
+		result = append(result, CommentCompact{
+			ID:              comment.ID,
+			User:            getPreferredNickname(comment.UserInfo),
+			Content:         comment.Content,
+			LikeCount:       comment.LikeCount,
+			SubCommentCount: comment.SubCommentCount,
+			ShowTags:        comment.ShowTags,
+			Replies:         buildSortedCommentCompactList(comment.SubComments),
+		})
+	}
+
+	return result
+}
+
+func getPreferredNickname(user xiaohongshu.User) string {
+	if user.Nickname != "" {
+		return user.Nickname
+	}
+	return user.NickName
+}
+
+func parseLikeCount(raw string) float64 {
+	value := strings.TrimSpace(strings.ReplaceAll(raw, ",", ""))
+	if value == "" {
+		return 0
+	}
+
+	multiplier := 1.0
+	switch {
+	case strings.HasSuffix(value, "万"):
+		multiplier = 10000
+		value = strings.TrimSuffix(value, "万")
+	case strings.HasSuffix(strings.ToLower(value), "w"):
+		multiplier = 10000
+		value = value[:len(value)-1]
+	case strings.HasSuffix(value, "千"):
+		multiplier = 1000
+		value = strings.TrimSuffix(value, "千")
+	}
+
+	parsed, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
+	if err != nil {
+		return 0
+	}
+
+	return math.Round(parsed*multiplier*100) / 100
 }
 
 // handleCheckLoginStatus 处理检查登录状态
@@ -281,8 +435,10 @@ func (s *AppServer) handleListFeeds(ctx context.Context) *MCPToolResult {
 		}
 	}
 
+	compactResult := buildSearchFeedsCompactResponse(result)
+
 	// 格式化输出，转换为JSON字符串
-	jsonData, err := json.MarshalIndent(result, "", "  ")
+	jsonData, err := json.Marshal(compactResult)
 	if err != nil {
 		return &MCPToolResult{
 			Content: []MCPContent{{
@@ -337,8 +493,9 @@ func (s *AppServer) handleSearchFeeds(ctx context.Context, args SearchFeedsArgs)
 		}
 	}
 
-	// 格式化输出，转换为JSON字符串
-	jsonData, err := json.MarshalIndent(result, "", "  ")
+	compactResult := buildSearchFeedsCompactResponse(result)
+
+	jsonData, err := json.Marshal(compactResult)
 	if err != nil {
 		return &MCPToolResult{
 			Content: []MCPContent{{
@@ -455,8 +612,19 @@ func (s *AppServer) handleGetFeedDetail(ctx context.Context, args map[string]any
 		}
 	}
 
+	compactResult, err := buildFeedDetailCompactResponse(result, loadAll, config.ClickMoreReplies)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: fmt.Sprintf("获取Feed详情成功，但精简失败: %v", err),
+			}},
+			IsError: true,
+		}
+	}
+
 	// 格式化输出，转换为JSON字符串
-	jsonData, err := json.MarshalIndent(result, "", "  ")
+	jsonData, err := json.Marshal(compactResult)
 	if err != nil {
 		return &MCPToolResult{
 			Content: []MCPContent{{
@@ -515,8 +683,9 @@ func (s *AppServer) handleUserProfile(ctx context.Context, args map[string]any) 
 		}
 	}
 
-	// 格式化输出，转换为JSON字符串
-	jsonData, err := json.MarshalIndent(result, "", "  ")
+	compactResult := buildUserProfileCompactResponse(result)
+
+	jsonData, err := json.Marshal(compactResult)
 	if err != nil {
 		return &MCPToolResult{
 			Content: []MCPContent{{
