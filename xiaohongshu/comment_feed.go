@@ -172,16 +172,10 @@ func findCommentElement(page *rod.Page, commentID, userID string) (*rod.Element,
 	for attempt := 0; attempt < maxAttempts; attempt++ {
 		logrus.Infof("=== 查找尝试 %d/%d ===", attempt+1, maxAttempts)
 
-		// === 1. 检查是否到达底部 ===
-		if checkEndContainer(page) {
-			logrus.Info("已到达评论底部，未找到目标评论")
-			break
-		}
-
-		// === 2. 获取当前评论数量 ===
+		// === 1. 获取当前评论数量 ===
 		currentCount := getCommentCount(page)
 		logrus.Infof("当前评论数: %d", currentCount)
-		
+
 		if currentCount != lastCommentCount {
 			logrus.Infof("✓ 评论数增加: %d -> %d", lastCommentCount, currentCount)
 			lastCommentCount = currentCount
@@ -193,16 +187,16 @@ func findCommentElement(page *rod.Page, commentID, userID string) (*rod.Element,
 			}
 		}
 
-		// === 3. 停滞检测 ===
+		// === 2. 停滞检测 ===
 		if stagnantChecks >= 10 {
 			logrus.Info("评论数量停滞超过10次，可能已加载完所有评论")
 			break
 		}
 
-		// === 4. 先滚动到最后一个评论（触发懒加载）===
+		// === 3. 先滚动到最后一个评论（触发懒加载）===
 		if currentCount > 0 {
 			logrus.Infof("滚动到最后一个评论（共 %d 条）", currentCount)
-			
+
 			// 使用 Go 获取所有评论元素
 			elements, err := page.Timeout(2 * time.Second).Elements(".parent-comment, .comment-item, .comment")
 			if err == nil && len(elements) > 0 {
@@ -218,7 +212,7 @@ func findCommentElement(page *rod.Page, commentID, userID string) (*rod.Element,
 			time.Sleep(300 * time.Millisecond)
 		}
 
-		// === 5. 继续向下滚动 ===
+		// === 4. 继续向下滚动 ===
 		logrus.Infof("继续向下滚动...")
 		_, err := page.Eval(`() => { window.scrollBy(0, window.innerHeight * 0.8); return true; }`)
 		if err != nil {
@@ -226,12 +220,12 @@ func findCommentElement(page *rod.Page, commentID, userID string) (*rod.Element,
 		}
 		time.Sleep(500 * time.Millisecond)
 
-		// === 6. 滚动后立即查找（边滚动边查找）===
+		// === 5. 滚动后立即查找（边滚动边查找）===
 		// 优先通过 commentID 查找（使用 Timeout 避免长时间等待）
 		if commentID != "" {
 			selector := fmt.Sprintf("#comment-%s", commentID)
 			logrus.Infof("尝试通过 commentID 查找: %s", selector)
-			
+
 			// 使用 Timeout 避免长时间等待
 			el, err := page.Timeout(2 * time.Second).Element(selector)
 			if err == nil && el != nil {
@@ -244,7 +238,7 @@ func findCommentElement(page *rod.Page, commentID, userID string) (*rod.Element,
 		// 通过 userID 查找
 		if userID != "" {
 			logrus.Infof("尝试通过 userID 查找: %s", userID)
-			
+
 			// 使用 Timeout 避免长时间等待
 			elements, err := page.Timeout(2 * time.Second).Elements(".comment-item, .comment, .parent-comment")
 			if err == nil && len(elements) > 0 {
@@ -262,8 +256,14 @@ func findCommentElement(page *rod.Page, commentID, userID string) (*rod.Element,
 				logrus.Infof("获取评论元素失败或超时: %v", err)
 			}
 		}
-		
+
 		logrus.Infof("本次尝试未找到目标评论，继续下一轮...")
+
+		// === 6. 检查是否到达底部 === ===
+		if checkEndContainer(page) {
+			logrus.Info("已到达评论底部，未找到目标评论")
+			break
+		}
 
 		// === 7. 等待内容加载 ===
 		time.Sleep(scrollInterval)
