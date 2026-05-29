@@ -120,6 +120,25 @@ func (s *AppServer) publishVideoHandler(c *gin.Context) {
 	respondSuccess(c, result, "视频发布成功")
 }
 
+// publishLongArticleHandler 发布长文内容
+func (s *AppServer) publishLongArticleHandler(c *gin.Context) {
+	var req PublishLongArticleRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
+			"请求参数错误", err.Error())
+		return
+	}
+
+	result, err := s.xiaohongshuService.PublishLongArticle(c.Request.Context(), &req)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "PUBLISH_LONG_ARTICLE_FAILED",
+			"长文发布失败", err.Error())
+		return
+	}
+
+	respondSuccess(c, result, "长文发布成功")
+}
+
 // listFeedsHandler 获取Feeds列表
 func (s *AppServer) listFeedsHandler(c *gin.Context) {
 	// 获取 Feeds 列表
