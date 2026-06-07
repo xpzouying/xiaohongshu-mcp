@@ -3,6 +3,7 @@ package xiaohongshu
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -102,4 +103,15 @@ func TestFilterValidation(t *testing.T) {
 	internalFilters, err = convertToInternalFilters(allFilters)
 	require.NoError(t, err)
 	require.Len(t, internalFilters, 5)
+}
+
+func TestMakeSearchURLUsesExploreSearchRoute(t *testing.T) {
+	searchURL := makeSearchURL("Kimi")
+
+	parsed, err := url.Parse(searchURL)
+	require.NoError(t, err)
+	require.Equal(t, "www.xiaohongshu.com", parsed.Host)
+	require.Equal(t, "/search_result_ai", parsed.Path)
+	require.Equal(t, "Kimi", parsed.Query().Get("keyword"))
+	require.Equal(t, "web_explore_feed", parsed.Query().Get("source"))
 }
