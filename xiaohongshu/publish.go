@@ -432,33 +432,62 @@ func findPublishButton(page *rod.Page) (*publishButton, string, error) {
 	if err != nil {
 		return nil, "", errors.Wrap(err, "查找旧版发布按钮失败")
 	}
+	if btn, reason, err := pickClickableButton(oldButtons, "旧版发布按钮", false); err != nil || btn != nil {
+		return btn, reason, err
+	}
 
-	for _, oldButton := range oldButtons {
-		if !isElementVisible(oldButton) {
+	// 兼容 2026 年新版 DOM：button.ce-btn.bg-red，无外层 publish-page-publish-btn
+	// 通过文本「发布」过滤，避免误点同样使用 bg-red 的取消/草稿按钮
+	ceButtons, err := page.Elements("button.ce-btn.bg-red")
+	if err != nil {
+		return nil, "", errors.Wrap(err, "查找 ce-btn 发布按钮失败")
+	}
+	if btn, reason, err := pickClickableButton(ceButtons, "ce-btn 发布按钮", true); err != nil || btn != nil {
+		return btn, reason, err
+	}
+
+	return nil, "", nil
+}
+
+// pickClickableButton 从一组 button 元素里挑出可点击的发布按钮。
+// requireText 为 true 时要求按钮可见文本包含「发布」，避免误命中其他红色按钮。
+// 返回值：(按钮, 不可点击原因, 错误)。按钮非空且原因为空表示可点击。
+func pickClickableButton(buttons []*rod.Element, label string, requireText bool) (*publishButton, string, error) {
+	for _, btn := range buttons {
+		if !isElementVisible(btn) {
 			continue
 		}
 
-		if disabled, err := oldButton.Attribute("disabled"); err != nil {
-			return nil, "", errors.Wrap(err, "读取旧版发布按钮 disabled 属性失败")
+		if requireText {
+			text, err := btn.Text()
+			if err != nil {
+				return nil, "", errors.Wrapf(err, "读取%s文本失败", label)
+			}
+			if !strings.Contains(text, "发布") {
+				continue
+			}
+		}
+
+		if disabled, err := btn.Attribute("disabled"); err != nil {
+			return nil, "", errors.Wrapf(err, "读取%s disabled 属性失败", label)
 		} else if disabled != nil {
-			return &publishButton{elem: oldButton}, "旧版发布按钮 disabled", nil
+			return &publishButton{elem: btn}, label + " disabled", nil
 		}
 
-		if ariaDisabled, err := oldButton.Attribute("aria-disabled"); err != nil {
-			return nil, "", errors.Wrap(err, "读取旧版发布按钮 aria-disabled 属性失败")
+		if ariaDisabled, err := btn.Attribute("aria-disabled"); err != nil {
+			return nil, "", errors.Wrapf(err, "读取%s aria-disabled 属性失败", label)
 		} else if ariaDisabled != nil && *ariaDisabled == "true" {
-			return &publishButton{elem: oldButton}, "旧版发布按钮 aria-disabled=true", nil
+			return &publishButton{elem: btn}, label + " aria-disabled=true", nil
 		}
 
-		if cls, err := oldButton.Attribute("class"); err != nil {
-			return nil, "", errors.Wrap(err, "读取旧版发布按钮 class 属性失败")
+		if cls, err := btn.Attribute("class"); err != nil {
+			return nil, "", errors.Wrapf(err, "读取%s class 属性失败", label)
 		} else if cls != nil && hasExactClass(*cls, "disabled") {
-			return &publishButton{elem: oldButton}, "旧版发布按钮包含 disabled class", nil
+			return &publishButton{elem: btn}, label + " 包含 disabled class", nil
 		}
 
-		return &publishButton{elem: oldButton}, "", nil
+		return &publishButton{elem: btn}, "", nil
 	}
-
 	return nil, "", nil
 }
 
