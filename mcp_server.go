@@ -79,11 +79,12 @@ type PostCommentArgs struct {
 
 // ReplyCommentArgs 回复评论的参数
 type ReplyCommentArgs struct {
-	FeedID    string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
-	XsecToken string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
-	CommentID string `json:"comment_id,omitempty" jsonschema:"目标评论ID，从评论列表获取"`
-	UserID    string `json:"user_id,omitempty" jsonschema:"目标评论用户ID，从评论列表获取"`
-	Content   string `json:"content" jsonschema:"回复内容"`
+	FeedID      string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
+	XsecToken   string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
+	CommentID   string `json:"comment_id,omitempty" jsonschema:"目标评论ID，从评论列表获取"`
+	UserID      string `json:"user_id,omitempty" jsonschema:"目标评论用户ID，从评论列表获取"`
+	Content     string `json:"content" jsonschema:"回复内容"`
+	MaxAttempts int    `json:"max_attempts,omitempty" jsonschema:"查找评论的最大滚动尝试次数，默认100"`
 }
 
 // LikeFeedArgs 点赞参数
