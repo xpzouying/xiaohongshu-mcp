@@ -172,6 +172,26 @@ func (s *AppServer) searchFeedsHandler(c *gin.Context) {
 	respondSuccess(c, result, "搜索Feeds成功")
 }
 
+// aiSearchChatHandler 小红书 AI 搜索问答
+func (s *AppServer) aiSearchChatHandler(c *gin.Context) {
+	var req AISearchChatRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
+			"请求参数错误", err.Error())
+		return
+	}
+
+	result, err := s.xiaohongshuService.AISearchChat(c.Request.Context(), req)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "AI_SEARCH_FAILED",
+			"小红书 AI 搜索失败", err.Error())
+		return
+	}
+
+	c.Set("account", "ai-report")
+	respondSuccess(c, result, "小红书 AI 搜索成功")
+}
+
 // getFeedDetailHandler 获取Feed详情
 func (s *AppServer) getFeedDetailHandler(c *gin.Context) {
 	var req FeedDetailRequest

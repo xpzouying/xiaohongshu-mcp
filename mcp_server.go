@@ -44,6 +44,14 @@ type SearchFeedsArgs struct {
 	Filters FilterOption `json:"filters,omitempty" jsonschema:"筛选选项"`
 }
 
+// AISearchChatArgs 小红书 AI 搜索问答参数
+type AISearchChatArgs struct {
+	Prompt         string `json:"prompt" jsonschema:"要发送给小红书 AI 搜索的问题"`
+	IncludeSources bool   `json:"include_sources,omitempty" jsonschema:"是否打开参考来源抽屉并返回 AI 引用的笔记列表，默认 false"`
+	SourceLimit    int    `json:"source_limit,omitempty" jsonschema:"最多返回多少条来源笔记，默认 30"`
+	TimeoutSeconds int    `json:"timeout_seconds,omitempty" jsonschema:"等待 AI 回答完成的超时时间，单位秒，默认 90"`
+}
+
 // FilterOption 筛选选项结构体
 type FilterOption struct {
 	SortBy      string `json:"sort_by,omitempty" jsonschema:"排序依据: 综合|最新|最多点赞|最多评论|最多收藏,默认为'综合'"`
@@ -443,7 +451,23 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	logrus.Infof("Registered %d MCP tools", 13)
+	// 工具 14: 小红书 AI 搜索问答
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "ai_search_chat",
+			Description: "调用小红书 AI 搜索问答。通过浏览器页面发送问题，等待 AI 回答，可选返回 AI 引用的来源笔记列表。",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "AI Search Chat",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("ai_search_chat", func(ctx context.Context, req *mcp.CallToolRequest, args AISearchChatArgs) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleAISearchChat(ctx, args)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	logrus.Infof("Registered %d MCP tools", 14)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式

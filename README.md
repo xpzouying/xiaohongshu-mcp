@@ -871,6 +871,10 @@ npx mcporter list xiaohongshu-mcp
     - `publish_time`: 发布时间 - `不限`（默认）| `一天内` | `一周内` | `半年内`
     - `search_scope`: 搜索范围 - `不限`（默认）| `已看过` | `未看过` | `已关注`
     - `location`: 位置距离 - `不限`（默认）| `同城` | `附近`
+- `ai_search_chat` - 调用小红书 AI 搜索问答（必需：prompt）
+  - `include_sources`: 是否返回 AI 引用的来源笔记列表（可选），默认 false
+  - `source_limit`: 最多返回多少条来源笔记（可选），默认 30
+  - `timeout_seconds`: 等待 AI 回答完成的超时时间（可选），默认 90 秒
 - `get_feed_detail` - 获取帖子详情，包括互动数据和评论（必需：feed_id, xsec_token）
   - `load_all_comments`: 是否加载全部评论（可选），默认 false 仅返回前 10 条一级评论
   - `limit`: 限制加载的一级评论数量（可选），仅当 load_all_comments=true 时生效，默认 20

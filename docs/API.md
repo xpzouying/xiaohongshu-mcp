@@ -42,6 +42,7 @@
 | POST | `/api/v1/publish_video` | 发布视频内容 |
 | GET | `/api/v1/feeds/list` | 获取 Feeds 列表 |
 | GET/POST | `/api/v1/feeds/search` | 搜索 Feeds |
+| POST | `/api/v1/ai/search` | 小红书 AI 搜索问答 |
 | POST | `/api/v1/feeds/detail` | 获取 Feed 详情 |
 | POST | `/api/v1/user/profile` | 获取用户主页信息 |
 | GET | `/api/v1/user/me` | 获取当前登录用户信息 |
@@ -418,7 +419,64 @@ Content-Type: application/json
 - `video`: 视频笔记时有此字段，图文笔记为 null
 ```
 
-#### 4.3 获取 Feed 详情
+#### 4.3 小红书 AI 搜索问答
+
+通过小红书网页 AI Chat 发送问题，等待 AI 回答完成；可选打开“参考来源”抽屉并返回 AI 引用的笔记列表。该接口复用浏览器登录态，由页面自己生成签名和接收流式结果。
+
+**请求**
+```
+POST /api/v1/ai/search
+Content-Type: application/json
+```
+
+**请求体**
+```json
+{
+  "prompt": "上海最近活动",
+  "include_sources": true,
+  "source_limit": 30,
+  "timeout_seconds": 90
+}
+```
+
+**参数说明:**
+- `prompt` (string, required): 发送给小红书 AI 搜索的问题
+- `include_sources` (boolean, optional): 是否返回 AI 引用的来源笔记列表，默认 false
+- `source_limit` (number, optional): 最多返回多少条来源笔记，默认 30
+- `timeout_seconds` (number, optional): 等待 AI 回答完成的超时时间，默认 90 秒
+
+**响应**
+```json
+{
+  "success": true,
+  "data": {
+    "prompt": "上海最近活动",
+    "conversationId": "conversation_id",
+    "messageId": "message_id",
+    "answer": "AI 回答内容",
+    "fragmentCount": 12,
+    "sources": {
+      "ok": true,
+      "progressEntries": 1,
+      "notes": [
+        {
+          "idx": 0,
+          "noteId": "6a1821760000000036019d70",
+          "title": "上海6月高质量展览",
+          "url": "https://www.xiaohongshu.com/search_result/...",
+          "cover": "https://...",
+          "author": "作者昵称",
+          "time": "05-28",
+          "likedCount": "416"
+        }
+      ]
+    }
+  },
+  "message": "小红书 AI 搜索成功"
+}
+```
+
+#### 4.4 获取 Feed 详情
 
 获取指定 Feed 的详细信息，支持加载全部评论和自定义评论加载配置。
 

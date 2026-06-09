@@ -672,7 +672,7 @@ Usage steps:
 
 - Use MCP Inspector to test connection
 - Test Ping Server functionality to verify connection
-- Check if List Tools returns 13 tools
+- Check if List Tools returns 14 tools
 
 </details>
 
@@ -772,6 +772,10 @@ After successful connection, you can use the following MCP tools:
     - `publish_time`: Publish time - `unlimited` (default) | `last day` | `last week` | `last 6 months`
     - `search_scope`: Search scope - `unlimited` (default) | `viewed` | `not viewed` | `followed`
     - `location`: Location - `unlimited` (default) | `same city` | `nearby`
+- `ai_search_chat` - Ask RedNote AI Search and return the final answer (required: prompt)
+  - `include_sources`: Whether to return AI source notes (optional), default false
+  - `source_limit`: Maximum source notes to return (optional), default 30
+  - `timeout_seconds`: Timeout for waiting for the AI answer (optional), default 90 seconds
 - `get_feed_detail` - Get post details including interaction data and comments (required: feed_id, xsec_token)
   - `load_all_comments`: Whether to load all comments (optional), default false returns only first 10 top-level comments
   - `limit`: Limit number of top-level comments to load (optional), only effective when load_all_comments=true, default 20

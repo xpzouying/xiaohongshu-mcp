@@ -86,6 +86,13 @@ type FeedsListResponse struct {
 	Count int                `json:"count"`
 }
 
+type AISearchChatRequest struct {
+	Prompt         string `json:"prompt" binding:"required"`
+	IncludeSources bool   `json:"include_sources,omitempty"`
+	SourceLimit    int    `json:"source_limit,omitempty"`
+	TimeoutSeconds int    `json:"timeout_seconds,omitempty"`
+}
+
 // UserProfileResponse 用户主页响应
 type UserProfileResponse struct {
 	UserBasicInfo xiaohongshu.UserBasicInfo      `json:"userBasicInfo"`
@@ -389,6 +396,28 @@ func (s *XiaohongshuService) SearchFeeds(ctx context.Context, keyword string, fi
 	}
 
 	return response, nil
+}
+
+func (s *XiaohongshuService) AISearchChat(ctx context.Context, req AISearchChatRequest) (*xiaohongshu.AISearchResult, error) {
+	if req.TimeoutSeconds <= 0 {
+		req.TimeoutSeconds = 90
+	}
+	if req.SourceLimit <= 0 {
+		req.SourceLimit = 30
+	}
+
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewAISearchAction(page)
+	return action.Chat(ctx, req.Prompt, xiaohongshu.AISearchOptions{
+		IncludeSources: req.IncludeSources,
+		SourceLimit:    req.SourceLimit,
+		Timeout:        time.Duration(req.TimeoutSeconds) * time.Second,
+	})
 }
 
 // GetFeedDetail 获取Feed详情

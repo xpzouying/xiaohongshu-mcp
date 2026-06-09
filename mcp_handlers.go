@@ -357,6 +357,57 @@ func (s *AppServer) handleSearchFeeds(ctx context.Context, args SearchFeedsArgs)
 	}
 }
 
+// handleAISearchChat 处理小红书 AI 搜索问答
+func (s *AppServer) handleAISearchChat(ctx context.Context, args AISearchChatArgs) *MCPToolResult {
+	logrus.Info("MCP: 小红书 AI 搜索问答")
+
+	if strings.TrimSpace(args.Prompt) == "" {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "小红书 AI 搜索失败: 缺少 prompt 参数",
+			}},
+			IsError: true,
+		}
+	}
+
+	req := AISearchChatRequest{
+		Prompt:         args.Prompt,
+		IncludeSources: args.IncludeSources,
+		SourceLimit:    args.SourceLimit,
+		TimeoutSeconds: args.TimeoutSeconds,
+	}
+
+	result, err := s.xiaohongshuService.AISearchChat(ctx, req)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "小红书 AI 搜索失败: " + err.Error(),
+			}},
+			IsError: true,
+		}
+	}
+
+	jsonData, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: fmt.Sprintf("小红书 AI 搜索成功，但序列化失败: %v", err),
+			}},
+			IsError: true,
+		}
+	}
+
+	return &MCPToolResult{
+		Content: []MCPContent{{
+			Type: "text",
+			Text: string(jsonData),
+		}},
+	}
+}
+
 // handleGetFeedDetail 处理获取Feed详情
 func (s *AppServer) handleGetFeedDetail(ctx context.Context, args map[string]any) *MCPToolResult {
 	logrus.Info("MCP: 获取Feed详情")
