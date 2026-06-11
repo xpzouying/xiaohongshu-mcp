@@ -1,9 +1,8 @@
 services:
   xiaohongshu-mcp:
-    # Docker Hub 镜像（默认）
-    image: xpzouying/xiaohongshu-mcp
-    # 阿里云镜像源（国内用户推荐，拉取更快）
-    # image: crpi-hocnvtkomt7w9v8t.cn-beijing.personal.cr.aliyuncs.com/xpzouying/xiaohongshu-mcp
+    build:
+      context: ..
+      dockerfile: Dockerfile.arm64
     container_name: xiaohongshu-mcp
     restart: unless-stopped
     init: true
@@ -12,7 +11,7 @@ services:
       - ./data:/app/data
       - ./images:/app/images
     environment:
-      - ROD_BROWSER_BIN=/usr/bin/google-chrome
+      - ROD_BROWSER_BIN=/ms-playwright/chromium-1155/chrome-linux/chrome
       - COOKIES_PATH=/app/data/cookies.json
     ports:
       - "18060:18060"
