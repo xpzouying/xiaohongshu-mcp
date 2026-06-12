@@ -410,8 +410,8 @@ docker build -t xpzouying/xiaohongshu-mcp .
 
 The Docker version automatically:
 
-- Configures Chrome browser and Chinese fonts
-- Mounts `./data` for storing cookies
+- Configures CloakBrowser Chromium and Chinese fonts
+- Mounts `./data` for storing cookies and runtime data directories
 - Mounts `./images` for storing publish images
 - Exposes port 18060 for MCP connection
 

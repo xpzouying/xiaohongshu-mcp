@@ -22,6 +22,11 @@ func main() {
 	if len(binPath) == 0 {
 		binPath = os.Getenv("ROD_BROWSER_BIN")
 	}
+	if binPath != "" {
+		logrus.Infof("using browser binary: %s", binPath)
+	} else {
+		logrus.Infof("browser binary is not configured; rod will auto-detect or download Chromium")
+	}
 
 	configs.InitHeadless(headless)
 	configs.SetBinPath(binPath)
