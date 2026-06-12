@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1.6
+
 # ---- build stage ----
 FROM golang:1.24 AS builder
 
@@ -26,23 +28,27 @@ RUN apt-get update && apt-get install -y ca-certificates wget gnupg && \
     sed -i 's|http://archive.ubuntu.com|https://mirrors.aliyun.com|g' /etc/apt/sources.list && \
     sed -i 's|http://security.ubuntu.com|https://mirrors.aliyun.com|g' /etc/apt/sources.list
 
-# 2. 添加 Google Chrome APT 源并安装 Chrome（更稳定的无头浏览器）
-RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/googlechrome-linux-keyring.gpg && \
-    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/googlechrome-linux-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list
-
-# 3. 安装 Google Chrome + 依赖（无头模式运行 rod）
+# 2. 安装 CloakBrowser Chromium 运行依赖、Python 和中文字体
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
+    curl \
     fonts-liberation \
+    fonts-noto-color-emoji \
+    fonts-unifont \
+    fonts-freefont-ttf \
+    fonts-wqy-zenhei \
     libasound2 \
     libatk-bridge2.0-0 \
     libatk1.0-0 \
     libc6 \
     libcairo2 \
+    libcairo-gobject2 \
     libcups2 \
     libdbus-1-3 \
+    libdrm2 \
     libexpat1 \
     libfontconfig1 \
+    libgdk-pixbuf-2.0-0 \
     libgbm1 \
     libgcc1 \
     libglib2.0-0 \
@@ -61,26 +67,49 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxext6 \
     libxfixes3 \
     libxi6 \
+    libxkbcommon0 \
     libxrandr2 \
     libxrender1 \
+    libxshmfence1 \
     libxss1 \
     libxtst6 \
     lsb-release \
+    python3 \
+    python3-pip \
     wget \
     xdg-utils \
-    google-chrome-stable \
     && rm -rf /var/lib/apt/lists/*
+
+# 3. 创建共享目录并设置权限。
+# /opt/cloakbrowser 保存构建阶段预下载的浏览器，不能放到运行时会被 volume 覆盖的 /app/data。
+RUN mkdir -p /opt/cloakbrowser/home /opt/cloakbrowser/cache /opt/cloakbrowser/config \
+    /app/data/home /app/data/cache /app/data/config /app/images && \
+    chmod -R 755 /opt/cloakbrowser && \
+    chmod -R 777 /app/data /app/images
+
+# 4. 安装 CloakBrowser 并在构建阶段预下载 Chromium，避免容器运行时下载失败。
+COPY build/find_cloakbrowser_binary.py /usr/local/bin/find_cloakbrowser_binary.py
+ARG CLOAKBROWSER_VERSION=0.3.31
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python3 -m pip install "cloakbrowser[geoip]==${CLOAKBROWSER_VERSION}"
+RUN --mount=type=cache,target=/var/cache/cloakbrowser-home/.cloakbrowser \
+    HOME=/var/cache/cloakbrowser-home \
+    XDG_CACHE_HOME=/var/cache/cloakbrowser-cache \
+    XDG_CONFIG_HOME=/var/cache/cloakbrowser-config \
+    python3 /usr/local/bin/find_cloakbrowser_binary.py \
+    --install-home /opt/cloakbrowser/home \
+    --link /usr/local/bin/cloak-chromium
+RUN \
+    test -x /usr/local/bin/cloak-chromium
 
 COPY --from=builder /out/app .
 
-# 4. 创建共享目录并设置权限
-RUN mkdir -p /app/images && \
-    chmod 777 /app/images
-
-# 5. 设置默认 Chrome 路径（rod 会用）
-ENV ROD_BROWSER_BIN=/usr/bin/google-chrome
+# 5. 设置默认 CloakBrowser Chromium 路径（rod 会用）
+ENV HOME=/app/data/home
+ENV XDG_CACHE_HOME=/app/data/cache
+ENV XDG_CONFIG_HOME=/app/data/config
+ENV ROD_BROWSER_BIN=/usr/local/bin/cloak-chromium
 
 EXPOSE 18060
 
 CMD ["./app"]
-
