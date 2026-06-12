@@ -17,14 +17,15 @@ func boolPtr(b bool) *bool { return &b }
 
 // PublishContentArgs 发布内容的参数
 type PublishContentArgs struct {
-	Title      string   `json:"title" jsonschema:"内容标题（小红书限制：最多20个中文字或英文单词）"`
-	Content    string   `json:"content" jsonschema:"正文内容，不包含以#开头的标签内容，所有话题标签都用tags参数来生成和提供即可"`
-	Images     []string `json:"images" jsonschema:"图片路径列表（至少需要1张图片）。支持两种方式：1. HTTP/HTTPS图片链接（自动下载）；2. 本地图片绝对路径（推荐，如:/Users/user/image.jpg）"`
-	Tags       []string `json:"tags,omitempty" jsonschema:"话题标签列表（可选参数），如 [美食, 旅行, 生活]"`
-	ScheduleAt string   `json:"schedule_at,omitempty" jsonschema:"定时发布时间（可选），ISO8601格式如 2024-01-20T10:30:00+08:00，支持1小时至14天内。不填则立即发布"`
-	IsOriginal bool     `json:"is_original,omitempty" jsonschema:"是否声明原创（可选），true为声明原创，false或不填则不声明"`
-	Visibility string   `json:"visibility,omitempty" jsonschema:"可见范围（可选），支持: 公开可见(默认)、仅自己可见、仅互关好友可见。不填则默认公开可见"`
-	Products   []string `json:"products,omitempty" jsonschema:"商品关键词列表（可选），用于绑定带货商品。填写商品名称或商品ID，系统会自动搜索并选择第一个匹配结果。需账号已开通商品功能。示例: [面膜, 防晒霜SPF50]"`
+	Title                  string   `json:"title" jsonschema:"内容标题（小红书限制：最多20个中文字或英文单词）"`
+	Content                string   `json:"content" jsonschema:"正文内容，不包含以#开头的标签内容，所有话题标签都用tags参数来生成和提供即可"`
+	Images                 []string `json:"images,omitempty" jsonschema:"图片路径列表。支持HTTP/HTTPS图片链接或本地绝对路径。当generate_cover_from_title为true时可不提供"`
+	Tags                   []string `json:"tags,omitempty" jsonschema:"话题标签列表（可选参数），如 [美食, 旅行, 生活]"`
+	ScheduleAt             string   `json:"schedule_at,omitempty" jsonschema:"定时发布时间（可选），ISO8601格式如 2024-01-20T10:30:00+08:00，支持1小时至14天内。不填则立即发布"`
+	IsOriginal             bool     `json:"is_original,omitempty" jsonschema:"是否声明原创（可选），true为声明原创，false或不填则不声明"`
+	Visibility             string   `json:"visibility,omitempty" jsonschema:"可见范围（可选），支持: 公开可见(默认)、仅自己可见、仅互关好友可见。不填则默认公开可见"`
+	Products               []string `json:"products,omitempty" jsonschema:"商品关键词列表（可选），用于绑定带货商品。示例: [面膜, 防晒霜SPF50]"`
+	GenerateCoverFromTitle bool     `json:"generate_cover_from_title,omitempty" jsonschema:"是否使用智能配图（可选），设为true时根据标题自动生成封面图，无需提供images参数"`
 }
 
 // PublishVideoArgs 发布视频的参数（仅支持本地单个视频文件）
@@ -214,14 +215,15 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		withPanicRecovery("publish_content", func(ctx context.Context, req *mcp.CallToolRequest, args PublishContentArgs) (*mcp.CallToolResult, any, error) {
 			// 转换参数格式到现有的 handler
 			argsMap := map[string]interface{}{
-				"title":       args.Title,
-				"content":     args.Content,
-				"images":      convertStringsToInterfaces(args.Images),
-				"tags":        convertStringsToInterfaces(args.Tags),
-				"schedule_at": args.ScheduleAt,
-				"is_original": args.IsOriginal,
-				"visibility":  args.Visibility,
-				"products":    convertStringsToInterfaces(args.Products),
+				"title":                     args.Title,
+				"content":                   args.Content,
+				"images":                    convertStringsToInterfaces(args.Images),
+				"tags":                      convertStringsToInterfaces(args.Tags),
+				"schedule_at":               args.ScheduleAt,
+				"is_original":               args.IsOriginal,
+				"visibility":                args.Visibility,
+				"products":                  convertStringsToInterfaces(args.Products),
+				"generate_cover_from_title": args.GenerateCoverFromTitle,
 			}
 			result := appServer.handlePublishContent(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
