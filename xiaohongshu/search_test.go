@@ -36,8 +36,7 @@ func TestSearch(t *testing.T) {
 }
 
 func TestSearchWithFilters(t *testing.T) {
-
-	//t.Skip("SKIP: 测试筛选功能")
+	t.Skip("SKIP: 依赖真实小红书会话与外网环境")
 
 	b := browser.NewBrowser(false)
 	defer b.Close()
@@ -102,4 +101,24 @@ func TestFilterValidation(t *testing.T) {
 	internalFilters, err = convertToInternalFilters(allFilters)
 	require.NoError(t, err)
 	require.Len(t, internalFilters, 5)
+}
+
+func TestFilterAliasMapping(t *testing.T) {
+	filter := FilterOption{
+		SortBy:      "latest",
+		NoteType:    "video",
+		PublishTime: "one_week",
+		SearchScope: "followed",
+		Location:    "nearby",
+	}
+
+	internalFilters, err := convertToInternalFilters(filter)
+	require.NoError(t, err)
+	require.Len(t, internalFilters, 5)
+
+	require.Equal(t, "最新", internalFilters[0].Text)
+	require.Equal(t, "视频", internalFilters[1].Text)
+	require.Equal(t, "一周内", internalFilters[2].Text)
+	require.Equal(t, "已关注", internalFilters[3].Text)
+	require.Equal(t, "附近", internalFilters[4].Text)
 }
