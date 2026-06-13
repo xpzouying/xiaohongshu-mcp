@@ -17,7 +17,7 @@ type FeedsListAction struct {
 func NewFeedsListAction(page *rod.Page) *FeedsListAction {
 	pp := page.Timeout(60 * time.Second)
 
-	pp.MustNavigate("https://www.xiaohongshu.com")
+	SafeNavigate(pp, "https://www.xiaohongshu.com")
 	pp.MustWaitDOMStable()
 
 	return &FeedsListAction{page: pp}
