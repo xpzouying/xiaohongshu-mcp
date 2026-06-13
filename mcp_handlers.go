@@ -669,6 +669,75 @@ func (s *AppServer) handlePostComment(ctx context.Context, args map[string]inter
 	}
 }
 
+// handleLikeComment 处理评论点赞
+func (s *AppServer) handleLikeComment(ctx context.Context, args map[string]interface{}) *MCPToolResult {
+	logrus.Info("MCP: 评论点赞")
+
+	feedID, _ := args["feed_id"].(string)
+	xsecToken, _ := args["xsec_token"].(string)
+	commentID, _ := args["comment_id"].(string)
+
+	if feedID == "" || xsecToken == "" || commentID == "" {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "评论点赞失败: 缺少feed_id、xsec_token或comment_id参数"}},
+			IsError: true,
+		}
+	}
+
+	err := s.xiaohongshuService.LikeComment(ctx, feedID, xsecToken, commentID)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "评论点赞失败: " + err.Error()}},
+			IsError: true,
+		}
+	}
+
+	return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: fmt.Sprintf("评论 %s 点赞成功", commentID)}}}
+}
+
+// handleNotification 通用通知处理函数，减少重复代码
+func (s *AppServer) handleNotification(ctx context.Context, args map[string]interface{}, label string, fetcher func(context.Context, int, string) (*NotificationsResponse, error)) *MCPToolResult {
+	logrus.Infof("MCP: 获取%s通知", label)
+
+	num := 20
+	if v, ok := args["num"].(float64); ok && v > 0 {
+		num = int(v)
+	}
+	cursor, _ := args["cursor"].(string)
+
+	result, err := fetcher(ctx, num, cursor)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: fmt.Sprintf("获取%s通知失败: %s", label, err.Error())}},
+			IsError: true,
+		}
+	}
+
+	jsonData, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: fmt.Sprintf("序列化失败: %v", err)}},
+			IsError: true,
+		}
+	}
+	return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: string(jsonData)}}}
+}
+
+// handleGetMentions 处理获取评论和@通知
+func (s *AppServer) handleGetMentions(ctx context.Context, args map[string]interface{}) *MCPToolResult {
+	return s.handleNotification(ctx, args, "评论和@", s.xiaohongshuService.GetMentions)
+}
+
+// handleGetLikes 处理获取赞和收藏通知
+func (s *AppServer) handleGetLikes(ctx context.Context, args map[string]interface{}) *MCPToolResult {
+	return s.handleNotification(ctx, args, "赞和收藏", s.xiaohongshuService.GetLikes)
+}
+
+// handleGetConnections 处理获取新增关注通知
+func (s *AppServer) handleGetConnections(ctx context.Context, args map[string]interface{}) *MCPToolResult {
+	return s.handleNotification(ctx, args, "新增关注", s.xiaohongshuService.GetConnections)
+}
+
 // handleReplyComment 处理回复评论
 func (s *AppServer) handleReplyComment(ctx context.Context, args map[string]interface{}) *MCPToolResult {
 	logrus.Info("MCP: 回复评论")
