@@ -270,6 +270,26 @@ func (s *AppServer) replyCommentHandler(c *gin.Context) {
 	respondSuccess(c, result, result.Message)
 }
 
+// deleteNoteHandler 删除笔记
+func (s *AppServer) deleteNoteHandler(c *gin.Context) {
+	var req DeleteNoteRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
+			"请求参数错误", err.Error())
+		return
+	}
+
+	result, err := s.xiaohongshuService.DeleteNote(c.Request.Context(), &req)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "DELETE_NOTE_FAILED",
+			"删除笔记失败", err.Error())
+		return
+	}
+
+	c.Set("account", "ai-report")
+	respondSuccess(c, result, "删除笔记成功")
+}
+
 // healthHandler 健康检查
 func healthHandler(c *gin.Context) {
 	respondSuccess(c, map[string]any{

@@ -38,6 +38,14 @@ type PublishVideoArgs struct {
 	Products   []string `json:"products,omitempty" jsonschema:"商品关键词列表（可选），用于绑定带货商品。填写商品名称或商品ID，系统会自动搜索并选择第一个匹配结果。需账号已开通商品功能。示例: [面膜, 防晒霜SPF50]"`
 }
 
+// DeleteNoteArgs 删除笔记参数
+type DeleteNoteArgs struct {
+	Keyword string `json:"keyword,omitempty" jsonschema:"搜索关键词（可选，用于过滤笔记列表）"`
+	NoteID  string `json:"note_id,omitempty" jsonschema:"笔记ID（优先级最高）"`
+	Title   string `json:"title,omitempty" jsonschema:"笔记标题关键词（模糊匹配）"`
+	Index   int    `json:"index,omitempty" jsonschema:"笔记序号（按页面列表从1开始）"`
+}
+
 // SearchFeedsArgs 搜索内容的参数
 type SearchFeedsArgs struct {
 	Keyword string       `json:"keyword" jsonschema:"搜索关键词"`
@@ -260,7 +268,23 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	// 工具 7: 获取Feed详情
+	// 工具 7: 删除笔记
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "delete_note",
+			Description: "删除笔记管理页面的指定笔记（支持关键词筛选与序号定位）",
+			Annotations: &mcp.ToolAnnotations{
+				Title:           "Delete Note",
+				DestructiveHint: boolPtr(true),
+			},
+		},
+		withPanicRecovery("delete_note", func(ctx context.Context, req *mcp.CallToolRequest, args DeleteNoteArgs) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleDeleteNote(ctx, args)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	// 工具 8: 获取Feed详情
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "get_feed_detail",
@@ -305,7 +329,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	// 工具 8: 获取用户主页
+	// 工具 9: 获取用户主页
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "user_profile",
@@ -325,7 +349,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	// 工具 9: 发表评论
+	// 工具 10: 发表评论
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "post_comment_to_feed",
@@ -346,7 +370,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	// 工具 10: 回复评论
+	// 工具 11: 回复评论
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "reply_comment_in_feed",
@@ -376,7 +400,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		},
 	)
 
-	// 工具 11: 发布视频（仅本地文件）
+	// 工具 12: 发布视频（仅本地文件）
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "publish_with_video",
@@ -401,7 +425,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	// 工具 12: 点赞笔记
+	// 工具 13: 点赞笔记
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "like_feed",
@@ -422,7 +446,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	// 工具 13: 收藏笔记
+	// 工具 14: 收藏笔记
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "favorite_feed",
@@ -443,7 +467,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	logrus.Infof("Registered %d MCP tools", 13)
+	logrus.Infof("Registered %d MCP tools", 14)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式
