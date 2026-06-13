@@ -765,6 +765,9 @@ After successful connection, you can use the following MCP tools:
   - `schedule_at`: Scheduled publish time (optional), ISO8601 format, supports 1 hour to 14 days ahead
   - `visibility`: Visibility scope (optional), supports `public` (default), `self-only`, `friends-only`
 - `list_feeds` - Get RedNote homepage recommendation list (no parameters)
+- `list_favorite_feeds` - Get current logged-in user's favorite notes list (no parameters)
+- `list_favorite_categories` - Get favorite album categories for current logged-in user (no parameters)
+- `list_favorite_feeds_by_category` - Get favorite notes by category (optional: category_id/category_name/limit)
 - `search_feeds` - Search RedNote content (required: keyword)
   - `filters`: Filter options (optional)
     - `sort_by`: Sort by - `comprehensive` (default) | `latest` | `most liked` | `most comments` | `most saved`
