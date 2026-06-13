@@ -50,6 +50,7 @@ func (a *interactAction) preparePage(ctx context.Context, actionType interactAct
 
 	page.MustNavigate(url)
 	page.MustWaitDOMStable()
+	dismissCookieConsent(page)
 	time.Sleep(1 * time.Second)
 
 	return page

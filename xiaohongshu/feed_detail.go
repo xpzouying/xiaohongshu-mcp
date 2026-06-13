@@ -89,6 +89,7 @@ func (f *FeedDetailAction) GetFeedDetailWithConfig(ctx context.Context, feedID, 
 		func() error {
 			page.MustNavigate(url)
 			page.MustWaitDOMStable()
+			dismissCookieConsent(page)
 			return nil
 		},
 		retry.Attempts(3),
