@@ -233,32 +233,58 @@ func (m *Mouse) Scroll(deltaX, deltaY float64) error {
 	return nil
 }
 
-// ScrollIntoView scrolls the page so that the element is centered in the
-// viewport using humanized wheel events. It avoids JS scrollIntoView which
-// can be detected by pages observing synchronous scroll/layout changes.
+// ScrollIntoView scrolls the page just enough to bring the element into the
+// visible viewport using humanized wheel events. It avoids JS scrollIntoView
+// which can be detected by pages observing synchronous scroll/layout changes.
+// The element only needs to be visible (with a small margin); it is not forced
+// to the center, so sticky/fixed elements do not cause infinite scrolling.
 func (m *Mouse) ScrollIntoView(el *rod.Element) error {
 	const maxAttempts = 12
-	const margin = 100
+	const margin = 80
 	for i := 0; i < maxAttempts; i++ {
-		target, err := elementTarget(el)
+		shape, err := el.Shape()
 		if err != nil {
 			return err
 		}
+		if len(shape.Quads) == 0 {
+			return errors.New("element has no content quads")
+		}
+
+		// CDP quads are viewport-relative, so no scroll offset is needed.
+		q := shape.Quads[0]
+		var minX, maxX, minY, maxY float64
+		for j := 0; j < q.Len(); j++ {
+			x := q[j*2]
+			y := q[j*2+1]
+			if j == 0 || x < minX {
+				minX = x
+			}
+			if j == 0 || x > maxX {
+				maxX = x
+			}
+			if j == 0 || y < minY {
+				minY = y
+			}
+			if j == 0 || y > maxY {
+				maxY = y
+			}
+		}
+
 		vp, err := m.viewport()
 		if err != nil {
 			return err
 		}
 
 		var deltaX, deltaY float64
-		if target.X < vp.scrollX+margin {
-			deltaX = target.X - vp.scrollX - vp.width/2
-		} else if target.X > vp.scrollX+vp.width-margin {
-			deltaX = target.X - vp.scrollX - vp.width/2
+		if maxX < margin {
+			deltaX = maxX - vp.width + margin
+		} else if minX > vp.width-margin {
+			deltaX = minX - margin
 		}
-		if target.Y < vp.scrollY+margin {
-			deltaY = target.Y - vp.scrollY - vp.height/2
-		} else if target.Y > vp.scrollY+vp.height-margin {
-			deltaY = target.Y - vp.scrollY - vp.height/2
+		if maxY < margin {
+			deltaY = maxY - vp.height + margin
+		} else if minY > vp.height-margin {
+			deltaY = minY - margin
 		}
 
 		if deltaX == 0 && deltaY == 0 {
