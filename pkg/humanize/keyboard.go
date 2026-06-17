@@ -33,11 +33,18 @@ func (k *Keyboard) Type(el *rod.Element, text string) error {
 	}
 
 	// Move the cursor onto the element and click it, just like a human would
-	// before typing. This also keeps the mouse position continuous between
-	// previous actions and the upcoming input.
+	// before typing. Skip the click if the element is already focused to avoid
+	// repeated cursor jumps during continuous input (e.g. typing tags char by
+	// char). This also keeps the mouse position continuous between actions.
 	if k.mouse != nil {
-		if err := k.mouse.Click(el); err != nil {
+		focused, err := isActiveElement(el)
+		if err != nil {
 			return err
+		}
+		if !focused {
+			if err := k.mouse.Click(el); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -226,6 +233,15 @@ func (k *Keyboard) viewport() (struct {
 	vp.width = res.Get("innerWidth").Num()
 	vp.height = res.Get("innerHeight").Num()
 	return vp, nil
+}
+
+// isActiveElement reports whether el is currently the document's activeElement.
+func isActiveElement(el *rod.Element) (bool, error) {
+	res, err := el.Eval(`() => document.activeElement === this`)
+	if err != nil {
+		return false, err
+	}
+	return res.Value.Bool(), nil
 }
 
 // insertText inserts text directly via CDP Input.insertText.
