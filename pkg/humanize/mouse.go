@@ -177,21 +177,12 @@ func (m *Mouse) moveTo(target Point) error {
 func (m *Mouse) Click(el *rod.Element) error {
 	// Scroll the target element into view first; its on-screen position may
 	// change after scrolling (fixed/sticky elements or layout shifts).
-	// Use smooth scrolling instead of the instant CDP scrollIntoViewIfNeeded
-	// to look more like a human wheel/flick gesture.
-	if err := m.smoothScrollIntoView(el); err != nil {
-		return err
-	}
-	target, err := elementTarget(el)
-	if err != nil {
-		return err
-	}
-	if err := m.scrollToVisible(target); err != nil {
+	if err := m.ScrollIntoView(el); err != nil {
 		return err
 	}
 	// Re-calculate the target after scrolling, because fixed/sticky elements
 	// move with the viewport and the old page-absolute coordinates are stale.
-	target, err = elementTarget(el)
+	target, err := elementTarget(el)
 	if err != nil {
 		return err
 	}
@@ -235,33 +226,52 @@ func (m *Mouse) Scroll(deltaX, deltaY float64) error {
 	return nil
 }
 
-// smoothScrollIntoView scrolls the element into view using the browser's
-// native smooth scrolling, which is harder to distinguish from a human
-// wheel/flick gesture than the instant CDP scrollIntoViewIfNeeded.
-func (m *Mouse) smoothScrollIntoView(el *rod.Element) error {
-	_, err := el.Eval(`() => this.scrollIntoView({behavior: 'smooth', block: 'center'})`)
-	if err != nil {
-		return err
+// ScrollIntoView scrolls the page so that the element is centered in the
+// viewport using humanized wheel events. It avoids JS scrollIntoView which
+// can be detected by pages observing synchronous scroll/layout changes.
+func (m *Mouse) ScrollIntoView(el *rod.Element) error {
+	const maxAttempts = 12
+	const margin = 100
+	for i := 0; i < maxAttempts; i++ {
+		target, err := elementTarget(el)
+		if err != nil {
+			return err
+		}
+		vp, err := m.viewport()
+		if err != nil {
+			return err
+		}
+
+		var deltaX, deltaY float64
+		if target.X < vp.scrollX+margin {
+			deltaX = target.X - vp.scrollX - vp.width/2
+		} else if target.X > vp.scrollX+vp.width-margin {
+			deltaX = target.X - vp.scrollX - vp.width/2
+		}
+		if target.Y < vp.scrollY+margin {
+			deltaY = target.Y - vp.scrollY - vp.height/2
+		} else if target.Y > vp.scrollY+vp.height-margin {
+			deltaY = target.Y - vp.scrollY - vp.height/2
+		}
+
+		if deltaX == 0 && deltaY == 0 {
+			return nil
+		}
+
+		if err := m.Scroll(deltaX, deltaY); err != nil {
+			return err
+		}
+		time.Sleep(randDuration(80*time.Millisecond, 200*time.Millisecond))
 	}
-	// Wait for the smooth scroll animation. Browsers typically animate
-	// smooth scrolls over ~300-500ms depending on distance.
-	time.Sleep(randDuration(300*time.Millisecond, 500*time.Millisecond))
 	return nil
 }
 
 // Hover scrolls the element into view, moves to it, and pauses briefly.
 func (m *Mouse) Hover(el *rod.Element) error {
-	if err := m.smoothScrollIntoView(el); err != nil {
+	if err := m.ScrollIntoView(el); err != nil {
 		return err
 	}
 	target, err := elementTarget(el)
-	if err != nil {
-		return err
-	}
-	if err := m.scrollToVisible(target); err != nil {
-		return err
-	}
-	target, err = elementTarget(el)
 	if err != nil {
 		return err
 	}

@@ -392,13 +392,10 @@ func (el *Element) MustHover() *Element {
 	return el
 }
 
-// ScrollIntoView scrolls the element into view in a human-like way.
+// ScrollIntoView scrolls the element into view in a human-like way by
+// dispatching wheel events until the element is centered in the viewport.
 func (el *Element) ScrollIntoView() error {
-	_, err := el.Rod.Eval("() => this.scrollIntoView({behavior: 'auto', block: 'center'})")
-	if err != nil {
-		return err
-	}
-	return el.actor.Mouse.Hover(el.Rod)
+	return el.actor.Mouse.ScrollIntoView(el.Rod)
 }
 
 // MustScrollIntoView is the humanized MustScrollIntoView.
