@@ -56,6 +56,13 @@ func (m *Mouse) initPosition() error {
 	return nil
 }
 
+// InitPosition eagerly moves the cursor from the rod default (0,0) to a
+// plausible starting point. Call this right after a page is created so the
+// first real interaction does not start from the detectable (0,0) origin.
+func (m *Mouse) InitPosition() error {
+	return m.initPosition()
+}
+
 // Move moves the cursor to target with a realistic, non-deterministic path.
 // If the target lies outside the current viewport, the page is scrolled first
 // so that the destination is rendered before the cursor moves there.

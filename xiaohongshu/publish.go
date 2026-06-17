@@ -371,7 +371,7 @@ func clickPublishButton(page *hrod.Page) error {
 
 // waitForPublishButtonClickable 等待新版 xhs-publish-btn 或旧版 button.bg-red 可点击。
 func waitForPublishButtonClickable(page *hrod.Page, maxWait time.Duration) (*publishButton, error) {
-	interval := 1 * time.Second
+	interval := 300 * time.Millisecond
 	start := time.Now()
 	var lastDisabledReason string
 

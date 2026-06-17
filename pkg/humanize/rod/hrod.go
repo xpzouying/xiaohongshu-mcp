@@ -69,7 +69,7 @@ func (b *Browser) wrapPage(p *rod.Page) *Page {
 	if p == nil {
 		return nil
 	}
-	return &Page{
+	page := &Page{
 		Rod:      p,
 		Mouse:    p.Mouse,
 		Keyboard: p.Keyboard,
@@ -77,6 +77,10 @@ func (b *Browser) wrapPage(p *rod.Page) *Page {
 		browser:  b,
 		cfg:      b.cfg,
 	}
+	// Eagerly initialize the cursor position so the first interaction does not
+	// start from rod's default (0,0), which is an obvious automation signature.
+	_ = page.actor.Mouse.InitPosition()
+	return page
 }
 
 // Page wraps a *rod.Page and adds humanized versions of common actions.
