@@ -10,11 +10,11 @@ import (
 	"time"
 
 	"github.com/go-rod/rod"
-	hrod "github.com/xpzouying/xiaohongshu-mcp/pkg/humanize/rod"
 	"github.com/go-rod/rod/lib/input"
 	"github.com/go-rod/rod/lib/proto"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	hrod "github.com/xpzouying/xiaohongshu-mcp/pkg/humanize/rod"
 )
 
 // PublishImageContent 发布图文内容
@@ -464,13 +464,6 @@ func findPublishButton(page *hrod.Page) (*publishButton, string, error) {
 }
 
 func clickPublishWidget(page *hrod.Page, widget *hrod.Element) error {
-	if err := widget.ScrollIntoView(); err != nil {
-		return errors.Wrap(err, "滚动新版发布按钮到可视区域失败")
-	}
-	time.Sleep(200 * time.Millisecond)
-
-	// 真实按钮在 <xhs-publish-btn> 的 closed shadow root 内部：
-	// <button type="button" class="ce-btn bg-red">发布</button>
 	shadowRoot, err := widget.Rod.ShadowRoot()
 	if err != nil {
 		return errors.Wrap(err, "获取发布按钮 shadow root 失败")
@@ -481,8 +474,8 @@ func clickPublishWidget(page *hrod.Page, widget *hrod.Element) error {
 	}
 	publishBtn := hrod.NewElement(publishBtnRod, page.Actor())
 
-	// Humanized click = Move + MouseDown + MouseUp via the actor.
-	if err := publishBtn.Click(proto.InputMouseButtonLeft, 1); err != nil {
+	// 发布按钮容器是 sticky bottom，已经在视口内，跳过 ScrollIntoView 避免 wheel 滚动死循环。
+	if err := publishBtn.ClickNoScroll(); err != nil {
 		return errors.Wrap(err, "点击发布按钮失败")
 	}
 	return nil

@@ -43,8 +43,8 @@ func (m *Mouse) initPosition() error {
 		return err
 	}
 	center := Point{
-		X: vp.scrollX + vp.width/2 + (rand.Float64()*2-1)*vp.width*0.15,
-		Y: vp.scrollY + vp.height/2 + (rand.Float64()*2-1)*vp.height*0.15,
+		X: vp.width/2 + (rand.Float64()*2-1)*vp.width*0.15,
+		Y: vp.height/2 + (rand.Float64()*2-1)*vp.height*0.15,
 	}
 
 	// Mark initialized before calling moveTo to avoid recursion.
@@ -67,11 +67,21 @@ func (m *Mouse) InitPosition() error {
 // If the target lies outside the current viewport, the page is scrolled first
 // so that the destination is rendered before the cursor moves there.
 func (m *Mouse) Move(target Point) error {
-	// Scroll the target into view if it is outside the current viewport.
+	// target is in page-absolute coordinates. Scroll it into view if it is
+	// outside the current viewport, then convert to viewport-relative
+	// coordinates before moving the cursor (rod.Mouse.MoveTo expects
+	// viewport-relative coordinates).
 	if err := m.scrollToVisible(target); err != nil {
 		return err
 	}
-	return m.moveTo(target)
+	vp, err := m.viewport()
+	if err != nil {
+		return err
+	}
+	return m.moveTo(Point{
+		X: target.X - vp.scrollX,
+		Y: target.Y - vp.scrollY,
+	})
 }
 
 // moveTo performs the actual cursor movement without any extra scrolling.
@@ -189,6 +199,32 @@ func (m *Mouse) Click(el *rod.Element) error {
 	}
 	// Re-calculate the target after scrolling, because fixed/sticky elements
 	// move with the viewport and the old page-absolute coordinates are stale.
+	target, err := elementTarget(el)
+	if err != nil {
+		return err
+	}
+	if err := m.moveTo(target); err != nil {
+		return err
+	}
+
+	// Human pause before clicking.
+	time.Sleep(randDuration(80*time.Millisecond, 350*time.Millisecond))
+
+	if err := m.page.Mouse.Down(proto.InputMouseButtonLeft, 1); err != nil {
+		return err
+	}
+	time.Sleep(randDuration(40*time.Millisecond, 120*time.Millisecond))
+	if err := m.page.Mouse.Up(proto.InputMouseButtonLeft, 1); err != nil {
+		return err
+	}
+	return nil
+}
+
+// ClickNoScroll performs a human-like click without scrolling the element into
+// view first. Use it when the target is already known to be visible (e.g.
+// sticky/fixed elements) to avoid the overhead or infinite loops caused by
+// ScrollIntoView.
+func (m *Mouse) ClickNoScroll(el *rod.Element) error {
 	target, err := elementTarget(el)
 	if err != nil {
 		return err
@@ -450,23 +486,13 @@ func elementTarget(el *rod.Element) (Point, error) {
 	width := maxX - minX
 	height := maxY - minY
 
-	// CDP DOM.getContentQuads returns coordinates relative to the viewport.
-	// rod.Mouse.MoveTo expects page-absolute coordinates, so add scroll offset.
-	scrollObj, err := el.Page().Eval(`() => ({ x: window.scrollX, y: window.scrollY })`)
-	if err != nil {
-		return Point{}, err
-	}
-	scroll, err := el.Page().ObjectToJSON(scrollObj)
-	if err != nil {
-		return Point{}, err
-	}
-	offsetX := scroll.Get("x").Num()
-	offsetY := scroll.Get("y").Num()
-
+	// CDP DOM.getContentQuads returns coordinates relative to the viewport, and
+	// rod.Mouse.MoveTo also expects viewport-relative coordinates, so no scroll
+	// offset conversion is needed.
 	// Random offset within central 60% of element.
 	return Point{
-		X: center.X + offsetX + width*(rand.Float64()*0.3-0.15),
-		Y: center.Y + offsetY + height*(rand.Float64()*0.3-0.15),
+		X: center.X + width*(rand.Float64()*0.3-0.15),
+		Y: center.Y + height*(rand.Float64()*0.3-0.15),
 	}, nil
 }
 

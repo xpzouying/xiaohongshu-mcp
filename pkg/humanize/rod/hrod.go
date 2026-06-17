@@ -359,6 +359,12 @@ func (el *Element) Click(button proto.InputMouseButton, clickCount int) error {
 	return el.actor.Mouse.Click(el.Rod)
 }
 
+// ClickNoScroll performs a human-like click without scrolling the element into
+// view first. Useful for sticky/fixed elements that are already visible.
+func (el *Element) ClickNoScroll() error {
+	return el.actor.Mouse.ClickNoScroll(el.Rod)
+}
+
 // MustClick is the humanized MustClick.
 // It panics if the element cannot be clicked.
 func (el *Element) MustClick() *Element {
