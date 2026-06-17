@@ -75,7 +75,19 @@ func (m *Mouse) moveTo(target Point) error {
 	}
 
 	start := m.page.Mouse.Position()
-	path := GeneratePath(start, target, m.cfg.Mouse.MinSteps, m.cfg.Mouse.MaxSteps, m.cfg.Mouse.OvershootRatio)
+	straightDist := math.Hypot(target.X-start.X, target.Y-start.Y)
+
+	// Derive step count from distance so short moves finish quickly and long
+	// moves still have enough points to look natural.
+	desiredSteps := int(straightDist / m.cfg.Mouse.StepDistance)
+	if desiredSteps < m.cfg.Mouse.MinSteps {
+		desiredSteps = m.cfg.Mouse.MinSteps
+	}
+	if desiredSteps > m.cfg.Mouse.MaxSteps {
+		desiredSteps = m.cfg.Mouse.MaxSteps
+	}
+
+	path := GeneratePath(start, target, desiredSteps, desiredSteps, m.cfg.Mouse.OvershootRatio)
 
 	// Base speed with variance.
 	speed := m.cfg.Mouse.MoveSpeedPxPerSec * (1 + (rand.Float64()*2-1)*m.cfg.Mouse.SpeedVariance)
@@ -121,8 +133,8 @@ func (m *Mouse) moveTo(target Point) error {
 		} else {
 			stepDuration = time.Duration(float64(time.Second) * dist / speed)
 		}
-		if stepDuration < 2*time.Millisecond {
-			stepDuration = 2 * time.Millisecond
+		if stepDuration < 1*time.Millisecond {
+			stepDuration = 1 * time.Millisecond
 		}
 
 		// Keep the event density high enough to look like a real mouse

@@ -32,8 +32,12 @@ type Config struct {
 
 // MouseConfig controls mouse movement realism.
 type MouseConfig struct {
-	// MinSteps/MaxSteps define the number of intermediate points for a move.
+	// MinSteps/MaxSteps bound the number of intermediate points for a move.
 	MinSteps, MaxSteps int
+
+	// StepDistance is the preferred pixel distance between two adjacent mouse
+	// events. The actual step count is derived from the total move distance.
+	StepDistance float64
 
 	// MoveSpeedPxPerSec is the average cursor speed in pixels per second.
 	MoveSpeedPxPerSec float64
@@ -95,9 +99,10 @@ func DefaultConfig() Config {
 	return Config{
 		Profile: SpeedNormal,
 		Mouse: MouseConfig{
-			MinSteps:                    40,
-			MaxSteps:                    100,
-			MoveSpeedPxPerSec:           3600,
+			MinSteps:                    8,
+			MaxSteps:                    50,
+			StepDistance:                25,
+			MoveSpeedPxPerSec:           36000,
 			SpeedVariance:               0.35,
 			PauseProbability:            0.08,
 			PauseMin:                    80 * time.Millisecond,
