@@ -125,15 +125,32 @@ func (m *Mouse) moveTo(target Point) error {
 			stepDuration = 2 * time.Millisecond
 		}
 
-		if err := m.page.Mouse.MoveTo(p); err != nil {
-			return err
+		// Keep the event density high enough to look like a real mouse
+		// (typical browser refresh rate is 60-120Hz). If the planned step is
+		// too long, subdivide it into smaller micro-steps.
+		const maxStepDuration = 16 * time.Millisecond
+		subSteps := 1
+		if stepDuration > maxStepDuration {
+			subSteps = int(math.Ceil(float64(stepDuration) / float64(maxStepDuration)))
 		}
 
-		if debugMouse {
-			_ = m.tracePoint(p.X, p.Y, i == 0)
-		}
+		for j := 0; j < subSteps; j++ {
+			ratio := float64(j+1) / float64(subSteps)
+			subP := Point{
+				X: last.X + (p.X-last.X)*ratio,
+				Y: last.Y + (p.Y-last.Y)*ratio,
+			}
 
-		time.Sleep(stepDuration)
+			if err := m.page.Mouse.MoveTo(subP); err != nil {
+				return err
+			}
+
+			if debugMouse {
+				_ = m.tracePoint(subP.X, subP.Y, i == 0 && j == 0)
+			}
+
+			time.Sleep(stepDuration / time.Duration(subSteps))
+		}
 
 		last = p
 	}
