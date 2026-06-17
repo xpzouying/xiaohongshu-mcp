@@ -33,6 +33,7 @@ func NewMouse(page *rod.Page, cfg Config) *Mouse {
 // initPosition moves the cursor from the rod default (0,0) to a plausible
 // starting point inside the viewport. This is done once per Mouse instance so
 // subsequent movements do not look like long flights from the screen corner.
+// The movement itself is humanized so the cursor does not teleport.
 func (m *Mouse) initPosition() error {
 	if m.initialized {
 		return nil
@@ -45,10 +46,13 @@ func (m *Mouse) initPosition() error {
 		X: vp.scrollX + vp.width/2 + (rand.Float64()*2-1)*vp.width*0.15,
 		Y: vp.scrollY + vp.height/2 + (rand.Float64()*2-1)*vp.height*0.15,
 	}
-	if err := m.page.Mouse.MoveTo(center); err != nil {
+
+	// Mark initialized before calling moveTo to avoid recursion.
+	m.initialized = true
+	if err := m.moveTo(center); err != nil {
+		m.initialized = false
 		return err
 	}
-	m.initialized = true
 	return nil
 }
 

@@ -12,13 +12,14 @@ import (
 
 // Keyboard provides human-like keyboard input.
 type Keyboard struct {
-	page *rod.Page
-	cfg  Config
+	page  *rod.Page
+	cfg   Config
+	mouse *Mouse
 }
 
 // NewKeyboard creates a new humanized keyboard wrapper.
-func NewKeyboard(page *rod.Page, cfg Config) *Keyboard {
-	return &Keyboard{page: page, cfg: cfg}
+func NewKeyboard(page *rod.Page, cfg Config, mouse *Mouse) *Keyboard {
+	return &Keyboard{page: page, cfg: cfg, mouse: mouse}
 }
 
 // Type types text into el with realistic timing, occasional typos, and corrections.
@@ -30,6 +31,16 @@ func (k *Keyboard) Type(el *rod.Element, text string) error {
 	if err := el.ScrollIntoView(); err != nil {
 		return err
 	}
+
+	// Move the cursor onto the element and click it, just like a human would
+	// before typing. This also keeps the mouse position continuous between
+	// previous actions and the upcoming input.
+	if k.mouse != nil {
+		if err := k.mouse.Click(el); err != nil {
+			return err
+		}
+	}
+
 	if err := el.Focus(); err != nil {
 		return err
 	}
@@ -44,9 +55,9 @@ func (k *Keyboard) Type(el *rod.Element, text string) error {
 
 	cpm := cfg.CPM * (1 + (rand.Float64()*2-1)*cfg.CPMVariance)
 	msPerChar := 60000.0 / cpm
-	// ASCII is typed roughly 2x faster; CJK voice/IME composition is roughly 0.5x.
+	// ASCII is typed roughly 2x faster; CJK voice/IME composition is slower.
 	asciiMsPerChar := msPerChar / 2
-	cjkMsPerChar := msPerChar * 2
+	cjkMsPerChar := msPerChar * 3
 
 	tokens := tokenizeText(text)
 	typed := 0

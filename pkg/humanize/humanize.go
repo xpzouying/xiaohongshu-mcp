@@ -20,9 +20,10 @@ type Actor struct {
 
 // New creates a humanized actor for the given page.
 func New(page *rod.Page, cfg Config) *Actor {
+	mouse := NewMouse(page, cfg)
 	return &Actor{
-		Mouse:    NewMouse(page, cfg),
-		Keyboard: NewKeyboard(page, cfg),
+		Mouse:    mouse,
+		Keyboard: NewKeyboard(page, cfg, mouse),
 		cfg:      cfg,
 	}
 }
