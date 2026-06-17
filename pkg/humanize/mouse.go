@@ -80,6 +80,22 @@ func (m *Mouse) moveTo(target Point) error {
 	// Base speed with variance.
 	speed := m.cfg.Mouse.MoveSpeedPxPerSec * (1 + (rand.Float64()*2-1)*m.cfg.Mouse.SpeedVariance)
 
+	// Total distance for velocity profile normalization.
+	totalDist := 0.0
+	prev := start
+	for _, p := range path {
+		totalDist += math.Hypot(p.X-prev.X, p.Y-prev.Y)
+		prev = p
+	}
+
+	// Accelerate-then-fine-tune velocity profile: slow at the start, fast in
+	// the middle, and slow again near the target. The profile is a sine hump
+	// scaled so its average over [0,1] is 1.0, keeping the overall move time
+	// comparable to the constant-speed baseline.
+	const velocityFloor = 0.3
+	velocityAmp := (1.0 - velocityFloor) * math.Pi / 2
+
+	cumulativeDist := 0.0
 	last := start
 	for i, p := range path {
 		// Inject jitter.
@@ -87,9 +103,24 @@ func (m *Mouse) moveTo(target Point) error {
 			p = jitter(p, m.cfg.Mouse.JitterRadius)
 		}
 
-		// Distance-based step duration.
+		// Distance-based step duration with ease-in-out acceleration.
 		dist := math.Hypot(p.X-last.X, p.Y-last.Y)
-		stepDuration := time.Duration(float64(time.Second) * dist / speed)
+		cumulativeDist += dist
+
+		var stepDuration time.Duration
+		if totalDist > 0 {
+			t := cumulativeDist / totalDist
+			// Use the midpoint of the step for smoother transitions.
+			tMid := t - dist/(2*totalDist)
+			if tMid < 0 {
+				tMid = 0
+			}
+			velocity := velocityFloor + velocityAmp*math.Sin(math.Pi*tMid)
+			effectiveSpeed := speed * velocity
+			stepDuration = time.Duration(float64(time.Second) * dist / effectiveSpeed)
+		} else {
+			stepDuration = time.Duration(float64(time.Second) * dist / speed)
+		}
 		if stepDuration < 2*time.Millisecond {
 			stepDuration = 2 * time.Millisecond
 		}
