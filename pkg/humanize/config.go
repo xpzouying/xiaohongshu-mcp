@@ -97,7 +97,7 @@ func DefaultConfig() Config {
 		Mouse: MouseConfig{
 			MinSteps:                    40,
 			MaxSteps:                    100,
-			MoveSpeedPxPerSec:           1200,
+			MoveSpeedPxPerSec:           3600,
 			SpeedVariance:               0.35,
 			PauseProbability:            0.08,
 			PauseMin:                    80 * time.Millisecond,
