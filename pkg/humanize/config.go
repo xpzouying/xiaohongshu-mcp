@@ -95,9 +95,9 @@ func DefaultConfig() Config {
 	return Config{
 		Profile: SpeedNormal,
 		Mouse: MouseConfig{
-			MinSteps:                    25,
-			MaxSteps:                    60,
-			MoveSpeedPxPerSec:           350,
+			MinSteps:                    40,
+			MaxSteps:                    100,
+			MoveSpeedPxPerSec:           1200,
 			SpeedVariance:               0.35,
 			PauseProbability:            0.08,
 			PauseMin:                    80 * time.Millisecond,
