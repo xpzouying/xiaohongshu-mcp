@@ -12,9 +12,10 @@ import (
 
 // Keyboard provides human-like keyboard input.
 type Keyboard struct {
-	page  *rod.Page
-	cfg   Config
-	mouse *Mouse
+	page     *rod.Page
+	cfg      Config
+	mouse    *Mouse
+	lastEl   *rod.Element
 }
 
 // NewKeyboard creates a new humanized keyboard wrapper.
@@ -33,20 +34,16 @@ func (k *Keyboard) Type(el *rod.Element, text string) error {
 	}
 
 	// Move the cursor onto the element and click it, just like a human would
-	// before typing. Skip the click if the element is already focused to avoid
-	// repeated cursor jumps during continuous input (e.g. typing tags char by
-	// char). This also keeps the mouse position continuous between actions.
-	if k.mouse != nil {
-		focused, err := isActiveElement(el)
-		if err != nil {
+	// before typing. Skip the click if we just typed into the same element to
+	// avoid repeated cursor jumps during continuous input (e.g. typing tags
+	// char by char). This also keeps the mouse position continuous between
+	// actions without querying DOM state that a page could detect.
+	if k.mouse != nil && k.lastEl != el {
+		if err := k.mouse.Click(el); err != nil {
 			return err
 		}
-		if !focused {
-			if err := k.mouse.Click(el); err != nil {
-				return err
-			}
-		}
 	}
+	k.lastEl = el
 
 	if err := el.Focus(); err != nil {
 		return err
@@ -233,15 +230,6 @@ func (k *Keyboard) viewport() (struct {
 	vp.width = res.Get("innerWidth").Num()
 	vp.height = res.Get("innerHeight").Num()
 	return vp, nil
-}
-
-// isActiveElement reports whether el is currently the document's activeElement.
-func isActiveElement(el *rod.Element) (bool, error) {
-	res, err := el.Eval(`() => document.activeElement === this`)
-	if err != nil {
-		return false, err
-	}
-	return res.Value.Bool(), nil
 }
 
 // insertText inserts text directly via CDP Input.insertText.
