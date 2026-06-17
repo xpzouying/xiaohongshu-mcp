@@ -3,14 +3,14 @@ package xiaohongshu
 import (
 	"context"
 
-	"github.com/go-rod/rod"
+	hrod "github.com/xpzouying/xiaohongshu-mcp/pkg/humanize/rod"
 )
 
 type NavigateAction struct {
-	page *rod.Page
+	page *hrod.Page
 }
 
-func NewNavigate(page *rod.Page) *NavigateAction {
+func NewNavigate(page *hrod.Page) *NavigateAction {
 	return &NavigateAction{page: page}
 }
 

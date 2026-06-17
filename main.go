@@ -4,6 +4,7 @@ import (
 	"flag"
 	"os"
 
+	"github.com/go-rod/rod/lib/launcher"
 	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/xiaohongshu-mcp/configs"
 )
@@ -24,8 +25,11 @@ func main() {
 	}
 	if binPath != "" {
 		logrus.Infof("using browser binary: %s", binPath)
+	} else if found, has := launcher.LookPath(); has {
+		logrus.Infof("using system browser binary: %s", found)
 	} else {
-		logrus.Infof("browser binary is not configured; rod will auto-detect or download Chromium")
+		defaultPath := launcher.NewBrowser().BinPath()
+		logrus.Infof("browser binary is not configured; rod will auto-download Chromium to: %s", defaultPath)
 	}
 
 	configs.InitHeadless(headless)

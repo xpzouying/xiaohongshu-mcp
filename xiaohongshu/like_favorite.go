@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-rod/rod"
+	hrod "github.com/xpzouying/xiaohongshu-mcp/pkg/humanize/rod"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	myerrors "github.com/xpzouying/xiaohongshu-mcp/errors"
@@ -36,14 +36,14 @@ const (
 )
 
 type interactAction struct {
-	page *rod.Page
+	page *hrod.Page
 }
 
-func newInteractAction(page *rod.Page) *interactAction {
+func newInteractAction(page *hrod.Page) *interactAction {
 	return &interactAction{page: page}
 }
 
-func (a *interactAction) preparePage(ctx context.Context, actionType interactActionType, feedID, xsecToken string) *rod.Page {
+func (a *interactAction) preparePage(ctx context.Context, actionType interactActionType, feedID, xsecToken string) *hrod.Page {
 	page := a.page.Context(ctx).Timeout(60 * time.Second)
 	url := makeFeedDetailURL(feedID, xsecToken)
 	logrus.Infof("Opening feed detail page for %s: %s", actionType, url)
@@ -55,7 +55,7 @@ func (a *interactAction) preparePage(ctx context.Context, actionType interactAct
 	return page
 }
 
-func (a *interactAction) performClick(page *rod.Page, selector string) {
+func (a *interactAction) performClick(page *hrod.Page, selector string) {
 	element := page.MustElement(selector)
 	element.MustClick()
 }
@@ -65,7 +65,7 @@ type LikeAction struct {
 	*interactAction
 }
 
-func NewLikeAction(page *rod.Page) *LikeAction {
+func NewLikeAction(page *hrod.Page) *LikeAction {
 	return &LikeAction{interactAction: newInteractAction(page)}
 }
 
@@ -105,7 +105,7 @@ func (a *LikeAction) perform(ctx context.Context, feedID, xsecToken string, targ
 	return a.toggleLike(page, feedID, targetLiked, actionType)
 }
 
-func (a *LikeAction) toggleLike(page *rod.Page, feedID string, targetLiked bool, actionType interactActionType) error {
+func (a *LikeAction) toggleLike(page *hrod.Page, feedID string, targetLiked bool, actionType interactActionType) error {
 	a.performClick(page, SelectorLikeButton)
 	time.Sleep(3 * time.Second)
 
@@ -141,7 +141,7 @@ type FavoriteAction struct {
 	*interactAction
 }
 
-func NewFavoriteAction(page *rod.Page) *FavoriteAction {
+func NewFavoriteAction(page *hrod.Page) *FavoriteAction {
 	return &FavoriteAction{interactAction: newInteractAction(page)}
 }
 
@@ -181,7 +181,7 @@ func (a *FavoriteAction) perform(ctx context.Context, feedID, xsecToken string, 
 	return a.toggleFavorite(page, feedID, targetCollected, actionType)
 }
 
-func (a *FavoriteAction) toggleFavorite(page *rod.Page, feedID string, targetCollected bool, actionType interactActionType) error {
+func (a *FavoriteAction) toggleFavorite(page *hrod.Page, feedID string, targetCollected bool, actionType interactActionType) error {
 	a.performClick(page, SelectorCollectButton)
 	time.Sleep(3 * time.Second)
 
@@ -213,7 +213,7 @@ func (a *FavoriteAction) toggleFavorite(page *rod.Page, feedID string, targetCol
 }
 
 // getInteractState 从 __INITIAL_STATE__ 读取笔记的点赞/收藏状态
-func (a *interactAction) getInteractState(page *rod.Page, feedID string) (liked bool, collected bool, err error) {
+func (a *interactAction) getInteractState(page *hrod.Page, feedID string) (liked bool, collected bool, err error) {
 
 	result := page.MustEval(`() => {
 		if (window.__INITIAL_STATE__ &&

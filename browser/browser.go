@@ -7,6 +7,8 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/headless_browser"
 	"github.com/xpzouying/xiaohongshu-mcp/cookies"
+	"github.com/xpzouying/xiaohongshu-mcp/pkg/humanize"
+	hrod "github.com/xpzouying/xiaohongshu-mcp/pkg/humanize/rod"
 )
 
 type browserConfig struct {
@@ -35,7 +37,7 @@ func maskProxyCredentials(proxyURL string) string {
 	return u.String()
 }
 
-func NewBrowser(headless bool, options ...Option) *headless_browser.Browser {
+func NewBrowser(headless bool, options ...Option) *hrod.Browser {
 	cfg := &browserConfig{}
 	for _, opt := range options {
 		opt(cfg)
@@ -60,10 +62,11 @@ func NewBrowser(headless bool, options ...Option) *headless_browser.Browser {
 
 	if data, err := cookieLoader.LoadCookies(); err == nil {
 		opts = append(opts, headless_browser.WithCookies(string(data)))
-		logrus.Debugf("loaded cookies from filesuccessfully")
+		logrus.Debugf("loaded cookies from file successfully")
 	} else {
 		logrus.Warnf("failed to load cookies: %v", err)
 	}
 
-	return headless_browser.New(opts...)
+	hb := headless_browser.New(opts...)
+	return hrod.NewBrowser(hb, humanize.DefaultConfig())
 }
