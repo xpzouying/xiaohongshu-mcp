@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/sirupsen/logrus"
+	"github.com/xpzouying/xiaohongshu-mcp/pkg/ratelimit"
 )
 
 // AppServer 应用服务器结构体，封装所有服务和处理器
@@ -19,18 +20,34 @@ type AppServer struct {
 	mcpServer          *mcp.Server
 	router             *gin.Engine
 	httpServer         *http.Server
+	rateLimiter        *ratelimit.Limiter
 }
 
 // NewAppServer 创建新的应用服务器实例
-func NewAppServer(xiaohongshuService *XiaohongshuService) *AppServer {
+func NewAppServer(xiaohongshuService *XiaohongshuService, opts ...AppServerOption) *AppServer {
 	appServer := &AppServer{
 		xiaohongshuService: xiaohongshuService,
+		rateLimiter:        ratelimit.New(ratelimit.DefaultConfig()),
+	}
+
+	for _, opt := range opts {
+		opt(appServer)
 	}
 
 	// 初始化 MCP Server（需要在创建 appServer 之后，因为工具注册需要访问 appServer）
 	appServer.mcpServer = InitMCPServer(appServer)
 
 	return appServer
+}
+
+// AppServerOption 可选配置
+type AppServerOption func(*AppServer)
+
+// WithRateLimitConfig 自定义速率限制配置
+func WithRateLimitConfig(cfg ratelimit.Config) AppServerOption {
+	return func(s *AppServer) {
+		s.rateLimiter = ratelimit.New(cfg)
+	}
 }
 
 // Start 启动服务器
