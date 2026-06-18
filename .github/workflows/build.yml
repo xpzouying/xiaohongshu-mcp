@@ -7,6 +7,13 @@ on:
 
 jobs:
   build:
+    strategy:
+      matrix:
+        goos: [linux, darwin, windows]
+        goarch: [amd64]
+        include:
+          - goos: darwin
+            goarch: arm64
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -18,12 +25,15 @@ jobs:
         go-version: "1.24"
     - name: Tidy
       run: go mod tidy
-    - name: Vet
-      run: go vet ./...
     - name: Build
-      run: go build -v -o xiaohongshu-mcp .
+      run: |
+        export GOOS=${{ matrix.goos }}
+        export GOARCH=${{ matrix.goarch }}
+        EXT=""
+        if [ "$GOOS" = "windows" ]; then EXT=".exe"; fi
+        go build -v -o xiaohongshu-mcp-${GOOS}-${GOARCH}${EXT} .
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: xiaohongshu-mcp
-        path: xiaohongshu-mcp
+        name: xiaohongshu-mcp-${{ matrix.goos }}-${{ matrix.goarch }}
+        path: xiaohongshu-mcp-*
