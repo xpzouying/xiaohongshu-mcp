@@ -1,0 +1,1049 @@
+{
+  "name": "对标账户 获取优质笔记V1.0",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 22
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1984,
+        -224
+      ],
+      "id": "54025dfa-f91c-494c-9ec9-07ecb246ac2e",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "data.items",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        -1568,
+        -224
+      ],
+      "id": "981b24c3-d721-4e0f-abf1-ac511ad03dbe",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "47093f2b-7083-45fe-9b2d-f0a5f60f7310",
+              "leftValue": "={{ $json.fields[\"博主类型\"] }}",
+              "rightValue": "=核心对标",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "6a7157a9-6dc8-4383-90a8-beb108670f0b",
+              "leftValue": "={{ $json.fields[\"监控状态\"] }}",
+              "rightValue": "开启",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        -1392,
+        -224
+      ],
+      "id": "5b253e80-4d2d-4a57-a024-d8b66b412c11",
+      "name": "过滤（核心对标 开启监控状态）"
+    },
+    {
+      "parameters": {
+        "resource": "bitable",
+        "operation": "bitable:table:record:search",
+        "app_toke": "JbFtbbBjZa0gRWsf6kFc4esMnBN",
+        "table_id": "tblvEzPL8ikhoKw8",
+        "body": "{\"filter\":{\n  \"conjunction\": \"and\",\n  \"conditions\": []\n}}"
+      },
+      "type": "n8n-nodes-feishu-lite.feishuNode",
+      "typeVersion": 1,
+      "position": [
+        -1760,
+        -224
+      ],
+      "id": "6a1ccbdb-a2a2-4496-81c1-b203b29733e1",
+      "name": "查询xhs博主管理库",
+      "credentials": {
+        "feishuCredentialsApi": {
+          "id": "YqJWb7ScG0bbq7tF",
+          "name": "Feishu Credentials account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "endpointUrl": "http://host.docker.internal:18060/mcp",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.mcpClientTool",
+      "typeVersion": 1.2,
+      "position": [
+        -1760,
+        480
+      ],
+      "id": "aff12ce7-98cd-4c2f-bf5e-735ebfeec690",
+      "name": "xhs-mcp4"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatDeepSeek",
+      "typeVersion": 1,
+      "position": [
+        -1904,
+        448
+      ],
+      "id": "1a40dfac-b849-46cc-81e5-fb2aecd9be50",
+      "name": "DeepSeek Chat Model4",
+      "credentials": {
+        "deepSeekApi": {
+          "id": "5krZfhVZGZusDBYO",
+          "name": "DeepSeek account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "bitable",
+        "operation": "bitable:table:record:search",
+        "app_toke": "B6n8bi2MPaR7AisEEHrcsC4cn5e",
+        "table_id": "tbld9COM01Sj60Kb",
+        "body": "={\n  \"filter\": {\n    \"conjunction\": \"and\",\n    \"conditions\": [\n      {\n        \"field_name\": \"userid\",\n        \"operator\": \"is\",\n        \"value\": [\n          \"{{ $json.fields.userid[0].text }}\"\n        ]\n      }\n    ]\n  }\n}"
+      },
+      "type": "n8n-nodes-feishu-lite.feishuNode",
+      "typeVersion": 1,
+      "position": [
+        -1920,
+        48
+      ],
+      "id": "d4d38302-627b-4801-ac81-78f0db48a679",
+      "name": "基于XHS表中的userid碰撞找到N8N表中对应的xssectoken",
+      "credentials": {
+        "feishuCredentialsApi": {
+          "id": "YqJWb7ScG0bbq7tF",
+          "name": "Feishu Credentials account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -1456,
+        48
+      ],
+      "id": "d838871a-f6cc-47c3-9cfa-05932d2ba3a9",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=你的唯一任务是基于{{ $('结构化清洗数据').item.json.userid }}和{{ $('结构化清洗数据').item.json.xssecToken }}字段数据，调用mcp中的user_profile工具，获取用户的取数据。\n注意：{{ $json.userid }}对应的数据是userid，{{ $json.xssecToken }}对应的数据是是xssectoken。\n\n请执行以下操作：\n1. 找到数据中的 `feeds` 数组。\n2. 截取该数组的**前 4 个**元素。\n3. 对于这 4 个元素，只保留 `id` 、`xsecToken`和'type' 这3个字段（原样输出即可）。\n\n请直接输出结果数组，格式示例：\n[\n  { \"feedid\": \"xxx\", \"xsecToken\": \"xxx\", \"type\": \"xxx\" },\n  { \"feedid\": \"xxx\", \"xsecToken\": \"xxx\",, \"type\": \"xxx\" }\n]",
+        "options": {
+          "systemMessage": "你是一个专业的数据提取助手。你的唯一任务是调用mcp中的user_profile工具，从给定的数据中提取特定字段。\n请遵循以下严格规则：\n1. 只输出标准的 JSON 数组格式。\n2. 不要包含 markdown 代码块标记（如 ```json）。\n3. 不要包含任何解释性文字、问候语或总结。"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        -1904,
+        272
+      ],
+      "id": "a105f029-848e-4b8f-a3b8-cc87c35302ef",
+      "name": "根据userid获取博主全部数据",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 遍历上游节点传入的所有数据项\nreturn items.map(item => {\n  // 获取飞书查询返回的 data 对象\n  const searchData = item.json.data;\n  \n  // 初始化结果变量\n  let extractedUserid = null;\n  let extractedToken = null;\n  let foundData = false;\n\n  // 1. 判断是否成功查到了数据 (items 数组存在且长度大于0)\n  if (searchData && searchData.items && searchData.items.length > 0) {\n    \n    // 取出第一条匹配的记录 (因为我们是精确查询，通常只有一条)\n    const firstRecord = searchData.items[0];\n    const fields = firstRecord.fields;\n\n    // 2. 提取 userid (做非空检查，防止报错)\n    if (fields.userid && fields.userid.length > 0) {\n      extractedUserid = fields.userid[0].text;\n    }\n\n    // 3. 提取 xssecToken (做非空检查)\n    if (fields.xssecToken && fields.xssecToken.length > 0) {\n      extractedToken = fields.xssecToken[0].text;\n    }\n\n    // 标记为找到了数据\n    foundData = true;\n  }\n\n  // 4. 返回清洗后干净、扁平的 JSON\n  return {\n    json: {\n      userid: extractedUserid,\n      xssecToken: extractedToken,\n      success: foundData // 增加一个字段方便后续 Filter 过滤空数据\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1744,
+        48
+      ],
+      "id": "f66fdf3c-b006-4c23-b28d-a4c8efad70c6",
+      "name": "结构化清洗数据"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 获取输入数据\nconst inputItem = $input.first();\nconst inputData = inputItem ? inputItem.json : {};\n\n// 1. 安全检查：如果 AI 没有返回 output，或者 output 为空\nif (!inputData || !inputData.output) {\n    // 返回一个空对象，保证流程继续走到 Wait，不要 return [] (那会中断当前分支)\n    return [{ json: { error: \"No output from AI\", id: \"skip\", xsecToken: \"skip\" } }];\n}\n\nlet dataList = [];\ntry {\n    // 2. 清理 AI 可能带的 Markdown 标记\n    let cleanJson = inputData.output.replace(/```json/g, \"\").replace(/```/g, \"\").trim();\n    dataList = JSON.parse(cleanJson);\n} catch (e) {\n    // 解析失败也返回空对象，保证流程不断\n    return [{ json: { error: \"JSON parse failed\", id: \"skip\", xsecToken: \"skip\" } }];\n}\n\n// 3. 确保是数组\nif (!Array.isArray(dataList)) {\n    return [{ json: { error: \"Not an array\", id: \"skip\", xsecToken: \"skip\" } }];\n}\n\n// 4. 正常返回\nreturn dataList.map(item => ({\n    json: item\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1568,
+        272
+      ],
+      "id": "2e98ffc0-7dfc-4db5-a199-62df51389c09",
+      "name": "单个博主的前4条笔记feedid汇总"
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor(Math.random() * 4) + 3 }}"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -1360,
+        304
+      ],
+      "id": "5cf6dde1-1adf-4962-9e74-067739038087",
+      "name": "Wait",
+      "webhookId": "05b0fa51-65e4-4e7d-8a18-51cd6747c2cf"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        240,
+        -144
+      ],
+      "id": "875e0897-50e0-4d7f-9c51-1c41378a8174",
+      "name": "Loop Over Items1"
+    },
+    {
+      "parameters": {
+        "endpointUrl": "http://host.docker.internal:18060/mcp",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.mcpClientTool",
+      "typeVersion": 1.2,
+      "position": [
+        624,
+        336
+      ],
+      "id": "73d96a24-3a94-42ba-9e15-02997e9d8fab",
+      "name": "xhs-mcp6"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatDeepSeek",
+      "typeVersion": 1,
+      "position": [
+        432,
+        304
+      ],
+      "id": "22dded52-e8ac-4a9c-b4cb-21b458f71877",
+      "name": "DeepSeek Chat Model5",
+      "credentials": {
+        "deepSeekApi": {
+          "id": "5krZfhVZGZusDBYO",
+          "name": "DeepSeek account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=# Role\n你是一个小红书笔记数据提取专家。你的任务是根据输入的{{ $json.feedid }}和{{ $json.xsecToken }}，利用get_feed_detail工具获取笔记详情，并从返回的JSON数据中提取特定字段，最后以严格的JSON格式输出。\n\n# Input\n{{ $json.feedid }}对应的是feedid\n{{ $json.xsecToken }}对应的是xssectoken\n\n# Workflow\n1. **数据提取**: 从工具返回的 JSON 结果中提取以下 9 个字段。注意字段可能存在于嵌套结构中（如 `data.note` 或 `interactInfo`）：\n   - **title**: 笔记标题\n   - **desc**: 笔记正文/描述\n   - **type**: 笔记类型 (如 normal, video 等)\n   - **time**: 发布时间\n   - **nickName**: 博主账户名称\n   - **xsecToken**: 实际获取的字符串\n   - **feed_id**: 实际获取的字符串\n   - **likedCount**: 点赞数 (位于 `interactInfo` 下)\n   - **note_link**: 笔记链接 (需要按照规则拼接)\n\n***注意事项：time、xsecToken、feed_id，需要获取每个笔记的真实字符串内容，切记。\n\n# Link Construction Rule\n笔记链接请按照以下格式拼接：\nhttps://www.xiaohongshu.com/explore/{noteId}\n\n# Output Format\n请仅输出一个纯 JSON 对象，不要包含 markdown 代码块标记或其他解释性文字。格式如下：\n{\n  \"title\": \"提取的标题\",\n  \"desc\": \"提取的正文内容\",\n  \"type\": \"提取的类型\",\n  \"time\": \"发布时间\",\n  \"nickName\": \"博主账户名称\"\n  \"xsecToken\": \"实际获取的字符串\"\n  \"feed_id\": \"实际获取的字符串\"\n  \"likedCount\": \"650\",\n  \"note_link\": \"https://www.xiaohongshu.com/explore/...\"\n}",
+        "options": {
+          "systemMessage": "你是一个无头 API 响应引擎。\n\n### 核心规则：\n1. 你的任务是调用 mcp 工具 `get_feed_detail` 获取笔记详情并返回结果，**不要**进行任何等待或延迟操作（外部系统已处理）。\n2. **禁止**输出 <think> 标签或 Markdown 代码块。\n"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        416,
+        96
+      ],
+      "id": "a61ff27b-4993-4edd-8612-9ed83f20183b",
+      "name": "基于feed_id 正文提取"
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor(Math.random() * 9) + 7 }}"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        256,
+        96
+      ],
+      "id": "bca37d1b-ef0d-446a-8979-ffaae282a70f",
+      "name": "Wait2",
+      "webhookId": "39557279-42f2-4e4b-8a8b-32f636c40ab8"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 准备一个数组存放处理后的结果\nconst results = [];\n\nfor (const item of items) {\n  // 1. 初始化空对象，防止解析失败导致报错\n  let parsedData = {};\n  \n  // 2. 获取 Agent 输出的原始数据 (位于 output 字段)\n  const rawOutput = item.json.output;\n\n  // 3. 只有当 rawOutput 存在且为字符串时才进行解析\n  if (rawOutput && typeof rawOutput === 'string') {\n    try {\n      // --- 清洗步骤 ---\n      // 很多时候 LLM 会输出 ```json ... ``` 这样的 Markdown 标记\n      // 我们需要先把这些标记去掉，只保留 { ... } 部分\n      let cleanJsonString = rawOutput.replace(/```json/g, '').replace(/```/g, '').trim();\n      \n      // 有时候 LLM 会在 JSON 前后说废话，我们只提取第一个 { 到 最后一个 } 之间的内容\n      const firstBrace = cleanJsonString.indexOf('{');\n      const lastBrace = cleanJsonString.lastIndexOf('}');\n      if (firstBrace !== -1 && lastBrace !== -1) {\n        cleanJsonString = cleanJsonString.substring(firstBrace, lastBrace + 1);\n      }\n\n      // --- 解析步骤 ---\n      parsedData = JSON.parse(cleanJsonString);\n      \n    } catch (error) {\n      // 如果解析失败（比如 JSON 格式错误），打印日志，parsedData 保持为空对象\n      console.log('JSON Parse Error for item:', error.message);\n    }\n  } else if (rawOutput && typeof rawOutput === 'object') {\n      // 如果上游节点有时候直接输出对象而不是字符串，直接使用\n      parsedData = rawOutput;\n  }\n\n  // 4. 提取9个字段，并设置“兜底”默认值 (为空情况处理)\n  const extractedItem = {\n    // 原有的6个字段\n    title: parsedData.title || \"\",\n    desc: parsedData.desc || \"\",\n    type: parsedData.type || \"normal\",  // 默认为 normal\n    time: parsedData.time || \"\",\n    likedCount: parsedData.likedCount || \"0\", // 点赞数默认为 0\n    note_link: parsedData.note_link || \"\",\n    \n    // 新增的3个字段 (根据你的截图推测)\n    nickName: parsedData.nickName || \"\",   // 博主账户名称\n    feed_id: parsedData.feed_id || \"\",     // 笔记ID\n    xsecToken: parsedData.xsecToken || \"\"  // 追踪Token\n  };\n\n  // 5. 将处理好的数据推送到结果数组\n  results.push({\n    json: extractedItem\n  });\n}\n\n// 返回处理后的数据\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        736,
+        96
+      ],
+      "id": "b4a343f8-73a7-4d25-a34c-caf26daba376",
+      "name": "字段解析"
+    },
+    {
+      "parameters": {
+        "resource": "bitable",
+        "operation": "bitable:table:record:add",
+        "app_toke": "B6n8bi2MPaR7AisEEHrcsC4cn5e",
+        "table_id": "tbld9COM01Sj60Kb",
+        "body": "={\n  \"fields\": {\n    \"笔记标题\": {{ JSON.stringify($json.title) }},\n    \"笔记正文\": {{ JSON.stringify($json.desc) }},\n    \"笔记链接\": {{ JSON.stringify($json.note_link) }},\n    \"博主账户名称\": {{ JSON.stringify($json.nickName) }},\n    \"点赞数\": {{ Number($json.likedCount) }},\n    \"发布时间\": {{ JSON.stringify($json.formatted_date) }},\n    \"笔记类型\": {{ JSON.stringify($json.type) }},\n    \"feedid\": {{ JSON.stringify($json.feed_id) }},\n    \"xssecToken\": {{ JSON.stringify($json.xsecToken) }},\n    \"数据来源\":\"对标监控\"\n  }\n}"
+      },
+      "type": "n8n-nodes-feishu-lite.feishuNode",
+      "typeVersion": 1,
+      "position": [
+        1008,
+        -128
+      ],
+      "id": "00396788-01c6-4e57-91c5-7a3a5ea80815",
+      "name": "写入飞书N8N小红书对标笔记采集表",
+      "credentials": {
+        "feishuCredentialsApi": {
+          "id": "YqJWb7ScG0bbq7tF",
+          "name": "Feishu Credentials account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## 根据userid xssectoken 获取博主前4条笔记的全部数据\n1、拿到最前面博主的4条笔记feedid、和笔记类型type",
+        "height": 320,
+        "width": 928,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -2144,
+        224
+      ],
+      "typeVersion": 1,
+      "id": "85b4a3c2-ed10-4224-b793-023be307e10c",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "4291a201-6c12-4d72-8b17-ca85a895898b",
+              "leftValue": "={{ $json.feedid }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "f8e72202-9648-4205-8c6e-af5c2f170741",
+              "leftValue": "={{ $json.xsecToken }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "20b654e0-1cec-46cd-88a2-5ed02c86eb48",
+              "leftValue": "={{ $json.type }}",
+              "rightValue": "video",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -64,
+        -128
+      ],
+      "id": "9c3dd285-18b4-4b2a-8cfa-66b42a898ff2",
+      "name": "过滤掉空数据和video笔记"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 【核心修改】直接获取当前节点接收到的所有输入数据\n// 因为 Loop 节点的 Done 分支已经把 4 条数据汇总传过来了\nconst items = $input.all();\n\n// 遍历并处理数据\nconst processedItems = items.map(item => {\n  // 复制一份 JSON 数据以避免直接修改引用\n  const json = { ...item.json };\n\n  // --- 1. 时间清洗：毫秒时间戳 -> 北京时间 YYYY/MM/DD HH:mm ---\n  if (json.time && json.time !== \"\") { // 增加判空，防止报错\n    try {\n      const timestamp = Number(json.time);\n      // 排除无效时间戳\n      if (!isNaN(timestamp) && timestamp !== 0) {\n          const date = new Date(timestamp);\n          const formatter = new Intl.DateTimeFormat('zh-CN', {\n            timeZone: 'Asia/Shanghai',\n            year: 'numeric',\n            month: '2-digit',\n            day: '2-digit',\n            hour: '2-digit',\n            minute: '2-digit',\n            hour12: false\n          });\n          const parts = formatter.formatToParts(date);\n          const getPart = (type) => parts.find(p => p.type === type).value;\n          json.formatted_date = `${getPart('year')}/${getPart('month')}/${getPart('day')} ${getPart('hour')}:${getPart('minute')}`;\n      } else {\n          json.formatted_date = null;\n      }\n    } catch (e) {\n      json.formatted_date = null;\n    }\n  } else {\n      json.formatted_date = null;\n  }\n\n  // --- 2. 正文清洗：去除首尾空格和多余换行 ---\n  if (json.desc) {\n    let cleanDesc = json.desc.trim();\n    cleanDesc = cleanDesc.replace(/\\n+/g, '\\n');\n    json.desc = cleanDesc;\n  }\n\n  // --- 3. 【新增】增加“数据来源”字段 ---\n  // 这会在每条数据里添加一个 key 叫 data_source，值为 \"对标监控\"\n  json.data_source = \"对标监控\";\n\n  return { json };\n});\n\n// 【核心修改】过滤掉 title 为空的数据\n// 这样可以去掉你截图中那条空数据，保留剩下的 3 条有效数据\nconst finalItems = processedItems.filter(item => {\n    return item.json.title && item.json.title.trim() !== \"\";\n});\n\nreturn finalItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        -128
+      ],
+      "id": "d4d98d9b-fc77-41af-a0c2-da749aab0840",
+      "name": "关注博主的前4条笔记9字段数据汇总"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "advanced": true,
+        "mergeByFields": {
+          "values": [
+            {
+              "field1": "feedid",
+              "field2": "clean_feedid"
+            }
+          ]
+        },
+        "joinMode": "keepNonMatches",
+        "outputDataFrom": "input1",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -336,
+        -80
+      ],
+      "id": "02349cdf-d03a-4104-be6e-1136a393760f",
+      "name": "Merge1"
+    },
+    {
+      "parameters": {
+        "resource": "bitable",
+        "operation": "bitable:table:record:search",
+        "app_toke": "B6n8bi2MPaR7AisEEHrcsC4cn5e",
+        "table_id": "tbld9COM01Sj60Kb",
+        "page_size": 500,
+        "body": "={{ $json.searchBody }}"
+      },
+      "type": "n8n-nodes-feishu-lite.feishuNode",
+      "typeVersion": 1,
+      "position": [
+        -672,
+        176
+      ],
+      "id": "ea6d3211-c851-4369-aa96-6c8d8c0268bd",
+      "name": "笔记feedid在N8N小红书笔记库中对比去重后的新笔记feedid1",
+      "credentials": {
+        "feishuCredentialsApi": {
+          "id": "YqJWb7ScG0bbq7tF",
+          "name": "Feishu Credentials account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. 初始化容器\nconst allGatheredItems = [];\nlet runIndex = 0;\n\n// 【安全设置】最大循环次数熔断阀值\n// 防止因获取不到结束信号而导致死循环（根据你的博主数量预估，1000次足够了）\nconst maxIterations = 40; \n\n// 2. 遍历循环内部节点历史\nwhile (runIndex < maxIterations) {\n  try {\n    // 尝试获取第 runIndex 次循环的数据\n    const batch = $('单个博主的前4条笔记feedid汇总').all(0, runIndex);\n\n    // 【关键退出条件】\n    // 如果返回的数据不存在，或者为空数组，说明已经遍历完了所有循环\n    if (!batch || batch.length === 0) {\n      break;\n    }\n\n    // 将数据加入总表\n    allGatheredItems.push(...batch);\n    \n    // 索引递增\n    runIndex++;\n    \n  } catch (error) {\n    // 如果发生索引越界错误，说明数据取完了，安全退出\n    break;\n  }\n}\n\n// 3. 过滤有效数据\nconst validItems = allGatheredItems.filter(item => {\n  const data = item.json;\n  return (\n    data &&\n    data.feedid && \n    data.feedid !== 'skip'\n  );\n});\n\n// 4. 提取去重后的 feedid (用于生成飞书查询条件)\nconst uniqueFeedIds = [...new Set(validItems.map(item => item.json.feedid))];\n\n// 如果没有有效数据，返回空数组\nif (uniqueFeedIds.length === 0) {\n  return [];\n}\n\n// 5. 构造飞书查询条件\nconst searchBody = {\n  filter: {\n    conjunction: \"or\",\n    conditions: uniqueFeedIds.map(fid => ({\n      field_name: \"feedid\", \n      operator: \"is\",\n      value: [fid]\n    }))\n  }\n};\n\n// 6. 输出结果\nreturn validItems.map(item => {\n  return {\n    json: {\n      feedid: item.json.feedid,\n      xsecToken: item.json.xsecToken,\n      type: item.json.type,\n      searchBody: JSON.stringify(searchBody)\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1184,
+        64
+      ],
+      "id": "cbc62a2f-ea7a-4299-b664-e453fd8ce618",
+      "name": "全部博主的前4条笔记Id汇总1"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        -880,
+        176
+      ],
+      "id": "f71b3405-9020-4da2-8252-5c35220b0478",
+      "name": "Limit1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. 获取飞书 API 返回的第一条完整响应\n// 因为我们前面的 searchBody 是一次性查所有 ID，所以只需要看第 1 个返回结果即可\nconst response = items[0].json;\n\n// 2. 检查是否有数据返回\nif (response && response.data && response.data.items) {\n  const foundRecords = response.data.items;\n\n  // 3. 将数组“拆包”，并提取干净的 feedid\n  return foundRecords.map(record => {\n    // 提取嵌套极深的 feedid 文本\n    // 路径：fields -> feedid -> [0] -> text\n    const rawFeedId = record.fields.feedid;\n    let cleanId = \"\";\n    \n    if (rawFeedId && Array.isArray(rawFeedId) && rawFeedId.length > 0) {\n      cleanId = rawFeedId[0].text;\n    }\n\n    return {\n      json: {\n        // 输出飞书里存在的干净 ID\n        clean_feedid: cleanId,\n        // 如果需要其他字段，可以在这里加，比如:\n        // record_id: record.record_id\n      }\n    };\n  });\n}\n\n// 如果没查到任何数据，返回空数组\nreturn [];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -496,
+        128
+      ],
+      "id": "f63c9716-ff7b-4787-949e-c2fff99e2e96",
+      "name": "清洗从N8n表中搜索到的feedid数据"
+    },
+    {
+      "parameters": {
+        "content": "## 配置（Limit + Code清洗）是完全正确的，这是 n8n 处理飞书/Airtable 等复杂结构数据去重的最佳实践\n1、全部博主的前4条笔记Id汇总，汇总循环中获取的博主的最前面的4条笔记的feedid数据\n2、limit 限制飞书制作一次查询\n3、笔记feedid在N8N小红书笔记库中对比去重后的新笔记feedid，基于feedid在n8n表中搜索出存在的笔记feedid\n4、清洗N8N表中的搜索到的feedid数据，将飞书节点的返回的数据做清晰\n5、全部博主的前4条笔记Id汇总的feedid为基础过，滤掉表中已经存在的笔记feedid，过滤掉只置顶您的笔记，只获得最新的笔记内容",
+        "height": 640,
+        "width": 976,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -1168,
+        -336
+      ],
+      "typeVersion": 1,
+      "id": "90e356c8-faaa-427b-a9f9-ffb7a261aa04",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "## 从XHS博主库表中筛选博主\n**筛选条件：博主类型=核心对标+监控状态=开启",
+        "height": 240,
+        "width": 944,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -2160,
+        -352
+      ],
+      "typeVersion": 1,
+      "id": "d02fb067-922c-4c07-b99a-2064f57522f2",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "content": "## 基于博主的userid在笔记表中找到对应的xssectoken字段，用于后续找改博主的笔记\n1、code清洗数据 保留userid xssectoken\n",
+        "height": 192,
+        "width": 880
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -2160,
+        -16
+      ],
+      "typeVersion": 1,
+      "id": "b3476b5c-b797-47d0-9cc7-742a4919cea9",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "content": "## 数据滤掉\n1、过滤掉视频笔记\n2、过滤掉feedid xssectoken为空的笔记",
+        "height": 624
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -144,
+        -336
+      ],
+      "typeVersion": 1,
+      "id": "a1a8cd41-adb3-47eb-b2a7-ffddeff82cc6",
+      "name": "Sticky Note4"
+    },
+    {
+      "parameters": {
+        "content": "## 关注博主起爱你4条笔记（过滤后的）笔记正文等字段获取 \n**1、基于feedid xssectoken 逐条笔记，挨个获取，\n2、wait 避免风控 很重要\n3、全部博主的笔记数据聚合",
+        "height": 704,
+        "width": 720
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        160,
+        -336
+      ],
+      "typeVersion": 1,
+      "id": "e99d1ed3-4e50-4517-bbbb-ccc13f364f29",
+      "name": "Sticky Note5"
+    }
+  ],
+  "pinData": {
+    "Schedule Trigger": [
+      {
+        "json": {
+          "timestamp": "2025-12-30T11:51:02.440-05:00",
+          "Readable date": "December 30th 2025, 11:51:02 am",
+          "Readable time": "11:51:02 am",
+          "Day of week": "Tuesday",
+          "Year": "2025",
+          "Month": "December",
+          "Day of month": "30",
+          "Hour": "11",
+          "Minute": "51",
+          "Second": "02",
+          "Timezone": "America/New_York (UTC-05:00)"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ],
+    "根据userid获取博主全部数据": [
+      {
+        "json": {
+          "output": "[\n  { \"feedid\": \"68abdfa5000000001d006a5d\", \"xsecToken\": \"ABlT8EMFEiiYzkm73gEhE85qRnazg8R4_Ie0Y6qvgKgFs=\", \"type\": \"normal\" },\n  { \"feedid\": \"689ed27c000000001b01c0fc\", \"xsecToken\": \"AByEmUFzKsiKPS6uRLhVN3aH9-rLrBldgKBCKSGcccb-g=\", \"type\": \"normal\" },\n  { \"feedid\": \"69524b5f000000002202f142\", \"xsecToken\": \"ABThAPBaeVifYBOibUi24rm2IOXH9_4BAIaWF95OCPXfc=\", \"type\": \"normal\" },\n  { \"feedid\": \"694cd975000000002203b5ac\", \"xsecToken\": \"ABdaW-zRTq14hOePNMeA9txqJ2H_ZSBRARt9jaPY9GChQ=\", \"type\": \"normal\" }\n]"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ],
+    "全部博主的前4条笔记Id汇总1": [
+      {
+        "json": {
+          "feedid": "68abdfa5000000001d006a5d",
+          "xsecToken": "ABlT8EMFEiiYzkm73gEhE85qRnazg8R4_Ie0Y6qvgKgFs=",
+          "type": "normal",
+          "searchBody": "{\"filter\":{\"conjunction\":\"or\",\"conditions\":[{\"field_name\":\"feedid\",\"operator\":\"is\",\"value\":[\"68abdfa5000000001d006a5d\"]},{\"field_name\":\"feedid\",\"operator\":\"is\",\"value\":[\"689ed27c000000001b01c0fc\"]},{\"field_name\":\"feedid\",\"operator\":\"is\",\"value\":[\"69524b5f000000002202f142\"]},{\"field_name\":\"feedid\",\"operator\":\"is\",\"value\":[\"694cd975000000002203b5ac\"]}]}}"
+        }
+      },
+      {
+        "json": {
+          "feedid": "689ed27c000000001b01c0fc",
+          "xsecToken": "AByEmUFzKsiKPS6uRLhVN3aH9-rLrBldgKBCKSGcccb-g=",
+          "type": "normal",
+          "searchBody": "{\"filter\":{\"conjunction\":\"or\",\"conditions\":[{\"field_name\":\"feedid\",\"operator\":\"is\",\"value\":[\"68abdfa5000000001d006a5d\"]},{\"field_name\":\"feedid\",\"operator\":\"is\",\"value\":[\"689ed27c000000001b01c0fc\"]},{\"field_name\":\"feedid\",\"operator\":\"is\",\"value\":[\"69524b5f000000002202f142\"]},{\"field_name\":\"feedid\",\"operator\":\"is\",\"value\":[\"694cd975000000002203b5ac\"]}]}}"
+        }
+      },
+      {
+        "json": {
+          "feedid": "69524b5f000000002202f142",
+          "xsecToken": "ABThAPBaeVifYBOibUi24rm2IOXH9_4BAIaWF95OCPXfc=",
+          "type": "normal",
+          "searchBody": "{\"filter\":{\"conjunction\":\"or\",\"conditions\":[{\"field_name\":\"feedid\",\"operator\":\"is\",\"value\":[\"68abdfa5000000001d006a5d\"]},{\"field_name\":\"feedid\",\"operator\":\"is\",\"value\":[\"689ed27c000000001b01c0fc\"]},{\"field_name\":\"feedid\",\"operator\":\"is\",\"value\":[\"69524b5f000000002202f142\"]},{\"field_name\":\"feedid\",\"operator\":\"is\",\"value\":[\"694cd975000000002203b5ac\"]}]}}"
+        }
+      },
+      {
+        "json": {
+          "feedid": "694cd975000000002203b5ac",
+          "xsecToken": "ABdaW-zRTq14hOePNMeA9txqJ2H_ZSBRARt9jaPY9GChQ=",
+          "type": "normal",
+          "searchBody": "{\"filter\":{\"conjunction\":\"or\",\"conditions\":[{\"field_name\":\"feedid\",\"operator\":\"is\",\"value\":[\"68abdfa5000000001d006a5d\"]},{\"field_name\":\"feedid\",\"operator\":\"is\",\"value\":[\"689ed27c000000001b01c0fc\"]},{\"field_name\":\"feedid\",\"operator\":\"is\",\"value\":[\"69524b5f000000002202f142\"]},{\"field_name\":\"feedid\",\"operator\":\"is\",\"value\":[\"694cd975000000002203b5ac\"]}]}}"
+        }
+      }
+    ],
+    "关注博主的前4条笔记9字段数据汇总": [
+      {
+        "json": {
+          "title": "李蠕蠕一人团队长红6年，给独立老师3个提醒",
+          "desc": "[笑哭R]\"课备好了却迟迟不敢招生\"\n[捂脸R]\"朋友圈三天可见，家长都快忘了你是谁\"\n[哭惹R]\"间歇性鸡血招生，持续性躺平摆烂\"\n这些场景你是否熟悉？\n当看到网红李蠕蠕6年坚持发布603条作品的报道，\n我顿悟了一个真相：那些活得好的一人团队，赢就赢在“细水长流的坚持”。\n今天分享3个让教学事业持续向好的关键心法。\n提醒一：坚持≠自虐，找到你的\"三天一更\"节奏\n提醒二：杀死\"明天再说\"，每天征服3件5分钟小事\n提醒三：给你的坚持装上\"小马达\"，续航更久\n独立教师的核心竞争力，不在某次惊艳亮相，而在于“家长需要时你永远在场”的确定性。\n试着明天就开始：\n1.设定你的“招生闹钟”（如每周二四发干货）\n2.完成今日“抗惰三件套”（点亮家长/沉淀干货/解决1题）\n3.找个同行互夸（一句“你今天的案例真有用”就能充电）\n教育的复利不在惊涛骇浪，而在滴水穿石。\n你每天的“细水长流”，终将汇成生源的滔滔江河。\n﻿#独立英语老师[话题]#﻿ ﻿#独立老师[话题]#﻿ ﻿#加油教培人[话题]#﻿ ﻿#机构老师[话题]#﻿ ﻿#独立老师转型创业[话题]#﻿ ﻿#长期主义[话题]#",
+          "type": "normal",
+          "time": "1755313271000",
+          "likedCount": "2482",
+          "note_link": "https://www.xiaohongshu.com/explore/689ed27c000000001b01c0fc",
+          "nickName": "英语老师Singel",
+          "feed_id": "689ed27c000000001b01c0fc",
+          "xsecToken": "AByEmUFzKsiKPS6uRLhVN3aH9-rLrBldgKBCKSGcccb-g=",
+          "formatted_date": "2025/08/16 11:01",
+          "data_source": "对标监控"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      },
+      {
+        "json": {
+          "title": "寒假朋友圈招生文案，7天不重样",
+          "desc": "太香了！寒假招生文案这样发，家长主动报名\n1、\n寒假说长不长，\n但足以让孩子甩掉一批人\n寒假说短不短，\n但孩子在假期中形成的自律好习惯\n足以让孩子受益一生\n2、\n书是一本一本读过来的，\n房是一砖一瓦建起来的，\n总有一些看得见的成绩，\n来自别人看不见的努力\n路是一步步走出来的，\n没有腾空而起，只有脚踏实地\n3、\n学习从什么时候开始都不晚，\n晚的是你从来都不敢开始\n只要坚定信念，步履不停\n就能实现弯道超车\n家长先相信孩子\n孩子才会有积极反馈\n4、\n正确的方法：靠老师\n认真的态度：靠孩子\n持久的坚持：靠家长\n想在茫茫人群中脱颖而出\n缺一不可\nXXX寒假班招生开始啦\n5、\n学过的，都说好\n不学的，都说忙，\n坚持的，都说有进步，\n放弃的，都说没效果\n你的进步都包含在你曾经的坚持里\n6、\n虽然教育需要有所花费\n但一年后你会发现\n当初给孩子交的学费\n并没有对生活的产生什么影响\n但十年后你会发现\n孩子小时候学过的一切\n开始影响他的一生\n教育从来都是最好的投资。\n7、\n再贵的学费÷365天\n都是很小的投资\n再小的进步*365天\n都能拉开巨大的差距\n#朋友圈打造[话题]# #寒假不一样[话题]# #招生[话题]# #独立英语老师[话题]",
+          "type": "normal",
+          "time": "1767000927000",
+          "likedCount": "10",
+          "note_link": "https://www.xiaohongshu.com/explore/69524b5f000000002202f142",
+          "nickName": "英语老师Singel",
+          "feed_id": "69524b5f000000002202f142",
+          "xsecToken": "ABThAPBaeVifYBOibUi24rm2IOXH9_4BAIaWF95OCPXfc=",
+          "formatted_date": "2025/12/29 17:35",
+          "data_source": "对标监控"
+        },
+        "pairedItem": {
+          "item": 1
+        }
+      },
+      {
+        "json": {
+          "title": "独立老师费力不讨好的寒假活动，不做也罢",
+          "desc": "你是不是也在刷到这样的活动？\n“299上10次课，承诺之后几年都免费”\n看着热闹，但背后往往是“不做活动没学生，做了活动不赚钱”的循环。\n低价引流，真的能带来好学生吗？\n多数情况是：吸引来的，是只图便宜、不重质量的短期客户。\n活动一停，人也散了。\n对独立老师来说，更靠谱的路其实是：\n✅ 别总想着搞大活动，把每一天都变成“招生日”\n与其攒个大招，不如持续分享你的教学日常、学员的成长点滴。家长更相信长期看到的真实进步。\n✅ 服务好现有的学员，让他们成为你的“代言人”\n一个满意的老学员，抵得上十个低价引来的新客户。把精力花在课程打磨和课后反馈上，续费和转介绍会自然发生。\n✅ 善用工具，让招生和服务“轻量化”\n例如，用 领智云 这类APP 工具：\n轻松发布学习任务，自动跟踪进度\n一键生成学习报告，让效果清晰可见\n管理学员与课程，腾出时间专注教学与沟通\n工具的意义，是帮你从琐事中解放，更专注地经营信任。\n这个寒假，与其追逐热闹却低效的活动\n不如回归教育的本质：扎实的课程，用心的服务，持续的沟通。\n当你不依赖低价吸引，而是靠专业和价值被选择时，你的路才会走得更稳、更远。\n#独立英语老师[话题]# #加油教培人[话题]# #独立教师[话题]# #寒假不一样[话题]# #教育机构[话题]# #寒假招生[话题]# #领智云[话题]# #教培运营[话题]",
+          "type": "normal",
+          "time": "1766707240000",
+          "likedCount": "2",
+          "note_link": "https://www.xiaohongshu.com/explore/694cd975000000002203b5ac",
+          "nickName": "英语老师Singel",
+          "feed_id": "694cd975000000002203b5ac",
+          "xsecToken": "ABdaW-zRTq14hOePNMeA9txqJ2H_ZSBRARt9jaPY9GChQ=",
+          "formatted_date": "2025/12/26 08:00",
+          "data_source": "对标监控"
+        },
+        "pairedItem": {
+          "item": 2
+        }
+      }
+    ],
+    "基于feed_id 正文提取": [
+      {
+        "json": {
+          "output": "{\n  \"title\": \"李蠕蠕一人团队长红6年，给独立老师3个提醒\",\n  \"desc\": \"[笑哭R]\\\"课备好了却迟迟不敢招生\\\"\\n[捂脸R]\\\"朋友圈三天可见，家长都快忘了你是谁\\\"\\n[哭惹R]\\\"间歇性鸡血招生，持续性躺平摆烂\\\"\\n这些场景你是否熟悉？\\n当看到网红李蠕蠕6年坚持发布603条作品的报道，\\n我顿悟了一个真相：那些活得好的一人团队，赢就赢在“细水长流的坚持”。\\n今天分享3个让教学事业持续向好的关键心法。\\n提醒一：坚持≠自虐，找到你的\\\"三天一更\\\"节奏\\n提醒二：杀死\\\"明天再说\\\"，每天征服3件5分钟小事\\n提醒三：给你的坚持装上\\\"小马达\\\"，续航更久\\n独立教师的核心竞争力，不在某次惊艳亮相，而在于“家长需要时你永远在场”的确定性。\\n试着明天就开始：\\n1.设定你的“招生闹钟”（如每周二四发干货）\\n2.完成今日“抗惰三件套”（点亮家长/沉淀干货/解决1题）\\n3.找个同行互夸（一句“你今天的案例真有用”就能充电）\\n教育的复利不在惊涛骇浪，而在滴水穿石。\\n你每天的“细水长流”，终将汇成生源的滔滔江河。\\n﻿#独立英语老师[话题]#﻿ ﻿#独立老师[话题]#﻿ ﻿#加油教培人[话题]#﻿ ﻿#机构老师[话题]#﻿ ﻿#独立老师转型创业[话题]#﻿ ﻿#长期主义[话题]#﻿\",\n  \"type\": \"normal\",\n  \"time\": \"1755313271000\",\n  \"nickName\": \"英语老师Singel\",\n  \"xsecToken\": \"AByEmUFzKsiKPS6uRLhVN3aH9-rLrBldgKBCKSGcccb-g=\",\n  \"feed_id\": \"689ed27c000000001b01c0fc\",\n  \"likedCount\": \"2482\",\n  \"note_link\": \"https://www.xiaohongshu.com/explore/689ed27c000000001b01c0fc\"\n}"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ],
+    "字段解析": [
+      {
+        "json": {
+          "title": "李蠕蠕一人团队长红6年，给独立老师3个提醒",
+          "desc": "[笑哭R]\"课备好了却迟迟不敢招生\"\n[捂脸R]\"朋友圈三天可见，家长都快忘了你是谁\"\n[哭惹R]\"间歇性鸡血招生，持续性躺平摆烂\"\n这些场景你是否熟悉？\n当看到网红李蠕蠕6年坚持发布603条作品的报道，\n我顿悟了一个真相：那些活得好的一人团队，赢就赢在“细水长流的坚持”。\n今天分享3个让教学事业持续向好的关键心法。\n提醒一：坚持≠自虐，找到你的\"三天一更\"节奏\n提醒二：杀死\"明天再说\"，每天征服3件5分钟小事\n提醒三：给你的坚持装上\"小马达\"，续航更久\n独立教师的核心竞争力，不在某次惊艳亮相，而在于“家长需要时你永远在场”的确定性。\n试着明天就开始：\n1.设定你的“招生闹钟”（如每周二四发干货）\n2.完成今日“抗惰三件套”（点亮家长/沉淀干货/解决1题）\n3.找个同行互夸（一句“你今天的案例真有用”就能充电）\n教育的复利不在惊涛骇浪，而在滴水穿石。\n你每天的“细水长流”，终将汇成生源的滔滔江河。\n﻿#独立英语老师[话题]#﻿ ﻿#独立老师[话题]#﻿ ﻿#加油教培人[话题]#﻿ ﻿#机构老师[话题]#﻿ ﻿#独立老师转型创业[话题]#﻿ ﻿#长期主义[话题]#﻿",
+          "type": "normal",
+          "time": "1755313271000",
+          "likedCount": "2482",
+          "note_link": "https://www.xiaohongshu.com/explore/689ed27c000000001b01c0fc",
+          "nickName": "英语老师Singel",
+          "feed_id": "689ed27c000000001b01c0fc",
+          "xsecToken": "AByEmUFzKsiKPS6uRLhVN3aH9-rLrBldgKBCKSGcccb-g="
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "查询xhs博主管理库",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "过滤（核心对标 开启监控状态）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "过滤（核心对标 开启监控状态）": {
+      "main": [
+        [
+          {
+            "node": "基于XHS表中的userid碰撞找到N8N表中对应的xssectoken",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "查询xhs博主管理库": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "xhs-mcp4": {
+      "ai_tool": [
+        [
+          {
+            "node": "根据userid获取博主全部数据",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DeepSeek Chat Model4": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "根据userid获取博主全部数据",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "基于XHS表中的userid碰撞找到N8N表中对应的xssectoken": {
+      "main": [
+        [
+          {
+            "node": "结构化清洗数据",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "全部博主的前4条笔记Id汇总1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "根据userid获取博主全部数据",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "根据userid获取博主全部数据": {
+      "main": [
+        [
+          {
+            "node": "单个博主的前4条笔记feedid汇总",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "结构化清洗数据": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "单个博主的前4条笔记feedid汇总": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items1": {
+      "main": [
+        [
+          {
+            "node": "关注博主的前4条笔记9字段数据汇总",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "xhs-mcp6": {
+      "ai_tool": [
+        [
+          {
+            "node": "基于feed_id 正文提取",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DeepSeek Chat Model5": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "基于feed_id 正文提取",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "基于feed_id 正文提取": {
+      "main": [
+        [
+          {
+            "node": "字段解析",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait2": {
+      "main": [
+        [
+          {
+            "node": "基于feed_id 正文提取",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "字段解析": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "过滤掉空数据和video笔记": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "关注博主的前4条笔记9字段数据汇总": {
+      "main": [
+        [
+          {
+            "node": "写入飞书N8N小红书对标笔记采集表",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "笔记feedid在N8N小红书笔记库中对比去重后的新笔记feedid1": {
+      "main": [
+        [
+          {
+            "node": "清洗从N8n表中搜索到的feedid数据",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "全部博主的前4条笔记Id汇总1": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Limit1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limit1": {
+      "main": [
+        [
+          {
+            "node": "笔记feedid在N8N小红书笔记库中对比去重后的新笔记feedid1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "过滤掉空数据和video笔记",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "清洗从N8n表中搜索到的feedid数据": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "4fda9361-9c34-4115-b222-ad5cc6e698d7",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "c590ddc7e26b1e496db852f8cb7e9145dd0761916c1a5979e8bf3a71085cf24a"
+  },
+  "id": "SUARjJw1YHnIy9CY",
+  "tags": []
+}
