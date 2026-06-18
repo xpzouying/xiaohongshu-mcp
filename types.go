@@ -1,21 +1,26 @@
 package main
 
-import "github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
+import (
+	"github.com/xpzouying/xiaohongshu-mcp/pkg/ratelimit"
+	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
+)
 
 // HTTP API 响应类型
 
 // ErrorResponse 错误响应
 type ErrorResponse struct {
-	Error   string `json:"error"`
-	Code    string `json:"code"`
-	Details any    `json:"details,omitempty"`
+	Error     string          `json:"error"`
+	Code      string          `json:"code"`
+	Details   any             `json:"details,omitempty"`
+	RateLimit *ratelimit.Info `json:"rate_limit,omitempty"`
 }
 
 // SuccessResponse 成功响应
 type SuccessResponse struct {
-	Success bool   `json:"success"`
-	Data    any    `json:"data"`
-	Message string `json:"message,omitempty"`
+	Success   bool            `json:"success"`
+	Data      any             `json:"data"`
+	Message   string          `json:"message,omitempty"`
+	RateLimit *ratelimit.Info `json:"rate_limit,omitempty"`
 }
 
 // MCP 相关类型（用于内部转换）
