@@ -1,21 +1,35 @@
 package main
 
 import (
+	"math/rand"
 	"net/http"
+	"time"
 
 	"github.com/xpzouying/xiaohongshu-mcp/cookies"
+	"github.com/xpzouying/xiaohongshu-mcp/pkg/ratelimit"
 	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
 
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 )
 
+// getRateLimitInfo 从 gin.Context 获取限速信息（由 checkRateLimit 设置）
+func getRateLimitInfo(c *gin.Context) *ratelimit.Info {
+	if v, exists := c.Get("rate_limit"); exists {
+		if info, ok := v.(*ratelimit.Info); ok {
+			return info
+		}
+	}
+	return nil
+}
+
 // respondError 返回错误响应
 func respondError(c *gin.Context, statusCode int, code, message string, details any) {
 	response := ErrorResponse{
-		Error:   message,
-		Code:    code,
-		Details: details,
+		Error:     message,
+		Code:      code,
+		Details:   details,
+		RateLimit: getRateLimitInfo(c),
 	}
 
 	logrus.Errorf("%s %s %s %d", c.Request.Method, c.Request.URL.Path,
@@ -27,15 +41,100 @@ func respondError(c *gin.Context, statusCode int, code, message string, details 
 // respondSuccess 返回成功响应
 func respondSuccess(c *gin.Context, data any, message string) {
 	response := SuccessResponse{
-		Success: true,
-		Data:    data,
-		Message: message,
+		Success:   true,
+		Data:      data,
+		Message:   message,
+		RateLimit: getRateLimitInfo(c),
 	}
 
 	logrus.Infof("%s %s %s %d", c.Request.Method, c.Request.URL.Path,
 		c.GetString("account"), http.StatusOK)
 
 	c.JSON(http.StatusOK, response)
+}
+
+// checkRateLimit 检查速率限制，如果超限则返回 429 并阻止执行。
+// force 参数从查询参数 ?force_rate_limit=true 读取。
+// 注意：必须在 handler 中尽早调用，调用后继续执行需手动 Record。
+func (s *AppServer) checkRateLimit(c *gin.Context) (canProceed bool) {
+	force := c.Query("force_rate_limit") == "true"
+	if s.rateLimiter == nil {
+		return true
+	}
+
+	info, canProceed, err := s.rateLimiter.Check(force)
+	if err != nil {
+		logrus.Errorf("rate limiter check error: %v", err)
+		c.Set("rate_limit", &info)
+		return true
+	}
+
+	c.Set("rate_limit", &info)
+
+	if !canProceed {
+		// ⚠️ 超限：提醒但不拦截，放行继续执行
+		logrus.Warnf("[ratelimit] ⚠️ 操作超限：%s", info.Warning)
+		c.Header("X-RateLimit-Warning", info.Warning)
+		// force=false 但超限时，放弃冷却等待直接放行
+		return true
+	}
+
+	// 应用冷却延迟（按当前使用率自动调整）
+	if info.Used > 0 {
+		wait := s.rateLimiter.WaitDuration(info)
+		logrus.Infof("[ratelimit] cooldown %v before execution", wait)
+		time.Sleep(wait)
+	}
+
+	// 在可执行范围内，按 70% 概率消耗操作额度
+	// （保守策略：不是每步都计，有些是页面浏览）
+	if info.Used < info.Limit && rand.Float64() < 0.7 {
+		s.rateLimiter.Record()
+	}
+
+	logrus.Infof("[ratelimit] %s %s - %s", c.Request.Method, c.Request.URL.Path, s.rateLimiter.String())
+	return true
+}
+
+// checkRateLimitResult 非 HTTP 环境的速率限制结果
+type checkRateLimitResult struct {
+	CanProceed bool
+	Info       ratelimit.Info
+}
+
+// checkRateLimitInternal 通用速率限制检查（供 MCP handler 使用）
+// 无 gin.Context 时调此方法。如需强制越过，传 force=true。
+func (s *AppServer) checkRateLimitInternal(force bool) checkRateLimitResult {
+	if s.rateLimiter == nil {
+		return checkRateLimitResult{CanProceed: true}
+	}
+
+	info, canProceed, err := s.rateLimiter.Check(force)
+	if err != nil {
+		logrus.Errorf("rate limiter check error: %v", err)
+		return checkRateLimitResult{CanProceed: true, Info: info}
+	}
+
+	if !canProceed {
+		// ⚠️ 超限：提醒但放行，由上层决定是否通知用户
+		logrus.Warnf("[ratelimit] ⚠️ 操作超限：%s - 仍放行", info.Warning)
+		return checkRateLimitResult{CanProceed: true, Info: info}
+	}
+
+	// 应用冷却延迟
+	if info.Used > 0 {
+		wait := s.rateLimiter.WaitDuration(info)
+		logrus.Infof("[ratelimit] MCP cooldown %v", wait)
+		time.Sleep(wait)
+	}
+
+	// 按 70% 概率消耗额度
+	if info.Used < info.Limit && rand.Float64() < 0.7 {
+		s.rateLimiter.Record()
+	}
+
+	logrus.Infof("[ratelimit] MCP - %s", s.rateLimiter.String())
+	return checkRateLimitResult{CanProceed: true, Info: info}
 }
 
 // checkLoginStatusHandler 检查登录状态
@@ -82,6 +181,9 @@ func (s *AppServer) deleteCookiesHandler(c *gin.Context) {
 
 // publishHandler 发布内容
 func (s *AppServer) publishHandler(c *gin.Context) {
+	if !s.checkRateLimit(c) {
+		return
+	}
 	var req PublishRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
@@ -102,6 +204,9 @@ func (s *AppServer) publishHandler(c *gin.Context) {
 
 // publishVideoHandler 发布视频内容
 func (s *AppServer) publishVideoHandler(c *gin.Context) {
+	if !s.checkRateLimit(c) {
+		return
+	}
 	var req PublishVideoRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
@@ -122,6 +227,9 @@ func (s *AppServer) publishVideoHandler(c *gin.Context) {
 
 // listFeedsHandler 获取Feeds列表
 func (s *AppServer) listFeedsHandler(c *gin.Context) {
+	if !s.checkRateLimit(c) {
+		return
+	}
 	// 获取 Feeds 列表
 	result, err := s.xiaohongshuService.ListFeeds(c.Request.Context())
 	if err != nil {
@@ -136,6 +244,9 @@ func (s *AppServer) listFeedsHandler(c *gin.Context) {
 
 // searchFeedsHandler 搜索Feeds
 func (s *AppServer) searchFeedsHandler(c *gin.Context) {
+	if !s.checkRateLimit(c) {
+		return
+	}
 	var keyword string
 	var filters xiaohongshu.FilterOption
 
@@ -174,6 +285,9 @@ func (s *AppServer) searchFeedsHandler(c *gin.Context) {
 
 // getFeedDetailHandler 获取Feed详情
 func (s *AppServer) getFeedDetailHandler(c *gin.Context) {
+	if !s.checkRateLimit(c) {
+		return
+	}
 	var req FeedDetailRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
@@ -210,6 +324,9 @@ func (s *AppServer) getFeedDetailHandler(c *gin.Context) {
 
 // userProfileHandler 用户主页
 func (s *AppServer) userProfileHandler(c *gin.Context) {
+	if !s.checkRateLimit(c) {
+		return
+	}
 	var req UserProfileRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
@@ -231,6 +348,9 @@ func (s *AppServer) userProfileHandler(c *gin.Context) {
 
 // postCommentHandler 发表评论到Feed
 func (s *AppServer) postCommentHandler(c *gin.Context) {
+	if !s.checkRateLimit(c) {
+		return
+	}
 	var req PostCommentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
@@ -252,6 +372,9 @@ func (s *AppServer) postCommentHandler(c *gin.Context) {
 
 // replyCommentHandler 回复指定评论
 func (s *AppServer) replyCommentHandler(c *gin.Context) {
+	if !s.checkRateLimit(c) {
+		return
+	}
 	var req ReplyCommentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
