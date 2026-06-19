@@ -57,7 +57,7 @@ func DefaultCommentLoadConfig() CommentLoadConfig {
 	return CommentLoadConfig{
 		ClickMoreReplies:    false,
 		MaxRepliesThreshold: 10,
-		MaxCommentItems:     0,
+		MaxCommentItems:     20,
 		ScrollSpeed:         "normal",
 	}
 }

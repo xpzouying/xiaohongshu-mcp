@@ -1,7 +1,6 @@
 package main
 
 import (
-	"math/rand"
 	"net/http"
 	"time"
 
@@ -72,23 +71,20 @@ func (s *AppServer) checkRateLimit(c *gin.Context) (canProceed bool) {
 	c.Set("rate_limit", &info)
 
 	if !canProceed {
-		// ⚠️ 超限：提醒但不拦截，放行继续执行
 		logrus.Warnf("[ratelimit] ⚠️ 操作超限：%s", info.Warning)
 		c.Header("X-RateLimit-Warning", info.Warning)
-		// force=false 但超限时，放弃冷却等待直接放行
-		return true
+		respondError(c, http.StatusTooManyRequests, "RATE_LIMIT_EXCEEDED", info.Warning, info)
+		return false
 	}
 
 	// 应用冷却延迟（按当前使用率自动调整）
-	if info.Used > 0 {
+	if !force && info.Used > 0 {
 		wait := s.rateLimiter.WaitDuration(info)
 		logrus.Infof("[ratelimit] cooldown %v before execution", wait)
 		time.Sleep(wait)
 	}
 
-	// 在可执行范围内，按 70% 概率消耗操作额度
-	// （保守策略：不是每步都计，有些是页面浏览）
-	if info.Used < info.Limit && rand.Float64() < 0.7 {
+	if info.Used < info.Limit {
 		s.rateLimiter.Record()
 	}
 
@@ -116,20 +112,18 @@ func (s *AppServer) checkRateLimitInternal(force bool) checkRateLimitResult {
 	}
 
 	if !canProceed {
-		// ⚠️ 超限：提醒但放行，由上层决定是否通知用户
-		logrus.Warnf("[ratelimit] ⚠️ 操作超限：%s - 仍放行", info.Warning)
-		return checkRateLimitResult{CanProceed: true, Info: info}
+		logrus.Warnf("[ratelimit] ⚠️ 操作超限：%s", info.Warning)
+		return checkRateLimitResult{CanProceed: false, Info: info}
 	}
 
 	// 应用冷却延迟
-	if info.Used > 0 {
+	if !force && info.Used > 0 {
 		wait := s.rateLimiter.WaitDuration(info)
 		logrus.Infof("[ratelimit] MCP cooldown %v", wait)
 		time.Sleep(wait)
 	}
 
-	// 按 70% 概率消耗额度
-	if info.Used < info.Limit && rand.Float64() < 0.7 {
+	if info.Used < info.Limit {
 		s.rateLimiter.Record()
 	}
 

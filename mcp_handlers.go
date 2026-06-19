@@ -28,11 +28,21 @@ func parseVisibility(args map[string]interface{}) string {
 }
 
 // rateLimitMCP MCP handler 速率限制检查。
-// 超限时仅记录警告日志，不阻断执行（提醒+放行）。
 func (s *AppServer) rateLimitMCP(name string) *MCPToolResult {
 	r := s.checkRateLimitInternal(false)
-	if r.Info.Used >= r.Info.Limit && r.Info.Limit > 0 {
-		logrus.Warnf("[ratelimit] ⚠️ [%s] 操作超限：%s - 仍放行", name, r.Info.Warning)
+	if !r.CanProceed {
+		msg := r.Info.Warning
+		if msg == "" {
+			msg = "操作频率过高，请稍后重试"
+		}
+		logrus.Warnf("[ratelimit] ⚠️ [%s] 操作超限：%s", name, msg)
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: fmt.Sprintf("操作被限流: %s", msg),
+			}},
+			IsError: true,
+		}
 	}
 	return nil
 }
@@ -438,7 +448,18 @@ func (s *AppServer) handleGetFeedDetail(ctx context.Context, args map[string]any
 		}
 	}
 
-	if raw, ok := args["max_replies_threshold"]; ok {
+	if raw, ok := args["reply_limit"]; ok {
+		switch v := raw.(type) {
+		case float64:
+			config.MaxRepliesThreshold = int(v)
+		case string:
+			if parsed, err := strconv.Atoi(v); err == nil {
+				config.MaxRepliesThreshold = parsed
+			}
+		case int:
+			config.MaxRepliesThreshold = v
+		}
+	} else if raw, ok := args["max_replies_threshold"]; ok {
 		switch v := raw.(type) {
 		case float64:
 			config.MaxRepliesThreshold = int(v)
@@ -451,7 +472,7 @@ func (s *AppServer) handleGetFeedDetail(ctx context.Context, args map[string]any
 		}
 	}
 
-	if raw, ok := args["max_comment_items"]; ok {
+	if raw, ok := args["limit"]; ok {
 		switch v := raw.(type) {
 		case float64:
 			config.MaxCommentItems = int(v)
@@ -462,6 +483,21 @@ func (s *AppServer) handleGetFeedDetail(ctx context.Context, args map[string]any
 		case int:
 			config.MaxCommentItems = v
 		}
+	} else if raw, ok := args["max_comment_items"]; ok {
+		switch v := raw.(type) {
+		case float64:
+			config.MaxCommentItems = int(v)
+		case string:
+			if parsed, err := strconv.Atoi(v); err == nil {
+				config.MaxCommentItems = parsed
+			}
+		case int:
+			config.MaxCommentItems = v
+		}
+	}
+
+	if loadAll && config.MaxCommentItems <= 0 {
+		config.MaxCommentItems = 20
 	}
 
 	if raw, ok := args["scroll_speed"].(string); ok && raw != "" {
