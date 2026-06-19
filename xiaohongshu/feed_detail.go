@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/avast/retry-go/v4"
-	"github.com/go-rod/rod"
+	hrod "github.com/xpzouying/xiaohongshu-mcp/pkg/humanize/rod"
 	"github.com/go-rod/rod/lib/proto"
 	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/xiaohongshu-mcp/errors"
@@ -63,10 +63,10 @@ func DefaultCommentLoadConfig() CommentLoadConfig {
 }
 
 type FeedDetailAction struct {
-	page *rod.Page
+	page *hrod.Page
 }
 
-func NewFeedDetailAction(page *rod.Page) *FeedDetailAction {
+func NewFeedDetailAction(page *hrod.Page) *FeedDetailAction {
 	return &FeedDetailAction{page: page}
 }
 
@@ -120,7 +120,7 @@ func (f *FeedDetailAction) GetFeedDetailWithConfig(ctx context.Context, feedID, 
 // ========== 评论加载器 ==========
 
 type commentLoader struct {
-	page   *rod.Page
+	page   *hrod.Page
 	config CommentLoadConfig
 	stats  *loadStats
 	state  *loadState
@@ -138,7 +138,7 @@ type loadState struct {
 	stagnantChecks int
 }
 
-func (f *FeedDetailAction) loadAllCommentsWithConfig(page *rod.Page, config CommentLoadConfig) error {
+func (f *FeedDetailAction) loadAllCommentsWithConfig(page *hrod.Page, config CommentLoadConfig) error {
 	loader := &commentLoader{
 		page:   page,
 		config: config,
@@ -348,7 +348,7 @@ func getScrollInterval(speed string) time.Duration {
 
 // ========== 按钮点击 ==========
 
-func clickShowMoreButtonsSmart(page *rod.Page, maxRepliesThreshold int) (clicked, skipped int) {
+func clickShowMoreButtonsSmart(page *hrod.Page, maxRepliesThreshold int) (clicked, skipped int) {
 	elements, err := page.Elements(".show-more")
 	if err != nil {
 		return 0, 0
@@ -386,7 +386,7 @@ func clickShowMoreButtonsSmart(page *rod.Page, maxRepliesThreshold int) (clicked
 	return clicked, skipped
 }
 
-func isElementClickable(el *rod.Element) bool {
+func isElementClickable(el *hrod.Element) bool {
 	visible, err := el.Visible()
 	if err != nil || !visible {
 		return false
@@ -411,18 +411,14 @@ func shouldSkipButton(text string, threshold int, regex *regexp.Regexp) bool {
 	return false
 }
 
-func clickElementWithHumanBehavior(page *rod.Page, el *rod.Element, text string) bool {
+func clickElementWithHumanBehavior(page *hrod.Page, el *hrod.Element, text string) bool {
 	var clickSuccess bool
 
 	// 使用retry-go进行点击操作重试
 	err := retry.Do(
 		func() error {
 			// 滚动到元素
-			el.MustEval(`() => {
-				try {
-					this.scrollIntoView({behavior: 'smooth', block: 'center'});
-				} catch (e) {}
-			}`)
+			el.MustScrollIntoView()
 
 			sleepRandom(reactionTimeRange.min, reactionTimeRange.max)
 
@@ -466,7 +462,7 @@ func clickElementWithHumanBehavior(page *rod.Page, el *rod.Element, text string)
 
 // ========== 滚动相关 ==========
 
-func humanScroll(page *rod.Page, speed string, largeMode bool, pushCount int) (bool, int, int) {
+func humanScroll(page *hrod.Page, speed string, largeMode bool, pushCount int) (bool, int, int) {
 	beforeTop := getScrollTop(page)
 	viewportHeight := page.MustEval(`() => window.innerHeight`).Int()
 
@@ -481,7 +477,9 @@ func humanScroll(page *rod.Page, speed string, largeMode bool, pushCount int) (b
 
 	for i := 0; i < max(1, pushCount); i++ {
 		scrollDelta := calculateScrollDelta(viewportHeight, baseRatio)
-		page.MustEval(`(delta) => { window.scrollBy(0, delta); }`, scrollDelta)
+		if err := page.Actor().Mouse.Scroll(0, scrollDelta); err != nil {
+			logrus.Warnf("人化滚动失败: %v", err)
+		}
 
 		sleepRandom(scrollWaitRange.min, scrollWaitRange.max)
 
@@ -501,7 +499,11 @@ func humanScroll(page *rod.Page, speed string, largeMode bool, pushCount int) (b
 	}
 
 	if !scrolled && pushCount > 0 {
-		page.MustEval(`() => window.scrollTo(0, document.body.scrollHeight)`)
+		scrollHeight := page.MustEval(`() => document.body.scrollHeight`).Int()
+		currentScrollTop := getScrollTop(page)
+		if err := page.Actor().Mouse.Scroll(0, float64(scrollHeight-currentScrollTop)); err != nil {
+			logrus.Warnf("滚动到底部失败: %v", err)
+		}
 		sleepRandom(postScrollRange.min, postScrollRange.max)
 		currentScrollTop = getScrollTop(page)
 		actualDelta = currentScrollTop - beforeTop + actualDelta
@@ -535,7 +537,7 @@ func calculateScrollDelta(viewportHeight int, baseRatio float64) float64 {
 	return scrollDelta + float64(rand.Intn(100)-50)
 }
 
-func scrollToCommentsArea(page *rod.Page) {
+func scrollToCommentsArea(page *hrod.Page) {
 	logrus.Info("滚动到评论区...")
 
 	// 先定位到评论区
@@ -549,27 +551,14 @@ func scrollToCommentsArea(page *rod.Page) {
 	smartScroll(page, 100)
 }
 
-// smartScroll 智能滚动：触发滚轮事件以正确触发懒加载
-func smartScroll(page *rod.Page, delta float64) {
-	page.MustEval(`(delta) => {
-		// 查找滚动目标元素
-		let targetElement = document.querySelector('.note-scroller') 
-			|| document.querySelector('.interaction-container') 
-			|| document.documentElement;
-		
-		// 触发滚轮事件（关键！这样才能触发懒加载）
-		const wheelEvent = new WheelEvent('wheel', {
-			deltaY: delta,
-			deltaMode: 0, // 像素模式
-			bubbles: true,
-			cancelable: true,
-			view: window
-		});
-		targetElement.dispatchEvent(wheelEvent);
-	}`, delta)
+// smartScroll 使用人化鼠标滚动触发懒加载。
+func smartScroll(page *hrod.Page, delta float64) {
+	if err := page.Actor().Mouse.Scroll(0, delta); err != nil {
+		logrus.Warnf("smartScroll 失败: %v", err)
+	}
 }
 
-func scrollToLastComment(page *rod.Page) {
+func scrollToLastComment(page *hrod.Page) {
 	// 获取所有主评论元素
 	elements, err := page.Timeout(2 * time.Second).Elements(".parent-comment")
 	if err != nil || len(elements) == 0 {
@@ -582,7 +571,7 @@ func scrollToLastComment(page *rod.Page) {
 
 // ========== DOM 查询 ==========
 
-func getScrollTop(page *rod.Page) int {
+func getScrollTop(page *hrod.Page) int {
 	var result int
 
 	// 使用retry-go来处理可能的DOM查询失败
@@ -611,7 +600,7 @@ func getScrollTop(page *rod.Page) int {
 	return result
 }
 
-func getCommentCount(page *rod.Page) int {
+func getCommentCount(page *hrod.Page) int {
 	var result int
 
 	// 使用retry-go来处理可能的DOM查询失败
@@ -641,7 +630,7 @@ func getCommentCount(page *rod.Page) int {
 	return result
 }
 
-func getTotalCommentCount(page *rod.Page) int {
+func getTotalCommentCount(page *hrod.Page) int {
 	var result int
 
 	// 使用retry-go来处理可能的DOM查询失败
@@ -690,7 +679,7 @@ func getTotalCommentCount(page *rod.Page) int {
 	return result
 }
 
-func checkNoCommentsArea(page *rod.Page) bool {
+func checkNoCommentsArea(page *hrod.Page) bool {
 	// 查找无评论区域
 	noCommentsEl, err := page.Timeout(2 * time.Second).Element(".no-comments-text")
 	if err != nil {
@@ -709,7 +698,7 @@ func checkNoCommentsArea(page *rod.Page) bool {
 	return strings.Contains(text, "这是一片荒地")
 }
 
-func checkEndContainer(page *rod.Page) bool {
+func checkEndContainer(page *hrod.Page) bool {
 	var result bool
 
 	// 使用retry-go来处理可能的DOM查询失败
@@ -753,7 +742,7 @@ func checkEndContainer(page *rod.Page) bool {
 
 // ========== 页面检查 ==========
 
-func checkPageAccessible(page *rod.Page) error {
+func checkPageAccessible(page *hrod.Page) error {
 	time.Sleep(500 * time.Millisecond)
 
 	// 查找错误提示容器
@@ -803,7 +792,7 @@ func checkPageAccessible(page *rod.Page) error {
 
 // ========== 数据提取 ==========
 
-func (f *FeedDetailAction) extractFeedDetail(page *rod.Page, feedID string) (*FeedDetailResponse, error) {
+func (f *FeedDetailAction) extractFeedDetail(page *hrod.Page, feedID string) (*FeedDetailResponse, error) {
 	var result string
 
 	// 使用retry-go来处理可能的DOM查询失败

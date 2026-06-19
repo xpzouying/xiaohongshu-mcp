@@ -6,15 +6,15 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-rod/rod"
+	hrod "github.com/xpzouying/xiaohongshu-mcp/pkg/humanize/rod"
 	"github.com/xpzouying/xiaohongshu-mcp/errors"
 )
 
 type FeedsListAction struct {
-	page *rod.Page
+	page *hrod.Page
 }
 
-func NewFeedsListAction(page *rod.Page) *FeedsListAction {
+func NewFeedsListAction(page *hrod.Page) *FeedsListAction {
 	pp := page.Timeout(60 * time.Second)
 
 	pp.MustNavigate("https://www.xiaohongshu.com")

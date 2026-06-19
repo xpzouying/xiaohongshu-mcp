@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-rod/rod"
+	hrod "github.com/xpzouying/xiaohongshu-mcp/pkg/humanize/rod"
 	"github.com/xpzouying/xiaohongshu-mcp/errors"
 )
 
@@ -157,10 +157,10 @@ func validateInternalFilterOption(filter internalFilterOption) error {
 }
 
 type SearchAction struct {
-	page *rod.Page
+	page *hrod.Page
 }
 
-func NewSearchAction(page *rod.Page) *SearchAction {
+func NewSearchAction(page *hrod.Page) *SearchAction {
 	pp := page.Timeout(60 * time.Second)
 
 	return &SearchAction{page: pp}
@@ -199,10 +199,9 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 		filterButton.MustHover()
 
 		// 等待筛选面板出现
-		page.MustWait(`() => document.querySelector('div.filter-panel') !== null`)
+		page.MustElement(`div.filter-panel`)
 
-		// .filters / .tags 的父节点里夹着 label，按文本匹配标签，避免
-		// :nth-child 数到 label 上导致筛选项错位。
+		// 按文本匹配标签，跳过 aria-hidden 元素（小红书双份渲染，aria-hidden 版 opacity≈0 不可点击）
 		for _, filter := range allInternalFilters {
 			filtersSelector := fmt.Sprintf(`div.filter-panel div.filters:nth-of-type(%d)`, filter.FiltersIndex)
 			filtersEl, err := page.Element(filtersSelector)
@@ -215,9 +214,9 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 				return nil, fmt.Errorf("筛选组 %d tags 查找失败: %w", filter.FiltersIndex, err)
 			}
 
-			var matched *rod.Element
+			var matched *hrod.Element
 			for _, tag := range tags {
-				// 跳过 aria-hidden 元素（小红书双份渲染，aria-hidden 版 opacity≈0 不可点击）
+				// 跳过 aria-hidden 元素
 				if attr, _ := tag.Attribute("aria-hidden"); attr != nil {
 					continue
 				}
