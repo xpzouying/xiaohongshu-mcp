@@ -1,0 +1,287 @@
+{
+  "panelClass": "filter-panel",
+  "containerClass": "filter-container",
+  "wrapperClass": "filters-wrapper",
+  "filters": [
+    {
+      "groupIndex": 1,
+      "label": "排序依据",
+      "tagContainerClass": "tag-container",
+      "tags": [
+        {
+          "tagIndex": 1,
+          "text": "综合",
+          "classes": "tags active",
+          "aria-hidden": "true",
+          "childCount": 1
+        },
+        {
+          "tagIndex": 2,
+          "text": "综合",
+          "classes": "tags active",
+          "aria-hidden": null,
+          "childCount": 1
+        },
+        {
+          "tagIndex": 3,
+          "text": "最新",
+          "classes": "tags",
+          "aria-hidden": "true",
+          "childCount": 1
+        },
+        {
+          "tagIndex": 4,
+          "text": "最新",
+          "classes": "tags",
+          "aria-hidden": null,
+          "childCount": 1
+        },
+        {
+          "tagIndex": 5,
+          "text": "最多点赞",
+          "classes": "tags",
+          "aria-hidden": "true",
+          "childCount": 1
+        },
+        {
+          "tagIndex": 6,
+          "text": "最多点赞",
+          "classes": "tags",
+          "aria-hidden": null,
+          "childCount": 1
+        },
+        {
+          "tagIndex": 7,
+          "text": "最多评论",
+          "classes": "tags",
+          "aria-hidden": "true",
+          "childCount": 1
+        },
+        {
+          "tagIndex": 8,
+          "text": "最多评论",
+          "classes": "tags",
+          "aria-hidden": null,
+          "childCount": 1
+        },
+        {
+          "tagIndex": 9,
+          "text": "最多收藏",
+          "classes": "tags",
+          "aria-hidden": "true",
+          "childCount": 1
+        },
+        {
+          "tagIndex": 10,
+          "text": "最多收藏",
+          "classes": "tags",
+          "aria-hidden": null,
+          "childCount": 1
+        }
+      ]
+    },
+    {
+      "groupIndex": 2,
+      "label": "笔记类型",
+      "tagContainerClass": "tag-container",
+      "tags": [
+        {
+          "tagIndex": 1,
+          "text": "不限",
+          "classes": "tags active",
+          "aria-hidden": null,
+          "childCount": 1
+        },
+        {
+          "tagIndex": 2,
+          "text": "视频",
+          "classes": "tags",
+          "aria-hidden": "true",
+          "childCount": 1
+        },
+        {
+          "tagIndex": 3,
+          "text": "视频",
+          "classes": "tags",
+          "aria-hidden": null,
+          "childCount": 1
+        },
+        {
+          "tagIndex": 4,
+          "text": "图文",
+          "classes": "tags",
+          "aria-hidden": "true",
+          "childCount": 1
+        },
+        {
+          "tagIndex": 5,
+          "text": "图文",
+          "classes": "tags",
+          "aria-hidden": null,
+          "childCount": 1
+        }
+      ]
+    },
+    {
+      "groupIndex": 3,
+      "label": "发布时间",
+      "tagContainerClass": "tag-container",
+      "tags": [
+        {
+          "tagIndex": 1,
+          "text": "不限",
+          "classes": "tags active",
+          "aria-hidden": null,
+          "childCount": 1
+        },
+        {
+          "tagIndex": 2,
+          "text": "一天内",
+          "classes": "tags",
+          "aria-hidden": "true",
+          "childCount": 1
+        },
+        {
+          "tagIndex": 3,
+          "text": "一天内",
+          "classes": "tags",
+          "aria-hidden": null,
+          "childCount": 1
+        },
+        {
+          "tagIndex": 4,
+          "text": "一周内",
+          "classes": "tags",
+          "aria-hidden": "true",
+          "childCount": 1
+        },
+        {
+          "tagIndex": 5,
+          "text": "一周内",
+          "classes": "tags",
+          "aria-hidden": null,
+          "childCount": 1
+        },
+        {
+          "tagIndex": 6,
+          "text": "半年内",
+          "classes": "tags",
+          "aria-hidden": "true",
+          "childCount": 1
+        },
+        {
+          "tagIndex": 7,
+          "text": "半年内",
+          "classes": "tags",
+          "aria-hidden": null,
+          "childCount": 1
+        }
+      ]
+    },
+    {
+      "groupIndex": 4,
+      "label": "搜索范围",
+      "tagContainerClass": "tag-container",
+      "tags": [
+        {
+          "tagIndex": 1,
+          "text": "不限",
+          "classes": "tags active",
+          "aria-hidden": null,
+          "childCount": 1
+        },
+        {
+          "tagIndex": 2,
+          "text": "已看过",
+          "classes": "tags",
+          "aria-hidden": "true",
+          "childCount": 1
+        },
+        {
+          "tagIndex": 3,
+          "text": "已看过",
+          "classes": "tags",
+          "aria-hidden": null,
+          "childCount": 1
+        },
+        {
+          "tagIndex": 4,
+          "text": "未看过",
+          "classes": "tags",
+          "aria-hidden": "true",
+          "childCount": 1
+        },
+        {
+          "tagIndex": 5,
+          "text": "未看过",
+          "classes": "tags",
+          "aria-hidden": null,
+          "childCount": 1
+        },
+        {
+          "tagIndex": 6,
+          "text": "已关注",
+          "classes": "tags",
+          "aria-hidden": "true",
+          "childCount": 1
+        },
+        {
+          "tagIndex": 7,
+          "text": "已关注",
+          "classes": "tags",
+          "aria-hidden": null,
+          "childCount": 1
+        }
+      ]
+    },
+    {
+      "groupIndex": 5,
+      "label": "位置距离",
+      "tagContainerClass": "tag-container",
+      "tags": [
+        {
+          "tagIndex": 1,
+          "text": "不限",
+          "classes": "tags active",
+          "aria-hidden": "true",
+          "childCount": 1
+        },
+        {
+          "tagIndex": 2,
+          "text": "不限",
+          "classes": "tags active",
+          "aria-hidden": null,
+          "childCount": 1
+        },
+        {
+          "tagIndex": 3,
+          "text": "同城",
+          "classes": "tags",
+          "aria-hidden": "true",
+          "childCount": 1
+        },
+        {
+          "tagIndex": 4,
+          "text": "同城",
+          "classes": "tags",
+          "aria-hidden": null,
+          "childCount": 1
+        },
+        {
+          "tagIndex": 5,
+          "text": "附近",
+          "classes": "tags",
+          "aria-hidden": "true",
+          "childCount": 1
+        },
+        {
+          "tagIndex": 6,
+          "text": "附近",
+          "classes": "tags",
+          "aria-hidden": null,
+          "childCount": 1
+        }
+      ]
+    }
+  ]
+}

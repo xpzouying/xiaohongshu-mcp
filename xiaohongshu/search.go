@@ -217,6 +217,10 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 
 			var matched *rod.Element
 			for _, tag := range tags {
+				// 跳过 aria-hidden 元素（小红书双份渲染，aria-hidden 版 opacity≈0 不可点击）
+				if attr, _ := tag.Attribute("aria-hidden"); attr != nil {
+					continue
+				}
 				txt, err := tag.Text()
 				if err != nil {
 					continue
