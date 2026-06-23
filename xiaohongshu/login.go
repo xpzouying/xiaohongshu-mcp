@@ -4,15 +4,15 @@ import (
 	"context"
 	"time"
 
-	"github.com/go-rod/rod"
+	hrod "github.com/xpzouying/xiaohongshu-mcp/pkg/humanize/rod"
 	"github.com/pkg/errors"
 )
 
 type LoginAction struct {
-	page *rod.Page
+	page *hrod.Page
 }
 
-func NewLogin(page *rod.Page) *LoginAction {
+func NewLogin(page *hrod.Page) *LoginAction {
 	return &LoginAction{page: page}
 }
 

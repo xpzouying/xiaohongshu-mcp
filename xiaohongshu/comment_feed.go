@@ -5,18 +5,18 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-rod/rod"
+	hrod "github.com/xpzouying/xiaohongshu-mcp/pkg/humanize/rod"
 	"github.com/go-rod/rod/lib/proto"
 	"github.com/sirupsen/logrus"
 )
 
 // CommentFeedAction 表示 Feed 评论动作
 type CommentFeedAction struct {
-	page *rod.Page
+	page *hrod.Page
 }
 
 // NewCommentFeedAction 创建 Feed 评论动作
-func NewCommentFeedAction(page *rod.Page) *CommentFeedAction {
+func NewCommentFeedAction(page *hrod.Page) *CommentFeedAction {
 	return &CommentFeedAction{page: page}
 }
 
@@ -154,7 +154,7 @@ func (f *CommentFeedAction) ReplyToComment(ctx context.Context, feedID, xsecToke
 }
 
 // findCommentElement 查找指定评论元素（参考 feed_detail.go 的滚动逻辑）
-func findCommentElement(page *rod.Page, commentID, userID string) (*rod.Element, error) {
+func findCommentElement(page *hrod.Page, commentID, userID string) (*hrod.Element, error) {
 	logrus.Infof("开始查找评论 - commentID: %s, userID: %s", commentID, userID)
 
 	const maxAttempts = 100
@@ -220,8 +220,8 @@ func findCommentElement(page *rod.Page, commentID, userID string) (*rod.Element,
 
 		// === 5. 继续向下滚动 ===
 		logrus.Infof("继续向下滚动...")
-		_, err := page.Eval(`() => { window.scrollBy(0, window.innerHeight * 0.8); return true; }`)
-		if err != nil {
+		viewportHeight := page.MustEval(`() => window.innerHeight`).Int()
+		if err := page.Actor().Mouse.Scroll(0, float64(viewportHeight)*0.8); err != nil {
 			logrus.Warnf("滚动失败: %v", err)
 		}
 		time.Sleep(500 * time.Millisecond)

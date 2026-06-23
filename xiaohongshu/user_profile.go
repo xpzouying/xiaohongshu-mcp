@@ -6,14 +6,14 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-rod/rod"
+	hrod "github.com/xpzouying/xiaohongshu-mcp/pkg/humanize/rod"
 )
 
 type UserProfileAction struct {
-	page *rod.Page
+	page *hrod.Page
 }
 
-func NewUserProfileAction(page *rod.Page) *UserProfileAction {
+func NewUserProfileAction(page *hrod.Page) *UserProfileAction {
 	pp := page.Timeout(60 * time.Second)
 	return &UserProfileAction{page: pp}
 }
@@ -30,7 +30,7 @@ func (u *UserProfileAction) UserProfile(ctx context.Context, userID, xsecToken s
 }
 
 // extractUserProfileData 从页面中提取用户资料数据的通用方法
-func (u *UserProfileAction) extractUserProfileData(page *rod.Page) (*UserProfileResponse, error) {
+func (u *UserProfileAction) extractUserProfileData(page *hrod.Page) (*UserProfileResponse, error) {
 	page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
 
 	userDataResult := page.MustEval(`() => {
