@@ -202,10 +202,35 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 
 		// 应用所有筛选条件
 		for _, filter := range allInternalFilters {
-			selector := fmt.Sprintf(`div.filter-panel div.filters:nth-child(%d) div.tags:nth-child(%d)`,
-				filter.FiltersIndex, filter.TagsIndex)
-			option := page.MustElement(selector)
-			option.MustClick()
+			result := page.MustEval(`(filtersIndex, text) => {
+				const panel = document.querySelector('div.filter-panel');
+				if (!panel) {
+					return '筛选面板不存在';
+				}
+
+				const groups = Array.from(panel.querySelectorAll('div.filters'));
+				const group = groups[filtersIndex - 1];
+				if (!group) {
+					return '筛选组不存在';
+				}
+
+				const tags = Array.from(group.querySelectorAll('div.tags'));
+				const option = tags.find((tag) => {
+					if (tag.getAttribute('aria-hidden') === 'true') {
+						return false;
+					}
+					return tag.innerText.trim() === text;
+				});
+				if (!option) {
+					return '筛选标签不存在';
+				}
+
+				option.click();
+				return '';
+			}`, filter.FiltersIndex, filter.Text).String()
+			if result != "" {
+				return nil, fmt.Errorf("应用筛选失败: %s: %s", result, filter.Text)
+			}
 		}
 
 		// 等待页面更新
@@ -245,7 +270,7 @@ func makeSearchURL(keyword string) string {
 	values.Set("keyword", keyword)
 	values.Set("source", "web_explore_feed")
 
-	//https://www.xiaohongshu.com/search_result?keyword=%25E7%258E%258B%25E5%25AD%2590&source=web_search_result_notes
-	//https://www.xiaohongshu.com/search_result?keyword=%25E7%258E%258B%25E5%25AD%2590&source=web_explore_feed
-	return fmt.Sprintf("https://www.xiaohongshu.com/search_result?%s", values.Encode())
+	// From https://www.xiaohongshu.com/explore, the current search button routes to
+	// /search_result_ai while keeping source=web_explore_feed.
+	return fmt.Sprintf("https://www.xiaohongshu.com/search_result_ai?%s", values.Encode())
 }
