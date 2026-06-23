@@ -2,6 +2,7 @@ package xiaohongshu
 
 import (
 	"context"
+	stderrors "errors"
 	"fmt"
 	"testing"
 
@@ -102,4 +103,38 @@ func TestFilterValidation(t *testing.T) {
 	internalFilters, err = convertToInternalFilters(allFilters)
 	require.NoError(t, err)
 	require.Len(t, internalFilters, 5)
+}
+
+func TestCollectInternalFiltersIgnoresEmptyFilter(t *testing.T) {
+	internalFilters, err := collectInternalFilters([]FilterOption{{}})
+
+	require.NoError(t, err)
+	require.Empty(t, internalFilters)
+}
+
+func TestRecoverSearchPanicReturnsContextCanceled(t *testing.T) {
+	err := recoverSearchPanic(func() {
+		panic(context.Canceled)
+	})
+
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestRecoverSearchPanicReraisesNonErrorPanic(t *testing.T) {
+	require.Panics(t, func() {
+		_ = recoverSearchPanic(func() {
+			panic("unexpected")
+		})
+	})
+}
+
+func TestRecoverSearchPanicWrapsRodErrors(t *testing.T) {
+	rodErr := stderrors.New("element not found")
+
+	err := recoverSearchPanic(func() {
+		panic(rodErr)
+	})
+
+	require.ErrorIs(t, err, rodErr)
+	require.Contains(t, err.Error(), "搜索页面操作失败")
 }
