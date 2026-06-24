@@ -25,6 +25,7 @@ func (u *UserProfileAction) UserProfile(ctx context.Context, userID, xsecToken s
 	searchURL := makeUserProfileURL(userID, xsecToken)
 	page.MustNavigate(searchURL)
 	page.MustWaitStable()
+	dismissCookieConsent(page)
 
 	return u.extractUserProfileData(page)
 }
