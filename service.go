@@ -28,14 +28,14 @@ func NewXiaohongshuService() *XiaohongshuService {
 
 // PublishRequest 发布请求
 type PublishRequest struct {
-	Title      string   `json:"title" binding:"required"`
-	Content    string   `json:"content" binding:"required"`
-	Images     []string `json:"images" binding:"required,min=1"`
-	Tags       []string `json:"tags,omitempty"`
-	ScheduleAt string   `json:"schedule_at,omitempty"` // 定时发布时间，ISO8601格式，为空则立即发布
-	IsOriginal bool     `json:"is_original,omitempty"` // 是否声明原创
-	Visibility string   `json:"visibility,omitempty"`  // 可见范围: "公开可见"(默认), "仅自己可见", "仅互关好友可见"
-	Products   []string `json:"products,omitempty"`    // 商品关键词列表，用于绑定带货商品
+	Title      string                   `json:"title" binding:"required"`
+	Content    string                   `json:"content" binding:"required"`
+	Images     []downloader.ImageSource `json:"images" binding:"required,min=1"`
+	Tags       []string                 `json:"tags,omitempty"`
+	ScheduleAt string                   `json:"schedule_at,omitempty"` // 定时发布时间，ISO8601格式，为空则立即发布
+	IsOriginal bool                     `json:"is_original,omitempty"` // 是否声明原创
+	Visibility string                   `json:"visibility,omitempty"`  // 可见范围: "公开可见"(默认), "仅自己可见", "仅互关好友可见"
+	Products   []string                 `json:"products,omitempty"`    // 商品关键词列表，用于绑定带货商品
 }
 
 // LoginStatusResponse 登录状态响应
@@ -178,7 +178,7 @@ func (s *XiaohongshuService) PublishContent(ctx context.Context, req *PublishReq
 		return nil, fmt.Errorf("标题长度超过限制")
 	}
 
-	// 处理图片：下载URL图片或使用本地路径
+	// 处理图片：下载URL图片、保存Base64图片或使用本地路径
 	imagePaths, err := s.processImages(req.Images)
 	if err != nil {
 		return nil, err
@@ -238,8 +238,8 @@ func (s *XiaohongshuService) PublishContent(ctx context.Context, req *PublishReq
 	return response, nil
 }
 
-// processImages 处理图片列表，支持URL下载和本地路径
-func (s *XiaohongshuService) processImages(images []string) ([]string, error) {
+// processImages 处理图片列表，支持URL下载、Base64保存和本地路径
+func (s *XiaohongshuService) processImages(images []downloader.ImageSource) ([]string, error) {
 	processor := downloader.NewImageProcessor()
 	return processor.ProcessImages(images)
 }

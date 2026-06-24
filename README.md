@@ -82,7 +82,7 @@ https://github.com/user-attachments/assets/bd9a9a4a-58cb-4421-b8f3-015f703ce1f9
 
 **图片支持方式：**
 
-支持两种图片输入方式：
+支持三种图片输入方式：
 
 1. **HTTP/HTTPS 图片链接**
 
@@ -94,6 +94,19 @@ https://github.com/user-attachments/assets/bd9a9a4a-58cb-4421-b8f3-015f703ce1f9
    ```
    ["/Users/username/Pictures/image1.jpg", "/home/user/images/image2.png"]
    ```
+
+3. **Base64 图片对象**
+   ```
+   [
+     {
+       "type": "base64",
+       "data": "iVBORw0KGgoAAAANSUhEUg...",
+       "mime_type": "image/png"
+     }
+   ]
+   ```
+
+   也支持 `data:image/png;base64,...` 格式的 data URL。
 
 **为什么推荐使用本地路径：**
 
@@ -851,7 +864,7 @@ npx mcporter list xiaohongshu-mcp
 - `get_login_qrcode` - 获取登录二维码，返回 Base64 图片和超时时间（无参数）
 - `delete_cookies` - 删除 cookies 文件，重置登录状态，删除后需要重新登录（无参数）
 - `publish_content` - 发布图文内容到小红书（必需：title, content, images）
-  - `images`: 图片路径列表（至少1张），支持 HTTP 链接或本地绝对路径，推荐使用本地路径
+  - `images`: 图片列表（至少1张），支持 HTTP 链接、本地绝对路径，或 `{ "type": "base64", "data": "...", "mime_type": "image/png" }` 对象；本地路径推荐使用绝对路径
   - `tags`: 话题标签列表（可选），如 `["美食", "旅行", "生活"]`
   - `schedule_at`: 定时发布时间（可选），ISO8601 格式，支持 1 小时至 14 天内
   - `is_original`: 是否声明原创（可选），默认不声明
