@@ -442,9 +442,30 @@ func (s *AppServer) handleGetFeedDetail(ctx context.Context, args map[string]any
 		config.ScrollSpeed = raw
 	}
 
-	logrus.Infof("MCP: 获取Feed详情 - Feed ID: %s, loadAllComments=%v, config=%+v", feedID, loadAll, config)
+	// 解析 include_images 参数
+	includeImages := false
+	if raw, ok := args["include_images"]; ok {
+		switch v := raw.(type) {
+		case bool:
+			includeImages = v
+		case string:
+			if parsed, err := strconv.ParseBool(v); err == nil {
+				includeImages = parsed
+			}
+		case float64:
+			includeImages = v != 0
+		}
+	}
 
-	result, err := s.xiaohongshuService.GetFeedDetailWithConfig(ctx, feedID, xsecToken, loadAll, config)
+	logrus.Infof("MCP: 获取Feed详情 - Feed ID: %s, includeImages=%v, loadAllComments=%v, config=%+v", feedID, includeImages, loadAll, config)
+
+	var result *FeedDetailResponse
+	var err error
+	if includeImages {
+		result, err = s.xiaohongshuService.GetFeedDetailWithImages(ctx, feedID, xsecToken, loadAll, config)
+	} else {
+		result, err = s.xiaohongshuService.GetFeedDetailWithConfig(ctx, feedID, xsecToken, loadAll, config)
+	}
 	if err != nil {
 		return &MCPToolResult{
 			Content: []MCPContent{{
@@ -454,6 +475,10 @@ func (s *AppServer) handleGetFeedDetail(ctx context.Context, args map[string]any
 			IsError: true,
 		}
 	}
+
+	// 提取图片数据后从结果中移除，避免 base64 数据出现在 JSON 文本中
+	images := result.Images
+	result.Images = nil
 
 	// 格式化输出，转换为JSON字符串
 	jsonData, err := json.MarshalIndent(result, "", "  ")
@@ -467,12 +492,21 @@ func (s *AppServer) handleGetFeedDetail(ctx context.Context, args map[string]any
 		}
 	}
 
-	return &MCPToolResult{
-		Content: []MCPContent{{
-			Type: "text",
-			Text: string(jsonData),
-		}},
+	contents := []MCPContent{{
+		Type: "text",
+		Text: string(jsonData),
+	}}
+
+	// 将下载的图片作为 ImageContent 返回，LLM 可直接查看
+	for _, img := range images {
+		contents = append(contents, MCPContent{
+			Type:     "image",
+			MimeType: img.MimeType,
+			Data:     img.Data,
+		})
 	}
+
+	return &MCPToolResult{Content: contents}
 }
 
 // handleUserProfile 获取用户主页

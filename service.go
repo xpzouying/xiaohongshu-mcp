@@ -2,9 +2,13 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/go-rod/rod"
@@ -419,6 +423,82 @@ func (s *XiaohongshuService) GetFeedDetailWithConfig(ctx context.Context, feedID
 	}
 
 	return response, nil
+}
+
+// GetFeedDetailWithImages 获取Feed详情并下载图片（Base64 编码）
+// 图片通过 HTTPS 直接下载，CDN 的 http:// URL 会自动转为 https://
+func (s *XiaohongshuService) GetFeedDetailWithImages(ctx context.Context, feedID, xsecToken string, loadAllComments bool, config xiaohongshu.CommentLoadConfig) (*FeedDetailResponse, error) {
+	response, err := s.GetFeedDetailWithConfig(ctx, feedID, xsecToken, loadAllComments, config)
+	if err != nil {
+		return nil, err
+	}
+
+	detailResp, ok := response.Data.(*xiaohongshu.FeedDetailResponse)
+	if !ok || len(detailResp.Note.ImageList) == 0 {
+		return response, nil
+	}
+
+	client := &http.Client{Timeout: 30 * time.Second}
+
+	for i, img := range detailResp.Note.ImageList {
+		// 优先使用预览图（体积小），回退到原图
+		imageURL := img.URLPre
+		if imageURL == "" {
+			imageURL = img.URLDefault
+		}
+		if imageURL == "" {
+			continue
+		}
+		// CDN URL 使用 http://，但 CDN 支持且需要 https:// 才能正常访问
+		imageURL = strings.Replace(imageURL, "http://", "https://", 1)
+
+		imgData, mimeType, dlErr := downloadImageAsBase64(client, imageURL)
+		if dlErr != nil {
+			logrus.Warnf("下载图片 %d 失败: %v", i+1, dlErr)
+			continue
+		}
+
+		response.Images = append(response.Images, ImageData{
+			Data:     imgData,
+			MimeType: mimeType,
+		})
+	}
+
+	return response, nil
+}
+
+// downloadImageAsBase64 下载图片并返回 Base64 编码字符串和 MIME 类型
+func downloadImageAsBase64(client *http.Client, imageURL string) (string, string, error) {
+	req, err := http.NewRequest("GET", imageURL, nil)
+	if err != nil {
+		return "", "", fmt.Errorf("创建请求失败: %w", err)
+	}
+
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+	req.Header.Set("Referer", "https://www.xiaohongshu.com/")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", "", fmt.Errorf("下载失败: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", "", fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", "", fmt.Errorf("读取失败: %w", err)
+	}
+
+	// 从 Content-Type 获取 MIME 类型，回退到检测
+	mimeType := resp.Header.Get("Content-Type")
+	if mimeType == "" || mimeType == "application/octet-stream" {
+		mimeType = "image/webp"
+	}
+
+	return base64.StdEncoding.EncodeToString(data), mimeType, nil
 }
 
 // UserProfile 获取用户信息

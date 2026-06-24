@@ -61,8 +61,15 @@ type SearchFeedsRequest struct {
 
 // FeedDetailResponse Feed详情响应
 type FeedDetailResponse struct {
-	FeedID string `json:"feed_id"`
-	Data   any    `json:"data"`
+	FeedID string      `json:"feed_id"`
+	Data   any         `json:"data"`
+	Images []ImageData `json:"images,omitempty"`
+}
+
+// ImageData 表示下载的图片数据（Base64 编码）
+type ImageData struct {
+	Data     string `json:"data"`     // Base64 编码的图片内容
+	MimeType string `json:"mimeType"` // MIME 类型，如 image/webp
 }
 
 // PostCommentRequest 发表评论请求
