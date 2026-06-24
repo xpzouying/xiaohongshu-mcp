@@ -742,3 +742,94 @@ func (s *AppServer) handleReplyComment(ctx context.Context, args map[string]inte
 		}},
 	}
 }
+
+// handleGetCollectList 处理获取收藏夹列表
+func (s *AppServer) handleGetCollectList(ctx context.Context, args map[string]interface{}) *MCPToolResult {
+	logrus.Info("MCP: 获取收藏夹列表")
+
+	cursor, _ := args["cursor"].(string)
+	num := 30
+	if n, ok := args["num"].(float64); ok && n > 0 {
+		num = int(n)
+	}
+
+	result, err := s.xiaohongshuService.GetCollectList(ctx, cursor, num)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "获取收藏夹列表失败: " + err.Error()}},
+			IsError: true,
+		}
+	}
+
+	jsonData, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: fmt.Sprintf("获取收藏夹列表成功，但序列化失败: %v", err)}},
+			IsError: true,
+		}
+	}
+
+	return &MCPToolResult{
+		Content: []MCPContent{{Type: "text", Text: string(jsonData)}},
+	}
+}
+
+// handleGetLikedList 处理获取点赞笔记列表
+func (s *AppServer) handleGetLikedList(ctx context.Context, args map[string]interface{}) *MCPToolResult {
+	logrus.Info("MCP: 获取点赞笔记列表")
+
+	num := 30
+	if n, ok := args["num"].(float64); ok && n > 0 {
+		num = int(n)
+	}
+
+	result, err := s.xiaohongshuService.GetLikedList(ctx, num)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "获取点赞笔记列表失败: " + err.Error()}},
+			IsError: true,
+		}
+	}
+
+	jsonData, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: fmt.Sprintf("获取点赞笔记列表成功，但序列化失败: %v", err)}},
+			IsError: true,
+		}
+	}
+
+	return &MCPToolResult{
+		Content: []MCPContent{{Type: "text", Text: string(jsonData)}},
+	}
+}
+
+// handleGetPublishedList 处理获取已发布笔记列表
+func (s *AppServer) handleGetPublishedList(ctx context.Context, args map[string]interface{}) *MCPToolResult {
+	logrus.Info("MCP: 获取已发布笔记列表")
+
+	num := 30
+	if n, ok := args["num"].(float64); ok && n > 0 {
+		num = int(n)
+	}
+
+	result, err := s.xiaohongshuService.GetPublishedList(ctx, num)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "获取已发布笔记列表失败: " + err.Error()}},
+			IsError: true,
+		}
+	}
+
+	jsonData, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: fmt.Sprintf("序列化失败: %v", err)}},
+			IsError: true,
+		}
+	}
+
+	return &MCPToolResult{
+		Content: []MCPContent{{Type: "text", Text: string(jsonData)}},
+	}
+}
