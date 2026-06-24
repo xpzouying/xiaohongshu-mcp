@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"runtime/debug"
 	"time"
 
 	"github.com/go-rod/rod"
@@ -564,8 +565,20 @@ func saveCookies(page *rod.Page) error {
 	return cookieLoader.SaveCookies(data)
 }
 
-// withBrowserPage 执行需要浏览器页面的操作的通用函数
-func withBrowserPage(fn func(*rod.Page) error) error {
+// withBrowserPage 执行需要浏览器页面的操作的通用函数。
+// 每次创建新 browser + page，操作完释放。
+// 通过 recover 捕获 panic，防止浏览器崩溃导致服务整体挂掉。
+func withBrowserPage(fn func(*rod.Page) error) (retErr error) {
+	defer func() {
+		if r := recover(); r != nil {
+			retErr = fmt.Errorf("浏览器操作 panic: %v", r)
+			logrus.WithFields(logrus.Fields{
+				"panic": r,
+				"stack": string(debug.Stack()),
+			}).Error("withBrowserPage panic recovered")
+		}
+	}()
+
 	b := newBrowser()
 	defer b.Close()
 
