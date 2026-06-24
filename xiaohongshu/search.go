@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/go-rod/rod"
+	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/xiaohongshu-mcp/errors"
 )
 
@@ -26,43 +28,44 @@ type FilterOption struct {
 	Location    string `json:"location,omitempty" jsonschema:"位置距离: 不限|同城|附近,默认为'不限'"`
 }
 
-// internalFilterOption 内部使用的筛选选项(基于索引)
+// internalFilterOption 内部使用的筛选选项
 type internalFilterOption struct {
 	FiltersIndex int    // 筛选组索引
 	TagsIndex    int    // 标签索引
+	GroupText    string // 筛选组标题
 	Text         string // 标签文本描述
 }
 
 // 预定义的筛选选项映射表（内部使用）
 var filterOptionsMap = map[int][]internalFilterOption{
 	1: { // 排序依据
-		{FiltersIndex: 1, TagsIndex: 1, Text: "综合"},
-		{FiltersIndex: 1, TagsIndex: 2, Text: "最新"},
-		{FiltersIndex: 1, TagsIndex: 3, Text: "最多点赞"},
-		{FiltersIndex: 1, TagsIndex: 4, Text: "最多评论"},
-		{FiltersIndex: 1, TagsIndex: 5, Text: "最多收藏"},
+		{FiltersIndex: 1, TagsIndex: 1, GroupText: "排序依据", Text: "综合"},
+		{FiltersIndex: 1, TagsIndex: 2, GroupText: "排序依据", Text: "最新"},
+		{FiltersIndex: 1, TagsIndex: 3, GroupText: "排序依据", Text: "最多点赞"},
+		{FiltersIndex: 1, TagsIndex: 4, GroupText: "排序依据", Text: "最多评论"},
+		{FiltersIndex: 1, TagsIndex: 5, GroupText: "排序依据", Text: "最多收藏"},
 	},
 	2: { // 笔记类型
-		{FiltersIndex: 2, TagsIndex: 1, Text: "不限"},
-		{FiltersIndex: 2, TagsIndex: 2, Text: "视频"},
-		{FiltersIndex: 2, TagsIndex: 3, Text: "图文"},
+		{FiltersIndex: 2, TagsIndex: 1, GroupText: "笔记类型", Text: "不限"},
+		{FiltersIndex: 2, TagsIndex: 2, GroupText: "笔记类型", Text: "视频"},
+		{FiltersIndex: 2, TagsIndex: 3, GroupText: "笔记类型", Text: "图文"},
 	},
 	3: { // 发布时间
-		{FiltersIndex: 3, TagsIndex: 1, Text: "不限"},
-		{FiltersIndex: 3, TagsIndex: 2, Text: "一天内"},
-		{FiltersIndex: 3, TagsIndex: 3, Text: "一周内"},
-		{FiltersIndex: 3, TagsIndex: 4, Text: "半年内"},
+		{FiltersIndex: 3, TagsIndex: 1, GroupText: "发布时间", Text: "不限"},
+		{FiltersIndex: 3, TagsIndex: 2, GroupText: "发布时间", Text: "一天内"},
+		{FiltersIndex: 3, TagsIndex: 3, GroupText: "发布时间", Text: "一周内"},
+		{FiltersIndex: 3, TagsIndex: 4, GroupText: "发布时间", Text: "半年内"},
 	},
 	4: { // 搜索范围
-		{FiltersIndex: 4, TagsIndex: 1, Text: "不限"},
-		{FiltersIndex: 4, TagsIndex: 2, Text: "已看过"},
-		{FiltersIndex: 4, TagsIndex: 3, Text: "未看过"},
-		{FiltersIndex: 4, TagsIndex: 4, Text: "已关注"},
+		{FiltersIndex: 4, TagsIndex: 1, GroupText: "搜索范围", Text: "不限"},
+		{FiltersIndex: 4, TagsIndex: 2, GroupText: "搜索范围", Text: "已看过"},
+		{FiltersIndex: 4, TagsIndex: 3, GroupText: "搜索范围", Text: "未看过"},
+		{FiltersIndex: 4, TagsIndex: 4, GroupText: "搜索范围", Text: "已关注"},
 	},
 	5: { // 位置距离
-		{FiltersIndex: 5, TagsIndex: 1, Text: "不限"},
-		{FiltersIndex: 5, TagsIndex: 2, Text: "同城"},
-		{FiltersIndex: 5, TagsIndex: 3, Text: "附近"},
+		{FiltersIndex: 5, TagsIndex: 1, GroupText: "位置距离", Text: "不限"},
+		{FiltersIndex: 5, TagsIndex: 2, GroupText: "位置距离", Text: "同城"},
+		{FiltersIndex: 5, TagsIndex: 3, GroupText: "位置距离", Text: "附近"},
 	},
 }
 
@@ -169,52 +172,28 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 	page := s.page.Context(ctx)
 
 	searchURL := makeSearchURL(keyword)
-	page.MustNavigate(searchURL)
-	page.MustWaitStable()
+	if err := page.Navigate(searchURL); err != nil {
+		return nil, fmt.Errorf("搜索页导航失败: %w", err)
+	}
+	if err := page.Timeout(5 * time.Second).WaitStable(500 * time.Millisecond); err != nil {
+		logrus.Warnf("等待搜索页稳定失败，继续尝试读取结果: %v", err)
+	}
 
-	page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
+	if err := waitForInitialState(page); err != nil {
+		return nil, err
+	}
 
 	// 如果有筛选条件，则应用筛选
 	if len(filters) > 0 {
-		// 将所有 FilterOption 转换为内部筛选选项
-		var allInternalFilters []internalFilterOption
-		for _, filter := range filters {
-			internalFilters, err := convertToInternalFilters(filter)
-			if err != nil {
-				return nil, fmt.Errorf("筛选选项转换失败: %w", err)
-			}
-			allInternalFilters = append(allInternalFilters, internalFilters...)
+		filterCtx, cancel := context.WithTimeout(ctx, 8*time.Second)
+		filterPage := page.Context(filterCtx)
+		if err := s.applyFilters(filterPage, filters...); err != nil {
+			logrus.Warnf("搜索筛选应用失败，降级为未筛选搜索结果: %v", err)
 		}
-
-		// 验证所有内部筛选选项
-		for _, filter := range allInternalFilters {
-			if err := validateInternalFilterOption(filter); err != nil {
-				return nil, fmt.Errorf("筛选选项验证失败: %w", err)
-			}
-		}
-
-		// 悬停在筛选按钮上
-		filterButton := page.MustElement(`div.filter`)
-		filterButton.MustHover()
-
-		// 等待筛选面板出现
-		page.MustWait(`() => document.querySelector('div.filter-panel') !== null`)
-
-		// 应用所有筛选条件
-		for _, filter := range allInternalFilters {
-			selector := fmt.Sprintf(`div.filter-panel div.filters:nth-child(%d) div.tags:nth-child(%d)`,
-				filter.FiltersIndex, filter.TagsIndex)
-			option := page.MustElement(selector)
-			option.MustClick()
-		}
-
-		// 等待页面更新
-		page.MustWaitStable()
-		// 重新等待 __INITIAL_STATE__ 更新
-		page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
+		cancel()
 	}
 
-	result := page.MustEval(`() => {
+	resultObj, err := page.Timeout(10 * time.Second).Evaluate(rod.Eval(`() => {
 		if (window.__INITIAL_STATE__ &&
 		    window.__INITIAL_STATE__.search &&
 		    window.__INITIAL_STATE__.search.feeds) {
@@ -225,7 +204,11 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 			}
 		}
 		return "";
-	}`).String()
+	}`))
+	if err != nil {
+		return nil, fmt.Errorf("读取搜索结果失败: %w", err)
+	}
+	result := resultObj.Value.String()
 
 	if result == "" {
 		return nil, errors.ErrNoFeeds
@@ -237,6 +220,271 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 	}
 
 	return feeds, nil
+}
+
+func waitForInitialState(page *rod.Page) error {
+	if err := page.Timeout(15 * time.Second).Wait(rod.Eval(`() => window.__INITIAL_STATE__ !== undefined`)); err != nil {
+		return fmt.Errorf("等待搜索结果初始化失败: %w", err)
+	}
+	return nil
+}
+
+func (s *SearchAction) applyFilters(page *rod.Page, filters ...FilterOption) error {
+	allInternalFilters, err := convertFilters(filters...)
+	if err != nil {
+		return err
+	}
+	if len(allInternalFilters) == 0 {
+		return nil
+	}
+
+	if err := openFilterPanel(page); err != nil {
+		return err
+	}
+
+	for _, filter := range allInternalFilters {
+		if err := clickFilterOptionByText(page, filter); err != nil {
+			return err
+		}
+		time.Sleep(300 * time.Millisecond)
+	}
+
+	time.Sleep(time.Second)
+	return nil
+}
+
+func convertFilters(filters ...FilterOption) ([]internalFilterOption, error) {
+	var allInternalFilters []internalFilterOption
+	for _, filter := range filters {
+		internalFilters, err := convertToInternalFilters(filter)
+		if err != nil {
+			return nil, fmt.Errorf("筛选选项转换失败: %w", err)
+		}
+		allInternalFilters = append(allInternalFilters, internalFilters...)
+	}
+
+	for _, filter := range allInternalFilters {
+		if err := validateInternalFilterOption(filter); err != nil {
+			return nil, fmt.Errorf("筛选选项验证失败: %w", err)
+		}
+	}
+	return allInternalFilters, nil
+}
+
+func openFilterPanel(page *rod.Page) error {
+	filterButton, err := page.Timeout(5 * time.Second).Element(`div.filter`)
+	if err != nil {
+		return fmt.Errorf("未找到筛选按钮: %w", err)
+	}
+	if err := filterButton.Hover(); err != nil {
+		return fmt.Errorf("悬停筛选按钮失败: %w", err)
+	}
+	if err := page.Timeout(5 * time.Second).Wait(rod.Eval(`() => document.querySelector('div.filter-panel') !== null`)); err != nil {
+		return fmt.Errorf("筛选面板未出现: %w", err)
+	}
+	return nil
+}
+
+func clickFilterOptionByText(page *rod.Page, filter internalFilterOption) error {
+	if err := openFilterPanel(page); err != nil {
+		return err
+	}
+
+	active, err := filterOptionActiveByJS(page, filter)
+	if err == nil && active {
+		logrus.Debugf("搜索筛选已处于选中状态: %s=%s", filter.GroupText, filter.Text)
+		return nil
+	}
+	if err != nil {
+		logrus.Debugf("读取搜索筛选状态失败，继续尝试点击: %v", err)
+	}
+
+	if err := clickSearchFilterOption(page, filter); err != nil {
+		return fmt.Errorf("点击筛选项 %s=%s 失败: %w", filter.GroupText, filter.Text, err)
+	}
+
+	time.Sleep(300 * time.Millisecond)
+	active, err = filterOptionActiveByJS(page, filter)
+	if err == nil && active {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	return fmt.Errorf("筛选项点击后未变为选中状态: %s=%s", filter.GroupText, filter.Text)
+}
+
+func filterOptionActiveByJS(page *rod.Page, filter internalFilterOption) (bool, error) {
+	res, err := page.Timeout(2 * time.Second).Evaluate(rod.Eval(`(groupText, targetText) => {
+		const visible = (el) => {
+			const style = window.getComputedStyle(el);
+			const rect = el.getBoundingClientRect();
+			return style.display !== 'none'
+				&& style.visibility !== 'hidden'
+				&& Number(style.opacity) !== 0
+				&& rect.width > 0
+				&& rect.height > 0;
+		};
+		const groups = [...document.querySelectorAll('div.filter-panel div.filters')].filter(visible);
+		const group = groups.find(el => (el.innerText || '').includes(groupText));
+		if (!group) return false;
+		const tags = [...group.querySelectorAll('div.tags')].filter(visible);
+		return tags.some(el => {
+			const text = (el.innerText || '').trim();
+			const classes = String(el.className || '').split(/\s+/);
+			return text === targetText && classes.includes('active');
+		});
+	}`, filter.GroupText, filter.Text))
+	if err != nil {
+		return false, err
+	}
+	return res.Value.Bool(), nil
+}
+
+func clickSearchFilterOption(page *rod.Page, filter internalFilterOption) error {
+	res, err := page.Timeout(3 * time.Second).Evaluate(rod.Eval(`(groupText, targetText) => {
+		const visible = (el) => {
+			const style = window.getComputedStyle(el);
+			const rect = el.getBoundingClientRect();
+			return style.display !== 'none'
+				&& style.visibility !== 'hidden'
+				&& Number(style.opacity) !== 0
+				&& rect.width > 0
+				&& rect.height > 0;
+		};
+		const groups = [...document.querySelectorAll('div.filter-panel div.filters')].filter(visible);
+		const group = groups.find(el => (el.innerText || '').includes(groupText));
+		if (!group) return { ok: false, reason: 'group not found: ' + groupText };
+
+		const tags = [...group.querySelectorAll('div.tags')].filter(visible);
+		const candidates = tags
+			.filter(el => (el.innerText || '').trim() === targetText)
+			.map((el, index) => ({
+				el,
+				index,
+				className: el.className || '',
+				tabIndex: el.getAttribute('tabindex') || '',
+				ariaChecked: el.getAttribute('aria-checked') || '',
+				role: el.getAttribute('role') || '',
+			}));
+		if (!candidates.length) return { ok: false, reason: 'tag not found: ' + groupText + '=' + targetText };
+
+		const candidate = candidates.find(item => !String(item.className).split(/\s+/).includes('active')) || candidates[0];
+		const el = candidate.el;
+		el.scrollIntoView({ block: 'center', inline: 'center' });
+		for (const type of ['mouseover', 'mouseenter', 'mousedown', 'mouseup', 'click']) {
+			el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
+		}
+
+		return {
+			ok: true,
+			clicked: {
+				index: candidate.index,
+				className: candidate.className,
+				tabIndex: candidate.tabIndex,
+				ariaChecked: candidate.ariaChecked,
+				role: candidate.role,
+			},
+		};
+	}`, filter.GroupText, filter.Text))
+	if err != nil {
+		return err
+	}
+	if !res.Value.Get("ok").Bool() {
+		return fmt.Errorf("%s", res.Value.Get("reason").Str())
+	}
+	return nil
+}
+
+func findFilterGroup(page *rod.Page, filter internalFilterOption) (*rod.Element, error) {
+	groups, err := page.Timeout(5 * time.Second).Elements(`div.filter-panel div.filters`)
+	if err != nil {
+		return nil, fmt.Errorf("查找筛选组失败: %w", err)
+	}
+
+	for _, group := range groups {
+		if !isSearchFilterElementVisible(group) {
+			continue
+		}
+		text, err := group.Text()
+		if err != nil {
+			logrus.Debugf("读取筛选组文本失败: %v", err)
+			continue
+		}
+		if strings.Contains(strings.TrimSpace(text), filter.GroupText) {
+			return group, nil
+		}
+	}
+
+	return nil, fmt.Errorf("未找到筛选组: %s", filter.GroupText)
+}
+
+func findVisibleFilterTag(group *rod.Element, targetText string) (*rod.Element, error) {
+	tags, err := group.Elements(`div.tags`)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, tag := range tags {
+		if !isSearchFilterElementVisible(tag) {
+			continue
+		}
+		text, err := tag.Text()
+		if err != nil {
+			logrus.Debugf("读取筛选项文本失败: %v", err)
+			continue
+		}
+		if strings.TrimSpace(text) == targetText {
+			return tag, nil
+		}
+	}
+
+	return nil, fmt.Errorf("组内未找到可见文本: %s", targetText)
+}
+
+func filterOptionActive(group *rod.Element, targetText string) bool {
+	tags, err := group.Elements(`div.tags`)
+	if err != nil {
+		logrus.Debugf("读取筛选项列表失败: %v", err)
+		return false
+	}
+
+	for _, tag := range tags {
+		if !isSearchFilterElementVisible(tag) {
+			continue
+		}
+		text, err := tag.Text()
+		if err != nil || strings.TrimSpace(text) != targetText {
+			continue
+		}
+
+		className, err := tag.Attribute("class")
+		if err != nil || className == nil {
+			continue
+		}
+		if hasExactClass(*className, "active") {
+			return true
+		}
+	}
+	return false
+}
+
+func isSearchFilterElementVisible(elem *rod.Element) bool {
+	res, err := elem.Eval(`() => {
+		const style = window.getComputedStyle(this);
+		const rect = this.getBoundingClientRect();
+		return style.display !== 'none'
+			&& style.visibility !== 'hidden'
+			&& Number(style.opacity) !== 0
+			&& rect.width > 0
+			&& rect.height > 0;
+	}`)
+	if err != nil {
+		logrus.Debugf("检查搜索筛选元素可见性失败: %v", err)
+		return true
+	}
+	return res.Value.Bool()
 }
 
 func makeSearchURL(keyword string) string {
