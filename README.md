@@ -864,6 +864,9 @@ npx mcporter list xiaohongshu-mcp
   - `visibility`: 可见范围（可选），支持 `公开可见`（默认）、`仅自己可见`、`仅互关好友可见`
   - `products`: 商品关键词列表（可选），用于绑定带货商品。填写商品名称或商品ID，系统会自动搜索并选择第一个匹配结果。需账号已开通商品功能。示例: [面膜, 防晒霜SPF50]
 - `list_feeds` - 获取小红书首页推荐列表（无参数）
+- `list_favorite_feeds` - 获取当前登录用户收藏笔记列表（无参数）
+- `list_favorite_categories` - 获取当前登录用户收藏专辑分类列表（无参数）
+- `list_favorite_feeds_by_category` - 按收藏分类获取笔记列表（可传：category_id/category_name/limit）
 - `search_feeds` - 搜索小红书内容（必需：keyword）
   - `filters`: 筛选选项（可选）
     - `sort_by`: 排序依据 - `综合`（默认）| `最新` | `最多点赞` | `最多评论` | `最多收藏`
