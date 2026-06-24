@@ -42,6 +42,7 @@ type PublishVideoArgs struct {
 type SearchFeedsArgs struct {
 	Keyword string       `json:"keyword" jsonschema:"搜索关键词"`
 	Filters FilterOption `json:"filters,omitempty" jsonschema:"筛选选项"`
+	Limit   int          `json:"limit,omitempty" jsonschema:"返回结果数量上限。默认0(仅首屏),传正数滚动加载到目标数量,传-1无限滚动直到没有更多数据"`
 }
 
 // FilterOption 筛选选项结构体
