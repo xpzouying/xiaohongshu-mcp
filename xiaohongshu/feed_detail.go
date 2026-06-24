@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -856,12 +857,45 @@ func (f *FeedDetailAction) extractFeedDetail(page *rod.Page, feedID string) (*Fe
 		return nil, fmt.Errorf("feed %s not found in noteDetailMap", feedID)
 	}
 
+	// 为每张图片填充原图 URL
+	note := noteDetail.Note
+	for i := range note.ImageList {
+		note.ImageList[i].URLOriginal = toOriginalURL(note.ImageList[i].URLDefault)
+	}
+
 	return &FeedDetailResponse{
-		Note:     noteDetail.Note,
+		Note:     note,
 		Comments: noteDetail.Comments,
 	}, nil
 }
 
 func makeFeedDetailURL(feedID, xsecToken string) string {
 	return fmt.Sprintf("https://www.xiaohongshu.com/explore/%s?xsec_token=%s&xsec_source=pc_feed", feedID, xsecToken)
+}
+
+// toOriginalURL 去除小红书 CDN 图片 URL 中的压缩/裁剪参数，返回原图 URL。
+// 小红书 CDN 有两种压缩格式：
+//  1. Query 参数形式：https://sns-img-hw.xhscdn.com/{hash}?imageView2/2/w/1080/format/jpg
+//  2. 路径感叹号后缀：https://ci.xiaohongshu.com/{hash}!nd_dft_wlteh_webp_3
+func toOriginalURL(rawURL string) string {
+	if rawURL == "" {
+		return rawURL
+	}
+
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return rawURL
+	}
+
+	// 去除所有 query 参数（imageView2/... 等压缩指令）
+	parsed.RawQuery = ""
+
+	result := parsed.String()
+
+	// 去除路径中 "!" 后的 CDN 处理后缀，如 !nd_dft_wlteh_webp_3
+	if idx := strings.Index(result, "!"); idx != -1 {
+		result = result[:idx]
+	}
+
+	return result
 }
