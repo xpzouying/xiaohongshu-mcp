@@ -18,7 +18,7 @@ func NewLogin(page *rod.Page) *LoginAction {
 
 func (a *LoginAction) CheckLoginStatus(ctx context.Context) (bool, error) {
 	pp := a.page.Context(ctx)
-	pp.MustNavigate("https://www.xiaohongshu.com/explore").MustWaitLoad()
+	pp.MustNavigate(getBaseURL() + "/explore").MustWaitLoad()
 
 	time.Sleep(1 * time.Second)
 
@@ -38,7 +38,7 @@ func (a *LoginAction) Login(ctx context.Context) error {
 	pp := a.page.Context(ctx)
 
 	// 导航到小红书首页，这会触发二维码弹窗
-	pp.MustNavigate("https://www.xiaohongshu.com/explore").MustWaitLoad()
+	pp.MustNavigate(getBaseURL() + "/explore").MustWaitLoad()
 
 	// 等待一小段时间让页面完全加载
 	time.Sleep(2 * time.Second)
@@ -51,7 +51,9 @@ func (a *LoginAction) Login(ctx context.Context) error {
 
 	// 等待扫码成功提示或者登录完成
 	// 这里我们等待登录成功的元素出现，这样更简单可靠
-	pp.MustElement(".main-container .user .link-wrapper .channel")
+	if ok := a.WaitForLogin(ctx); !ok {
+		return errors.New("login wait failed")
+	}
 
 	return nil
 }
@@ -60,7 +62,7 @@ func (a *LoginAction) FetchQrcodeImage(ctx context.Context) (string, bool, error
 	pp := a.page.Context(ctx)
 
 	// 导航到小红书首页，这会触发二维码弹窗
-	pp.MustNavigate("https://www.xiaohongshu.com/explore").MustWaitLoad()
+	pp.MustNavigate(getBaseURL() + "/explore").MustWaitLoad()
 
 	// 等待一小段时间让页面完全加载
 	time.Sleep(2 * time.Second)
