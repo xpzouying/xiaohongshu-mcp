@@ -753,6 +753,36 @@ func checkEndContainer(page *rod.Page) bool {
 
 // ========== 页面检查 ==========
 
+// permanentInaccessibleKeywords 表示笔记本身不可访问（删除/私密/违规等），
+// 这类错误重新导航也无法恢复。
+var permanentInaccessibleKeywords = []string{
+	"当前笔记暂时无法浏览",
+	"该内容因违规已被删除",
+	"该笔记已被删除",
+	"内容不存在",
+	"笔记不存在",
+	"已失效",
+	"私密笔记",
+	"仅作者可见",
+	"因用户设置，你无法查看",
+	"因违规无法查看",
+}
+
+// isPermanentAccessError 判断是否为永久性不可访问错误。
+// 永久性错误（删除/私密/违规）重试无意义；
+// 其余错误（如偶发的 "Sorry, This Page Isn't Available" 风控拦截页）视为临时错误，可通过重新导航恢复。
+func isPermanentAccessError(err error) bool {
+	if err == nil {
+		return false
+	}
+	for _, kw := range permanentInaccessibleKeywords {
+		if strings.Contains(err.Error(), kw) {
+			return true
+		}
+	}
+	return false
+}
+
 func checkPageAccessible(page *rod.Page) error {
 	time.Sleep(500 * time.Millisecond)
 
@@ -770,21 +800,7 @@ func checkPageAccessible(page *rod.Page) error {
 		return nil
 	}
 
-	// 检查关键词
-	keywords := []string{
-		"当前笔记暂时无法浏览",
-		"该内容因违规已被删除",
-		"该笔记已被删除",
-		"内容不存在",
-		"笔记不存在",
-		"已失效",
-		"私密笔记",
-		"仅作者可见",
-		"因用户设置，你无法查看",
-		"因违规无法查看",
-	}
-
-	for _, kw := range keywords {
+	for _, kw := range permanentInaccessibleKeywords {
 		if strings.Contains(text, kw) {
 			logrus.Warnf("笔记不可访问: %s", kw)
 			return fmt.Errorf("笔记不可访问: %s", kw)
