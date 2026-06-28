@@ -75,12 +75,65 @@ type ImageInfo struct {
 
 // Video 表示视频信息
 type Video struct {
-	Capa VideoCapability `json:"capa"`
+	Capa  VideoCapability `json:"capa"`
+	Media *VideoMedia     `json:"media,omitempty"` // 详情页才有；搜索列表里通常为 nil
+
+	// RawMediaV2 捕获 __INITIAL_STATE__.note.video.mediaV2（一个 JSON 字符串），
+	// 仅用于在 extractFeedDetail 后解析出官方字幕；解析完会被清空，不出现在响应里。
+	RawMediaV2 string `json:"mediaV2,omitempty"`
+
+	// Subtitles 官方字幕，按语种分组（如 source / zh-CN / en-US）。
+	// 有字幕时可直接下载对应 .srt 拿到视频文案。
+	Subtitles map[string][]SubtitleItem `json:"subtitles,omitempty"`
+}
+
+// SubtitleItem 单条字幕轨：URL 指向 .srt 文件（带 sign+t 时效签名，过期即失效）
+type SubtitleItem struct {
+	URL      string `json:"url"`
+	Language string `json:"language"`
+	Format   int    `json:"format"`
+	Type     int    `json:"type"`
+}
+
+// mediaV2Payload 用于解析 video.mediaV2 字符串里的字幕（其余字段忽略）
+type mediaV2Payload struct {
+	Video struct {
+		Subtitles map[string][]SubtitleItem `json:"subtitles"`
+	} `json:"video"`
 }
 
 // VideoCapability 表示视频能力信息
 type VideoCapability struct {
 	Duration int `json:"duration"` // 视频时长，单位秒
+}
+
+// VideoMedia 表示视频媒体信息（详情页 __INITIAL_STATE__.note.video.media）
+type VideoMedia struct {
+	VideoID int64            `json:"videoId"`
+	Stream  VideoStreamGroup `json:"stream"`
+}
+
+// VideoStreamGroup 按编码分组的视频流列表（h264 通用兼容性最好）
+type VideoStreamGroup struct {
+	H264 []VideoStreamItem `json:"h264"`
+	H265 []VideoStreamItem `json:"h265"`
+	H266 []VideoStreamItem `json:"h266"`
+	AV1  []VideoStreamItem `json:"av1"`
+}
+
+// VideoStreamItem 单个视频流：MasterURL 带 sign+t 时效签名，过期回退 BackupURLs
+type VideoStreamItem struct {
+	MasterURL   string   `json:"masterUrl"`
+	BackupURLs  []string `json:"backupUrls"`
+	Format      string   `json:"format"`
+	Width       int      `json:"width"`
+	Height      int      `json:"height"`
+	Duration    int      `json:"duration"` // 毫秒
+	Size        int64    `json:"size"`
+	VideoCodec  string   `json:"videoCodec"`
+	AudioCodec  string   `json:"audioCodec"`
+	StreamType  int      `json:"streamType"`
+	QualityType string   `json:"qualityType"`
 }
 
 // ================ Feed 详情页相关结构体 ================
@@ -103,6 +156,7 @@ type FeedDetail struct {
 	User         User              `json:"user"`
 	InteractInfo InteractInfo      `json:"interactInfo"`
 	ImageList    []DetailImageInfo `json:"imageList"`
+	Video        *Video            `json:"video,omitempty"` // 视频笔记才有；含 media.stream.h264[].masterUrl
 }
 
 // DetailImageInfo 表示详情页的图片信息

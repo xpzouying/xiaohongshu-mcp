@@ -856,10 +856,34 @@ func (f *FeedDetailAction) extractFeedDetail(page *rod.Page, feedID string) (*Fe
 		return nil, fmt.Errorf("feed %s not found in noteDetailMap", feedID)
 	}
 
+	// 视频笔记：video.mediaV2 是一个 JSON 字符串，官方字幕埋在 video.subtitles 里。
+	// 解析出来挂到 Note.Video.Subtitles，让调用方可直接拿到字幕。
+	enrichVideoSubtitles(&noteDetail.Note)
+
 	return &FeedDetailResponse{
 		Note:     noteDetail.Note,
 		Comments: noteDetail.Comments,
 	}, nil
+}
+
+// enrichVideoSubtitles 把 video.mediaV2（JSON 字符串）里的官方字幕解析到 Video.Subtitles，
+// 并清空体积庞大的 RawMediaV2 原始串。解析失败不影响主流程（字幕只是增益）。
+func enrichVideoSubtitles(note *FeedDetail) {
+	if note == nil || note.Video == nil || note.Video.RawMediaV2 == "" {
+		return
+	}
+	raw := note.Video.RawMediaV2
+	note.Video.RawMediaV2 = "" // 不在响应里回传巨大的原始串
+
+	var payload mediaV2Payload
+	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
+		logrus.Debugf("解析 mediaV2 字幕失败（忽略）: %v", err)
+		return
+	}
+	if len(payload.Video.Subtitles) > 0 {
+		note.Video.Subtitles = payload.Video.Subtitles
+		logrus.Infof("✓ 提取到官方字幕语种: %d 种", len(payload.Video.Subtitles))
+	}
 }
 
 func makeFeedDetailURL(feedID, xsecToken string) string {
