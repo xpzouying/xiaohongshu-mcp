@@ -10,6 +10,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/xiaohongshu-mcp/cookies"
+	"github.com/xpzouying/xiaohongshu-mcp/pkg/downloader"
 	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
 )
 
@@ -127,16 +128,12 @@ func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]in
 	// 解析参数
 	title, _ := args["title"].(string)
 	content, _ := args["content"].(string)
-	imagePathsInterface, _ := args["images"].([]interface{})
+	imageSources, ok := args["images"].([]downloader.ImageSource)
+	if !ok {
+		imageSources = parseImageSources(args["images"])
+	}
 	tagsInterface, _ := args["tags"].([]interface{})
 	productsInterface, _ := args["products"].([]interface{})
-
-	var imagePaths []string
-	for _, path := range imagePathsInterface {
-		if pathStr, ok := path.(string); ok {
-			imagePaths = append(imagePaths, pathStr)
-		}
-	}
 
 	var tags []string
 	for _, tag := range tagsInterface {
@@ -159,13 +156,13 @@ func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]in
 	// 解析原创参数
 	isOriginal, _ := args["is_original"].(bool)
 
-	logrus.Infof("MCP: 发布内容 - 标题: %s, 图片数量: %d, 标签数量: %d, 定时: %s, 原创: %v, visibility: %s, 商品: %v", title, len(imagePaths), len(tags), scheduleAt, isOriginal, visibility, products)
+	logrus.Infof("MCP: 发布内容 - 标题: %s, 图片数量: %d, 标签数量: %d, 定时: %s, 原创: %v, visibility: %s, 商品: %v", title, len(imageSources), len(tags), scheduleAt, isOriginal, visibility, products)
 
 	// 构建发布请求
 	req := &PublishRequest{
 		Title:      title,
 		Content:    content,
-		Images:     imagePaths,
+		Images:     imageSources,
 		Tags:       tags,
 		ScheduleAt: scheduleAt,
 		IsOriginal: isOriginal,
@@ -192,6 +189,38 @@ func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]in
 			Text: resultText,
 		}},
 	}
+}
+
+func parseImageSources(value interface{}) []downloader.ImageSource {
+	items, ok := value.([]interface{})
+	if !ok {
+		return nil
+	}
+
+	images := make([]downloader.ImageSource, 0, len(items))
+	for _, item := range items {
+		switch v := item.(type) {
+		case string:
+			images = append(images, downloader.NewImageSource(v))
+		case map[string]interface{}:
+			data, err := json.Marshal(v)
+			if err != nil {
+				logrus.Warnf("MCP: 图片参数序列化失败: %v", err)
+				continue
+			}
+
+			var source downloader.ImageSource
+			if err := json.Unmarshal(data, &source); err != nil {
+				logrus.Warnf("MCP: 图片参数解析失败: %v", err)
+				continue
+			}
+			images = append(images, source)
+		default:
+			logrus.Warnf("MCP: 不支持的图片参数类型: %T", item)
+		}
+	}
+
+	return images
 }
 
 // handlePublishVideo 处理发布视频内容（仅本地单个视频文件）

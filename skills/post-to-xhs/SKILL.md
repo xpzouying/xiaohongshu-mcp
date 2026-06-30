@@ -38,6 +38,14 @@ description: >
 - **完整内容模式**：用户提供了标题、正文内容、以及图片（本地路径或URL）
 - **URL 提取模式**：用户只提供了一个网页 URL
 
+如果通过本项目 MCP 的 `publish_content` 工具发布，图片还可以使用 base64 对象：
+
+```json
+{"type":"base64","data":"iVBORw0KGgo...","mime_type":"image/png"}
+```
+
+内置 Python 发布脚本仍使用本地路径或 URL。
+
 如果不确定，询问用户。
 
 ## Step 2: 处理内容

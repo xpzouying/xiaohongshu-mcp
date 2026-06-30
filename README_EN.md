@@ -67,7 +67,7 @@ Supports publishing image and text content to RedNote, including title, content 
 
 **Image Support Methods:**
 
-Supports two image input methods:
+Supports three image input methods:
 
 1. **HTTP/HTTPS Image Links**
 
@@ -79,6 +79,19 @@ Supports two image input methods:
    ```
    ["/Users/username/Pictures/image1.jpg", "/home/user/images/image2.png"]
    ```
+
+3. **Base64 Image Objects**
+   ```
+   [
+     {
+       "type": "base64",
+       "data": "iVBORw0KGgoAAAANSUhEUg...",
+       "mime_type": "image/png"
+     }
+   ]
+   ```
+
+   `data:image/png;base64,...` data URLs are also supported.
 
 **Why Local Paths are Recommended:**
 
@@ -754,7 +767,7 @@ After successful connection, you can use the following MCP tools:
 - `get_login_qrcode` - Get login QR code, returns Base64 image and timeout (no parameters)
 - `delete_cookies` - Delete cookies file, reset login status, requires re-login after deletion (no parameters)
 - `publish_content` - Publish image-text content to RedNote (required: title, content, images)
-  - `images`: Image path list (minimum 1), supports HTTP links or local absolute paths, local paths recommended
+  - `images`: Image list (minimum 1), supports HTTP links, local absolute paths, or `{ "type": "base64", "data": "...", "mime_type": "image/png" }` objects; absolute paths are recommended for local files
   - `tags`: Topic tags list (optional), e.g. `["food", "travel", "lifestyle"]`
   - `schedule_at`: Scheduled publish time (optional), ISO8601 format, supports 1 hour to 14 days ahead
   - `is_original`: Declare as original content (optional), default is not declared
