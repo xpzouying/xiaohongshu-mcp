@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/go-rod/rod"
+	hrod "github.com/xpzouying/xiaohongshu-mcp/pkg/humanize/rod"
 	"github.com/xpzouying/xiaohongshu-mcp/errors"
 )
 
@@ -156,10 +156,10 @@ func validateInternalFilterOption(filter internalFilterOption) error {
 }
 
 type SearchAction struct {
-	page *rod.Page
+	page *hrod.Page
 }
 
-func NewSearchAction(page *rod.Page) *SearchAction {
+func NewSearchAction(page *hrod.Page) *SearchAction {
 	pp := page.Timeout(60 * time.Second)
 
 	return &SearchAction{page: pp}
@@ -198,7 +198,7 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 		filterButton.MustHover()
 
 		// 等待筛选面板出现
-		page.MustWait(`() => document.querySelector('div.filter-panel') !== null`)
+		page.MustElement(`div.filter-panel`)
 
 		// 应用所有筛选条件
 		for _, filter := range allInternalFilters {

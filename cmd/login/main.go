@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"flag"
 
-	"github.com/go-rod/rod"
 	"github.com/sirupsen/logrus"
+	hrod "github.com/xpzouying/xiaohongshu-mcp/pkg/humanize/rod"
 	"github.com/xpzouying/xiaohongshu-mcp/browser"
 	"github.com/xpzouying/xiaohongshu-mcp/cookies"
 	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
@@ -63,8 +63,8 @@ func main() {
 
 }
 
-func saveCookies(page *rod.Page) error {
-	cks, err := page.Browser().GetCookies()
+func saveCookies(page *hrod.Page) error {
+	cks, err := page.Rod.Browser().GetCookies()
 	if err != nil {
 		return err
 	}

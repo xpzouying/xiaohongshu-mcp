@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/go-rod/rod"
+	hrod "github.com/xpzouying/xiaohongshu-mcp/pkg/humanize/rod"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
@@ -23,7 +23,7 @@ type PublishVideoContent struct {
 }
 
 // NewPublishVideoAction 进入发布页并切换到"上传视频"
-func NewPublishVideoAction(page *rod.Page) (*PublishAction, error) {
+func NewPublishVideoAction(page *hrod.Page) (*PublishAction, error) {
 	pp := page.Timeout(300 * time.Second)
 
 	if err := pp.Navigate(urlOfPublic); err != nil {
@@ -69,7 +69,7 @@ func (p *PublishAction) PublishVideo(ctx context.Context, content PublishVideoCo
 }
 
 // uploadVideo 上传单个本地视频
-func uploadVideo(page *rod.Page, videoPath string) error {
+func uploadVideo(page *hrod.Page, videoPath string) error {
 	pp := page.Timeout(5 * time.Minute) // 视频处理耗时更长
 
 	if _, err := os.Stat(videoPath); os.IsNotExist(err) {
@@ -77,7 +77,7 @@ func uploadVideo(page *rod.Page, videoPath string) error {
 	}
 
 	// 寻找文件上传输入框（与图文一致的 class，或退回到 input[type=file]）
-	var fileInput *rod.Element
+	var fileInput *hrod.Element
 	var err error
 	fileInput, err = pp.Element(".upload-input")
 	if err != nil || fileInput == nil {
@@ -99,7 +99,7 @@ func uploadVideo(page *rod.Page, videoPath string) error {
 }
 
 // submitPublishVideo 填写标题、正文、标签并点击发布（等待按钮可点击后再提交）
-func submitPublishVideo(page *rod.Page, title, content string, tags []string, scheduleTime *time.Time, visibility string, products []string) error {
+func submitPublishVideo(page *hrod.Page, title, content string, tags []string, scheduleTime *time.Time, visibility string, products []string) error {
 	// 标题
 	titleElem, err := page.Element("div.d-input input")
 	if err != nil {

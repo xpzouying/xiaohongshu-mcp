@@ -7,13 +7,12 @@ import (
 	"os"
 	"time"
 
-	"github.com/go-rod/rod"
 	"github.com/sirupsen/logrus"
-	"github.com/xpzouying/headless_browser"
 	"github.com/xpzouying/xiaohongshu-mcp/browser"
 	"github.com/xpzouying/xiaohongshu-mcp/configs"
 	"github.com/xpzouying/xiaohongshu-mcp/cookies"
 	"github.com/xpzouying/xiaohongshu-mcp/pkg/downloader"
+	hrod "github.com/xpzouying/xiaohongshu-mcp/pkg/humanize/rod"
 	"github.com/xpzouying/xiaohongshu-mcp/pkg/xhsutil"
 	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
 )
@@ -545,12 +544,12 @@ func (s *XiaohongshuService) ReplyCommentToFeed(ctx context.Context, feedID, xse
 	}, nil
 }
 
-func newBrowser() *headless_browser.Browser {
+func newBrowser() *hrod.Browser {
 	return browser.NewBrowser(configs.IsHeadless(), browser.WithBinPath(configs.GetBinPath()))
 }
 
-func saveCookies(page *rod.Page) error {
-	cks, err := page.Browser().GetCookies()
+func saveCookies(page *hrod.Page) error {
+	cks, err := page.Rod.Browser().GetCookies()
 	if err != nil {
 		return err
 	}
@@ -565,7 +564,7 @@ func saveCookies(page *rod.Page) error {
 }
 
 // withBrowserPage 执行需要浏览器页面的操作的通用函数
-func withBrowserPage(fn func(*rod.Page) error) error {
+func withBrowserPage(fn func(*hrod.Page) error) error {
 	b := newBrowser()
 	defer b.Close()
 
@@ -580,7 +579,7 @@ func (s *XiaohongshuService) GetMyProfile(ctx context.Context) (*UserProfileResp
 	var result *xiaohongshu.UserProfileResponse
 	var err error
 
-	err = withBrowserPage(func(page *rod.Page) error {
+	err = withBrowserPage(func(page *hrod.Page) error {
 		action := xiaohongshu.NewUserProfileAction(page)
 		result, err = action.GetMyProfileViaSidebar(ctx)
 		return err
