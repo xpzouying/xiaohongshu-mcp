@@ -598,3 +598,95 @@ func (s *XiaohongshuService) GetMyProfile(ctx context.Context) (*UserProfileResp
 
 	return response, nil
 }
+
+// CollectListRequest 收藏夹请求
+type CollectListRequest struct {
+	Cursor string `json:"cursor,omitempty"`
+	Num    int    `json:"num,omitempty"`
+}
+
+// CollectListResponse 收藏夹响应
+type CollectListResponse struct {
+	Feeds   []xiaohongshu.Feed `json:"feeds"`
+	Count   int                `json:"count"`
+	Cursor  string             `json:"cursor,omitempty"`
+	HasMore bool               `json:"has_more"`
+}
+
+// GetCollectList 获取当前登录用户的收藏笔记列表
+func (s *XiaohongshuService) GetCollectList(ctx context.Context, cursor string, num int) (*CollectListResponse, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewCollectListAction(page)
+	result, err := action.GetCollectList(ctx, cursor, num)
+	if err != nil {
+		return nil, err
+	}
+
+	return &CollectListResponse{
+		Feeds:   result.Feeds,
+		Count:   result.Count,
+		Cursor:  result.Cursor,
+		HasMore: result.HasMore,
+	}, nil
+}
+
+// LikedListResponse 点赞笔记响应
+type LikedListResponse struct {
+	Feeds   []xiaohongshu.Feed `json:"feeds"`
+	Count   int                `json:"count"`
+	HasMore bool               `json:"has_more"`
+}
+
+// GetLikedList 获取当前登录用户点赞的笔记列表
+func (s *XiaohongshuService) GetLikedList(ctx context.Context, num int) (*LikedListResponse, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewLikedListAction(page)
+	result, err := action.GetLikedList(ctx, num)
+	if err != nil {
+		return nil, err
+	}
+
+	return &LikedListResponse{
+		Feeds:   result.Feeds,
+		Count:   result.Count,
+		HasMore: result.HasMore,
+	}, nil
+}
+
+// PublishedListResponse 已发布笔记响应
+type PublishedListResponse struct {
+	Feeds   []xiaohongshu.Feed `json:"feeds"`
+	Count   int                `json:"count"`
+	HasMore bool               `json:"has_more"`
+}
+
+// GetPublishedList 获取当前登录用户已发布的笔记列表
+func (s *XiaohongshuService) GetPublishedList(ctx context.Context, num int) (*PublishedListResponse, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewPublishedListAction(page)
+	result, err := action.GetPublishedList(ctx, num)
+	if err != nil {
+		return nil, err
+	}
+
+	return &PublishedListResponse{
+		Feeds:   result.Feeds,
+		Count:   result.Count,
+		HasMore: result.HasMore,
+	}, nil
+}
