@@ -646,28 +646,12 @@ func inputTag(contentElem *rod.Element, tag string) error {
 		time.Sleep(50 * time.Millisecond)
 	}
 
-	time.Sleep(1 * time.Second)
-
-	page := contentElem.Page()
-	topicContainer, err := page.Element("#creator-editor-topic-container")
-	if err != nil || topicContainer == nil {
-		slog.Warn("未找到标签联想下拉框，直接输入空格", "tag", tag)
-		return contentElem.Input(" ")
-	}
-
-	firstItem, err := topicContainer.Element(".item")
-	if err != nil || firstItem == nil {
-		slog.Warn("未找到标签联想选项，直接输入空格", "tag", tag)
-		return contentElem.Input(" ")
-	}
-
-	if err := firstItem.Click(proto.InputMouseButtonLeft, 1); err != nil {
-		return errors.Wrap(err, "点击标签联想选项失败")
-	}
-	slog.Info("成功点击标签联想选项", "tag", tag)
 	time.Sleep(200 * time.Millisecond)
-
-	time.Sleep(500 * time.Millisecond) // 等待标签处理完成
+	if err := contentElem.Input(" "); err != nil {
+		return errors.Wrap(err, "输入标签确认空格失败")
+	}
+	slog.Info("已直接输入标签并用空格确认", "tag", tag)
+	time.Sleep(200 * time.Millisecond)
 	return nil
 }
 

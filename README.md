@@ -479,6 +479,22 @@ go run .
 go run . -headless=false
 ```
 
+**使用 CloakBrowser（可选）**：
+
+如果已经安装 CloakBrowser，可以通过 `CLOAKBROWSER_BINARY_PATH` 显式指定浏览器二进制路径：
+
+```bash
+CLOAKBROWSER_BINARY_PATH=/path/to/cloakbrowser/chrome go run .
+```
+
+也可以继续使用已有的 `-bin` 参数指定浏览器路径：
+
+```bash
+go run . -bin /path/to/cloakbrowser/chrome
+```
+
+只有显式指定 CloakBrowser 路径时才会启用 CloakBrowser 模式。启用后，程序不会覆盖浏览器自身的 User-Agent，也不会启用 `go-rod/stealth` 注入，以避免额外脚本注入与浏览器自身环境产生冲突。普通 Chrome/Chromium 启动方式保持原有行为。
+
 **配置代理（可选）**：
 
 如果需要通过代理访问，可以设置 `XHS_PROXY` 环境变量：
