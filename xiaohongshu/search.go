@@ -169,7 +169,7 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 	page := s.page.Context(ctx)
 
 	searchURL := makeSearchURL(keyword)
-	page.MustNavigate(searchURL)
+	SafeNavigate(page, searchURL)
 	page.MustWaitStable()
 
 	page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
