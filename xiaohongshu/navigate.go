@@ -17,7 +17,7 @@ func NewNavigate(page *rod.Page) *NavigateAction {
 func (n *NavigateAction) ToExplorePage(ctx context.Context) error {
 	page := n.page.Context(ctx)
 
-	page.MustNavigate("https://www.xiaohongshu.com/explore").
+	page.MustNavigate(getBaseURL() + "/explore").
 		MustWaitLoad().
 		MustElement(`div#app`)
 

@@ -863,5 +863,5 @@ func (f *FeedDetailAction) extractFeedDetail(page *rod.Page, feedID string) (*Fe
 }
 
 func makeFeedDetailURL(feedID, xsecToken string) string {
-	return fmt.Sprintf("https://www.xiaohongshu.com/explore/%s?xsec_token=%s&xsec_source=pc_feed", feedID, xsecToken)
+	return fmt.Sprintf("%s/explore/%s?xsec_token=%s&xsec_source=pc_feed", getBaseURL(), feedID, xsecToken)
 }
