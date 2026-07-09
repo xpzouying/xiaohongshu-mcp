@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/go-rod/rod"
@@ -200,12 +201,35 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 		// 等待筛选面板出现
 		page.MustWait(`() => document.querySelector('div.filter-panel') !== null`)
 
-		// 应用所有筛选条件
+		// .filters / .tags 的父节点里夹着 label，所以用 :nth-of-type 选 .filters、
+		// 按文本匹配 .tags，避免 :nth-child 数到 label 上导致错位。
 		for _, filter := range allInternalFilters {
-			selector := fmt.Sprintf(`div.filter-panel div.filters:nth-child(%d) div.tags:nth-child(%d)`,
-				filter.FiltersIndex, filter.TagsIndex)
-			option := page.MustElement(selector)
-			option.MustClick()
+			filtersSelector := fmt.Sprintf(`div.filter-panel div.filters:nth-of-type(%d)`, filter.FiltersIndex)
+			filtersEl, err := page.Element(filtersSelector)
+			if err != nil {
+				return nil, fmt.Errorf("筛选组 %d (%s) 未找到: %w", filter.FiltersIndex, filter.Text, err)
+			}
+
+			tags, err := filtersEl.Elements("div.tags")
+			if err != nil {
+				return nil, fmt.Errorf("筛选组 %d tags 查找失败: %w", filter.FiltersIndex, err)
+			}
+
+			var matched *rod.Element
+			for _, t := range tags {
+				txt, terr := t.Text()
+				if terr != nil {
+					continue
+				}
+				if strings.TrimSpace(txt) == filter.Text {
+					matched = t
+					break
+				}
+			}
+			if matched == nil {
+				return nil, fmt.Errorf("筛选组 %d 中未找到文本 %q 的标签", filter.FiltersIndex, filter.Text)
+			}
+			matched.MustClick()
 		}
 
 		// 等待页面更新
