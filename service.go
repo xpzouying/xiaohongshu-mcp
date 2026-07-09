@@ -86,6 +86,12 @@ type FeedsListResponse struct {
 	Count int                `json:"count"`
 }
 
+// SearchUsersResponse 用户搜索响应
+type SearchUsersResponse struct {
+	Users []xiaohongshu.SearchUser `json:"users"`
+	Count int                      `json:"count"`
+}
+
 // UserProfileResponse 用户主页响应
 type UserProfileResponse struct {
 	UserBasicInfo xiaohongshu.UserBasicInfo      `json:"userBasicInfo"`
@@ -386,6 +392,29 @@ func (s *XiaohongshuService) SearchFeeds(ctx context.Context, keyword string, fi
 	response := &FeedsListResponse{
 		Feeds: feeds,
 		Count: len(feeds),
+	}
+
+	return response, nil
+}
+
+// SearchUsers 搜索用户
+func (s *XiaohongshuService) SearchUsers(ctx context.Context, keyword string) (*SearchUsersResponse, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewSearchUserAction(page)
+
+	users, err := action.SearchUsers(ctx, keyword)
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SearchUsersResponse{
+		Users: users,
+		Count: len(users),
 	}
 
 	return response, nil

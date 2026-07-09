@@ -44,6 +44,11 @@ type SearchFeedsArgs struct {
 	Filters FilterOption `json:"filters,omitempty" jsonschema:"筛选选项"`
 }
 
+// SearchUsersArgs 搜索用户的参数
+type SearchUsersArgs struct {
+	Keyword string `json:"keyword" jsonschema:"搜索用户关键词，如运动员姓名、职业、机构名"`
+}
+
 // FilterOption 筛选选项结构体
 type FilterOption struct {
 	SortBy      string `json:"sort_by,omitempty" jsonschema:"排序依据: 综合|最新|最多点赞|最多评论|最多收藏,默认为'综合'"`
@@ -260,7 +265,23 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	// 工具 7: 获取Feed详情
+	// 工具 7: 搜索用户
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "search_users",
+			Description: "搜索小红书用户（需要已登录）",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Search Users",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("search_users", func(ctx context.Context, req *mcp.CallToolRequest, args SearchUsersArgs) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleSearchUsers(ctx, args)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	// 工具 8: 获取Feed详情
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "get_feed_detail",
@@ -305,7 +326,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	// 工具 8: 获取用户主页
+	// 工具 9: 获取用户主页
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "user_profile",
@@ -325,7 +346,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	// 工具 9: 发表评论
+	// 工具 10: 发表评论
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "post_comment_to_feed",
@@ -346,7 +367,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	// 工具 10: 回复评论
+	// 工具 11: 回复评论
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "reply_comment_in_feed",
@@ -376,7 +397,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		},
 	)
 
-	// 工具 11: 发布视频（仅本地文件）
+	// 工具 12: 发布视频（仅本地文件）
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "publish_with_video",
@@ -401,7 +422,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	// 工具 12: 点赞笔记
+	// 工具 13: 点赞笔记
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "like_feed",
@@ -422,7 +443,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	// 工具 13: 收藏笔记
+	// 工具 14: 收藏笔记
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "favorite_feed",
@@ -443,7 +464,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	logrus.Infof("Registered %d MCP tools", 13)
+	logrus.Infof("Registered %d MCP tools", 14)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式
