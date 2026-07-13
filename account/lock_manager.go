@@ -60,6 +60,40 @@ func (m *InMemoryLockManager) Acquire(ctx context.Context, accountID string) (fu
 	}, nil
 }
 
+func (m *InMemoryLockManager) TryAcquire(accountID string) (func(), bool, error) {
+	if err := ValidateAccountID(accountID); err != nil {
+		return nil, false, err
+	}
+	select {
+	case m.global <- struct{}{}:
+	default:
+		return nil, false, nil
+	}
+	m.mu.Lock()
+	entry := m.locks[accountID]
+	if entry == nil {
+		entry = &accountLock{semaphore: make(chan struct{}, 1)}
+		m.locks[accountID] = entry
+	}
+	entry.refs++
+	m.mu.Unlock()
+	select {
+	case entry.semaphore <- struct{}{}:
+	default:
+		m.releaseReference(accountID, entry)
+		<-m.global
+		return nil, false, nil
+	}
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			<-entry.semaphore
+			m.releaseReference(accountID, entry)
+			<-m.global
+		})
+	}, true, nil
+}
+
 func (m *InMemoryLockManager) releaseReference(accountID string, entry *accountLock) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

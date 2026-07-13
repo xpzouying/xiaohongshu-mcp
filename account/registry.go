@@ -198,6 +198,37 @@ func (r *FileRegistry) Create(ctx context.Context, in CreateAccountInput) (Accou
 	return account, nil
 }
 
+func (r *FileRegistry) Remove(ctx context.Context, id string) error {
+	if err := ctx.Err(); err != nil {
+		return canceledError(err)
+	}
+	if err := ValidateAccountID(id); err != nil {
+		return err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	index := -1
+	for i := range r.doc.Accounts {
+		if r.doc.Accounts[i].ID == id {
+			index = i
+			break
+		}
+	}
+	if index < 0 {
+		return newError(CodeAccountNotFound, "账号不存在", false, nil)
+	}
+	old := registryDocument{SchemaVersion: r.doc.SchemaVersion, DefaultAccountID: r.doc.DefaultAccountID, Accounts: cloneAccounts(r.doc.Accounts)}
+	r.doc.Accounts = append(r.doc.Accounts[:index], r.doc.Accounts[index+1:]...)
+	if r.doc.DefaultAccountID != nil && *r.doc.DefaultAccountID == id {
+		r.doc.DefaultAccountID = nil
+	}
+	if err := r.saveLocked(); err != nil {
+		r.doc = old
+		return err
+	}
+	return nil
+}
+
 func (r *FileRegistry) SetDefault(ctx context.Context, id string) error {
 	if err := ctx.Err(); err != nil {
 		return canceledError(err)

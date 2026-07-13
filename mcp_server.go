@@ -8,6 +8,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/sirupsen/logrus"
+	"github.com/xpzouying/xiaohongshu-mcp/account"
 )
 
 // Helper functions for annotation pointers
@@ -153,6 +154,9 @@ func withPanicRecovery[T any](
 
 // registerTools 注册所有 MCP 工具
 func registerTools(server *mcp.Server, appServer *AppServer) {
+	if appServer.accountTools != nil {
+		registerAccountManagementTools(server, appServer)
+	}
 	// 工具 1: 检查登录状态
 	mcp.AddTool(server,
 		&mcp.Tool{
@@ -444,6 +448,35 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 	)
 
 	logrus.Infof("Registered %d MCP tools", 13)
+}
+
+type AccountIDArgs struct {
+	AccountID string `json:"account_id" jsonschema:"账号 ID"`
+}
+
+type CreateAccountArgs struct {
+	AccountID   string `json:"account_id" jsonschema:"账号 ID"`
+	DisplayName string `json:"display_name" jsonschema:"展示名称"`
+	Owner       string `json:"owner,omitempty" jsonschema:"账号所有者"`
+	Purpose     string `json:"purpose,omitempty" jsonschema:"账号用途"`
+}
+
+func registerAccountManagementTools(server *mcp.Server, appServer *AppServer) {
+	registerID := func(name string, destructive bool, handler func(context.Context, string) *MCPToolResult) {
+		mcp.AddTool(server, &mcp.Tool{Name: name, Annotations: &mcp.ToolAnnotations{DestructiveHint: boolPtr(destructive)}}, withPanicRecovery(name, func(ctx context.Context, _ *mcp.CallToolRequest, args AccountIDArgs) (*mcp.CallToolResult, any, error) {
+			return convertToMCPResult(handler(ctx, args.AccountID)), nil, nil
+		}))
+	}
+	mcp.AddTool(server, &mcp.Tool{Name: "list_accounts", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true}}, withPanicRecovery("list_accounts", func(ctx context.Context, _ *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, any, error) {
+		return convertToMCPResult(appServer.handleListAccounts(ctx)), nil, nil
+	}))
+	mcp.AddTool(server, &mcp.Tool{Name: "create_account"}, withPanicRecovery("create_account", func(ctx context.Context, _ *mcp.CallToolRequest, args CreateAccountArgs) (*mcp.CallToolResult, any, error) {
+		input := account.CreateAccountInput{ID: args.AccountID, DisplayName: args.DisplayName, Owner: args.Owner, Purpose: args.Purpose}
+		return convertToMCPResult(appServer.handleCreateAccount(ctx, input)), nil, nil
+	}))
+	registerID("remove_account", true, appServer.handleRemoveAccount)
+	registerID("set_default_account", false, appServer.handleSetDefaultAccount)
+	registerID("reset_login", true, appServer.handleResetAccountLogin)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式

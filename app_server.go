@@ -16,9 +16,16 @@ import (
 // AppServer 应用服务器结构体，封装所有服务和处理器
 type AppServer struct {
 	xiaohongshuService *XiaohongshuService
+	accountTools       *AccountTools
 	mcpServer          *mcp.Server
 	router             *gin.Engine
 	httpServer         *http.Server
+}
+
+func (s *AppServer) WithAccountTools(tools *AccountTools) *AppServer {
+	s.accountTools = tools
+	s.mcpServer = InitMCPServer(s)
+	return s
 }
 
 // NewAppServer 创建新的应用服务器实例

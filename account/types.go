@@ -49,6 +49,7 @@ type Registry interface {
 	Get(context.Context, string) (Account, error)
 	Resolve(context.Context, string) (ResolvedAccount, error)
 	Create(context.Context, CreateAccountInput) (Account, error)
+	Remove(context.Context, string) error
 	SetDefault(context.Context, string) error
 	UpdateStatus(context.Context, string, Status, string) error
 }
@@ -68,6 +69,11 @@ type BrowserFactory interface {
 
 type LockManager interface {
 	Acquire(context.Context, string) (func(), error)
+}
+
+type TryLockManager interface {
+	LockManager
+	TryAcquire(string) (func(), bool, error)
 }
 
 type OperationKind string

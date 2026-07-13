@@ -211,6 +211,7 @@ func (r *blockingRegistry) Resolve(context.Context, string) (ResolvedAccount, er
 func (r *blockingRegistry) Create(context.Context, CreateAccountInput) (Account, error) {
 	panic("unexpected Create")
 }
+func (r *blockingRegistry) Remove(context.Context, string) error     { panic("unexpected Remove") }
 func (r *blockingRegistry) SetDefault(context.Context, string) error { panic("unexpected SetDefault") }
 func (r *blockingRegistry) UpdateStatus(context.Context, string, Status, string) error {
 	panic("unexpected UpdateStatus")
