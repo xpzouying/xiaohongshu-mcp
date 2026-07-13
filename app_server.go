@@ -18,20 +18,28 @@ import (
 type AppServer struct {
 	xiaohongshuService *XiaohongshuService
 	accountRegistry    account.Registry
+	accountManager     *account.Manager
 	mcpServer          *mcp.Server
 	router             *gin.Engine
 	httpServer         *http.Server
 }
 
 // NewAppServer 创建新的应用服务器实例
-func NewAppServer(xiaohongshuService *XiaohongshuService, registries ...account.Registry) *AppServer {
+func NewAppServer(xiaohongshuService *XiaohongshuService, dependencies ...any) *AppServer {
 	var registry account.Registry
-	if len(registries) > 0 {
-		registry = registries[0]
+	var manager *account.Manager
+	for _, dependency := range dependencies {
+		switch value := dependency.(type) {
+		case account.Registry:
+			registry = value
+		case *account.Manager:
+			manager = value
+		}
 	}
 	appServer := &AppServer{
 		xiaohongshuService: xiaohongshuService,
 		accountRegistry:    registry,
+		accountManager:     manager,
 	}
 
 	// 初始化 MCP Server（需要在创建 appServer 之后，因为工具注册需要访问 appServer）

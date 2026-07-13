@@ -35,6 +35,9 @@ func (m *Manager) WithAccount(ctx context.Context, requestedID string, kind Oper
 	resolved.Account = account
 	browser, err := m.factory.New(ctx, account)
 	if err != nil {
+		if ErrorCode(err) == CodeCookieNotFound {
+			return resolved, newError(CodeAccountLoginRequired, "账号需要登录", false, err)
+		}
 		return resolved, err
 	}
 	defer browser.Close()

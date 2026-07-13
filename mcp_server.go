@@ -131,30 +131,44 @@ func (a LikeFeedArgs) accountID() string       { return a.AccountID }
 func (a FavoriteFeedArgs) accountID() string   { return a.AccountID }
 
 type accountContextKey struct{}
+type accountBrowserContextKey struct{}
 
 func accountIDFromContext(ctx context.Context) string {
 	id, _ := ctx.Value(accountContextKey{}).(string)
 	return id
 }
 
+func accountBrowserFromContext(ctx context.Context) account.Browser {
+	b, _ := ctx.Value(accountBrowserContextKey{}).(account.Browser)
+	return b
+}
+
 func withAccountRouting[T accountRoutedArgs](
-	registry account.Registry,
+	manager *account.Manager,
+	kind account.OperationKind,
 	handler func(context.Context, *mcp.CallToolRequest, T) (*mcp.CallToolResult, any, error),
 ) func(context.Context, *mcp.CallToolRequest, T) (*mcp.CallToolResult, any, error) {
 	return func(ctx context.Context, req *mcp.CallToolRequest, args T) (*mcp.CallToolResult, any, error) {
-		if registry == nil {
+		if manager == nil {
 			return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{
-				&mcp.TextContent{Text: "账号解析失败: 账号注册表未初始化"},
+				&mcp.TextContent{Text: "账号执行失败: 账号管理器未初始化"},
 			}}, nil, nil
 		}
-		resolved, err := registry.Resolve(ctx, args.accountID())
+		var result *mcp.CallToolResult
+		var response any
+		_, err := manager.WithAccount(ctx, args.accountID(), kind, func(runCtx context.Context, selected account.Account, browser account.Browser) error {
+			runCtx = context.WithValue(runCtx, accountContextKey{}, selected.ID)
+			runCtx = context.WithValue(runCtx, accountBrowserContextKey{}, browser)
+			var handlerErr error
+			result, response, handlerErr = handler(runCtx, req, args)
+			return handlerErr
+		})
 		if err != nil {
 			return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{
-				&mcp.TextContent{Text: "账号解析失败: " + err.Error()},
+				&mcp.TextContent{Text: "账号执行失败: " + err.Error()},
 			}}, nil, nil
 		}
-		ctx = context.WithValue(ctx, accountContextKey{}, resolved.Account.ID)
-		return handler(ctx, req, args)
+		return result, response, nil
 	}
 }
 
@@ -269,7 +283,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				DestructiveHint: boolPtr(true),
 			},
 		},
-		withAccountRouting(appServer.accountRegistry, withPanicRecovery("publish_content", func(ctx context.Context, req *mcp.CallToolRequest, args PublishContentArgs) (*mcp.CallToolResult, any, error) {
+		withAccountRouting(appServer.accountManager, account.OperationWrite, withPanicRecovery("publish_content", func(ctx context.Context, req *mcp.CallToolRequest, args PublishContentArgs) (*mcp.CallToolResult, any, error) {
 			// 转换参数格式到现有的 handler
 			argsMap := map[string]interface{}{
 				"title":       args.Title,
@@ -296,7 +310,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				ReadOnlyHint: true,
 			},
 		},
-		withAccountRouting(appServer.accountRegistry, withPanicRecovery("list_feeds", func(ctx context.Context, req *mcp.CallToolRequest, _ ListFeedsArgs) (*mcp.CallToolResult, any, error) {
+		withAccountRouting(appServer.accountManager, account.OperationRead, withPanicRecovery("list_feeds", func(ctx context.Context, req *mcp.CallToolRequest, _ ListFeedsArgs) (*mcp.CallToolResult, any, error) {
 			result := appServer.handleListFeeds(ctx)
 			return convertToMCPResult(result), nil, nil
 		})),
@@ -312,7 +326,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				ReadOnlyHint: true,
 			},
 		},
-		withAccountRouting(appServer.accountRegistry, withPanicRecovery("search_feeds", func(ctx context.Context, req *mcp.CallToolRequest, args SearchFeedsArgs) (*mcp.CallToolResult, any, error) {
+		withAccountRouting(appServer.accountManager, account.OperationRead, withPanicRecovery("search_feeds", func(ctx context.Context, req *mcp.CallToolRequest, args SearchFeedsArgs) (*mcp.CallToolResult, any, error) {
 			result := appServer.handleSearchFeeds(ctx, args)
 			return convertToMCPResult(result), nil, nil
 		})),
@@ -328,7 +342,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				ReadOnlyHint: true,
 			},
 		},
-		withAccountRouting(appServer.accountRegistry, withPanicRecovery("get_feed_detail", func(ctx context.Context, req *mcp.CallToolRequest, args FeedDetailArgs) (*mcp.CallToolResult, any, error) {
+		withAccountRouting(appServer.accountManager, account.OperationRead, withPanicRecovery("get_feed_detail", func(ctx context.Context, req *mcp.CallToolRequest, args FeedDetailArgs) (*mcp.CallToolResult, any, error) {
 			argsMap := map[string]interface{}{
 				"feed_id":           args.FeedID,
 				"xsec_token":        args.XsecToken,
@@ -373,7 +387,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				ReadOnlyHint: true,
 			},
 		},
-		withAccountRouting(appServer.accountRegistry, withPanicRecovery("user_profile", func(ctx context.Context, req *mcp.CallToolRequest, args UserProfileArgs) (*mcp.CallToolResult, any, error) {
+		withAccountRouting(appServer.accountManager, account.OperationRead, withPanicRecovery("user_profile", func(ctx context.Context, req *mcp.CallToolRequest, args UserProfileArgs) (*mcp.CallToolResult, any, error) {
 			argsMap := map[string]interface{}{
 				"user_id":    args.UserID,
 				"xsec_token": args.XsecToken,
@@ -393,7 +407,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				DestructiveHint: boolPtr(true),
 			},
 		},
-		withAccountRouting(appServer.accountRegistry, withPanicRecovery("post_comment_to_feed", func(ctx context.Context, req *mcp.CallToolRequest, args PostCommentArgs) (*mcp.CallToolResult, any, error) {
+		withAccountRouting(appServer.accountManager, account.OperationWrite, withPanicRecovery("post_comment_to_feed", func(ctx context.Context, req *mcp.CallToolRequest, args PostCommentArgs) (*mcp.CallToolResult, any, error) {
 			argsMap := map[string]interface{}{
 				"feed_id":    args.FeedID,
 				"xsec_token": args.XsecToken,
@@ -414,7 +428,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				DestructiveHint: boolPtr(true),
 			},
 		},
-		withAccountRouting(appServer.accountRegistry, withPanicRecovery("reply_comment_in_feed", func(ctx context.Context, req *mcp.CallToolRequest, args ReplyCommentArgs) (*mcp.CallToolResult, any, error) {
+		withAccountRouting(appServer.accountManager, account.OperationWrite, withPanicRecovery("reply_comment_in_feed", func(ctx context.Context, req *mcp.CallToolRequest, args ReplyCommentArgs) (*mcp.CallToolResult, any, error) {
 			if args.CommentID == "" && args.UserID == "" {
 				return &mcp.CallToolResult{
 					IsError: true,
@@ -444,7 +458,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				DestructiveHint: boolPtr(true),
 			},
 		},
-		withAccountRouting(appServer.accountRegistry, withPanicRecovery("publish_with_video", func(ctx context.Context, req *mcp.CallToolRequest, args PublishVideoArgs) (*mcp.CallToolResult, any, error) {
+		withAccountRouting(appServer.accountManager, account.OperationWrite, withPanicRecovery("publish_with_video", func(ctx context.Context, req *mcp.CallToolRequest, args PublishVideoArgs) (*mcp.CallToolResult, any, error) {
 			argsMap := map[string]interface{}{
 				"title":       args.Title,
 				"content":     args.Content,
@@ -469,7 +483,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				DestructiveHint: boolPtr(true),
 			},
 		},
-		withAccountRouting(appServer.accountRegistry, withPanicRecovery("like_feed", func(ctx context.Context, req *mcp.CallToolRequest, args LikeFeedArgs) (*mcp.CallToolResult, any, error) {
+		withAccountRouting(appServer.accountManager, account.OperationWrite, withPanicRecovery("like_feed", func(ctx context.Context, req *mcp.CallToolRequest, args LikeFeedArgs) (*mcp.CallToolResult, any, error) {
 			argsMap := map[string]interface{}{
 				"feed_id":    args.FeedID,
 				"xsec_token": args.XsecToken,
@@ -490,7 +504,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				DestructiveHint: boolPtr(true),
 			},
 		},
-		withAccountRouting(appServer.accountRegistry, withPanicRecovery("favorite_feed", func(ctx context.Context, req *mcp.CallToolRequest, args FavoriteFeedArgs) (*mcp.CallToolResult, any, error) {
+		withAccountRouting(appServer.accountManager, account.OperationWrite, withPanicRecovery("favorite_feed", func(ctx context.Context, req *mcp.CallToolRequest, args FavoriteFeedArgs) (*mcp.CallToolResult, any, error) {
 			argsMap := map[string]interface{}{
 				"feed_id":    args.FeedID,
 				"xsec_token": args.XsecToken,

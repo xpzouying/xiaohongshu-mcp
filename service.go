@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/go-rod/rod"
@@ -22,6 +21,30 @@ import (
 
 // XiaohongshuService 小红书业务服务
 type XiaohongshuService struct{}
+
+type accountBrowserFactory struct {
+	store  account.CookieStore
+	create func(string) account.Browser
+}
+
+func newAccountBrowserFactory(store account.CookieStore, create func(string) account.Browser) account.BrowserFactory {
+	return &accountBrowserFactory{store: store, create: create}
+}
+
+func (f *accountBrowserFactory) New(ctx context.Context, selected account.Account) (account.Browser, error) {
+	if _, err := f.store.Load(ctx, selected.ID); err != nil {
+		return nil, err
+	}
+	path, err := f.store.Path(selected.ID)
+	if err != nil {
+		return nil, err
+	}
+	return f.create(path), nil
+}
+
+func newBrowserWithAccountCookie(cookiePath string) account.Browser {
+	return browser.NewBrowser(configs.IsHeadless(), browser.WithBinPath(configs.GetBinPath()), browser.WithCookiePath(cookiePath))
+}
 
 // NewXiaohongshuService 创建小红书服务实例
 func NewXiaohongshuService() *XiaohongshuService {
@@ -548,18 +571,12 @@ func (s *XiaohongshuService) ReplyCommentToFeed(ctx context.Context, feedID, xse
 }
 
 func newBrowser(ctx context.Context) *headless_browser.Browser {
-	options := []browser.Option{browser.WithBinPath(configs.GetBinPath())}
-	if accountID := accountIDFromContext(ctx); accountID != "" {
-		dataDir := os.Getenv("XHS_DATA_DIR")
-		if dataDir == "" {
-			dataDir = filepath.Join(".", "data")
-		}
-		if store, err := account.NewFileCookieStore(dataDir); err == nil {
-			if cookiePath, err := store.Path(accountID); err == nil {
-				options = append(options, browser.WithCookiePath(cookiePath))
-			}
+	if selected := accountBrowserFromContext(ctx); selected != nil {
+		if b, ok := selected.(*headless_browser.Browser); ok {
+			return b
 		}
 	}
+	options := []browser.Option{browser.WithBinPath(configs.GetBinPath())}
 	return browser.NewBrowser(configs.IsHeadless(), options...)
 }
 
