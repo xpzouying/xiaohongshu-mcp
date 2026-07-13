@@ -35,9 +35,9 @@ func (r *routingRegistry) UpdateStatus(context.Context, string, account.Status, 
 	return nil
 }
 
-type routingBrowser struct{ closed bool }
+type routingBrowser struct{ closeCount int }
 
-func (b *routingBrowser) Close() { b.closed = true }
+func (b *routingBrowser) Close() { b.closeCount++ }
 
 type routingFactory struct{ browser account.Browser }
 
@@ -62,6 +62,7 @@ func TestWithAccountRoutingUsesExplicitAccountAndAddsContext(t *testing.T) {
 		if got := accountBrowserFromContext(ctx); got != browser {
 			t.Fatalf("context browser = %#v", got)
 		}
+		closeBrowser(ctx, browser)
 		return &mcp.CallToolResult{}, nil, nil
 	})
 
@@ -72,8 +73,16 @@ func TestWithAccountRoutingUsesExplicitAccountAndAddsContext(t *testing.T) {
 	if registry.requested != "acct_two" {
 		t.Fatalf("requested account = %q", registry.requested)
 	}
-	if !browser.closed {
-		t.Fatal("browser not closed")
+	if browser.closeCount != 1 {
+		t.Fatalf("browser close count = %d, want 1", browser.closeCount)
+	}
+}
+
+func TestCloseBrowserClosesLegacyBrowser(t *testing.T) {
+	browser := &routingBrowser{}
+	closeBrowser(context.Background(), browser)
+	if browser.closeCount != 1 {
+		t.Fatalf("browser close count = %d, want 1", browser.closeCount)
 	}
 }
 

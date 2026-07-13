@@ -40,6 +40,7 @@ func TestRESTAccountRoutingSelectsAccountFromRequestAndInjectsContext(t *testing
 				if got := accountBrowserFromContext(c.Request.Context()); got != browser {
 					t.Fatalf("context browser = %#v", got)
 				}
+				closeBrowser(c.Request.Context(), browser)
 				if test.body != "" {
 					var payload map[string]any
 					if err := json.NewDecoder(c.Request.Body).Decode(&payload); err != nil {
@@ -62,8 +63,8 @@ func TestRESTAccountRoutingSelectsAccountFromRequestAndInjectsContext(t *testing
 			if registry.requested != test.wantAccount {
 				t.Fatalf("requested account = %q", registry.requested)
 			}
-			if !browser.closed {
-				t.Fatal("browser not closed")
+			if browser.closeCount != 1 {
+				t.Fatalf("browser close count = %d, want 1", browser.closeCount)
 			}
 		})
 	}
