@@ -64,7 +64,18 @@ func (s *AppServer) handleAccountLoginQRCode(ctx context.Context, id string) *MC
 	if err != nil {
 		return accountToolResult(nil, err)
 	}
-	return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: `{"account_id":"` + value.AccountID + `","is_logged_in":false}`}, {Type: "image", MimeType: "image/png", Data: value.Image}}}
+	status := AccountQRCode{AccountID: value.AccountID, IsLoggedIn: value.IsLoggedIn}
+	if value.IsLoggedIn {
+		return accountToolResult(status, nil)
+	}
+	if value.Image == "" {
+		return accountToolResult(nil, &account.Error{Code: account.CodeInternalError, Message: "登录二维码为空"})
+	}
+	data, marshalErr := json.Marshal(status)
+	if marshalErr != nil {
+		return accountToolResult(nil, marshalErr)
+	}
+	return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: string(data)}, {Type: "image", MimeType: "image/png", Data: value.Image}}}
 }
 
 func (s *AppServer) handleResetAccountLogin(ctx context.Context, id string) *MCPToolResult {

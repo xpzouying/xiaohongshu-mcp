@@ -41,7 +41,7 @@ func NewFileRegistry(root string, options ...RegistryOption) (*FileRegistry, err
 	for _, option := range options {
 		option(r)
 	}
-	data, err := os.ReadFile(r.path)
+	data, err := readFileNoFollow(r.path)
 	if errors.Is(err, os.ErrNotExist) {
 		r.doc = registryDocument{SchemaVersion: registrySchemaVersion, Accounts: []Account{}}
 		return r, nil

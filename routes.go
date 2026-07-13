@@ -12,6 +12,8 @@ import (
 	"github.com/xpzouying/xiaohongshu-mcp/account"
 )
 
+const maxRESTRequestBody = 1 << 20
+
 func withRESTAccountRouting(manager *account.Manager, kind account.OperationKind, handler gin.HandlerFunc) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if manager == nil {
@@ -44,6 +46,7 @@ func restAccountID(c *gin.Context) (string, error) {
 	if c.Request.Body == nil || c.Request.Method == http.MethodGet {
 		return "", nil
 	}
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxRESTRequestBody)
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
 		return "", err

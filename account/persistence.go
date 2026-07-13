@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"golang.org/x/sys/unix"
 )
 
 func accountPath(root, accountID, name string) (string, error) {
@@ -81,9 +83,6 @@ func atomicWrite(root, path string, data []byte) error {
 	if err := os.Chmod(dir, 0700); err != nil {
 		return err
 	}
-	if err := securePath(root, path, false); err != nil {
-		return err
-	}
 	f, err := os.CreateTemp(dir, ".tmp-")
 	if err != nil {
 		return err
@@ -107,7 +106,12 @@ func atomicWrite(root, path string, data []byte) error {
 	if err = os.Chmod(tmp, 0600); err != nil {
 		return err
 	}
-	if err = os.Rename(tmp, path); err != nil {
+	dirFD, err := unix.Open(dir, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_CLOEXEC|unix.O_NOFOLLOW, 0)
+	if err != nil {
+		return err
+	}
+	defer unix.Close(dirFD)
+	if err = unix.Renameat(dirFD, filepath.Base(tmp), dirFD, filepath.Base(path)); err != nil {
 		return err
 	}
 	ok = true
@@ -132,4 +136,14 @@ func strictDecode(data []byte, target any) error {
 		return fmt.Errorf("存在额外 JSON 内容")
 	}
 	return nil
+}
+
+func readFileNoFollow(path string) ([]byte, error) {
+	fd, err := unix.Open(path, unix.O_RDONLY|unix.O_CLOEXEC|unix.O_NOFOLLOW, 0)
+	if err != nil {
+		return nil, err
+	}
+	file := os.NewFile(uintptr(fd), path)
+	defer file.Close()
+	return io.ReadAll(file)
 }

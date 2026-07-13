@@ -27,12 +27,6 @@ func (m *InMemoryLockManager) Acquire(ctx context.Context, accountID string) (fu
 	if err := ValidateAccountID(accountID); err != nil {
 		return nil, err
 	}
-	select {
-	case m.global <- struct{}{}:
-	case <-ctx.Done():
-		return nil, lockContextError(ctx.Err())
-	}
-
 	m.mu.Lock()
 	entry := m.locks[accountID]
 	if entry == nil {
@@ -46,7 +40,14 @@ func (m *InMemoryLockManager) Acquire(ctx context.Context, accountID string) (fu
 	case entry.semaphore <- struct{}{}:
 	case <-ctx.Done():
 		m.releaseReference(accountID, entry)
-		<-m.global
+		return nil, lockContextError(ctx.Err())
+	}
+
+	select {
+	case m.global <- struct{}{}:
+	case <-ctx.Done():
+		<-entry.semaphore
+		m.releaseReference(accountID, entry)
 		return nil, lockContextError(ctx.Err())
 	}
 
@@ -64,11 +65,6 @@ func (m *InMemoryLockManager) TryAcquire(accountID string) (func(), bool, error)
 	if err := ValidateAccountID(accountID); err != nil {
 		return nil, false, err
 	}
-	select {
-	case m.global <- struct{}{}:
-	default:
-		return nil, false, nil
-	}
 	m.mu.Lock()
 	entry := m.locks[accountID]
 	if entry == nil {
@@ -81,7 +77,13 @@ func (m *InMemoryLockManager) TryAcquire(accountID string) (func(), bool, error)
 	case entry.semaphore <- struct{}{}:
 	default:
 		m.releaseReference(accountID, entry)
-		<-m.global
+		return nil, false, nil
+	}
+	select {
+	case m.global <- struct{}{}:
+	default:
+		<-entry.semaphore
+		m.releaseReference(accountID, entry)
 		return nil, false, nil
 	}
 	var once sync.Once

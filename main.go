@@ -72,9 +72,15 @@ func main() {
 		logrus.Fatalf("failed to initialize account locks: %v", err)
 	}
 	accountManager := account.NewAccountManager(accountRegistry, locks, newAccountBrowserFactory(cookieStore, newBrowserWithAccountCookie))
+	accountTools := NewAccountTools(
+		accountRegistry,
+		account.NewManagementManager(accountRegistry, locks, cookieStore),
+		cookieStore,
+		newBrowserAccountLogin(cookieStore),
+	)
 
 	// 创建并启动应用服务器
-	appServer := NewAppServer(xiaohongshuService, accountRegistry, accountManager)
+	appServer := NewAppServer(xiaohongshuService, accountRegistry, accountManager).WithAccountTools(accountTools)
 	if err := appServer.Start(port); err != nil {
 		logrus.Fatalf("failed to run server: %v", err)
 	}

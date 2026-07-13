@@ -82,11 +82,11 @@ func (s *FileCookieStore) Load(ctx context.Context, accountID string) ([]byte, e
 	if err := securePath(s.root, path, false); err != nil {
 		return nil, err
 	}
-	data, err := os.ReadFile(path)
+	data, err := readFileNoFollow(path)
 	if err != nil {
 		staged := path + ".removing"
 		if _, stagedErr := os.Stat(staged); stagedErr == nil {
-			data, err = os.ReadFile(staged)
+			data, err = readFileNoFollow(staged)
 		} else if stagedErr != nil && !errors.Is(stagedErr, os.ErrNotExist) {
 			return nil, newError(CodePersistenceFailed, "读取暂存账号 Cookie 失败", true, stagedErr)
 		}

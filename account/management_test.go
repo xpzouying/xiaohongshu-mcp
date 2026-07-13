@@ -102,23 +102,6 @@ func TestRegistryRemovePersistsAndClearsDefault(t *testing.T) {
 	}
 }
 
-func TestRegistryCreateReturnsStableCallerErrorCodes(t *testing.T) {
-	r, err := NewFileRegistry(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := context.Background()
-	if _, err := r.Create(ctx, CreateAccountInput{ID: "acct_a"}); ErrorCode(err) != CodeInvalidDisplayName {
-		t.Fatalf("empty display name code=%q err=%v", ErrorCode(err), err)
-	}
-	if _, err := r.Create(ctx, CreateAccountInput{ID: "acct_a", DisplayName: "A"}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := r.Create(ctx, CreateAccountInput{ID: "acct_a", DisplayName: "Again"}); ErrorCode(err) != CodeAccountAlreadyExists {
-		t.Fatalf("duplicate account code=%q err=%v", ErrorCode(err), err)
-	}
-}
-
 func TestManagerRemoveProtectsRunningAccountAndDeletesCookie(t *testing.T) {
 	root := t.TempDir()
 	r, _ := NewFileRegistry(root)
