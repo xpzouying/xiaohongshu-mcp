@@ -218,7 +218,15 @@ func (s *AppServer) userProfileHandler(c *gin.Context) {
 	}
 
 	// 获取用户信息
-	result, err := s.xiaohongshuService.UserProfile(c.Request.Context(), req.UserID, req.XsecToken)
+	config := xiaohongshu.DefaultNoteScrollConfig()
+	if req.LoadAllNotes {
+		config.LoadAllNotes = true
+		switch req.ScrollSpeed {
+		case "slow", "normal", "fast":
+			config.ScrollSpeed = req.ScrollSpeed
+		}
+	}
+	result, err := s.xiaohongshuService.UserProfile(c.Request.Context(), req.UserID, req.XsecToken, config)
 	if err != nil {
 		respondError(c, http.StatusInternalServerError, "GET_USER_PROFILE_FAILED",
 			"获取用户主页失败", err.Error())

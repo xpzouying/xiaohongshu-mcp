@@ -422,7 +422,7 @@ func (s *XiaohongshuService) GetFeedDetailWithConfig(ctx context.Context, feedID
 }
 
 // UserProfile 获取用户信息
-func (s *XiaohongshuService) UserProfile(ctx context.Context, userID, xsecToken string) (*UserProfileResponse, error) {
+func (s *XiaohongshuService) UserProfile(ctx context.Context, userID, xsecToken string, config xiaohongshu.NoteScrollConfig) (*UserProfileResponse, error) {
 	b := newBrowser()
 	defer b.Close()
 
@@ -431,7 +431,7 @@ func (s *XiaohongshuService) UserProfile(ctx context.Context, userID, xsecToken 
 
 	action := xiaohongshu.NewUserProfileAction(page)
 
-	result, err := action.UserProfile(ctx, userID, xsecToken)
+	result, err := action.UserProfile(ctx, userID, xsecToken, config)
 	if err != nil {
 		return nil, err
 	}
@@ -442,7 +442,6 @@ func (s *XiaohongshuService) UserProfile(ctx context.Context, userID, xsecToken 
 	}
 
 	return response, nil
-
 }
 
 // PostCommentToFeed 发表评论到Feed

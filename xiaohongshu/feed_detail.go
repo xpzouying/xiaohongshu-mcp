@@ -84,23 +84,142 @@ func (f *FeedDetailAction) GetFeedDetailWithConfig(ctx context.Context, feedID, 
 	logrus.Infof("配置: 点击更多=%v, 回复阈值=%d, 最大评论数=%d, 滚动速度=%s",
 		config.ClickMoreReplies, config.MaxRepliesThreshold, config.MaxCommentItems, config.ScrollSpeed)
 
-	// 使用retry-go处理页面导航和DOM稳定等待
+	// 策略：在首页设置 XHR 拦截，然后通过 history.pushState + 触发小红书前端路由加载详情
+	// 这样可以拦截小红书前端 JS 自己发出的带签名的 API 请求
+	logrus.Info("加载首页建立 session...")
+
+	// 先注入 XHR 拦截器，再导航
+	page.MustEval(`() => {
+		window.__XHS_INTERCEPTED_RESPONSES__ = {};
+		const origFetch = window.fetch;
+		window.fetch = function(...args) {
+			return origFetch.apply(this, args).then(response => {
+				const url = typeof args[0] === 'string' ? args[0] : (args[0]?.url || '');
+				if (url.includes('/api/sns/web/v1/feed')) {
+					response.clone().json().then(data => {
+						window.__XHS_INTERCEPTED_RESPONSES__['feed'] = JSON.stringify(data);
+					}).catch(() => {});
+				}
+				return response;
+			});
+		};
+
+		const origXHR = XMLHttpRequest.prototype.open;
+		XMLHttpRequest.prototype.open = function(method, url, ...rest) {
+			if (url && url.includes('/api/sns/web/v1/feed')) {
+				this.addEventListener('load', function() {
+					try {
+						window.__XHS_INTERCEPTED_RESPONSES__['feed'] = this.responseText;
+					} catch(e) {}
+				});
+			}
+			return origXHR.apply(this, [method, url, ...rest]);
+		};
+	}`)
+
 	err := retry.Do(
 		func() error {
-			page.MustNavigate(url)
+			page.MustNavigate("https://www.xiaohongshu.com/explore")
 			page.MustWaitDOMStable()
 			return nil
 		},
-		retry.Attempts(3),
-		retry.Delay(500*time.Millisecond),
-		retry.MaxJitter(1000*time.Millisecond),
-		retry.OnRetry(func(n uint, err error) {
-			logrus.Debugf("页面导航重试 #%d: %v", n, err)
-		}),
+		retry.Attempts(2),
+		retry.Delay(1*time.Second),
 	)
 	if err != nil {
-		logrus.Errorf("页面导航失败: %v", err)
-		return nil, err
+		logrus.Warnf("首页加载失败: %v", err)
+	}
+
+	currentURL := page.MustEval(`() => window.location.href`).String()
+	logrus.Infof("首页 URL: %s", currentURL)
+
+	// 重新注入拦截器（导航后可能被清除）
+	page.MustEval(`() => {
+		if (!window.__XHS_INTERCEPTED_RESPONSES__) {
+			window.__XHS_INTERCEPTED_RESPONSES__ = {};
+		}
+		const origFetch = window.fetch;
+		if (!window.__xhs_fetch_hooked__) {
+			window.__xhs_fetch_hooked__ = true;
+			window.fetch = function(...args) {
+				return origFetch.apply(this, args).then(response => {
+					const url = typeof args[0] === 'string' ? args[0] : (args[0]?.url || '');
+					if (url.includes('/api/sns/web/v1/feed')) {
+						response.clone().json().then(data => {
+							window.__XHS_INTERCEPTED_RESPONSES__['feed'] = JSON.stringify(data);
+						}).catch(() => {});
+					}
+					return response;
+				});
+			};
+		}
+	}`)
+
+	sleepRandom(1500, 2500)
+
+	// 第二步：通过 pushState 触发小红书前端路由，让它自己加载笔记详情
+	logrus.Infof("通过 pushState 触发笔记加载: feedID=%s", feedID)
+	page.MustEval(fmt.Sprintf(`() => {
+		// 清空之前的拦截数据
+		window.__XHS_INTERCEPTED_RESPONSES__ = {};
+		// 使用 history.pushState 触发 SPA 路由
+		history.pushState(null, '', '/explore/%s?xsec_token=%s&xsec_source=pc_feed');
+		window.dispatchEvent(new PopStateEvent('popstate'));
+	}`, feedID, xsecToken))
+
+	// 等待 API 响应被拦截
+	var interceptedData string
+	for i := 0; i < 15; i++ {
+		time.Sleep(1 * time.Second)
+		interceptedData = page.MustEval(`() => {
+			return window.__XHS_INTERCEPTED_RESPONSES__?.feed || '';
+		}`).String()
+		if interceptedData != "" {
+			logrus.Infof("拦截到 API 响应 (%d 字节, 第 %d 秒)", len(interceptedData), i+1)
+			break
+		}
+	}
+
+	if interceptedData != "" {
+		apiResp, parseErr := parseInternalAPIResponse(interceptedData, feedID)
+		if parseErr == nil && apiResp != nil {
+			logrus.Info("通过 XHR 拦截成功获取笔记详情")
+			return apiResp, nil
+		}
+		logrus.Warnf("拦截数据解析失败: %v", parseErr)
+		if len(interceptedData) > 500 {
+			logrus.Infof("拦截数据片段: %s", interceptedData[:500])
+		} else {
+			logrus.Infof("拦截数据: %s", interceptedData)
+		}
+	} else {
+		logrus.Warn("15秒内未拦截到 API 响应")
+	}
+
+	// 检查当前页面状态
+	currentURL = page.MustEval(`() => window.location.href`).String()
+	logrus.Infof("当前页面 URL: %s", currentURL)
+
+	// 回退方案：尝试直接导航
+	if !strings.Contains(currentURL, feedID) {
+		logrus.Info("回退到直接 URL 导航")
+		err = retry.Do(
+			func() error {
+				page.MustNavigate(url)
+				page.MustWaitDOMStable()
+				curURL := page.MustEval(`() => window.location.href`).String()
+				if strings.Contains(curURL, "/captcha") || strings.Contains(curURL, "verifyType") {
+					return fmt.Errorf("页面被重定向到验证码")
+				}
+				return nil
+			},
+			retry.Attempts(2),
+			retry.Delay(3*time.Second),
+		)
+		if err != nil {
+			logrus.Errorf("页面导航失败: %v", err)
+			return nil, fmt.Errorf("页面导航失败（需要验证码）: %w", err)
+		}
 	}
 	sleepRandom(1000, 1000)
 
@@ -782,6 +901,9 @@ func checkPageAccessible(page *rod.Page) error {
 		"仅作者可见",
 		"因用户设置，你无法查看",
 		"因违规无法查看",
+		"扫码查看",
+		"Sorry, This Page",
+		"Isn't Available",
 	}
 
 	for _, kw := range keywords {
@@ -804,9 +926,29 @@ func checkPageAccessible(page *rod.Page) error {
 // ========== 数据提取 ==========
 
 func (f *FeedDetailAction) extractFeedDetail(page *rod.Page, feedID string) (*FeedDetailResponse, error) {
+	// Strategy 1: Try __INITIAL_STATE__ (legacy SSR)
+	if resp, err := f.extractFromInitialState(page, feedID); err == nil {
+		logrus.Info("通过 __INITIAL_STATE__ 成功提取Feed详情")
+		return resp, nil
+	} else {
+		logrus.Warnf("__INITIAL_STATE__ 提取失败: %v, 尝试DOM提取", err)
+	}
+
+	// Strategy 2: Extract from rendered DOM (client-side rendered pages)
+	if resp, err := f.extractFromDOM(page, feedID); err == nil {
+		logrus.Info("通过 DOM 成功提取Feed详情")
+		return resp, nil
+	} else {
+		logrus.Warnf("DOM 提取失败: %v", err)
+	}
+
+	return nil, fmt.Errorf("所有提取策略均失败")
+}
+
+// extractFromInitialState tries the legacy __INITIAL_STATE__ extraction
+func (f *FeedDetailAction) extractFromInitialState(page *rod.Page, feedID string) (*FeedDetailResponse, error) {
 	var result string
 
-	// 使用retry-go来处理可能的DOM查询失败
 	err := retry.Do(
 		func() error {
 			evalResult := page.MustEval(`() => {
@@ -834,8 +976,7 @@ func (f *FeedDetailAction) extractFeedDetail(page *rod.Page, feedID string) (*Fe
 	)
 
 	if err != nil {
-		logrus.Errorf("提取Feed详情失败: %v", err)
-		return nil, fmt.Errorf("提取Feed详情失败: %w", err)
+		return nil, err
 	}
 
 	if result == "" {
@@ -862,6 +1003,378 @@ func (f *FeedDetailAction) extractFeedDetail(page *rod.Page, feedID string) (*Fe
 	}, nil
 }
 
+// extractFromDOM extracts feed detail from rendered DOM elements
+func (f *FeedDetailAction) extractFromDOM(page *rod.Page, feedID string) (*FeedDetailResponse, error) {
+	// Wait for content to render (client-side rendering may take a moment)
+	time.Sleep(2 * time.Second)
+	page.MustWaitDOMStable()
+
+	resultJSON := page.MustEval(`() => {
+		const result = {};
+
+		// Title: try multiple selectors
+		const titleEl = document.querySelector('#detail-title')
+			|| document.querySelector('.note-content .title')
+			|| document.querySelector('[class*="title"][class*="note"]')
+			|| document.querySelector('.note-top .title')
+			|| document.querySelector('.note-detail .title');
+		result.title = titleEl ? titleEl.innerText.trim() : '';
+
+		// Description/Content: try multiple selectors
+		const descEl = document.querySelector('#detail-desc')
+			|| document.querySelector('.note-content .desc')
+			|| document.querySelector('[class*="desc"][class*="note"]')
+			|| document.querySelector('.note-text')
+			|| document.querySelector('.note-detail .desc');
+		result.desc = descEl ? descEl.innerText.trim() : '';
+
+		// Images: collect from slider/swiper or image containers
+		const images = [];
+		const imgSelectors = [
+			'.note-content .slider-item img',
+			'.note-content .swiper-slide img',
+			'.note-image-list img',
+			'.carousel-wrapper img',
+			'.note-detail img.note-slider-img',
+			'.media-container img',
+		];
+		for (const sel of imgSelectors) {
+			const els = document.querySelectorAll(sel);
+			if (els.length > 0) {
+				els.forEach(img => {
+					const src = img.src || img.getAttribute('data-src') || '';
+					if (src && !src.includes('avatar') && !src.includes('emoji')) {
+						images.push({
+							url: src,
+							width: img.naturalWidth || img.width || 0,
+							height: img.naturalHeight || img.height || 0,
+						});
+					}
+				});
+				break; // use first matching selector
+			}
+		}
+		result.images = images;
+
+		// User info
+		const userEl = document.querySelector('.author-wrapper .username')
+			|| document.querySelector('.author-container .name')
+			|| document.querySelector('[class*="author"] .name')
+			|| document.querySelector('.note-detail .user-name');
+		result.nickname = userEl ? userEl.innerText.trim() : '';
+
+		const avatarEl = document.querySelector('.author-wrapper img.avatar')
+			|| document.querySelector('.author-container img')
+			|| document.querySelector('[class*="author"] img');
+		result.avatar = avatarEl ? (avatarEl.src || '') : '';
+
+		// Interaction info
+		const likeEl = document.querySelector('[class*="like"] [class*="count"]')
+			|| document.querySelector('.like-wrapper .count')
+			|| document.querySelector('[class*="like-count"]');
+		result.likedCount = likeEl ? likeEl.innerText.trim() : '0';
+
+		const collectEl = document.querySelector('[class*="collect"] [class*="count"]')
+			|| document.querySelector('.collect-wrapper .count')
+			|| document.querySelector('[class*="collect-count"]');
+		result.collectedCount = collectEl ? collectEl.innerText.trim() : '0';
+
+		const commentCountEl = document.querySelector('[class*="chat"] [class*="count"]')
+			|| document.querySelector('.comment-wrapper .count')
+			|| document.querySelector('[class*="comment-count"]');
+		result.commentCount = commentCountEl ? commentCountEl.innerText.trim() : '0';
+
+		const shareEl = document.querySelector('[class*="share"] [class*="count"]')
+			|| document.querySelector('.share-wrapper .count');
+		result.sharedCount = shareEl ? shareEl.innerText.trim() : '0';
+
+		// IP location
+		const ipEl = document.querySelector('.note-content .ip-container')
+			|| document.querySelector('[class*="location"]')
+			|| document.querySelector('.date .ip');
+		result.ipLocation = ipEl ? ipEl.innerText.trim() : '';
+
+		// Date/time
+		const dateEl = document.querySelector('.note-content .date')
+			|| document.querySelector('.note-detail .date')
+			|| document.querySelector('[class*="date"]');
+		result.date = dateEl ? dateEl.innerText.trim() : '';
+
+		// Note type detection
+		const videoEl = document.querySelector('video')
+			|| document.querySelector('[class*="player"]');
+		result.isVideo = !!videoEl;
+
+		// Debug: dump nearby element classes for diagnostics
+		const noteContainer = document.querySelector('.note-detail')
+			|| document.querySelector('#noteContainer')
+			|| document.querySelector('[class*="note-container"]')
+			|| document.querySelector('[id*="note"]');
+		if (noteContainer) {
+			result._containerClass = noteContainer.className;
+			result._containerHTML = noteContainer.innerHTML.substring(0, 500);
+		}
+
+		// Also dump full page text length for diagnostics
+		result._bodyLength = document.body ? document.body.innerText.length : 0;
+		result._url = window.location.href;
+
+		return JSON.stringify(result);
+	}`).String()
+
+	if resultJSON == "" {
+		return nil, fmt.Errorf("DOM 提取返回空结果")
+	}
+
+	var domData struct {
+		Title          string `json:"title"`
+		Desc           string `json:"desc"`
+		Nickname       string `json:"nickname"`
+		Avatar         string `json:"avatar"`
+		LikedCount     string `json:"likedCount"`
+		CollectedCount string `json:"collectedCount"`
+		CommentCount   string `json:"commentCount"`
+		SharedCount    string `json:"sharedCount"`
+		IPLocation     string `json:"ipLocation"`
+		Date           string `json:"date"`
+		IsVideo        bool   `json:"isVideo"`
+		Images         []struct {
+			URL    string `json:"url"`
+			Width  int    `json:"width"`
+			Height int    `json:"height"`
+		} `json:"images"`
+		ContainerClass string `json:"_containerClass"`
+		ContainerHTML  string `json:"_containerHTML"`
+		BodyLength     int    `json:"_bodyLength"`
+		URL            string `json:"_url"`
+	}
+
+	if err := json.Unmarshal([]byte(resultJSON), &domData); err != nil {
+		return nil, fmt.Errorf("DOM 数据解析失败: %w", err)
+	}
+
+	logrus.Infof("DOM 提取结果: title=%q, desc_len=%d, images=%d, likes=%s, container=%s, bodyLen=%d",
+		domData.Title, len(domData.Desc), len(domData.Images), domData.LikedCount,
+		domData.ContainerClass, domData.BodyLength)
+
+	// If we got basically nothing, the page may not have rendered
+	if domData.Title == "" && domData.Desc == "" && len(domData.Images) == 0 {
+		logrus.Warnf("DOM 提取: 没有找到内容 (bodyLen=%d, url=%s, containerHTML=%s)",
+			domData.BodyLength, domData.URL, domData.ContainerHTML)
+		return nil, fmt.Errorf("DOM 中未找到笔记内容")
+	}
+
+	// Build image list
+	imageList := make([]DetailImageInfo, 0, len(domData.Images))
+	for _, img := range domData.Images {
+		imageList = append(imageList, DetailImageInfo{
+			Width:      img.Width,
+			Height:     img.Height,
+			URLDefault: img.URL,
+			URLPre:     img.URL,
+		})
+	}
+
+	noteType := "normal"
+	if domData.IsVideo {
+		noteType = "video"
+	}
+
+	note := FeedDetail{
+		NoteID:     feedID,
+		Title:      domData.Title,
+		Desc:       domData.Desc,
+		Type:       noteType,
+		IPLocation: domData.IPLocation,
+		User: User{
+			Nickname: domData.Nickname,
+			Avatar:   domData.Avatar,
+		},
+		InteractInfo: InteractInfo{
+			LikedCount:     domData.LikedCount,
+			CollectedCount: domData.CollectedCount,
+			CommentCount:   domData.CommentCount,
+			SharedCount:    domData.SharedCount,
+		},
+		ImageList: imageList,
+	}
+
+	return &FeedDetailResponse{
+		Note: note,
+	}, nil
+}
+
 func makeFeedDetailURL(feedID, xsecToken string) string {
 	return fmt.Sprintf("https://www.xiaohongshu.com/explore/%s?xsec_token=%s&xsec_source=pc_feed", feedID, xsecToken)
+}
+
+// parseInternalAPIResponse 解析小红书内部 API 的响应
+func parseInternalAPIResponse(rawJSON string, feedID string) (*FeedDetailResponse, error) {
+	var apiResp struct {
+		Code int    `json:"code"`
+		Msg  string `json:"msg"`
+		Data struct {
+			Items []struct {
+				ID        string `json:"id"`
+				ModelType string `json:"model_type"`
+				NoteCard  struct {
+					Type         string `json:"type"`
+					Title        string `json:"title"`
+					DisplayTitle string `json:"display_title"`
+					Desc         string `json:"desc"`
+					Time         int64  `json:"time"`
+					IPLocation   string `json:"ip_location"`
+					User         struct {
+						UserID   string `json:"user_id"`
+						Nickname string `json:"nickname"`
+						NickName string `json:"nick_name"`
+						Avatar   string `json:"avatar"`
+					} `json:"user"`
+					InteractInfo struct {
+						Liked          bool   `json:"liked"`
+						LikedCount     string `json:"liked_count"`
+						Collected      bool   `json:"collected"`
+						CollectedCount string `json:"collected_count"`
+						CommentCount   string `json:"comment_count"`
+						SharedCount    string `json:"share_count"`
+					} `json:"interact_info"`
+					ImageList []struct {
+						Width      int    `json:"width"`
+						Height     int    `json:"height"`
+						URL        string `json:"url"`
+						URLDefault string `json:"url_default"`
+						URLPre     string `json:"url_pre"`
+						FileID     string `json:"file_id"`
+						InfoList   []struct {
+							URL        string `json:"url"`
+							ImageScene string `json:"image_scene"`
+						} `json:"info_list"`
+					} `json:"image_list"`
+				} `json:"note_card"`
+			} `json:"items"`
+		} `json:"data"`
+		Error string `json:"error"`
+	}
+
+	if err := json.Unmarshal([]byte(rawJSON), &apiResp); err != nil {
+		return nil, fmt.Errorf("解析 API 响应 JSON 失败: %w", err)
+	}
+
+	if apiResp.Error != "" {
+		return nil, fmt.Errorf("API 返回错误: %s", apiResp.Error)
+	}
+
+	if apiResp.Code != 0 {
+		return nil, fmt.Errorf("API 返回非零代码: code=%d msg=%s", apiResp.Code, apiResp.Msg)
+	}
+
+	if len(apiResp.Data.Items) == 0 {
+		return nil, fmt.Errorf("API 返回空 items")
+	}
+
+	// 查找匹配的 feed
+	var noteCard *struct {
+		Type         string `json:"type"`
+		Title        string `json:"title"`
+		DisplayTitle string `json:"display_title"`
+		Desc         string `json:"desc"`
+		Time         int64  `json:"time"`
+		IPLocation   string `json:"ip_location"`
+		User         struct {
+			UserID   string `json:"user_id"`
+			Nickname string `json:"nickname"`
+			NickName string `json:"nick_name"`
+			Avatar   string `json:"avatar"`
+		} `json:"user"`
+		InteractInfo struct {
+			Liked          bool   `json:"liked"`
+			LikedCount     string `json:"liked_count"`
+			Collected      bool   `json:"collected"`
+			CollectedCount string `json:"collected_count"`
+			CommentCount   string `json:"comment_count"`
+			SharedCount    string `json:"share_count"`
+		} `json:"interact_info"`
+		ImageList []struct {
+			Width      int    `json:"width"`
+			Height     int    `json:"height"`
+			URL        string `json:"url"`
+			URLDefault string `json:"url_default"`
+			URLPre     string `json:"url_pre"`
+			FileID     string `json:"file_id"`
+			InfoList   []struct {
+				URL        string `json:"url"`
+				ImageScene string `json:"image_scene"`
+			} `json:"info_list"`
+		} `json:"image_list"`
+	}
+	for i := range apiResp.Data.Items {
+		item := &apiResp.Data.Items[i]
+		if item.ID == feedID || item.NoteCard.Title != "" {
+			noteCard = &item.NoteCard
+			break
+		}
+	}
+
+	if noteCard == nil {
+		noteCard = &apiResp.Data.Items[0].NoteCard
+	}
+
+	// 转换为 FeedDetailResponse
+	title := noteCard.Title
+	if title == "" {
+		title = noteCard.DisplayTitle
+	}
+
+	nickname := noteCard.User.Nickname
+	if nickname == "" {
+		nickname = noteCard.User.NickName
+	}
+
+	imageList := make([]DetailImageInfo, 0, len(noteCard.ImageList))
+	for _, img := range noteCard.ImageList {
+		urlDefault := img.URLDefault
+		if urlDefault == "" {
+			urlDefault = img.URL
+		}
+		urlPre := img.URLPre
+		if urlPre == "" {
+			urlPre = urlDefault
+		}
+		imageList = append(imageList, DetailImageInfo{
+			Width:      img.Width,
+			Height:     img.Height,
+			URLDefault: urlDefault,
+			URLPre:     urlPre,
+		})
+	}
+
+	note := FeedDetail{
+		NoteID:     feedID,
+		Title:      title,
+		Desc:       noteCard.Desc,
+		Type:       noteCard.Type,
+		Time:       noteCard.Time,
+		IPLocation: noteCard.IPLocation,
+		User: User{
+			UserID:   noteCard.User.UserID,
+			Nickname: nickname,
+			Avatar:   noteCard.User.Avatar,
+		},
+		InteractInfo: InteractInfo{
+			Liked:          noteCard.InteractInfo.Liked,
+			LikedCount:     noteCard.InteractInfo.LikedCount,
+			Collected:      noteCard.InteractInfo.Collected,
+			CollectedCount: noteCard.InteractInfo.CollectedCount,
+			CommentCount:   noteCard.InteractInfo.CommentCount,
+			SharedCount:    noteCard.InteractInfo.SharedCount,
+		},
+		ImageList: imageList,
+	}
+
+	logrus.Infof("API 解析成功: title=%q, desc_len=%d, images=%d, likes=%s",
+		note.Title, len(note.Desc), len(note.ImageList), note.InteractInfo.LikedCount)
+
+	return &FeedDetailResponse{
+		Note: note,
+	}, nil
 }
