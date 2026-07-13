@@ -83,7 +83,7 @@ func (s *FileCookieStore) Load(ctx context.Context, accountID string) ([]byte, e
 		return nil, err
 	}
 	data, err := os.ReadFile(path)
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
+	if err != nil {
 		staged := path + ".removing"
 		if _, stagedErr := os.Stat(staged); stagedErr == nil {
 			data, err = os.ReadFile(staged)

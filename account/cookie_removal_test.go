@@ -39,6 +39,28 @@ func TestManagerRemoveRetriesStagedCookieAfterCrash(t *testing.T) {
 	}
 }
 
+func TestCookieStoreLoadsStagedCookieAfterCrash(t *testing.T) {
+	store, err := NewFileCookieStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []byte(`[{"name":"session","value":"original"}]`)
+	if err := store.Save(context.Background(), "acct_a", want); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.StageRemove(context.Background(), "acct_a"); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := store.Load(context.Background(), "acct_a")
+	if err != nil {
+		t.Fatalf("load staged cookie: %v", err)
+	}
+	if string(got) != string(want) {
+		t.Fatalf("cookie=%s, want %s", got, want)
+	}
+}
+
 func TestManagerRemoveCleansStagedCookieAfterRegistryCrash(t *testing.T) {
 	root := t.TempDir()
 	registry, _ := NewFileRegistry(root)
