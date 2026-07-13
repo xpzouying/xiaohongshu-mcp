@@ -18,6 +18,7 @@ func boolPtr(b bool) *bool { return &b }
 
 // PublishContentArgs 发布内容的参数
 type PublishContentArgs struct {
+	AccountID  string   `json:"account_id,omitempty" jsonschema:"账号ID（可选）。不填时依次使用默认账号或唯一账号"`
 	Title      string   `json:"title" jsonschema:"内容标题（小红书限制：最多20个中文字或英文单词）"`
 	Content    string   `json:"content" jsonschema:"正文内容，不包含以#开头的标签内容，所有话题标签都用tags参数来生成和提供即可"`
 	Images     []string `json:"images" jsonschema:"图片路径列表（至少需要1张图片）。支持两种方式：1. HTTP/HTTPS图片链接（自动下载）；2. 本地图片绝对路径（推荐，如:/Users/user/image.jpg）"`
@@ -30,6 +31,7 @@ type PublishContentArgs struct {
 
 // PublishVideoArgs 发布视频的参数（仅支持本地单个视频文件）
 type PublishVideoArgs struct {
+	AccountID  string   `json:"account_id,omitempty" jsonschema:"账号ID（可选）。不填时依次使用默认账号或唯一账号"`
 	Title      string   `json:"title" jsonschema:"内容标题（小红书限制：最多20个中文字或英文单词）"`
 	Content    string   `json:"content" jsonschema:"正文内容，不包含以#开头的标签内容，所有话题标签都用tags参数来生成和提供即可"`
 	Video      string   `json:"video" jsonschema:"本地视频绝对路径（仅支持单个视频文件，如:/Users/user/video.mp4）"`
@@ -41,8 +43,14 @@ type PublishVideoArgs struct {
 
 // SearchFeedsArgs 搜索内容的参数
 type SearchFeedsArgs struct {
-	Keyword string       `json:"keyword" jsonschema:"搜索关键词"`
-	Filters FilterOption `json:"filters,omitempty" jsonschema:"筛选选项"`
+	AccountID string       `json:"account_id,omitempty" jsonschema:"账号ID（可选）。不填时依次使用默认账号或唯一账号"`
+	Keyword   string       `json:"keyword" jsonschema:"搜索关键词"`
+	Filters   FilterOption `json:"filters,omitempty" jsonschema:"筛选选项"`
+}
+
+// ListFeedsArgs 获取推荐流的参数
+type ListFeedsArgs struct {
+	AccountID string `json:"account_id,omitempty" jsonschema:"账号ID（可选）。不填时依次使用默认账号或唯一账号"`
 }
 
 // FilterOption 筛选选项结构体
@@ -56,6 +64,7 @@ type FilterOption struct {
 
 // FeedDetailArgs 获取Feed详情的参数
 type FeedDetailArgs struct {
+	AccountID        string `json:"account_id,omitempty" jsonschema:"账号ID（可选）。不填时依次使用默认账号或唯一账号"`
 	FeedID           string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
 	XsecToken        string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
 	LoadAllComments  bool   `json:"load_all_comments,omitempty" jsonschema:"是否加载全部评论。false仅返回前10条一级评论（默认），true滚动加载更多评论"`
@@ -67,12 +76,14 @@ type FeedDetailArgs struct {
 
 // UserProfileArgs 获取用户主页的参数
 type UserProfileArgs struct {
+	AccountID string `json:"account_id,omitempty" jsonschema:"账号ID（可选）。不填时依次使用默认账号或唯一账号"`
 	UserID    string `json:"user_id" jsonschema:"小红书用户ID，从Feed列表获取"`
 	XsecToken string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
 }
 
 // PostCommentArgs 发表评论的参数
 type PostCommentArgs struct {
+	AccountID string `json:"account_id,omitempty" jsonschema:"账号ID（可选）。不填时依次使用默认账号或唯一账号"`
 	FeedID    string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
 	XsecToken string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
 	Content   string `json:"content" jsonschema:"评论内容"`
@@ -80,6 +91,7 @@ type PostCommentArgs struct {
 
 // ReplyCommentArgs 回复评论的参数
 type ReplyCommentArgs struct {
+	AccountID string `json:"account_id,omitempty" jsonschema:"账号ID（可选）。不填时依次使用默认账号或唯一账号"`
 	FeedID    string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
 	XsecToken string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
 	CommentID string `json:"comment_id,omitempty" jsonschema:"目标评论ID，从评论列表获取"`
@@ -89,6 +101,7 @@ type ReplyCommentArgs struct {
 
 // LikeFeedArgs 点赞参数
 type LikeFeedArgs struct {
+	AccountID string `json:"account_id,omitempty" jsonschema:"账号ID（可选）。不填时依次使用默认账号或唯一账号"`
 	FeedID    string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
 	XsecToken string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
 	Unlike    bool   `json:"unlike,omitempty" jsonschema:"是否取消点赞，true为取消点赞，false或未设置则为点赞"`
@@ -96,9 +109,67 @@ type LikeFeedArgs struct {
 
 // FavoriteFeedArgs 收藏参数
 type FavoriteFeedArgs struct {
+	AccountID  string `json:"account_id,omitempty" jsonschema:"账号ID（可选）。不填时依次使用默认账号或唯一账号"`
 	FeedID     string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
 	XsecToken  string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
 	Unfavorite bool   `json:"unfavorite,omitempty" jsonschema:"是否取消收藏，true为取消收藏，false或未设置则为收藏"`
+}
+
+type accountRoutedArgs interface {
+	accountID() string
+}
+
+func (a PublishContentArgs) accountID() string { return a.AccountID }
+func (a PublishVideoArgs) accountID() string   { return a.AccountID }
+func (a ListFeedsArgs) accountID() string      { return a.AccountID }
+func (a SearchFeedsArgs) accountID() string    { return a.AccountID }
+func (a FeedDetailArgs) accountID() string     { return a.AccountID }
+func (a UserProfileArgs) accountID() string    { return a.AccountID }
+func (a PostCommentArgs) accountID() string    { return a.AccountID }
+func (a ReplyCommentArgs) accountID() string   { return a.AccountID }
+func (a LikeFeedArgs) accountID() string       { return a.AccountID }
+func (a FavoriteFeedArgs) accountID() string   { return a.AccountID }
+
+type accountContextKey struct{}
+type accountBrowserContextKey struct{}
+
+func accountIDFromContext(ctx context.Context) string {
+	id, _ := ctx.Value(accountContextKey{}).(string)
+	return id
+}
+
+func accountBrowserFromContext(ctx context.Context) account.Browser {
+	b, _ := ctx.Value(accountBrowserContextKey{}).(account.Browser)
+	return b
+}
+
+func withAccountRouting[T accountRoutedArgs](
+	manager *account.Manager,
+	kind account.OperationKind,
+	handler func(context.Context, *mcp.CallToolRequest, T) (*mcp.CallToolResult, any, error),
+) func(context.Context, *mcp.CallToolRequest, T) (*mcp.CallToolResult, any, error) {
+	return func(ctx context.Context, req *mcp.CallToolRequest, args T) (*mcp.CallToolResult, any, error) {
+		if manager == nil {
+			return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{
+				&mcp.TextContent{Text: "账号执行失败: 账号管理器未初始化"},
+			}}, nil, nil
+		}
+		var result *mcp.CallToolResult
+		var response any
+		_, err := manager.WithAccount(ctx, args.accountID(), kind, func(runCtx context.Context, selected account.Account, browser account.Browser) error {
+			runCtx = context.WithValue(runCtx, accountContextKey{}, selected.ID)
+			runCtx = context.WithValue(runCtx, accountBrowserContextKey{}, browser)
+			var handlerErr error
+			result, response, handlerErr = handler(runCtx, req, args)
+			return handlerErr
+		})
+		if err != nil {
+			return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{
+				&mcp.TextContent{Text: "账号执行失败: " + err.Error()},
+			}}, nil, nil
+		}
+		return result, response, nil
+	}
 }
 
 // InitMCPServer 初始化 MCP Server
@@ -217,7 +288,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				DestructiveHint: boolPtr(true),
 			},
 		},
-		withPanicRecovery("publish_content", func(ctx context.Context, req *mcp.CallToolRequest, args PublishContentArgs) (*mcp.CallToolResult, any, error) {
+		withAccountRouting(appServer.accountManager, account.OperationWrite, withPanicRecovery("publish_content", func(ctx context.Context, req *mcp.CallToolRequest, args PublishContentArgs) (*mcp.CallToolResult, any, error) {
 			// 转换参数格式到现有的 handler
 			argsMap := map[string]interface{}{
 				"title":       args.Title,
@@ -231,7 +302,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 			}
 			result := appServer.handlePublishContent(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
-		}),
+		})),
 	)
 
 	// 工具 5: 获取Feed列表
@@ -244,10 +315,10 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				ReadOnlyHint: true,
 			},
 		},
-		withPanicRecovery("list_feeds", func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, any, error) {
+		withAccountRouting(appServer.accountManager, account.OperationRead, withPanicRecovery("list_feeds", func(ctx context.Context, req *mcp.CallToolRequest, _ ListFeedsArgs) (*mcp.CallToolResult, any, error) {
 			result := appServer.handleListFeeds(ctx)
 			return convertToMCPResult(result), nil, nil
-		}),
+		})),
 	)
 
 	// 工具 6: 搜索内容
@@ -260,10 +331,10 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				ReadOnlyHint: true,
 			},
 		},
-		withPanicRecovery("search_feeds", func(ctx context.Context, req *mcp.CallToolRequest, args SearchFeedsArgs) (*mcp.CallToolResult, any, error) {
+		withAccountRouting(appServer.accountManager, account.OperationRead, withPanicRecovery("search_feeds", func(ctx context.Context, req *mcp.CallToolRequest, args SearchFeedsArgs) (*mcp.CallToolResult, any, error) {
 			result := appServer.handleSearchFeeds(ctx, args)
 			return convertToMCPResult(result), nil, nil
-		}),
+		})),
 	)
 
 	// 工具 7: 获取Feed详情
@@ -276,7 +347,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				ReadOnlyHint: true,
 			},
 		},
-		withPanicRecovery("get_feed_detail", func(ctx context.Context, req *mcp.CallToolRequest, args FeedDetailArgs) (*mcp.CallToolResult, any, error) {
+		withAccountRouting(appServer.accountManager, account.OperationRead, withPanicRecovery("get_feed_detail", func(ctx context.Context, req *mcp.CallToolRequest, args FeedDetailArgs) (*mcp.CallToolResult, any, error) {
 			argsMap := map[string]interface{}{
 				"feed_id":           args.FeedID,
 				"xsec_token":        args.XsecToken,
@@ -308,7 +379,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 
 			result := appServer.handleGetFeedDetail(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
-		}),
+		})),
 	)
 
 	// 工具 8: 获取用户主页
@@ -321,14 +392,14 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				ReadOnlyHint: true,
 			},
 		},
-		withPanicRecovery("user_profile", func(ctx context.Context, req *mcp.CallToolRequest, args UserProfileArgs) (*mcp.CallToolResult, any, error) {
+		withAccountRouting(appServer.accountManager, account.OperationRead, withPanicRecovery("user_profile", func(ctx context.Context, req *mcp.CallToolRequest, args UserProfileArgs) (*mcp.CallToolResult, any, error) {
 			argsMap := map[string]interface{}{
 				"user_id":    args.UserID,
 				"xsec_token": args.XsecToken,
 			}
 			result := appServer.handleUserProfile(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
-		}),
+		})),
 	)
 
 	// 工具 9: 发表评论
@@ -341,7 +412,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				DestructiveHint: boolPtr(true),
 			},
 		},
-		withPanicRecovery("post_comment_to_feed", func(ctx context.Context, req *mcp.CallToolRequest, args PostCommentArgs) (*mcp.CallToolResult, any, error) {
+		withAccountRouting(appServer.accountManager, account.OperationWrite, withPanicRecovery("post_comment_to_feed", func(ctx context.Context, req *mcp.CallToolRequest, args PostCommentArgs) (*mcp.CallToolResult, any, error) {
 			argsMap := map[string]interface{}{
 				"feed_id":    args.FeedID,
 				"xsec_token": args.XsecToken,
@@ -349,7 +420,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 			}
 			result := appServer.handlePostComment(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
-		}),
+		})),
 	)
 
 	// 工具 10: 回复评论
@@ -362,7 +433,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				DestructiveHint: boolPtr(true),
 			},
 		},
-		func(ctx context.Context, req *mcp.CallToolRequest, args ReplyCommentArgs) (*mcp.CallToolResult, any, error) {
+		withAccountRouting(appServer.accountManager, account.OperationWrite, withPanicRecovery("reply_comment_in_feed", func(ctx context.Context, req *mcp.CallToolRequest, args ReplyCommentArgs) (*mcp.CallToolResult, any, error) {
 			if args.CommentID == "" && args.UserID == "" {
 				return &mcp.CallToolResult{
 					IsError: true,
@@ -379,7 +450,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 			}
 			result := appServer.handleReplyComment(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
-		},
+		})),
 	)
 
 	// 工具 11: 发布视频（仅本地文件）
@@ -392,7 +463,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				DestructiveHint: boolPtr(true),
 			},
 		},
-		withPanicRecovery("publish_with_video", func(ctx context.Context, req *mcp.CallToolRequest, args PublishVideoArgs) (*mcp.CallToolResult, any, error) {
+		withAccountRouting(appServer.accountManager, account.OperationWrite, withPanicRecovery("publish_with_video", func(ctx context.Context, req *mcp.CallToolRequest, args PublishVideoArgs) (*mcp.CallToolResult, any, error) {
 			argsMap := map[string]interface{}{
 				"title":       args.Title,
 				"content":     args.Content,
@@ -404,7 +475,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 			}
 			result := appServer.handlePublishVideo(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
-		}),
+		})),
 	)
 
 	// 工具 12: 点赞笔记
@@ -417,7 +488,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				DestructiveHint: boolPtr(true),
 			},
 		},
-		withPanicRecovery("like_feed", func(ctx context.Context, req *mcp.CallToolRequest, args LikeFeedArgs) (*mcp.CallToolResult, any, error) {
+		withAccountRouting(appServer.accountManager, account.OperationWrite, withPanicRecovery("like_feed", func(ctx context.Context, req *mcp.CallToolRequest, args LikeFeedArgs) (*mcp.CallToolResult, any, error) {
 			argsMap := map[string]interface{}{
 				"feed_id":    args.FeedID,
 				"xsec_token": args.XsecToken,
@@ -425,7 +496,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 			}
 			result := appServer.handleLikeFeed(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
-		}),
+		})),
 	)
 
 	// 工具 13: 收藏笔记
@@ -438,7 +509,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				DestructiveHint: boolPtr(true),
 			},
 		},
-		withPanicRecovery("favorite_feed", func(ctx context.Context, req *mcp.CallToolRequest, args FavoriteFeedArgs) (*mcp.CallToolResult, any, error) {
+		withAccountRouting(appServer.accountManager, account.OperationWrite, withPanicRecovery("favorite_feed", func(ctx context.Context, req *mcp.CallToolRequest, args FavoriteFeedArgs) (*mcp.CallToolResult, any, error) {
 			argsMap := map[string]interface{}{
 				"feed_id":    args.FeedID,
 				"xsec_token": args.XsecToken,
@@ -446,7 +517,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 			}
 			result := appServer.handleFavoriteFeed(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
-		}),
+		})),
 	)
 
 	logrus.Infof("Registered %d MCP tools", 13)

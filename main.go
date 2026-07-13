@@ -3,8 +3,11 @@ package main
 import (
 	"flag"
 	"os"
+	"path/filepath"
+	"strconv"
 
 	"github.com/sirupsen/logrus"
+	"github.com/xpzouying/xiaohongshu-mcp/account"
 	"github.com/xpzouying/xiaohongshu-mcp/configs"
 )
 
@@ -33,9 +36,33 @@ func main() {
 
 	// 初始化服务
 	xiaohongshuService := NewXiaohongshuService()
+	dataDir := os.Getenv("XHS_DATA_DIR")
+	if dataDir == "" {
+		dataDir = filepath.Join(".", "data")
+	}
+	accountRegistry, err := account.NewFileRegistry(dataDir)
+	if err != nil {
+		logrus.Fatalf("failed to initialize account registry: %v", err)
+	}
+	cookieStore, err := account.NewFileCookieStore(dataDir)
+	if err != nil {
+		logrus.Fatalf("failed to initialize account cookie store: %v", err)
+	}
+	maxConcurrency := 2
+	if value := os.Getenv("XHS_MAX_ACCOUNT_CONCURRENCY"); value != "" {
+		maxConcurrency, err = strconv.Atoi(value)
+		if err != nil {
+			logrus.Fatalf("invalid XHS_MAX_ACCOUNT_CONCURRENCY: %v", err)
+		}
+	}
+	locks, err := account.NewLockManager(maxConcurrency)
+	if err != nil {
+		logrus.Fatalf("failed to initialize account locks: %v", err)
+	}
+	accountManager := account.NewAccountManager(accountRegistry, locks, newAccountBrowserFactory(cookieStore, newBrowserWithAccountCookie))
 
 	// 创建并启动应用服务器
-	appServer := NewAppServer(xiaohongshuService)
+	appServer := NewAppServer(xiaohongshuService, accountRegistry, accountManager)
 	if err := appServer.Start(port); err != nil {
 		logrus.Fatalf("failed to run server: %v", err)
 	}
