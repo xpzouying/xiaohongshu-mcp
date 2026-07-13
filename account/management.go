@@ -1,6 +1,9 @@
 package account
 
-import "context"
+import (
+	"context"
+	"errors"
+)
 
 type ManagementManager struct {
 	registry Registry
@@ -25,10 +28,30 @@ func (m *ManagementManager) Remove(ctx context.Context, id string) error {
 	}
 	defer release()
 	if _, err := m.registry.Get(ctx, id); err != nil {
+		if ErrorCode(err) != CodeAccountNotFound {
+			return err
+		}
+		removal, stageErr := m.cookies.StageRemove(ctx, id)
+		if stageErr != nil {
+			return errors.Join(err, stageErr)
+		}
+		if completeErr := removal.Complete(); completeErr != nil {
+			return errors.Join(err, completeErr)
+		}
 		return err
 	}
-	if err := m.cookies.Delete(ctx, id); err != nil {
+	removal, err := m.cookies.StageRemove(ctx, id)
+	if err != nil {
 		return err
 	}
-	return m.registry.Remove(ctx, id)
+	rollback := func(cause error) error {
+		return errors.Join(cause, removal.Rollback(context.WithoutCancel(ctx)))
+	}
+	if err := removal.Commit(ctx); err != nil {
+		return rollback(err)
+	}
+	if err := m.registry.Remove(ctx, id); err != nil {
+		return rollback(err)
+	}
+	return removal.Complete()
 }

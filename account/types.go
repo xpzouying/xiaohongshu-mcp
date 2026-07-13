@@ -58,7 +58,14 @@ type CookieStore interface {
 	Load(context.Context, string) ([]byte, error)
 	Save(context.Context, string, []byte) error
 	Delete(context.Context, string) error
+	StageRemove(context.Context, string) (CookieRemoval, error)
 	Path(string) (string, error)
+}
+
+type CookieRemoval interface {
+	Commit(context.Context) error
+	Rollback(context.Context) error
+	Complete() error
 }
 
 type Browser interface{ Close() }
