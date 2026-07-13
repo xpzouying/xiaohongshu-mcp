@@ -3,8 +3,10 @@ package main
 import (
 	"flag"
 	"os"
+	"path/filepath"
 
 	"github.com/sirupsen/logrus"
+	"github.com/xpzouying/xiaohongshu-mcp/account"
 	"github.com/xpzouying/xiaohongshu-mcp/configs"
 )
 
@@ -33,9 +35,17 @@ func main() {
 
 	// 初始化服务
 	xiaohongshuService := NewXiaohongshuService()
+	dataDir := os.Getenv("XHS_DATA_DIR")
+	if dataDir == "" {
+		dataDir = filepath.Join(".", "data")
+	}
+	accountRegistry, err := account.NewFileRegistry(dataDir)
+	if err != nil {
+		logrus.Fatalf("failed to initialize account registry: %v", err)
+	}
 
 	// 创建并启动应用服务器
-	appServer := NewAppServer(xiaohongshuService)
+	appServer := NewAppServer(xiaohongshuService, accountRegistry)
 	if err := appServer.Start(port); err != nil {
 		logrus.Fatalf("failed to run server: %v", err)
 	}

@@ -10,7 +10,8 @@ import (
 )
 
 type browserConfig struct {
-	binPath string
+	binPath    string
+	cookiePath string
 }
 
 type Option func(*browserConfig)
@@ -18,6 +19,13 @@ type Option func(*browserConfig)
 func WithBinPath(binPath string) Option {
 	return func(c *browserConfig) {
 		c.binPath = binPath
+	}
+}
+
+// WithCookiePath 指定当前账号的 Cookie 文件。
+func WithCookiePath(cookiePath string) Option {
+	return func(c *browserConfig) {
+		c.cookiePath = cookiePath
 	}
 }
 
@@ -55,7 +63,10 @@ func NewBrowser(headless bool, options ...Option) *headless_browser.Browser {
 	}
 
 	// 加载 cookies
-	cookiePath := cookies.GetCookiesFilePath()
+	cookiePath := cfg.cookiePath
+	if cookiePath == "" {
+		cookiePath = cookies.GetCookiesFilePath()
+	}
 	cookieLoader := cookies.NewLoadCookie(cookiePath)
 
 	if data, err := cookieLoader.LoadCookies(); err == nil {

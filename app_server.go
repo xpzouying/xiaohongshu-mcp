@@ -11,20 +11,27 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/sirupsen/logrus"
+	"github.com/xpzouying/xiaohongshu-mcp/account"
 )
 
 // AppServer 应用服务器结构体，封装所有服务和处理器
 type AppServer struct {
 	xiaohongshuService *XiaohongshuService
+	accountRegistry    account.Registry
 	mcpServer          *mcp.Server
 	router             *gin.Engine
 	httpServer         *http.Server
 }
 
 // NewAppServer 创建新的应用服务器实例
-func NewAppServer(xiaohongshuService *XiaohongshuService) *AppServer {
+func NewAppServer(xiaohongshuService *XiaohongshuService, registries ...account.Registry) *AppServer {
+	var registry account.Registry
+	if len(registries) > 0 {
+		registry = registries[0]
+	}
 	appServer := &AppServer{
 		xiaohongshuService: xiaohongshuService,
+		accountRegistry:    registry,
 	}
 
 	// 初始化 MCP Server（需要在创建 appServer 之后，因为工具注册需要访问 appServer）
