@@ -30,7 +30,7 @@ func (s *FileCookieStore) Load(ctx context.Context, accountID string) ([]byte, e
 	if err != nil {
 		return nil, err
 	}
-	if err := rejectSymlink(path); err != nil {
+	if err := securePath(s.root, path, false); err != nil {
 		return nil, err
 	}
 	data, err := os.ReadFile(path)
@@ -57,7 +57,7 @@ func (s *FileCookieStore) Save(ctx context.Context, accountID string, data []byt
 	if err != nil {
 		return err
 	}
-	if err := atomicWrite(path, data); err != nil {
+	if err := atomicWrite(s.root, path, data); err != nil {
 		return newError(CodePersistenceFailed, "保存账号 Cookie 失败", true, err)
 	}
 	return nil
@@ -71,7 +71,7 @@ func (s *FileCookieStore) Delete(ctx context.Context, accountID string) error {
 	if err != nil {
 		return err
 	}
-	if err := rejectSymlink(path); err != nil {
+	if err := securePath(s.root, path, false); err != nil {
 		return err
 	}
 	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
