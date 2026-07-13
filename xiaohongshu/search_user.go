@@ -36,8 +36,13 @@ func (s *SearchUserAction) SearchUsers(ctx context.Context, keyword string) ([]S
 
 	// 等待用户列表加载完成，或者页面明确显示没有相关用户
 	page.MustWait(`() => {
-		const userLists = window.__INITIAL_STATE__?.search?.userLists;
-		const users = userLists?.value !== undefined ? userLists.value : userLists?._value;
+		const bodyText = document.body ? document.body.innerText : '';
+		if (bodyText.includes('没找到相关用户')) return true;
+
+		const search = window.__INITIAL_STATE__?.search;
+		const userLists = search?.userLists;
+		const users = userLists ? (userLists.value !== undefined ? userLists.value : userLists._value) : undefined;
+
 		return Array.isArray(users) && users.length > 0;
 	}`)
 
