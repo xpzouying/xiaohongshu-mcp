@@ -30,6 +30,7 @@ func (r *routingRegistry) Get(context.Context, string) (account.Account, error) 
 func (r *routingRegistry) Create(context.Context, account.CreateAccountInput) (account.Account, error) {
 	return account.Account{}, nil
 }
+func (r *routingRegistry) Remove(context.Context, string) error     { return nil }
 func (r *routingRegistry) SetDefault(context.Context, string) error { return nil }
 func (r *routingRegistry) UpdateStatus(context.Context, string, account.Status, string) error {
 	return nil
