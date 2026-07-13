@@ -88,7 +88,7 @@ func MigrateLegacy(ctx context.Context, options MigrationOptions) (MigrationResu
 		now = options.Clock().UTC()
 	}
 	defaultID := "default"
-	doc := registryDocument{SchemaVersion: registrySchemaVersion, DefaultAccountID: &defaultID, Accounts: []Account{{ID: defaultID, DisplayName: "Default Account", Status: StatusNeedsLogin, CreatedAt: now, UpdatedAt: now}}}
+	doc := registryDocument{SchemaVersion: registrySchemaVersion, DefaultAccountID: &defaultID, Accounts: []Account{{ID: defaultID, DisplayName: "Default Account", Status: StatusActive, CreatedAt: now, UpdatedAt: now}}}
 	data, err := json.MarshalIndent(doc, "", "  ")
 	if err != nil {
 		return MigrationResult{}, newError(CodePersistenceFailed, "编码迁移注册表失败", true, err)

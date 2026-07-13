@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"os"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/xiaohongshu-mcp/account"
 	"github.com/xpzouying/xiaohongshu-mcp/configs"
+	"github.com/xpzouying/xiaohongshu-mcp/cookies"
 )
 
 func main() {
@@ -39,6 +41,16 @@ func main() {
 	dataDir := os.Getenv("XHS_DATA_DIR")
 	if dataDir == "" {
 		dataDir = filepath.Join(".", "data")
+	}
+	migration, err := account.MigrateLegacy(context.Background(), account.MigrationOptions{
+		Root:       dataDir,
+		Candidates: []string{cookies.GetCookiesFilePath()},
+	})
+	if err != nil {
+		logrus.Fatalf("failed to migrate legacy cookies: %v", err)
+	}
+	if migration.Migrated {
+		logrus.Infof("migrated legacy cookies to account %q", migration.AccountID)
 	}
 	accountRegistry, err := account.NewFileRegistry(dataDir)
 	if err != nil {

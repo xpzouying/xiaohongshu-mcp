@@ -340,7 +340,7 @@ func TestMigrateLegacyCookie(t *testing.T) {
 		t.Fatal(err)
 	}
 	resolved, err := r.Resolve(context.Background(), "")
-	if err != nil || resolved.Account.ID != "default" {
+	if err != nil || resolved.Account.ID != "default" || resolved.Account.Status != StatusActive {
 		t.Fatalf("resolved = %#v, %v", resolved, err)
 	}
 	result, err = MigrateLegacy(context.Background(), MigrationOptions{Root: root, Candidates: []string{legacy}})
