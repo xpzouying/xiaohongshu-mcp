@@ -270,6 +270,46 @@ func (s *AppServer) replyCommentHandler(c *gin.Context) {
 	respondSuccess(c, result, result.Message)
 }
 
+func (s *AppServer) likeFeedHandler(c *gin.Context) {
+	var req LikeFeedRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST", "请求参数错误", err.Error())
+		return
+	}
+	var result *ActionResult
+	var err error
+	if req.Unlike {
+		result, err = s.xiaohongshuService.UnlikeFeed(c.Request.Context(), req.FeedID, req.XsecToken)
+	} else {
+		result, err = s.xiaohongshuService.LikeFeed(c.Request.Context(), req.FeedID, req.XsecToken)
+	}
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "LIKE_FEED_FAILED", "点赞操作失败", err.Error())
+		return
+	}
+	respondSuccess(c, result, result.Message)
+}
+
+func (s *AppServer) favoriteFeedHandler(c *gin.Context) {
+	var req FavoriteFeedRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST", "请求参数错误", err.Error())
+		return
+	}
+	var result *ActionResult
+	var err error
+	if req.Unfavorite {
+		result, err = s.xiaohongshuService.UnfavoriteFeed(c.Request.Context(), req.FeedID, req.XsecToken)
+	} else {
+		result, err = s.xiaohongshuService.FavoriteFeed(c.Request.Context(), req.FeedID, req.XsecToken)
+	}
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "FAVORITE_FEED_FAILED", "收藏操作失败", err.Error())
+		return
+	}
+	respondSuccess(c, result, result.Message)
+}
+
 // healthHandler 健康检查
 func healthHandler(c *gin.Context) {
 	respondSuccess(c, map[string]any{

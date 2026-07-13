@@ -17,6 +17,9 @@ func (m *Manager) WithAccount(ctx context.Context, requestedID string, kind Oper
 	if err != nil {
 		return ResolvedAccount{}, err
 	}
+	if err := ctx.Err(); err != nil {
+		return resolved, canceledError(err)
+	}
 	if err := gate(resolved.Account.Status, kind); err != nil {
 		return resolved, err
 	}
