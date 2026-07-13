@@ -67,7 +67,7 @@ func MigrateLegacy(ctx context.Context, options MigrationOptions) (MigrationResu
 	if !found {
 		doc := registryDocument{SchemaVersion: registrySchemaVersion, Accounts: []Account{}}
 		data, _ := json.MarshalIndent(doc, "", "  ")
-		if err := atomicWrite(registryPath, append(data, '\n')); err != nil {
+		if err := atomicWrite(root, registryPath, append(data, '\n')); err != nil {
 			return MigrationResult{}, newError(CodePersistenceFailed, "创建空注册表失败", true, err)
 		}
 		return MigrationResult{}, nil
@@ -93,7 +93,7 @@ func MigrateLegacy(ctx context.Context, options MigrationOptions) (MigrationResu
 	if err != nil {
 		return MigrationResult{}, newError(CodePersistenceFailed, "编码迁移注册表失败", true, err)
 	}
-	if err := atomicWrite(registryPath, append(data, '\n')); err != nil {
+	if err := atomicWrite(root, registryPath, append(data, '\n')); err != nil {
 		return MigrationResult{}, newError(CodePersistenceFailed, "保存迁移注册表失败", true, err)
 	}
 	return MigrationResult{Migrated: true, AccountID: defaultID, ChecksumPrefix: string([]byte{hexDigit(sourceHash[0] >> 4), hexDigit(sourceHash[0] & 15), hexDigit(sourceHash[1] >> 4), hexDigit(sourceHash[1] & 15)})}, nil

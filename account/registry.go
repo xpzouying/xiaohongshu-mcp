@@ -96,7 +96,7 @@ func (r *FileRegistry) saveLocked() error {
 		return newError(CodePersistenceFailed, "编码注册表失败", true, err)
 	}
 	data = append(data, '\n')
-	if err := atomicWrite(r.path, data); err != nil {
+	if err := atomicWrite(filepath.Dir(r.path), r.path, data); err != nil {
 		return newError(CodePersistenceFailed, "保存注册表失败", true, err)
 	}
 	return nil

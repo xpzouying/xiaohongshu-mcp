@@ -90,6 +90,80 @@ func TestCookieStoreRejectsSymlinkAndKeepsAccountsIsolated(t *testing.T) {
 	}
 }
 
+func TestCookieStoreRejectsSymlinkedParentDirectories(t *testing.T) {
+	ctx := context.Background()
+	data := []byte(`[{"name":"safe"}]`)
+	operations := []struct {
+		name string
+		run  func(*FileCookieStore) error
+	}{
+		{"save", func(store *FileCookieStore) error { return store.Save(ctx, "acct_a", data) }},
+		{"load", func(store *FileCookieStore) error { _, err := store.Load(ctx, "acct_a"); return err }},
+		{"delete", func(store *FileCookieStore) error { return store.Delete(ctx, "acct_a") }},
+	}
+	for _, linkLevel := range []string{"accounts", "account"} {
+		for _, operation := range operations {
+			t.Run(linkLevel+"/"+operation.name, func(t *testing.T) {
+				root := t.TempDir()
+				outside := t.TempDir()
+				if linkLevel == "accounts" {
+					if err := os.Symlink(outside, filepath.Join(root, "accounts")); err != nil {
+						t.Skipf("filesystem does not support symlinks: %v", err)
+					}
+				} else {
+					if err := os.Mkdir(filepath.Join(root, "accounts"), 0700); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.Symlink(outside, filepath.Join(root, "accounts", "acct_a")); err != nil {
+						t.Skipf("filesystem does not support symlinks: %v", err)
+					}
+				}
+				store, err := NewFileCookieStore(root)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := operation.run(store); ErrorCode(err) != CodePersistenceFailed {
+					t.Fatalf("code=%q err=%v", ErrorCode(err), err)
+				}
+				if _, err := os.Stat(filepath.Join(outside, "cookies.json")); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("outside cookie touched: %v", err)
+				}
+			})
+		}
+	}
+}
+
+func TestMigrateLegacyRejectsSymlinkedDestination(t *testing.T) {
+	for _, linkLevel := range []string{"accounts", "account"} {
+		t.Run(linkLevel, func(t *testing.T) {
+			root := t.TempDir()
+			outside := t.TempDir()
+			legacy := filepath.Join(t.TempDir(), "cookies.json")
+			if err := os.WriteFile(legacy, []byte(`[{"name":"legacy"}]`), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if linkLevel == "accounts" {
+				if err := os.Symlink(outside, filepath.Join(root, "accounts")); err != nil {
+					t.Skipf("filesystem does not support symlinks: %v", err)
+				}
+			} else {
+				if err := os.Mkdir(filepath.Join(root, "accounts"), 0700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(outside, filepath.Join(root, "accounts", "default")); err != nil {
+					t.Skipf("filesystem does not support symlinks: %v", err)
+				}
+			}
+			if _, err := MigrateLegacy(context.Background(), MigrationOptions{Root: root, Candidates: []string{legacy}}); ErrorCode(err) != CodePersistenceFailed {
+				t.Fatalf("code=%q err=%v", ErrorCode(err), err)
+			}
+			if _, err := os.Stat(filepath.Join(outside, "cookies.json")); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("migration escaped root: %v", err)
+			}
+		})
+	}
+}
+
 func TestLockManagerCancellationAndIdempotentRelease(t *testing.T) {
 	lm, err := NewLockManager(1)
 	if err != nil {

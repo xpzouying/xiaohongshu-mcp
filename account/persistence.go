@@ -40,18 +40,48 @@ func rejectSymlink(path string) error {
 	return nil
 }
 
-func atomicWrite(path string, data []byte) error {
+func securePath(root, path string, createParents bool) error {
+	rel, err := filepath.Rel(root, path)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return newError(CodePersistenceFailed, "持久化路径越界", false, err)
+	}
+	current := root
+	parts := strings.Split(rel, string(filepath.Separator))
+	for i, part := range parts {
+		current = filepath.Join(current, part)
+		last := i == len(parts)-1
+		info, statErr := os.Lstat(current)
+		if statErr == nil {
+			if info.Mode()&os.ModeSymlink != 0 {
+				return newError(CodePersistenceFailed, "拒绝符号链接路径", false, nil)
+			}
+			if !last && !info.IsDir() {
+				return newError(CodePersistenceFailed, "持久化父路径不是目录", false, nil)
+			}
+			continue
+		}
+		if !errors.Is(statErr, os.ErrNotExist) {
+			return statErr
+		}
+		if !createParents || last {
+			continue
+		}
+		if err := os.Mkdir(current, 0700); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func atomicWrite(root, path string, data []byte) error {
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0700); err != nil {
+	if err := securePath(root, path, true); err != nil {
 		return err
 	}
 	if err := os.Chmod(dir, 0700); err != nil {
 		return err
 	}
-	if err := rejectSymlink(dir); err != nil {
-		return err
-	}
-	if err := rejectSymlink(path); err != nil {
+	if err := securePath(root, path, false); err != nil {
 		return err
 	}
 	f, err := os.CreateTemp(dir, ".tmp-")
