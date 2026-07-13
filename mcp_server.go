@@ -156,55 +156,56 @@ func withPanicRecovery[T any](
 func registerTools(server *mcp.Server, appServer *AppServer) {
 	if appServer.accountTools != nil {
 		registerAccountManagementTools(server, appServer)
-		return
 	}
-	// 工具 1: 检查登录状态
-	mcp.AddTool(server,
-		&mcp.Tool{
-			Name:        "check_login_status",
-			Description: "检查小红书登录状态",
-			Annotations: &mcp.ToolAnnotations{
-				Title:        "Check Login Status",
-				ReadOnlyHint: true,
+	if appServer.accountTools == nil {
+		// 工具 1: 检查登录状态
+		mcp.AddTool(server,
+			&mcp.Tool{
+				Name:        "check_login_status",
+				Description: "检查小红书登录状态",
+				Annotations: &mcp.ToolAnnotations{
+					Title:        "Check Login Status",
+					ReadOnlyHint: true,
+				},
 			},
-		},
-		withPanicRecovery("check_login_status", func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, any, error) {
-			result := appServer.handleCheckLoginStatus(ctx)
-			return convertToMCPResult(result), nil, nil
-		}),
-	)
+			withPanicRecovery("check_login_status", func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, any, error) {
+				result := appServer.handleCheckLoginStatus(ctx)
+				return convertToMCPResult(result), nil, nil
+			}),
+		)
 
-	// 工具 2: 获取登录二维码
-	mcp.AddTool(server,
-		&mcp.Tool{
-			Name:        "get_login_qrcode",
-			Description: "获取登录二维码（返回 Base64 图片和超时时间）",
-			Annotations: &mcp.ToolAnnotations{
-				Title:        "Get Login QR Code",
-				ReadOnlyHint: true,
+		// 工具 2: 获取登录二维码
+		mcp.AddTool(server,
+			&mcp.Tool{
+				Name:        "get_login_qrcode",
+				Description: "获取登录二维码（返回 Base64 图片和超时时间）",
+				Annotations: &mcp.ToolAnnotations{
+					Title:        "Get Login QR Code",
+					ReadOnlyHint: true,
+				},
 			},
-		},
-		withPanicRecovery("get_login_qrcode", func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, any, error) {
-			result := appServer.handleGetLoginQrcode(ctx)
-			return convertToMCPResult(result), nil, nil
-		}),
-	)
+			withPanicRecovery("get_login_qrcode", func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, any, error) {
+				result := appServer.handleGetLoginQrcode(ctx)
+				return convertToMCPResult(result), nil, nil
+			}),
+		)
 
-	// 工具 3: 删除 cookies（登录重置）
-	mcp.AddTool(server,
-		&mcp.Tool{
-			Name:        "delete_cookies",
-			Description: "删除 cookies 文件，重置登录状态。删除后需要重新登录。",
-			Annotations: &mcp.ToolAnnotations{
-				Title:           "Delete Cookies",
-				DestructiveHint: boolPtr(true),
+		// 工具 3: 删除 cookies（登录重置）
+		mcp.AddTool(server,
+			&mcp.Tool{
+				Name:        "delete_cookies",
+				Description: "删除 cookies 文件，重置登录状态。删除后需要重新登录。",
+				Annotations: &mcp.ToolAnnotations{
+					Title:           "Delete Cookies",
+					DestructiveHint: boolPtr(true),
+				},
 			},
-		},
-		withPanicRecovery("delete_cookies", func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, any, error) {
-			result := appServer.handleDeleteCookies(ctx)
-			return convertToMCPResult(result), nil, nil
-		}),
-	)
+			withPanicRecovery("delete_cookies", func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, any, error) {
+				result := appServer.handleDeleteCookies(ctx)
+				return convertToMCPResult(result), nil, nil
+			}),
+		)
+	}
 
 	// 工具 4: 发布内容
 	mcp.AddTool(server,
