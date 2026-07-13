@@ -156,6 +156,7 @@ func withPanicRecovery[T any](
 func registerTools(server *mcp.Server, appServer *AppServer) {
 	if appServer.accountTools != nil {
 		registerAccountManagementTools(server, appServer)
+		return
 	}
 	// 工具 1: 检查登录状态
 	mcp.AddTool(server,
@@ -476,6 +477,8 @@ func registerAccountManagementTools(server *mcp.Server, appServer *AppServer) {
 	}))
 	registerID("remove_account", true, appServer.handleRemoveAccount)
 	registerID("set_default_account", false, appServer.handleSetDefaultAccount)
+	registerID("check_login_status", false, appServer.handleAccountLoginStatus)
+	registerID("get_login_qrcode", false, appServer.handleAccountLoginQRCode)
 	registerID("reset_login", true, appServer.handleResetAccountLogin)
 }
 
