@@ -3,6 +3,7 @@ package xiaohongshu
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -36,8 +37,9 @@ func TestSearch(t *testing.T) {
 }
 
 func TestSearchWithFilters(t *testing.T) {
-
-	//t.Skip("SKIP: 测试筛选功能")
+	if os.Getenv("XHS_RUN_NETWORK_TESTS") != "1" {
+		t.Skip("skip external network test; set XHS_RUN_NETWORK_TESTS=1 to enable")
+	}
 
 	b := browser.NewBrowser(false)
 	defer b.Close()
