@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"runtime/debug"
+	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/sirupsen/logrus"
@@ -557,16 +559,16 @@ func registerAccountManagementTools(server *mcp.Server, appServer *AppServer) {
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式
 func convertToMCPResult(result *MCPToolResult) *mcp.CallToolResult {
 	var contents []mcp.Content
+	isError := result.IsError
 	for _, c := range result.Content {
 		switch c.Type {
 		case "text":
 			contents = append(contents, &mcp.TextContent{Text: c.Text})
 		case "image":
-			// 解码 base64 字符串为 []byte
-			imageData, err := base64.StdEncoding.DecodeString(c.Data)
+			imageData, err := decodeImageData(c.Data)
 			if err != nil {
 				logrus.WithError(err).Error("Failed to decode base64 image data")
-				// 如果解码失败，添加错误文本
+				isError = true
 				contents = append(contents, &mcp.TextContent{
 					Text: "图片数据解码失败: " + err.Error(),
 				})
@@ -581,8 +583,26 @@ func convertToMCPResult(result *MCPToolResult) *mcp.CallToolResult {
 
 	return &mcp.CallToolResult{
 		Content: contents,
-		IsError: result.IsError,
+		IsError: isError,
 	}
+}
+
+func decodeImageData(data string) ([]byte, error) {
+	if data == "" {
+		return nil, errors.New("图片数据为空")
+	}
+	if strings.HasPrefix(data, "data:") {
+		metadata, encoded, found := strings.Cut(data, ",")
+		if !found || !strings.HasSuffix(strings.ToLower(metadata), ";base64") || encoded == "" {
+			return nil, errors.New("图片数据格式无效")
+		}
+		data = encoded
+	}
+	decoded, err := base64.StdEncoding.DecodeString(data)
+	if err != nil {
+		return nil, errors.New("图片数据不是有效的 base64")
+	}
+	return decoded, nil
 }
 
 // convertStringsToInterfaces 辅助函数：将 []string 转换为 []interface{}
