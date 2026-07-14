@@ -3,20 +3,27 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"sync"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/headless_browser"
 	"github.com/xpzouying/xiaohongshu-mcp/account"
 	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
 )
 
 type browserAccountLogin struct {
-	cookies account.CookieStore
-	create  func(string) account.Browser
+	cookies  account.CookieStore
+	registry account.Registry
+	locks    account.LockManager
+	create   func(string) account.Browser
+	mu       sync.Mutex
+	sessions map[string]uint64
 }
 
-func newBrowserAccountLogin(cookies account.CookieStore) AccountLogin {
-	return &browserAccountLogin{cookies: cookies, create: newBrowserWithAccountCookie}
+func newBrowserAccountLogin(cookies account.CookieStore, registry account.Registry, locks account.LockManager) AccountLogin {
+	return &browserAccountLogin{cookies: cookies, registry: registry, locks: locks, create: newBrowserWithAccountCookie, sessions: make(map[string]uint64)}
 }
 
 func (l *browserAccountLogin) open(accountID string) (*headless_browser.Browser, error) {
@@ -56,6 +63,7 @@ func (l *browserAccountLogin) QRCode(ctx context.Context, accountID string) (str
 		browser.Close()
 		return image, loggedIn, err
 	}
+	generation := l.beginSession(accountID)
 	go func() {
 		defer page.Close()
 		defer browser.Close()
@@ -72,7 +80,50 @@ func (l *browserAccountLogin) QRCode(ctx context.Context, accountID string) (str
 		if marshalErr != nil {
 			return
 		}
-		_ = l.cookies.Save(context.Background(), accountID, data)
+		if err := l.persistLogin(context.Background(), accountID, generation, data); err != nil {
+			logrus.WithError(err).Warnf("failed to persist QR login for account %q", accountID)
+		}
 	}()
 	return image, false, nil
+}
+
+func (l *browserAccountLogin) beginSession(accountID string) uint64 {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.sessions[accountID]++
+	return l.sessions[accountID]
+}
+
+func (l *browserAccountLogin) Cancel(accountID string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.sessions[accountID]++
+}
+
+func (l *browserAccountLogin) persistLogin(ctx context.Context, accountID string, generation uint64, data []byte) error {
+	release, err := l.locks.Acquire(ctx, accountID)
+	if err != nil {
+		return err
+	}
+	defer release()
+	l.mu.Lock()
+	currentGeneration := l.sessions[accountID]
+	l.mu.Unlock()
+	if currentGeneration != generation {
+		return &account.Error{Code: account.CodeOperationCanceled, Message: "二维码登录会话已失效"}
+	}
+	current, err := l.registry.Get(ctx, accountID)
+	if err != nil {
+		return err
+	}
+	if current.Status != account.StatusNeedsLogin {
+		return &account.Error{Code: account.CodeAccountLoginRequired, Message: "账号登录状态已变更"}
+	}
+	if err := l.cookies.Save(ctx, accountID, data); err != nil {
+		return err
+	}
+	if err := l.registry.UpdateStatus(ctx, accountID, account.StatusActive, "二维码登录成功"); err != nil {
+		return errors.Join(err, l.cookies.Delete(context.WithoutCancel(ctx), accountID))
+	}
+	return nil
 }

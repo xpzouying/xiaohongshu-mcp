@@ -20,6 +20,7 @@ func (f *fakeAccountLogin) Status(context.Context, string) (bool, string, error)
 func (f *fakeAccountLogin) QRCode(context.Context, string) (string, bool, error) {
 	return f.qr, f.loggedIn, nil
 }
+func (f *fakeAccountLogin) Cancel(string) {}
 
 func TestAccountToolsLifecycleAndRealIdentity(t *testing.T) {
 	root := t.TempDir()

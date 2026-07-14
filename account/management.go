@@ -15,6 +15,10 @@ func NewManagementManager(registry Registry, locks TryLockManager, cookies Cooki
 	return &ManagementManager{registry: registry, locks: locks, cookies: cookies}
 }
 
+func (m *ManagementManager) TryLock(id string) (func(), bool, error) {
+	return m.locks.TryAcquire(id)
+}
+
 func (m *ManagementManager) Remove(ctx context.Context, id string) error {
 	if err := ctx.Err(); err != nil {
 		return canceledError(err)

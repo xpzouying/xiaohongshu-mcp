@@ -6,11 +6,14 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+
+	"golang.org/x/sys/unix"
 )
 
 type FileCookieStore struct{ root string }
 
 type fileCookieRemoval struct {
+	dirFD  int
 	path   string
 	staged string
 }
@@ -19,10 +22,10 @@ func (r *fileCookieRemoval) Commit(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return canceledError(err)
 	}
-	if r.staged == "" {
+	if r.dirFD < 0 {
 		return nil
 	}
-	if err := syncDirectory(filepath.Dir(r.staged)); err != nil {
+	if err := unix.Fsync(r.dirFD); err != nil {
 		return newError(CodePersistenceFailed, "提交 Cookie 删除失败", true, err)
 	}
 	return nil
@@ -32,13 +35,13 @@ func (r *fileCookieRemoval) Rollback(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return canceledError(err)
 	}
-	if r.staged == "" {
+	if r.dirFD < 0 || r.staged == "" {
 		return nil
 	}
-	if err := os.Rename(r.staged, r.path); err != nil {
+	if err := unix.Renameat(r.dirFD, r.staged, r.dirFD, r.path); err != nil {
 		return newError(CodePersistenceFailed, "恢复账号 Cookie 失败", true, err)
 	}
-	if err := syncDirectory(filepath.Dir(r.path)); err != nil {
+	if err := unix.Fsync(r.dirFD); err != nil {
 		return newError(CodePersistenceFailed, "恢复账号 Cookie 失败", true, err)
 	}
 	r.staged = ""
@@ -46,13 +49,19 @@ func (r *fileCookieRemoval) Rollback(ctx context.Context) error {
 }
 
 func (r *fileCookieRemoval) Complete() error {
-	if r.staged == "" {
+	if r.dirFD < 0 {
 		return nil
 	}
-	if err := os.Remove(r.staged); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return newError(CodePersistenceFailed, "清理账号 Cookie 失败", true, err)
+	defer func() {
+		unix.Close(r.dirFD)
+		r.dirFD = -1
+	}()
+	if r.staged != "" {
+		if err := unix.Unlinkat(r.dirFD, r.staged, 0); err != nil && !errors.Is(err, unix.ENOENT) {
+			return newError(CodePersistenceFailed, "清理账号 Cookie 失败", true, err)
+		}
 	}
-	if err := syncDirectory(filepath.Dir(r.staged)); err != nil {
+	if err := unix.Fsync(r.dirFD); err != nil {
 		return newError(CodePersistenceFailed, "清理账号 Cookie 失败", true, err)
 	}
 	r.staged = ""
@@ -79,17 +88,10 @@ func (s *FileCookieStore) Load(ctx context.Context, accountID string) ([]byte, e
 	if err != nil {
 		return nil, err
 	}
-	if err := securePath(s.root, path, false); err != nil {
-		return nil, err
-	}
-	data, err := readFileNoFollow(path)
-	if err != nil {
+	data, err := readFileNoFollow(s.root, path, false)
+	if err != nil && ErrorCode(err) != CodePersistenceFailed {
 		staged := path + ".removing"
-		if _, stagedErr := os.Stat(staged); stagedErr == nil {
-			data, err = readFileNoFollow(staged)
-		} else if stagedErr != nil && !errors.Is(stagedErr, os.ErrNotExist) {
-			return nil, newError(CodePersistenceFailed, "读取暂存账号 Cookie 失败", true, stagedErr)
-		}
+		data, err = readFileNoFollow(s.root, staged, false)
 	}
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, newError(CodeCookieNotFound, "账号 Cookie 不存在", false, nil)
@@ -139,44 +141,38 @@ func (s *FileCookieStore) StageRemove(ctx context.Context, accountID string) (Co
 	if err != nil {
 		return nil, err
 	}
-	if err := securePath(s.root, path, false); err != nil {
-		return nil, err
-	}
-	staged := path + ".removing"
-	if err := rejectSymlink(staged); err != nil {
-		return nil, newError(CodePersistenceFailed, "暂存账号 Cookie 失败", true, err)
-	}
-	stagedExists, err := pathExists(staged)
+	dirFD, name, err := openParent(s.root, path, false)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return &fileCookieRemoval{dirFD: -1}, nil
+		}
+		return nil, newError(CodePersistenceFailed, "检查账号 Cookie 失败", true, err)
+	}
+	staged := name + ".removing"
+	stagedExists, err := pathExistsAt(dirFD, staged)
+	if err != nil {
+		unix.Close(dirFD)
 		return nil, newError(CodePersistenceFailed, "检查暂存 Cookie 失败", true, err)
 	}
-	pathExists, err := pathExists(path)
+	pathExists, err := pathExistsAt(dirFD, name)
 	if err != nil {
+		unix.Close(dirFD)
 		return nil, newError(CodePersistenceFailed, "检查账号 Cookie 失败", true, err)
 	}
 	if stagedExists {
 		if pathExists {
+			unix.Close(dirFD)
 			return nil, newError(CodePersistenceFailed, "暂存账号 Cookie 冲突", true, nil)
 		}
-		return &fileCookieRemoval{path: path, staged: staged}, nil
+		return &fileCookieRemoval{dirFD: dirFD, path: name, staged: staged}, nil
 	}
-	if err := os.Rename(path, staged); errors.Is(err, os.ErrNotExist) {
-		return &fileCookieRemoval{path: path}, nil
+	if err := unix.Renameat(dirFD, name, dirFD, staged); errors.Is(err, unix.ENOENT) {
+		return &fileCookieRemoval{dirFD: dirFD, path: name}, nil
 	} else if err != nil {
+		unix.Close(dirFD)
 		return nil, newError(CodePersistenceFailed, "暂存账号 Cookie 失败", true, err)
 	}
-	return &fileCookieRemoval{path: path, staged: staged}, nil
-}
-
-func pathExists(path string) (bool, error) {
-	_, err := os.Lstat(path)
-	if err == nil {
-		return true, nil
-	}
-	if errors.Is(err, os.ErrNotExist) {
-		return false, nil
-	}
-	return false, err
+	return &fileCookieRemoval{dirFD: dirFD, path: name, staged: staged}, nil
 }
 
 func syncDirectory(path string) error {

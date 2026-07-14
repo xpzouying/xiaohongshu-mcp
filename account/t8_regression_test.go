@@ -44,3 +44,25 @@ func TestRegistryRejectsSymlink(t *testing.T) {
 		t.Fatalf("code=%q err=%v", ErrorCode(err), err)
 	}
 }
+
+func TestRegistryRejectsUnsafeExistingFiles(t *testing.T) {
+	valid := []byte(`{"schema_version":1,"default_account_id":null,"accounts":[]}`)
+	t.Run("non_regular", func(t *testing.T) {
+		root := t.TempDir()
+		if err := os.Mkdir(filepath.Join(root, "accounts.json"), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := NewFileRegistry(root); ErrorCode(err) != CodeRegistryCorrupt {
+			t.Fatalf("code=%q err=%v", ErrorCode(err), err)
+		}
+	})
+	t.Run("wide_permissions", func(t *testing.T) {
+		root := t.TempDir()
+		if err := os.WriteFile(filepath.Join(root, "accounts.json"), valid, 0644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := NewFileRegistry(root); ErrorCode(err) != CodeRegistryCorrupt {
+			t.Fatalf("code=%q err=%v", ErrorCode(err), err)
+		}
+	})
+}

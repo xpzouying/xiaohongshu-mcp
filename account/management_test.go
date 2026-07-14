@@ -249,9 +249,16 @@ func TestManagerRemoveReportsRealRollbackFailureAndAllowsRecovery(t *testing.T) 
 	if err := os.Remove(cookiePath); err != nil {
 		t.Fatal(err)
 	}
-	removal := &fileCookieRemoval{path: cookiePath, staged: cookiePath + ".removing"}
+	dirFD, name, err := openParent(root, cookiePath, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	removal := &fileCookieRemoval{dirFD: dirFD, path: name, staged: name + ".removing"}
 	if err := removal.Rollback(context.Background()); err != nil {
 		t.Fatalf("retry rollback: %v", err)
+	}
+	if err := removal.Complete(); err != nil {
+		t.Fatalf("complete rollback: %v", err)
 	}
 	assertOriginalAccountState(t, r, store, wantAccount, wantCookie)
 }

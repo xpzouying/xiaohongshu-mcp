@@ -9,6 +9,7 @@ import (
 type AccountLogin interface {
 	Status(context.Context, string) (bool, string, error)
 	QRCode(context.Context, string) (string, bool, error)
+	Cancel(string)
 }
 
 type AccountLoginStatus struct {
@@ -43,6 +44,7 @@ func (t *AccountTools) Create(ctx context.Context, input account.CreateAccountIn
 }
 
 func (t *AccountTools) Remove(ctx context.Context, id string) error {
+	t.login.Cancel(id)
 	return t.management.Remove(ctx, id)
 }
 
@@ -73,6 +75,15 @@ func (t *AccountTools) GetLoginQRCode(ctx context.Context, id string) (AccountQR
 }
 
 func (t *AccountTools) ResetLogin(ctx context.Context, id string) error {
+	release, acquired, err := t.management.TryLock(id)
+	if err != nil {
+		return err
+	}
+	if !acquired {
+		return &account.Error{Code: account.CodeAccountBusy, Message: "账号正在执行其他操作", Retryable: true}
+	}
+	defer release()
+	t.login.Cancel(id)
 	if _, err := t.registry.Get(ctx, id); err != nil {
 		return err
 	}

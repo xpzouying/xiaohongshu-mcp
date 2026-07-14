@@ -76,7 +76,7 @@ func main() {
 		accountRegistry,
 		account.NewManagementManager(accountRegistry, locks, cookieStore),
 		cookieStore,
-		newBrowserAccountLogin(cookieStore),
+		newBrowserAccountLogin(cookieStore, accountRegistry, locks),
 	)
 
 	// 创建并启动应用服务器
