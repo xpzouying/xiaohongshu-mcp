@@ -1,0 +1,27 @@
+services:
+  webui:
+    image: xiaohongshu-webui:feature-web-ui
+    build:
+      context: .
+      dockerfile: webui/Dockerfile
+    container_name: xiaohongshu-webui
+    restart: unless-stopped
+    environment:
+      WEBUI_ADDR: ":8080"
+      MCP_API_URL: "http://xiaohongshu-mcp:18060"
+      XHS_MCP_URL: "http://xiaohongshu-mcp:18060"
+    ports:
+      - "18080:8080"
+    networks:
+      - xhs
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/api/web/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+networks:
+  xhs:
+    external: true
+    name: xhs

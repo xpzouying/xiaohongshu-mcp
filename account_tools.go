@@ -39,6 +39,21 @@ func (t *AccountTools) List(ctx context.Context) ([]account.Account, error) {
 	return t.registry.List(ctx)
 }
 
+func (t *AccountTools) DefaultAccountID(ctx context.Context) (*string, error) {
+	resolved, err := t.registry.Resolve(ctx, "")
+	if err != nil {
+		if account.ErrorCode(err) == account.CodeAccountRequired {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if resolved.SelectionSource != account.SelectionDefault {
+		return nil, nil
+	}
+	id := resolved.Account.ID
+	return &id, nil
+}
+
 func (t *AccountTools) Create(ctx context.Context, input account.CreateAccountInput) (account.Account, error) {
 	return t.registry.Create(ctx, input)
 }

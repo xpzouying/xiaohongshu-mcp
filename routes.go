@@ -118,6 +118,7 @@ func setupRoutes(appServer *AppServer) *gin.Engine {
 	// API 路由组
 	api := router.Group("/api/v1")
 	{
+		registerAccountRESTRoutes(api, appServer)
 		api.GET("/login/status", appServer.checkLoginStatusHandler)
 		api.GET("/login/qrcode", appServer.getLoginQrcodeHandler)
 		api.DELETE("/login/cookies", appServer.deleteCookiesHandler)
