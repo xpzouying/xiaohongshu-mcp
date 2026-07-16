@@ -76,6 +76,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     lsb-release \
     python3 \
     python3-pip \
+    tini \
     wget \
     xdg-utils \
     && rm -rf /var/lib/apt/lists/*
@@ -112,4 +113,5 @@ ENV ROD_BROWSER_BIN=/usr/local/bin/cloak-chromium
 
 EXPOSE 18060
 
+ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["./app"]

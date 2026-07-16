@@ -5,12 +5,24 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 	"github.com/xpzouying/xiaohongshu-mcp/account"
 )
+
+func TestDockerImageUsesInitToReapChromeChildren(t *testing.T) {
+	data, err := os.ReadFile("Dockerfile")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dockerfile := string(data)
+	if !strings.Contains(dockerfile, "tini") || !strings.Contains(dockerfile, `ENTRYPOINT ["/usr/bin/tini", "--"]`) {
+		t.Fatal("Docker image must run the app under tini so exited Chrome children are reaped")
+	}
+}
 
 func TestAccountHandlerQRCodeAlreadyLoggedInHasNoImage(t *testing.T) {
 	root := t.TempDir()
