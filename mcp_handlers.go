@@ -2,8 +2,11 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -86,16 +89,62 @@ func (s *AppServer) handleGetLoginQrcode(ctx context.Context) *MCPToolResult {
 		return now.Add(d).Format("2006-01-02 15:04:05")
 	}()
 
-	// 已登录：文本 + 图片
+	// 解码 Base64 图片数据并保存到本地
+	base64Data := strings.TrimPrefix(result.Img, "data:image/png;base64,")
+	imgData, err := base64.StdEncoding.DecodeString(base64Data)
+	if err != nil {
+		logrus.Errorf("解码二维码图片失败: %v", err)
+		// 如果解码失败，仍然返回 Base64 数据
+		contents := []MCPContent{
+			{Type: "text", Text: "请用小红书 App 在 " + deadline + " 前扫码登录 👇"},
+			{
+				Type:     "image",
+				MimeType: "image/png",
+				Data:     base64Data,
+			},
+		}
+		return &MCPToolResult{Content: contents}
+	}
+
+	// 保存到本地文件
+	qrcodePath := saveQrcodeImage(imgData)
+	logrus.Infof("二维码图片保存到: %s", qrcodePath)
+
+	// 返回文本 + 图片路径
 	contents := []MCPContent{
-		{Type: "text", Text: "请用小红书 App 在 " + deadline + " 前扫码登录 👇"},
+		{Type: "text", Text: "请用小红书 App 在 " + deadline + " 前扫码登录 👇\n\n![登录二维码](/api/v1/workspace/images/xhs_qrcode_login.png)"},
 		{
 			Type:     "image",
 			MimeType: "image/png",
-			Data:     strings.TrimPrefix(result.Img, "data:image/png;base64,"),
+			Data:     base64Data,
 		},
 	}
 	return &MCPToolResult{Content: contents}
+}
+
+// saveQrcodeImage 保存二维码图片到本地，返回文件路径
+func saveQrcodeImage(data []byte) string {
+	// 优先使用环境变量指定的目录
+	imgDir := os.Getenv("WORKSPACE_IMAGES_DIR")
+	if imgDir == "" {
+		// 默认使用 /app/workspace/images/
+		imgDir = "/app/workspace/images"
+	}
+
+	// 确保目录存在
+	if err := os.MkdirAll(imgDir, 0755); err != nil {
+		logrus.Warnf("创建图片目录失败: %v, 使用临时目录", err)
+		imgDir = os.TempDir()
+	}
+
+	// 保存文件
+	filePath := filepath.Join(imgDir, "xhs_qrcode_login.png")
+	if err := os.WriteFile(filePath, data, 0644); err != nil {
+		logrus.Errorf("保存二维码图片失败: %v", err)
+		return ""
+	}
+
+	return filePath
 }
 
 // handleDeleteCookies 处理删除 cookies 请求，用于登录重置

@@ -1,0 +1,34 @@
+# 构建 xiaohongshu-mcp stdio 版本
+FROM golang:1.24-alpine AS builder
+
+WORKDIR /app
+
+# 安装构建依赖
+RUN apk add --no-cache git
+
+# 复制源码
+COPY . .
+
+# 构建
+RUN go mod download
+RUN go build -o xhs-mcp-stdio .
+
+# 运行镜像
+FROM alpine:latest
+
+WORKDIR /app
+
+# 安装运行依赖
+RUN apk add --no-cache chromium chromium-lang
+
+# 复制二进制文件
+COPY --from=builder /app/xhs-mcp-stdio /app/xhs-mcp-stdio
+
+# 创建必要目录
+RUN mkdir -p /app/data /app/images /app/logs
+
+# 设置环境变量
+ENV ROD_BROWSER_BIN=/usr/bin/chromium-browser
+
+# 运行
+ENTRYPOINT ["/app/xhs-mcp-stdio", "-stdio", "-headless=true"]

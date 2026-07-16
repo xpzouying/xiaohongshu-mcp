@@ -343,7 +343,17 @@ func submitPublish(page *rod.Page, title, content string, tags []string, schedul
 		return err
 	}
 
+	// 等待发布结果
+	slog.Info("开始等待发布结果")
 	time.Sleep(3 * time.Second)
+
+	// 检查是否发布成功（通过 URL 变化判断）
+	if err := waitForPublishSuccess(page); err != nil {
+		slog.Warn("发布结果检测失败，但可能已成功", "error", err)
+	} else {
+		slog.Info("发布成功")
+	}
+
 	return nil
 }
 
@@ -505,6 +515,32 @@ func clickPublishWidget(page *rod.Page, widget *rod.Element) error {
 		return errors.Wrap(err, "点击发布按钮失败")
 	}
 	return nil
+}
+
+// waitForPublishSuccess 等待发布成功，通过 URL 变化判断
+func waitForPublishSuccess(page *rod.Page) error {
+	maxWait := 30 * time.Second
+	interval := 1 * time.Second
+	start := time.Now()
+
+	for time.Since(start) < maxWait {
+		// 检查 URL 是否包含 success 或 publish/success
+		url := page.MustInfo().URL
+		if strings.Contains(url, "/publish/success") || strings.Contains(url, "success") {
+			slog.Info("发布成功", "url", url)
+			return nil
+		}
+
+		// 检查是否有错误提示
+		hasError, _, err := page.Has(".d-message-error, .error-message, .publish-failed")
+		if err == nil && hasError {
+			return errors.New("发布失败：检测到错误提示")
+		}
+
+		time.Sleep(interval)
+	}
+
+	return errors.New("等待发布结果超时")
 }
 
 // waitAndClickTitleInput 在填写正文后等待 1 秒并回点标题输入框，增强后续交互稳定性
