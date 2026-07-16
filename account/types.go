@@ -52,6 +52,7 @@ type Registry interface {
 	Remove(context.Context, string) error
 	SetDefault(context.Context, string) error
 	UpdateStatus(context.Context, string, Status, string) error
+	UpdateDisplayName(context.Context, string, string) error
 }
 
 type CookieStore interface {

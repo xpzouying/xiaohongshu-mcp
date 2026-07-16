@@ -126,6 +126,7 @@ func (r *accountHandlerRegistry) SetDefault(context.Context, string) error { ret
 func (r *accountHandlerRegistry) UpdateStatus(context.Context, string, account.Status, string) error {
 	return r.err
 }
+func (r *accountHandlerRegistry) UpdateDisplayName(context.Context, string, string) error { return nil }
 
 type accountHandlerLogin struct {
 	qrCode string

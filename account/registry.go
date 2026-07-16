@@ -292,3 +292,36 @@ func (r *FileRegistry) UpdateStatus(ctx context.Context, id string, status Statu
 	}
 	return nil
 }
+
+// UpdateDisplayName 更新账号展示名称
+func (r *FileRegistry) UpdateDisplayName(ctx context.Context, id, displayName string) error {
+	if err := ctx.Err(); err != nil {
+		return canceledError(err)
+	}
+	if err := ValidateAccountID(id); err != nil {
+		return err
+	}
+	if displayName == "" {
+		return newError(CodeRegistryCorrupt, "展示名称不能为空", false, nil)
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	index := -1
+	for i := range r.doc.Accounts {
+		if r.doc.Accounts[i].ID == id {
+			index = i
+			break
+		}
+	}
+	if index < 0 {
+		return newError(CodeAccountNotFound, "账号不存在", false, nil)
+	}
+	oldDoc := registryDocument{SchemaVersion: r.doc.SchemaVersion, DefaultAccountID: r.doc.DefaultAccountID, Accounts: cloneAccounts(r.doc.Accounts)}
+	r.doc.Accounts[index].DisplayName = displayName
+	r.doc.Accounts[index].UpdatedAt = r.clock().UTC()
+	if err := r.saveLocked(); err != nil {
+		r.doc = oldDoc
+		return err
+	}
+	return nil
+}

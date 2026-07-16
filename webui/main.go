@@ -37,10 +37,12 @@ type routeRule struct {
 
 var proxyRoutes = []routeRule{
 	newRoute([]string{http.MethodGet, http.MethodPost}, exactMap("/api/v1/accounts", "accounts")),
+	newRoute([]string{http.MethodPost}, exactMap("/api/v1/accounts/quick_add", "accounts", "quick_add")),
 	newRoute([]string{http.MethodDelete}, accountRoute()),
 	newRoute([]string{http.MethodPut}, accountAction("default")),
 	newRoute([]string{http.MethodPost}, accountAction("login", "qrcode")),
 	newRoute([]string{http.MethodPost}, accountAction("login", "status")),
+	newRoute([]string{http.MethodPost}, accountAction("sync_profile")),
 	newRoute([]string{http.MethodDelete}, accountAction("login")),
 	newRoute([]string{http.MethodGet}, exactMap("/api/v1/login/status", "login", "status")),
 	newRoute([]string{http.MethodGet}, exactMap("/api/v1/login/qrcode", "login", "qrcode")),

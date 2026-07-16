@@ -216,6 +216,9 @@ func (r *blockingRegistry) SetDefault(context.Context, string) error { panic("un
 func (r *blockingRegistry) UpdateStatus(context.Context, string, Status, string) error {
 	panic("unexpected UpdateStatus")
 }
+func (r *blockingRegistry) UpdateDisplayName(context.Context, string, string) error {
+	panic("unexpected UpdateDisplayName")
+}
 
 func TestAccountManagerFreezesResolvedAccountAndRechecksItsStatus(t *testing.T) {
 	r := &blockingRegistry{

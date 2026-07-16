@@ -107,3 +107,11 @@ func (t *AccountTools) ResetLogin(ctx context.Context, id string) error {
 	}
 	return t.registry.UpdateStatus(ctx, id, account.StatusNeedsLogin, "登录状态已重置")
 }
+
+// UpdateDisplayName 更新账号展示名称（用于扫码登录后自动同步昵称）
+func (t *AccountTools) UpdateDisplayName(ctx context.Context, id, displayName string) error {
+	if _, err := t.registry.Get(ctx, id); err != nil {
+		return err
+	}
+	return t.registry.UpdateDisplayName(ctx, id, displayName)
+}

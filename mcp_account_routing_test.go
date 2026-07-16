@@ -35,6 +35,7 @@ func (r *routingRegistry) SetDefault(context.Context, string) error { return nil
 func (r *routingRegistry) UpdateStatus(context.Context, string, account.Status, string) error {
 	return nil
 }
+func (r *routingRegistry) UpdateDisplayName(context.Context, string, string) error { return nil }
 
 type routingBrowser struct{ closeCount int }
 
