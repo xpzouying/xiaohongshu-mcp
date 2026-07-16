@@ -6,6 +6,7 @@ services:
       dockerfile: webui/Dockerfile
     container_name: xiaohongshu-webui
     restart: unless-stopped
+    init: true
     environment:
       WEBUI_ADDR: ":8080"
       MCP_API_URL: "http://xiaohongshu-mcp:18060"
