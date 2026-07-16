@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-rod/rod"
 	"github.com/stretchr/testify/require"
 	"github.com/xpzouying/xiaohongshu-mcp/browser"
 	xhserrors "github.com/xpzouying/xiaohongshu-mcp/errors"
@@ -153,10 +154,14 @@ func TestSearchTimeoutIsStructured(t *testing.T) {
 
 func TestSearchRetriesInitialTimeoutOnce(t *testing.T) {
 	attempts := 0
+	retryPage := &rod.Page{}
 	action := &SearchAction{
 		timeout:  time.Second,
 		navigate: func(context.Context, string) error { return nil },
-		reload:   func(context.Context) error { return nil },
+		newPage:  func(context.Context) (*rod.Page, error) { return retryPage, nil },
+		closePage: func(*rod.Page) error {
+			return nil
+		},
 		waitResults: func(context.Context, string) (searchSnapshot, error) {
 			attempts++
 			if attempts == 1 {
@@ -174,15 +179,25 @@ func TestSearchRetriesInitialTimeoutOnce(t *testing.T) {
 
 func TestSearchRetriesInitialNavigationTimeout(t *testing.T) {
 	navigations := 0
-	reloads := 0
+	newPages := 0
+	closedPages := 0
+	retryPage := &rod.Page{}
 	action := &SearchAction{
 		timeout: time.Second,
 		navigate: func(context.Context, string) error {
 			navigations++
-			return &SearchError{Code: "SEARCH_TIMEOUT", Stage: "navigate", Err: context.DeadlineExceeded}
+			if navigations == 1 {
+				return &SearchError{Code: "SEARCH_TIMEOUT", Stage: "navigate", Err: context.DeadlineExceeded}
+			}
+			return nil
 		},
-		reload: func(context.Context) error {
-			reloads++
+		newPage: func(context.Context) (*rod.Page, error) {
+			newPages++
+			return retryPage, nil
+		},
+		closePage: func(page *rod.Page) error {
+			require.Same(t, retryPage, page)
+			closedPages++
 			return nil
 		},
 		waitResults: func(context.Context, string) (searchSnapshot, error) {
@@ -193,17 +208,68 @@ func TestSearchRetriesInitialNavigationTimeout(t *testing.T) {
 	feeds, err := action.Search(context.Background(), "露营")
 	require.NoError(t, err)
 	require.Equal(t, "retry-ok", feeds[0].ID)
-	require.Equal(t, 1, navigations)
-	require.Equal(t, 1, reloads)
+	require.Equal(t, 2, navigations)
+	require.Equal(t, 1, newPages)
+	require.Equal(t, 1, closedPages)
+}
+
+func TestSearchClosesFreshPageWhenRetryFails(t *testing.T) {
+	navigations := 0
+	closedPages := 0
+	retryPage := &rod.Page{}
+	action := &SearchAction{
+		timeout: time.Second,
+		navigate: func(context.Context, string) error {
+			navigations++
+			return context.DeadlineExceeded
+		},
+		newPage: func(context.Context) (*rod.Page, error) { return retryPage, nil },
+		closePage: func(page *rod.Page) error {
+			require.Same(t, retryPage, page)
+			closedPages++
+			return nil
+		},
+	}
+
+	_, err := action.Search(context.Background(), "露营")
+	require.Error(t, err)
+	require.Equal(t, 2, navigations)
+	require.Equal(t, 1, closedPages)
+}
+
+func TestSearchFreshPageCreationHonorsCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	newPages := 0
+	action := &SearchAction{
+		timeout:  time.Second,
+		navigate: func(context.Context, string) error { return context.DeadlineExceeded },
+		newPage: func(context.Context) (*rod.Page, error) {
+			newPages++
+			cancel()
+			return nil, context.Canceled
+		},
+	}
+
+	_, err := action.Search(ctx, "露营")
+	require.ErrorIs(t, err, context.Canceled)
+	var searchErr *SearchError
+	require.True(t, stderrors.As(err, &searchErr))
+	require.Equal(t, "SEARCH_CANCELED", searchErr.Code)
+	require.Equal(t, "retry_new_page", searchErr.Stage)
+	require.Equal(t, 1, newPages)
 }
 
 func TestSearchBoundsInitialAttemptForFastRetry(t *testing.T) {
 	var firstAttemptBudget time.Duration
 	attempts := 0
+	retryPage := &rod.Page{}
 	action := &SearchAction{
 		timeout:  25 * time.Second,
 		navigate: func(context.Context, string) error { return nil },
-		reload:   func(context.Context) error { return nil },
+		newPage:  func(context.Context) (*rod.Page, error) { return retryPage, nil },
+		closePage: func(*rod.Page) error {
+			return nil
+		},
 		waitResults: func(ctx context.Context, _ string) (searchSnapshot, error) {
 			attempts++
 			if attempts == 1 {
@@ -223,14 +289,16 @@ func TestSearchBoundsInitialAttemptForFastRetry(t *testing.T) {
 
 func TestSearchRetriesPrematureEmptyOnce(t *testing.T) {
 	attempts := 0
-	reloads := 0
+	newPages := 0
+	retryPage := &rod.Page{}
 	action := &SearchAction{
 		timeout:  time.Second,
 		navigate: func(context.Context, string) error { return nil },
-		reload: func(context.Context) error {
-			reloads++
-			return nil
+		newPage: func(context.Context) (*rod.Page, error) {
+			newPages++
+			return retryPage, nil
 		},
+		closePage: func(*rod.Page) error { return nil },
 		waitResults: func(context.Context, string) (searchSnapshot, error) {
 			attempts++
 			if attempts == 1 {
@@ -243,15 +311,19 @@ func TestSearchRetriesPrematureEmptyOnce(t *testing.T) {
 	feeds, err := action.Search(context.Background(), "Kimi")
 	require.NoError(t, err)
 	require.Equal(t, "after-empty", feeds[0].ID)
-	require.Equal(t, 1, reloads)
+	require.Equal(t, 1, newPages)
 }
 
 func TestSearchAcceptsExplicitEmptyState(t *testing.T) {
 	attempts := 0
+	retryPage := &rod.Page{}
 	action := &SearchAction{
 		timeout:  time.Second,
 		navigate: func(context.Context, string) error { return nil },
-		reload:   func(context.Context) error { return nil },
+		newPage:  func(context.Context) (*rod.Page, error) { return retryPage, nil },
+		closePage: func(*rod.Page) error {
+			return nil
+		},
 		waitResults: func(context.Context, string) (searchSnapshot, error) {
 			attempts++
 			return searchSnapshot{NoResult: true}, nil

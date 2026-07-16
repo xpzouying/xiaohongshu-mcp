@@ -181,7 +181,8 @@ type SearchAction struct {
 	page         *rod.Page
 	timeout      time.Duration
 	navigate     func(context.Context, string) error
-	reload       func(context.Context) error
+	newPage      func(context.Context) (*rod.Page, error)
+	closePage    func(*rod.Page) error
 	waitResults  func(context.Context, string) (searchSnapshot, error)
 	applyFilters func(context.Context, []internalFilterOption) error
 }
@@ -210,12 +211,18 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 		return nil, searchContextError("start", err)
 	}
 	searchURL := makeSearchURL(keyword)
-	snapshot, err := s.loadInitialResults(ctx, searchURL)
+	action := s
+	snapshot, err := action.loadInitialResults(ctx, searchURL)
 	if shouldRetryInitialSearch(snapshot, err) {
-		if reloadErr := s.reloadPage(ctx); reloadErr != nil {
-			return nil, newSearchError("retry_reload", ctx, reloadErr)
+		retryPage, pageErr := s.createRetryPage(ctx)
+		if pageErr != nil {
+			return nil, newSearchError("retry_new_page", ctx, pageErr)
 		}
-		snapshot, err = s.waitSearchResults(ctx, "")
+		defer func() { _ = s.closeRetryPage(retryPage) }()
+		retryAction := *s
+		retryAction.page = retryPage
+		action = &retryAction
+		snapshot, err = action.loadResults(ctx, searchURL)
 	}
 	if err != nil {
 		return nil, normalizeSearchError("wait_initial_state", ctx, err)
@@ -241,10 +248,10 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 		}
 
 		if len(allInternalFilters) > 0 {
-			if err := s.applySearchFilters(ctx, allInternalFilters); err != nil {
+			if err := action.applySearchFilters(ctx, allInternalFilters); err != nil {
 				return nil, normalizeSearchError("apply_filters", ctx, err)
 			}
-			snapshot, err = s.waitSearchResults(ctx, snapshot.Signature)
+			snapshot, err = action.waitSearchResults(ctx, snapshot.Signature)
 			if err != nil {
 				return nil, normalizeSearchError("wait_filtered_results", ctx, err)
 			}
@@ -275,23 +282,39 @@ func (s *SearchAction) loadInitialResults(ctx context.Context, target string) (s
 	return s.waitSearchResults(attemptCtx, "")
 }
 
+func (s *SearchAction) loadResults(ctx context.Context, target string) (searchSnapshot, error) {
+	if err := s.navigatePage(ctx, target); err != nil {
+		return searchSnapshot{}, newSearchError("navigate", ctx, err)
+	}
+	return s.waitSearchResults(ctx, "")
+}
+
+func (s *SearchAction) createRetryPage(ctx context.Context) (*rod.Page, error) {
+	if s.newPage != nil {
+		return s.newPage(ctx)
+	}
+	if s.page == nil {
+		return nil, fmt.Errorf("搜索页面未初始化")
+	}
+	return s.page.Browser().Context(ctx).Page(proto.TargetCreateTarget{})
+}
+
+func (s *SearchAction) closeRetryPage(page *rod.Page) error {
+	if page == nil {
+		return nil
+	}
+	if s.closePage != nil {
+		return s.closePage(page)
+	}
+	return page.Close()
+}
+
 func (s *SearchAction) navigatePage(ctx context.Context, target string) error {
 	if s.navigate != nil {
 		return s.navigate(ctx, target)
 	}
 	page := s.page.Context(ctx)
 	if err := page.Navigate(target); err != nil {
-		return err
-	}
-	return page.WaitStable(300 * time.Millisecond)
-}
-
-func (s *SearchAction) reloadPage(ctx context.Context) error {
-	if s.reload != nil {
-		return s.reload(ctx)
-	}
-	page := s.page.Context(ctx)
-	if err := page.Reload(); err != nil {
 		return err
 	}
 	return page.WaitStable(300 * time.Millisecond)
