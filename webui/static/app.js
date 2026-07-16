@@ -5,6 +5,17 @@ const XHS = (() => {
     ACCOUNT_RISK_HOLD: '账号处于风控冻结状态', UPSTREAM_UNAVAILABLE: '小红书服务暂时不可用'
   };
 
+  function normalizeError(error, fallback = {}) {
+    if (error?.name === 'AbortError') {
+      return Object.assign(new Error('请求已取消'), {name: 'AbortError', code: 'REQUEST_ABORTED', status: 0});
+    }
+    const normalized = error instanceof Error ? error : new Error(fallback.message || '请求失败');
+    normalized.code = fallback.code || normalized.code || 'REQUEST_FAILED';
+    normalized.status = fallback.status ?? normalized.status ?? 0;
+    normalized.details = fallback.details ?? normalized.details;
+    return normalized;
+  }
+
   function escapeHTML(value = '') {
     return String(value).replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
   }
@@ -35,15 +46,28 @@ const XHS = (() => {
       init.body = JSON.stringify({...body, account_id: accountId});
     }
     if (init.body) init.headers = {'Content-Type': 'application/json', ...(init.headers || {})};
-    const response = await fetch(url, init);
+    let response;
+    try {
+      response = await fetch(url, init);
+    } catch (error) {
+      throw normalizeError(error, {code: error?.name === 'AbortError' ? 'REQUEST_ABORTED' : 'NETWORK_ERROR'});
+    }
     let payload;
-    try { payload = await response.json(); } catch (_) { payload = {}; }
+    try { payload = await response.json(); } catch (_) {
+      if (response.status === 204) return null;
+      throw normalizeError(null, {message: '服务端返回了无法解析的响应', code: 'INVALID_RESPONSE', status: response.status});
+    }
     if (!response.ok || payload.success === false || payload.error) {
-      const error = new Error(errorMessages[payload.code] || payload.error || `请求失败 (${response.status})`);
-      error.code = payload.code;
-      throw error;
+      throw normalizeError(null, {
+        message: errorMessages[payload.code] || payload.error || `请求失败 (${response.status})`,
+        code: payload.code || 'REQUEST_FAILED', status: response.status, details: payload.details
+      });
     }
     return Object.prototype.hasOwnProperty.call(payload, 'data') ? payload.data : payload;
+  }
+  function callTool(toolName, input = {}, options = {}) {
+    if (!globalThis.XHSMCP?.callTool) throw new Error('MCP 调用层尚未初始化');
+    return globalThis.XHSMCP.callTool(toolName, input, {...options, api});
   }
   function currentAccount() { return state.accounts.find(item => item.id === state.selectedAccountId); }
   function requireAccount() {
@@ -53,7 +77,7 @@ const XHS = (() => {
   }
   async function loadAccounts() {
     try {
-      const data = await api('/api/web/accounts', {account: false});
+      const data = await callTool('list_accounts');
       state.accounts = data.accounts || [];
       state.defaultAccountId = data.default_account_id || '';
       const selectable = account => !['disabled', 'risk_hold'].includes(account.status);
@@ -79,7 +103,7 @@ const XHS = (() => {
   }
   function initShell() {
     const page = document.body.dataset.page;
-    const links = [['dashboard','/','概览'],['accounts','/accounts.html','账号'],['search','/search.html','搜索'],['publish','/publish.html','发布'],['detail','/detail.html','详情']];
+    const links = [['dashboard','/','概览'],['accounts','/accounts.html','账号'],['discover','/discover.html','发现'],['publish','/publish.html','发布'],['profile','/profile.html','用户主页']];
     document.querySelector('#app-header').innerHTML = `<a class="brand" href="/" aria-label="小红书 MCP 首页"><span>小</span>红书 MCP</a><nav aria-label="主导航">${links.map(([id, href, label]) => `<a href="${href}"${id === page ? ' aria-current="page"' : ''}>${label}</a>`).join('')}</nav><label class="account-picker"><span>当前账号</span><select id="global-account" aria-label="当前账号"><option>加载中…</option></select></label>`;
     document.body.insertAdjacentHTML('beforeend', '<div id="toast-region" class="toast-region" role="status" aria-live="polite"></div><div id="loading-overlay" class="loading-overlay" hidden><div class="spinner" aria-hidden="true"></div><span>正在处理…</span></div>');
     document.querySelector('#global-account').addEventListener('change', event => {
@@ -91,5 +115,5 @@ const XHS = (() => {
     loadAccounts().then(() => window.dispatchEvent(new CustomEvent('accountsready')));
   }
   document.addEventListener('DOMContentLoaded', initShell);
-  return {state, api, toast, loading, escapeHTML, currentAccount, requireAccount, loadAccounts};
+  return {state, api, callTool, normalizeError, toast, loading, escapeHTML, currentAccount, requireAccount, loadAccounts};
 })();

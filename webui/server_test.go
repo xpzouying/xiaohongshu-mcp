@@ -2,11 +2,182 @@ package main
 
 import (
 	"io"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"strings"
 	"testing"
 )
+
+type toolWebCoverage struct {
+	tool       string
+	method     string
+	webPath    string
+	upstream   string
+	page       string
+	script     string
+	status     string
+	entryToken string
+}
+
+var mcpWebCoverage = []toolWebCoverage{
+	{"list_accounts", http.MethodGet, "/api/web/accounts", "/api/v1/accounts", "accounts.html", "accounts.js", "complete", "refresh-accounts"},
+	{"create_account", http.MethodPost, "/api/web/accounts", "/api/v1/accounts", "accounts.html", "accounts.js", "complete", "advanced-create"},
+	{"remove_account", http.MethodDelete, "/api/web/accounts/acct_one", "/api/v1/accounts/acct_one", "accounts.html", "accounts.js", "complete", `data-action="remove"`},
+	{"set_default_account", http.MethodPut, "/api/web/accounts/acct_one/default", "/api/v1/accounts/acct_one/default", "accounts.html", "accounts.js", "complete", `data-action="default"`},
+	{"check_login_status", http.MethodPost, "/api/web/accounts/acct_one/login/status", "/api/v1/accounts/acct_one/login/status", "accounts.html", "accounts.js", "complete", `data-action="status"`},
+	{"get_login_qrcode", http.MethodPost, "/api/web/accounts/acct_one/login/qrcode", "/api/v1/accounts/acct_one/login/qrcode", "accounts.html", "accounts.js", "complete", `data-action="qr"`},
+	{"reset_login", http.MethodDelete, "/api/web/accounts/acct_one/login", "/api/v1/accounts/acct_one/login", "accounts.html", "accounts.js", "complete", `data-action="reset"`},
+	{"publish_content", http.MethodPost, "/api/web/publish", "/api/v1/publish", "publish.html", "publish.js", "complete", "'publish_content'"},
+	{"publish_with_video", http.MethodPost, "/api/web/publish_video", "/api/v1/publish_video", "publish.html", "publish.js", "complete", "'publish_with_video'"},
+	{"list_feeds", http.MethodGet, "/api/web/feeds/list", "/api/v1/feeds/list", "discover.html", "discover.js", "complete", "'list_feeds'"},
+	{"search_feeds", http.MethodPost, "/api/web/feeds/search", "/api/v1/feeds/search", "discover.html", "discover.js", "complete", "'search_feeds'"},
+	{"get_feed_detail", http.MethodPost, "/api/web/feeds/detail", "/api/v1/feeds/detail", "detail.html", "detail.js", "complete", "'get_feed_detail'"},
+	{"user_profile", http.MethodPost, "/api/web/user/profile", "/api/v1/user/profile", "profile.html", "profile.js", "complete", "'user_profile'"},
+	{"post_comment_to_feed", http.MethodPost, "/api/web/feeds/comment", "/api/v1/feeds/comment", "detail.html", "detail.js", "complete", "'post_comment_to_feed'"},
+	{"reply_comment_in_feed", http.MethodPost, "/api/web/feeds/comment/reply", "/api/v1/feeds/comment/reply", "detail.html", "detail.js", "complete", "'reply_comment_in_feed'"},
+	{"like_feed", http.MethodPost, "/api/web/feeds/like", "/api/v1/feeds/like", "detail.html", "detail.js", "complete", "'like_feed'"},
+	{"favorite_feed", http.MethodPost, "/api/web/feeds/favorite", "/api/v1/feeds/favorite", "detail.html", "detail.js", "complete", "'favorite_feed'"},
+}
+
+func TestMCPWebCoverageBaseline(t *testing.T) {
+	wantTools := []string{
+		"check_login_status", "create_account", "favorite_feed", "get_feed_detail",
+		"get_login_qrcode", "like_feed", "list_accounts", "list_feeds",
+		"post_comment_to_feed", "publish_content", "publish_with_video", "remove_account",
+		"reply_comment_in_feed", "reset_login", "search_feeds", "set_default_account", "user_profile",
+	}
+	gotTools := make([]string, 0, len(mcpWebCoverage))
+	statusCounts := map[string]int{}
+	for _, coverage := range mcpWebCoverage {
+		gotTools = append(gotTools, coverage.tool)
+		statusCounts[coverage.status]++
+	}
+	sort.Strings(gotTools)
+	if strings.Join(gotTools, ",") != strings.Join(wantTools, ",") {
+		t.Fatalf("MCP Web UI tool baseline = %v, want %v", gotTools, wantTools)
+	}
+	if statusCounts["complete"] != 17 || statusCounts["partial"] != 0 || statusCounts["missing"] != 0 {
+		t.Fatalf("coverage status counts = %v, want complete=17 partial=0 missing=0", statusCounts)
+	}
+}
+
+func TestAccountPageExposesCompleteCreateAndLoginStatusFlows(t *testing.T) {
+	page, err := fs.ReadFile(staticFiles, "static/accounts.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	script, err := fs.ReadFile(staticFiles, "static/accounts.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pageText, scriptText := string(page), string(script)
+	for _, token := range []string{"advanced-create", `name="account_id"`, `name="display_name"`, `name="owner"`, `name="purpose"`} {
+		if !strings.Contains(pageText, token) {
+			t.Errorf("accounts.html missing %q", token)
+		}
+	}
+	for _, token := range []string{"createAccount", "validateAccountId", `data-action="status"`, "checkLoginStatus", "'check_login_status'"} {
+		if !strings.Contains(scriptText, token) {
+			t.Errorf("accounts.js missing %q", token)
+		}
+	}
+}
+
+func TestMCPWebCoverageProxyContracts(t *testing.T) {
+	for _, coverage := range mcpWebCoverage {
+		t.Run(coverage.tool, func(t *testing.T) {
+			got, allowed := proxyPath(coverage.method, coverage.webPath)
+			if !allowed || got != coverage.upstream {
+				t.Fatalf("proxyPath(%s, %s) = %q, %v; want %q, true", coverage.method, coverage.webPath, got, allowed, coverage.upstream)
+			}
+		})
+	}
+}
+
+func TestMCPWebCoverageStaticContracts(t *testing.T) {
+	for _, coverage := range mcpWebCoverage {
+		t.Run(coverage.tool, func(t *testing.T) {
+			page, err := fs.ReadFile(staticFiles, "static/"+coverage.page)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(string(page), `/static/`+coverage.script) {
+				t.Fatalf("%s does not load %s", coverage.page, coverage.script)
+			}
+			if coverage.entryToken == "" {
+				return
+			}
+			script, err := fs.ReadFile(staticFiles, "static/"+coverage.script)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(string(page), coverage.entryToken) && !strings.Contains(string(script), coverage.entryToken) {
+				t.Fatalf("%s has no static entry token %q", coverage.tool, coverage.entryToken)
+			}
+		})
+	}
+}
+
+func TestProfilePageMapsResponseAndEscapesDynamicValues(t *testing.T) {
+	page, err := fs.ReadFile(staticFiles, "static/profile.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	script, err := fs.ReadFile(staticFiles, "static/profile.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pageText, scriptText := string(page), string(script)
+	for _, token := range []string{"profile-content", "profile-feeds", "/static/profile.js"} {
+		if !strings.Contains(pageText, token) {
+			t.Errorf("profile.html missing token %q", token)
+		}
+	}
+	for _, token := range []string{
+		"profileParams.get('user_id')", "profileParams.get('xsec_token')", "'user_profile'",
+		"userBasicInfo", "interactions", "feeds", "imageb", "nickname", "redId", "desc", "ipLocation",
+		"XHS.escapeHTML", "encodeURIComponent(String(feed.id", "encodeURIComponent(String(feed.xsecToken",
+	} {
+		if !strings.Contains(scriptText, token) {
+			t.Errorf("profile.js missing contract token %q", token)
+		}
+	}
+}
+
+func TestDetailPageMapsAdvancedCommentOptionsAndProfileLinks(t *testing.T) {
+	page, err := fs.ReadFile(staticFiles, "static/detail.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	script, err := fs.ReadFile(staticFiles, "static/detail.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pageText, scriptText := string(page), string(script)
+	for _, parameter := range []string{
+		"load_all_comments", "click_more_replies", "limit", "reply_limit", "scroll_speed",
+	} {
+		if !strings.Contains(pageText, `name="`+parameter+`"`) {
+			t.Errorf("detail.html missing input for %s", parameter)
+		}
+		if !strings.Contains(scriptText, parameter+":") {
+			t.Errorf("detail.js missing request mapping for %s", parameter)
+		}
+	}
+	for _, token := range []string{
+		"'get_feed_detail'", "/profile.html?user_id=", "encodeURIComponent(userId)",
+		"encodeURIComponent(detailState.token)", "XHS.escapeHTML(comment.content || '')", "AbortController",
+		"cancel-detail", "detail-error", "setPending", "validateReply",
+	} {
+		if !strings.Contains(scriptText, token) {
+			t.Errorf("detail.js missing contract token %q", token)
+		}
+	}
+}
 
 func TestHealth(t *testing.T) {
 	h := newHandler(handlerConfig{})
@@ -24,13 +195,53 @@ func TestHealth(t *testing.T) {
 func TestEmbeddedStaticFiles(t *testing.T) {
 	h := newHandler(handlerConfig{})
 	for _, path := range []string{
-		"/", "/accounts.html", "/search.html", "/publish.html", "/detail.html",
-		"/static/app.css", "/static/app.js", "/static/accounts.js",
+		"/", "/accounts.html", "/discover.html", "/publish.html", "/detail.html", "/profile.html",
+		"/static/app.css", "/static/app.js", "/static/mcp-contract.js", "/static/accounts.js", "/static/discover.css", "/static/discover.js", "/static/profile.js",
 	} {
 		response := httptest.NewRecorder()
 		h.ServeHTTP(response, httptest.NewRequest(http.MethodGet, path, nil))
 		if response.Code != http.StatusOK {
 			t.Errorf("GET %s: status = %d, body = %s", path, response.Code, response.Body.String())
+		}
+	}
+}
+
+func TestLegacySearchPageRedirectsToDiscover(t *testing.T) {
+	h := newHandler(handlerConfig{})
+	response := httptest.NewRecorder()
+	h.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/search.html", nil))
+
+	if response.Code != http.StatusTemporaryRedirect {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusTemporaryRedirect)
+	}
+	if location := response.Header().Get("Location"); location != "/discover.html" {
+		t.Fatalf("Location = %q, want /discover.html", location)
+	}
+}
+
+func TestDiscoverStaticContracts(t *testing.T) {
+	page, err := fs.ReadFile(staticFiles, "static/discover.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	script, err := fs.ReadFile(staticFiles, "static/discover.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pageText, scriptText := string(page), string(script)
+	for _, token := range []string{
+		"recommended-panel", "search-panel", "sort_by", "note_type", "publish_time", "search_scope", "location",
+		">综合<", ">最新<", ">最多点赞<", ">最多评论<", ">最多收藏<",
+		">视频<", ">图文<", ">一天内<", ">一周内<", ">半年内<",
+		">已看过<", ">未看过<", ">已关注<", ">同城<", ">附近<",
+	} {
+		if !strings.Contains(pageText, token) {
+			t.Errorf("discover.html missing %q", token)
+		}
+	}
+	for _, token := range []string{"'list_feeds'", "'search_feeds'", "XHS.escapeHTML", "encodeURIComponent(feed.id", "encodeURIComponent(user.userId", "encodeURIComponent(feed.xsecToken"} {
+		if !strings.Contains(scriptText, token) {
+			t.Errorf("discover.js missing %q", token)
 		}
 	}
 }

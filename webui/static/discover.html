@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>发现 · 小红书 MCP</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <link rel="stylesheet" href="/static/discover.css">
+  <script defer src="/static/app.js"></script>
+  <script defer src="/static/mcp-contract.js"></script>
+  <script defer src="/static/discover.js"></script>
+</head>
+<body data-page="discover">
+  <header id="app-header"></header>
+  <main class="container">
+    <div class="page-heading">
+      <div>
+        <p class="eyebrow">DISCOVER</p>
+        <h1>发现</h1>
+        <p>浏览推荐内容，或使用完整筛选搜索笔记。</p>
+      </div>
+    </div>
+
+    <div class="discover-tabs" role="tablist" aria-label="发现内容类型">
+      <button id="recommended-tab" class="discover-tab active" type="button" role="tab" aria-selected="true" aria-controls="recommended-panel" data-tab="recommended">推荐流</button>
+      <button id="search-tab" class="discover-tab" type="button" role="tab" aria-selected="false" aria-controls="search-panel" data-tab="search">搜索</button>
+    </div>
+
+    <section id="recommended-panel" role="tabpanel" aria-labelledby="recommended-tab">
+      <div class="section-title">
+        <h2>为你推荐</h2>
+        <button id="refresh-feeds" class="secondary" type="button">刷新</button>
+      </div>
+      <div id="recommended-grid" class="feed-grid"><div class="empty card">正在加载推荐内容…</div></div>
+    </section>
+
+    <section id="search-panel" role="tabpanel" aria-labelledby="search-tab" hidden>
+      <form id="search-form" class="card search-panel">
+        <div class="search-row">
+          <label class="sr-only" for="keyword">搜索关键词</label>
+          <input id="keyword" name="keyword" required placeholder="输入关键词，例如：AI 工具">
+          <button class="primary" type="submit">搜索</button>
+        </div>
+        <div class="filter-grid">
+          <label>排序依据<select name="sort_by"><option>综合</option><option>最新</option><option>最多点赞</option><option>最多评论</option><option>最多收藏</option></select></label>
+          <label>笔记类型<select name="note_type"><option>不限</option><option>视频</option><option>图文</option></select></label>
+          <label>发布时间<select name="publish_time"><option>不限</option><option>一天内</option><option>一周内</option><option>半年内</option></select></label>
+          <label>搜索范围<select name="search_scope"><option>不限</option><option>已看过</option><option>未看过</option><option>已关注</option></select></label>
+          <label>位置距离<select name="location"><option>不限</option><option>同城</option><option>附近</option></select></label>
+        </div>
+      </form>
+      <div class="section-title"><h2>搜索结果</h2><span id="result-count" class="muted">等待搜索</span></div>
+      <div id="search-grid" class="feed-grid"><div class="empty card">输入关键词开始搜索</div></div>
+    </section>
+  </main>
+</body>
+</html>

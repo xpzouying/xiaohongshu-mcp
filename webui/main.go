@@ -140,7 +140,10 @@ func newHandler(config handlerConfig) http.Handler {
 	})
 	mux.Handle("GET /static/", staticHandler)
 	mux.HandleFunc("GET /{$}", pageHandler("index.html"))
-	for _, page := range []string{"accounts.html", "search.html", "publish.html", "detail.html"} {
+	mux.HandleFunc("GET /search.html", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/discover.html", http.StatusTemporaryRedirect)
+	})
+	for _, page := range []string{"accounts.html", "discover.html", "publish.html", "detail.html", "profile.html"} {
 		mux.HandleFunc("GET /"+page, pageHandler(page))
 	}
 
@@ -299,7 +302,7 @@ func securityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Referrer-Policy", "same-origin")
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; img-src 'self' data:; object-src 'none'; frame-ancestors 'none'")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; img-src 'self' data: https:; object-src 'none'; frame-ancestors 'none'")
 		next.ServeHTTP(w, r)
 	})
 }

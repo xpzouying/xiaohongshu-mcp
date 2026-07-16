@@ -47,7 +47,14 @@ func TestAccountModeKeepsBusinessToolsRegistered(t *testing.T) {
 	for _, tool := range result.Tools {
 		registered[tool.Name] = true
 	}
-	for _, name := range []string{"list_accounts", "check_login_status", "publish_content", "search_feeds"} {
+	wantTools := []string{
+		"list_accounts", "create_account", "remove_account", "set_default_account",
+		"check_login_status", "get_login_qrcode", "reset_login", "publish_content",
+		"list_feeds", "search_feeds", "get_feed_detail", "user_profile",
+		"post_comment_to_feed", "reply_comment_in_feed", "publish_with_video",
+		"like_feed", "favorite_feed",
+	}
+	for _, name := range wantTools {
 		if !registered[name] {
 			t.Errorf("tool %q is not registered in account mode", name)
 		}
@@ -55,7 +62,7 @@ func TestAccountModeKeepsBusinessToolsRegistered(t *testing.T) {
 	if registered["delete_cookies"] {
 		t.Error("legacy delete_cookies is registered in account mode")
 	}
-	if got, want := len(result.Tools), 17; got != want {
+	if got, want := len(result.Tools), len(wantTools); got != want {
 		t.Errorf("registered tool count = %d, want %d", got, want)
 	}
 
