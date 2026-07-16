@@ -3,13 +3,35 @@ package xiaohongshu
 import (
 	"context"
 	"encoding/json"
+	stderrors "errors"
 	"fmt"
 	"net/url"
 	"time"
 
 	"github.com/go-rod/rod"
-	"github.com/xpzouying/xiaohongshu-mcp/errors"
+	"github.com/go-rod/rod/lib/proto"
+	xhserrors "github.com/xpzouying/xiaohongshu-mcp/errors"
 )
+
+const (
+	searchTimeout         = 25 * time.Second
+	initialAttemptTimeout = 8 * time.Second
+)
+
+// SearchError 提供可供 API 层识别的搜索错误。
+type SearchError struct {
+	Code  string
+	Stage string
+	Err   error
+}
+
+func (e *SearchError) Error() string {
+	return fmt.Sprintf("搜索失败 [%s]: %v", e.Stage, e.Err)
+}
+
+func (e *SearchError) Unwrap() error {
+	return e.Err
+}
 
 type SearchResult struct {
 	Search struct {
@@ -71,7 +93,7 @@ func convertToInternalFilters(filter FilterOption) ([]internalFilterOption, erro
 	var internalFilters []internalFilterOption
 
 	// 处理排序依据
-	if filter.SortBy != "" {
+	if filter.SortBy != "" && filter.SortBy != "综合" {
 		internal, err := findInternalOption(1, filter.SortBy)
 		if err != nil {
 			return nil, fmt.Errorf("排序依据错误: %w", err)
@@ -80,7 +102,7 @@ func convertToInternalFilters(filter FilterOption) ([]internalFilterOption, erro
 	}
 
 	// 处理笔记类型
-	if filter.NoteType != "" {
+	if filter.NoteType != "" && filter.NoteType != "不限" {
 		internal, err := findInternalOption(2, filter.NoteType)
 		if err != nil {
 			return nil, fmt.Errorf("笔记类型错误: %w", err)
@@ -89,7 +111,7 @@ func convertToInternalFilters(filter FilterOption) ([]internalFilterOption, erro
 	}
 
 	// 处理发布时间
-	if filter.PublishTime != "" {
+	if filter.PublishTime != "" && filter.PublishTime != "不限" {
 		internal, err := findInternalOption(3, filter.PublishTime)
 		if err != nil {
 			return nil, fmt.Errorf("发布时间错误: %w", err)
@@ -98,7 +120,7 @@ func convertToInternalFilters(filter FilterOption) ([]internalFilterOption, erro
 	}
 
 	// 处理搜索范围
-	if filter.SearchScope != "" {
+	if filter.SearchScope != "" && filter.SearchScope != "不限" {
 		internal, err := findInternalOption(4, filter.SearchScope)
 		if err != nil {
 			return nil, fmt.Errorf("搜索范围错误: %w", err)
@@ -107,7 +129,7 @@ func convertToInternalFilters(filter FilterOption) ([]internalFilterOption, erro
 	}
 
 	// 处理位置距离
-	if filter.Location != "" {
+	if filter.Location != "" && filter.Location != "不限" {
 		internal, err := findInternalOption(5, filter.Location)
 		if err != nil {
 			return nil, fmt.Errorf("位置距离错误: %w", err)
@@ -156,23 +178,52 @@ func validateInternalFilterOption(filter internalFilterOption) error {
 }
 
 type SearchAction struct {
-	page *rod.Page
+	page         *rod.Page
+	timeout      time.Duration
+	navigate     func(context.Context, string) error
+	reload       func(context.Context) error
+	waitResults  func(context.Context, string) (searchSnapshot, error)
+	applyFilters func(context.Context, []internalFilterOption) error
+}
+
+type searchSnapshot struct {
+	Feeds     []Feed `json:"feeds"`
+	Signature string `json:"signature"`
+	NoResult  bool   `json:"noResult"`
 }
 
 func NewSearchAction(page *rod.Page) *SearchAction {
-	pp := page.Timeout(60 * time.Second)
-
-	return &SearchAction{page: pp}
+	return &SearchAction{page: page, timeout: searchTimeout}
 }
 
 func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...FilterOption) ([]Feed, error) {
-	page := s.page.Context(ctx)
-
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	timeout := s.timeout
+	if timeout <= 0 {
+		timeout = searchTimeout
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	if err := ctx.Err(); err != nil {
+		return nil, searchContextError("start", err)
+	}
 	searchURL := makeSearchURL(keyword)
-	page.MustNavigate(searchURL)
-	page.MustWaitStable()
+	if err := s.navigatePage(ctx, searchURL); err != nil {
+		return nil, newSearchError("navigate", ctx, err)
+	}
 
-	page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
+	snapshot, err := s.waitInitialResults(ctx)
+	if shouldRetryInitialSearch(snapshot, err) {
+		if reloadErr := s.reloadPage(ctx); reloadErr != nil {
+			return nil, newSearchError("retry_reload", ctx, reloadErr)
+		}
+		snapshot, err = s.waitSearchResults(ctx, "")
+	}
+	if err != nil {
+		return nil, normalizeSearchError("wait_initial_state", ctx, err)
+	}
 
 	// 如果有筛选条件，则应用筛选
 	if len(filters) > 0 {
@@ -193,50 +244,162 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 			}
 		}
 
-		// 悬停在筛选按钮上
-		filterButton := page.MustElement(`div.filter`)
-		filterButton.MustHover()
-
-		// 等待筛选面板出现
-		page.MustWait(`() => document.querySelector('div.filter-panel') !== null`)
-
-		// 应用所有筛选条件
-		for _, filter := range allInternalFilters {
-			selector := fmt.Sprintf(`div.filter-panel div.filters:nth-child(%d) div.tags:nth-child(%d)`,
-				filter.FiltersIndex, filter.TagsIndex)
-			option := page.MustElement(selector)
-			option.MustClick()
-		}
-
-		// 等待页面更新
-		page.MustWaitStable()
-		// 重新等待 __INITIAL_STATE__ 更新
-		page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
-	}
-
-	result := page.MustEval(`() => {
-		if (window.__INITIAL_STATE__ &&
-		    window.__INITIAL_STATE__.search &&
-		    window.__INITIAL_STATE__.search.feeds) {
-			const feeds = window.__INITIAL_STATE__.search.feeds;
-			const feedsData = feeds.value !== undefined ? feeds.value : feeds._value;
-			if (feedsData) {
-				return JSON.stringify(feedsData);
+		if len(allInternalFilters) > 0 {
+			if err := s.applySearchFilters(ctx, allInternalFilters); err != nil {
+				return nil, normalizeSearchError("apply_filters", ctx, err)
+			}
+			snapshot, err = s.waitSearchResults(ctx, snapshot.Signature)
+			if err != nil {
+				return nil, normalizeSearchError("wait_filtered_results", ctx, err)
 			}
 		}
-		return "";
-	}`).String()
-
-	if result == "" {
-		return nil, errors.ErrNoFeeds
 	}
 
-	var feeds []Feed
-	if err := json.Unmarshal([]byte(result), &feeds); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal feeds: %w", err)
-	}
+	return snapshot.Feeds, nil
+}
 
-	return feeds, nil
+func (s *SearchAction) waitInitialResults(ctx context.Context) (searchSnapshot, error) {
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return s.waitSearchResults(ctx, "")
+	}
+	remaining := time.Until(deadline)
+	if remaining <= 0 {
+		return searchSnapshot{}, ctx.Err()
+	}
+	attemptTimeout := min(remaining, initialAttemptTimeout)
+	attemptCtx, cancel := context.WithTimeout(ctx, attemptTimeout)
+	defer cancel()
+	return s.waitSearchResults(attemptCtx, "")
+}
+
+func (s *SearchAction) navigatePage(ctx context.Context, target string) error {
+	if s.navigate != nil {
+		return s.navigate(ctx, target)
+	}
+	page := s.page.Context(ctx)
+	if err := page.Navigate(target); err != nil {
+		return err
+	}
+	return page.WaitStable(300 * time.Millisecond)
+}
+
+func (s *SearchAction) reloadPage(ctx context.Context) error {
+	if s.reload != nil {
+		return s.reload(ctx)
+	}
+	page := s.page.Context(ctx)
+	if err := page.Reload(); err != nil {
+		return err
+	}
+	return page.WaitStable(300 * time.Millisecond)
+}
+
+func (s *SearchAction) waitSearchResults(ctx context.Context, previousSignature string) (searchSnapshot, error) {
+	if s.waitResults != nil {
+		return s.waitResults(ctx, previousSignature)
+	}
+	page := s.page.Context(ctx)
+	condition := fmt.Sprintf(`() => {
+		const state = window.__INITIAL_STATE__;
+		const holder = state && state.search && state.search.feeds;
+		const feeds = holder && (holder.value !== undefined ? holder.value : holder._value);
+		const signature = Array.isArray(feeds) ? feeds.map(feed => feed && (feed.id || feed.noteCard && feed.noteCard.noteId) || '').join('|') : '';
+		const noResult = Boolean(document.querySelector('.no-result, .search-no-result, [class*="no-result"], [class*="empty-result"]'));
+		return noResult || (Array.isArray(feeds) && feeds.length > 0 && signature !== %q);
+	}`, previousSignature)
+	if err := page.Wait(rod.Eval(condition)); err != nil {
+		return searchSnapshot{}, newSearchError("wait_initial_state", ctx, err)
+	}
+	evaluated, err := page.Eval(`() => {
+		const holder = window.__INITIAL_STATE__ && window.__INITIAL_STATE__.search && window.__INITIAL_STATE__.search.feeds;
+		const feeds = holder && (holder.value !== undefined ? holder.value : holder._value);
+		const list = Array.isArray(feeds) ? feeds : [];
+		return JSON.stringify({
+			feeds: list,
+			signature: list.map(feed => feed && (feed.id || feed.noteCard && feed.noteCard.noteId) || '').join('|'),
+			noResult: Boolean(document.querySelector('.no-result, .search-no-result, [class*="no-result"], [class*="empty-result"]'))
+		});
+	}`)
+	if err != nil {
+		return searchSnapshot{}, newSearchError("read_results", ctx, err)
+	}
+	var snapshot searchSnapshot
+	if err := json.Unmarshal([]byte(evaluated.Value.Str()), &snapshot); err != nil {
+		return searchSnapshot{}, fmt.Errorf("解析搜索结果失败: %w", err)
+	}
+	if len(snapshot.Feeds) == 0 && !snapshot.NoResult {
+		return searchSnapshot{}, xhserrors.ErrNoFeeds
+	}
+	return snapshot, nil
+}
+
+func (s *SearchAction) applySearchFilters(ctx context.Context, filters []internalFilterOption) error {
+	if s.applyFilters != nil {
+		return s.applyFilters(ctx, filters)
+	}
+	page := s.page.Context(ctx)
+	filterButton, err := page.Element(`div.filter`)
+	if err != nil {
+		return err
+	}
+	if err := filterButton.Hover(); err != nil {
+		return err
+	}
+	if err := page.Wait(rod.Eval(`() => document.querySelector('div.filter-panel') !== null`)); err != nil {
+		return err
+	}
+	for _, filter := range filters {
+		selector := fmt.Sprintf(`div.filter-panel div.filters:nth-child(%d) div.tags:nth-child(%d)`, filter.FiltersIndex, filter.TagsIndex)
+		option, err := page.Element(selector)
+		if err != nil {
+			return err
+		}
+		if err := option.Click(proto.InputMouseButtonLeft, 1); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func shouldRetryInitialSearch(snapshot searchSnapshot, err error) bool {
+	if err == nil {
+		return snapshot.NoResult && len(snapshot.Feeds) == 0
+	}
+	if stderrors.Is(err, xhserrors.ErrNoFeeds) {
+		return true
+	}
+	var searchErr *SearchError
+	return stderrors.As(err, &searchErr) && searchErr.Stage == "wait_initial_state"
+}
+
+func normalizeSearchError(stage string, ctx context.Context, err error) error {
+	var searchErr *SearchError
+	if stderrors.As(err, &searchErr) {
+		return err
+	}
+	return newSearchError(stage, ctx, err)
+}
+
+func (s *SearchAction) withTimeout(timeout time.Duration) *SearchAction {
+	clone := *s
+	clone.timeout = timeout
+	return &clone
+}
+
+func newSearchError(stage string, ctx context.Context, err error) error {
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return searchContextError(stage, ctxErr)
+	}
+	return &SearchError{Code: "SEARCH_FAILED", Stage: stage, Err: err}
+}
+
+func searchContextError(stage string, err error) error {
+	code := "SEARCH_CANCELED"
+	if stderrors.Is(err, context.DeadlineExceeded) {
+		code = "SEARCH_TIMEOUT"
+	}
+	return &SearchError{Code: code, Stage: stage, Err: err}
 }
 
 func makeSearchURL(keyword string) string {

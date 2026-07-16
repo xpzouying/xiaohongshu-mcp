@@ -16,6 +16,13 @@
     search_scope: new Set(['不限', '已看过', '未看过', '已关注']),
     location: new Set(['不限', '同城', '附近'])
   };
+  const DEFAULT_FILTERS = {
+    sort_by: '综合',
+    note_type: '不限',
+    publish_time: '不限',
+    search_scope: '不限',
+    location: '不限'
+  };
 
   class ToolInputError extends Error {
     constructor(message, details) {
@@ -122,11 +129,13 @@
     search_feeds: input => {
       const filters = {};
       Object.entries(FILTERS).forEach(([key, allowed]) => {
-        const value = input.filters?.[key] ?? '不限';
+        const value = input.filters?.[key] ?? DEFAULT_FILTERS[key];
         if (!allowed.has(value)) throw new ToolInputError(`${key} 无效`, {field: `filters.${key}`});
-        filters[key] = value;
+        if (value !== DEFAULT_FILTERS[key]) filters[key] = value;
       });
-      return {path: '/api/web/feeds/search', options: {method: 'POST', body: {keyword: requiredString(input, 'keyword'), filters}}};
+      const body = {keyword: requiredString(input, 'keyword')};
+      if (Object.keys(filters).length > 0) body.filters = filters;
+      return {path: '/api/web/feeds/search', options: {method: 'POST', body}};
     },
     get_feed_detail: input => {
       const body = {...feedTarget(input), load_all_comments: Boolean(input.load_all_comments)};

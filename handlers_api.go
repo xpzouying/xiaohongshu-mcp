@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/xpzouying/xiaohongshu-mcp/cookies"
@@ -163,13 +164,30 @@ func (s *AppServer) searchFeedsHandler(c *gin.Context) {
 	// 搜索 Feeds
 	result, err := s.xiaohongshuService.SearchFeeds(c.Request.Context(), keyword, filters)
 	if err != nil {
-		respondError(c, http.StatusInternalServerError, "SEARCH_FEEDS_FAILED",
-			"搜索Feeds失败", err.Error())
+		status, code, details := searchErrorResponse(err)
+		respondError(c, status, code, "搜索Feeds失败", details)
 		return
 	}
 
 	c.Set("account", "ai-report")
 	respondSuccess(c, result, "搜索Feeds成功")
+}
+
+func searchErrorResponse(err error) (int, string, any) {
+	var searchErr *xiaohongshu.SearchError
+	if !errors.As(err, &searchErr) {
+		return http.StatusInternalServerError, "SEARCH_FEEDS_FAILED", err.Error()
+	}
+	status := http.StatusInternalServerError
+	if searchErr.Code == "SEARCH_TIMEOUT" {
+		status = http.StatusGatewayTimeout
+	} else if searchErr.Code == "SEARCH_CANCELED" {
+		status = http.StatusRequestTimeout
+	}
+	return status, searchErr.Code, map[string]string{
+		"stage": searchErr.Stage,
+		"error": searchErr.Err.Error(),
+	}
 }
 
 // getFeedDetailHandler 获取Feed详情

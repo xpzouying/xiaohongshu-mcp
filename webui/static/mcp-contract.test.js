@@ -81,6 +81,20 @@ test('账号创建、搜索筛选与详情高级参数精确序列化', () => {
   assert.equal(Object.hasOwn(basic, 'comment_config'), false);
 });
 
+test('搜索省略默认筛选并精确保留非默认值', () => {
+  const defaults = buildRequest('search_feeds', {keyword: '露营', filters: {
+    sort_by: '综合', note_type: '不限', publish_time: '不限', search_scope: '不限', location: '不限'
+  }}).options.body;
+  assert.deepEqual(defaults, {keyword: '露营'});
+
+  const partial = buildRequest('search_feeds', {keyword: '露营', filters: {
+    sort_by: '综合', note_type: '图文', publish_time: '不限', search_scope: '不限', location: '不限'
+  }}).options.body;
+  assert.deepEqual(partial, {keyword: '露营', filters: {note_type: '图文'}});
+
+  assert.deepEqual(buildRequest('search_feeds', {keyword: '露营'}).options.body, {keyword: '露营'});
+});
+
 test('关键非法输入在发请求前拒绝', () => {
   const cases = [
     ['create_account', {...validInputs.create_account, account_id: 'root'}],
