@@ -210,11 +210,7 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 		return nil, searchContextError("start", err)
 	}
 	searchURL := makeSearchURL(keyword)
-	if err := s.navigatePage(ctx, searchURL); err != nil {
-		return nil, newSearchError("navigate", ctx, err)
-	}
-
-	snapshot, err := s.waitInitialResults(ctx)
+	snapshot, err := s.loadInitialResults(ctx, searchURL)
 	if shouldRetryInitialSearch(snapshot, err) {
 		if reloadErr := s.reloadPage(ctx); reloadErr != nil {
 			return nil, newSearchError("retry_reload", ctx, reloadErr)
@@ -258,9 +254,12 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 	return snapshot.Feeds, nil
 }
 
-func (s *SearchAction) waitInitialResults(ctx context.Context) (searchSnapshot, error) {
+func (s *SearchAction) loadInitialResults(ctx context.Context, target string) (searchSnapshot, error) {
 	deadline, ok := ctx.Deadline()
 	if !ok {
+		if err := s.navigatePage(ctx, target); err != nil {
+			return searchSnapshot{}, newSearchError("navigate", ctx, err)
+		}
 		return s.waitSearchResults(ctx, "")
 	}
 	remaining := time.Until(deadline)
@@ -270,6 +269,9 @@ func (s *SearchAction) waitInitialResults(ctx context.Context) (searchSnapshot, 
 	attemptTimeout := min(remaining, initialAttemptTimeout)
 	attemptCtx, cancel := context.WithTimeout(ctx, attemptTimeout)
 	defer cancel()
+	if err := s.navigatePage(attemptCtx, target); err != nil {
+		return searchSnapshot{}, newSearchError("navigate", attemptCtx, err)
+	}
 	return s.waitSearchResults(attemptCtx, "")
 }
 
@@ -370,7 +372,7 @@ func shouldRetryInitialSearch(snapshot searchSnapshot, err error) bool {
 		return true
 	}
 	var searchErr *SearchError
-	return stderrors.As(err, &searchErr) && searchErr.Stage == "wait_initial_state"
+	return stderrors.As(err, &searchErr) && (searchErr.Stage == "navigate" || searchErr.Stage == "wait_initial_state")
 }
 
 func normalizeSearchError(stage string, ctx context.Context, err error) error {

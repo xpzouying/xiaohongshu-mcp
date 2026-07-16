@@ -172,6 +172,31 @@ func TestSearchRetriesInitialTimeoutOnce(t *testing.T) {
 	require.Equal(t, 2, attempts)
 }
 
+func TestSearchRetriesInitialNavigationTimeout(t *testing.T) {
+	navigations := 0
+	reloads := 0
+	action := &SearchAction{
+		timeout: time.Second,
+		navigate: func(context.Context, string) error {
+			navigations++
+			return &SearchError{Code: "SEARCH_TIMEOUT", Stage: "navigate", Err: context.DeadlineExceeded}
+		},
+		reload: func(context.Context) error {
+			reloads++
+			return nil
+		},
+		waitResults: func(context.Context, string) (searchSnapshot, error) {
+			return searchSnapshot{Feeds: []Feed{{ID: "retry-ok"}}, Signature: "retry-ok"}, nil
+		},
+	}
+
+	feeds, err := action.Search(context.Background(), "露营")
+	require.NoError(t, err)
+	require.Equal(t, "retry-ok", feeds[0].ID)
+	require.Equal(t, 1, navigations)
+	require.Equal(t, 1, reloads)
+}
+
 func TestSearchBoundsInitialAttemptForFastRetry(t *testing.T) {
 	var firstAttemptBudget time.Duration
 	attempts := 0
