@@ -121,6 +121,16 @@ test('超时、主动取消与网络失败保持稳定错误', async () => {
   await assert.rejects(callTool('list_feeds', {}, {api: async () => { throw network; }}), error => error === network);
 });
 
+test('概览页加载统一 MCP 调用层', () => {
+  const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+  const appIndex = html.indexOf('/static/app.js');
+  const contractIndex = html.indexOf('/static/mcp-contract.js');
+  const dashboardIndex = html.indexOf('/static/dashboard.js');
+  assert.ok(appIndex >= 0, '缺少 app.js');
+  assert.ok(contractIndex > appIndex, 'mcp-contract.js 必须在 app.js 之后加载');
+  assert.ok(dashboardIndex > contractIndex, 'dashboard.js 必须在 mcp-contract.js 之后加载');
+});
+
 test('状态层覆盖 loading/success/empty/error 并取消上一请求', async () => {
   let resolveFirst;
   const calls = [];
