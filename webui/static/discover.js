@@ -19,7 +19,9 @@ function renderFeeds(gridSelector, feeds, emptyMessage) {
     const info = note.interactInfo || {};
     const user = note.user || {};
     const cover = note.cover || {};
-    const coverURL = cover.urlDefault || cover.url || '';
+    const rawCoverURL = cover.urlDefault || cover.url || '';
+    // 小红书 CDN 返回 http，但页面 CSP 只允许 https；统一升级
+    const coverURL = rawCoverURL ? rawCoverURL.replace(/^http:\/\//i, 'https://') : '';
     const author = user.nickname || user.nickName || '未知作者';
     const profileLink = user.userId
       ? `<a class="feed-author" href="${userProfileURL(user, feed)}">${XHS.escapeHTML(author)}</a>`
@@ -79,7 +81,22 @@ async function search(event) {
     renderFeeds('#search-grid', feeds, '没有找到相关笔记');
     document.querySelector('#result-count').textContent = `共 ${data.count ?? feeds.length} 条`;
   } catch (error) {
-    XHS.toast(error.message, 'error');
+    const isChallenge = error.code === 'SEARCH_TIMEOUT' || error.status === 504 || /captcha|verify|风控/i.test(error.message);
+    if (isChallenge) {
+      const grid = document.querySelector('#search-grid');
+      grid.innerHTML = `<div class="empty card">
+        <p>搜索当前被小红书安全验证（风控）拦截。</p>
+        <p>这<strong>不是页面或系统故障</strong>。请尝试：</p>
+        <ol style="text-align:left;max-width:28em;margin:0 auto">
+          <li>打开小红书 App → 我的 → 设置，检查是否有安全提示；</li>
+          <li>在 App 内搜索一次任意关键词完成验证；</li>
+          <li>稍等几分钟后在此页面重试。</li>
+        </ol>
+      </div>`;
+      document.querySelector('#result-count').textContent = '搜索被风控拦截';
+    } else {
+      XHS.toast(error.message, 'error');
+    }
   } finally {
     XHS.loading(false);
   }
