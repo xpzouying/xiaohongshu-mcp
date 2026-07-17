@@ -11,11 +11,13 @@ const source = fs.readFileSync(path.join(__dirname, 'detail.js'), 'utf8');
 function loadScript(overrides = {}) {
   const context = {
     URLSearchParams,
+    URL,
     AbortController,
     FormData,
-    location: {search: ''},
+    location: {search: '', origin: 'http://ui.example.test'},
     document: {addEventListener() {}},
     window: {addEventListener() {}},
+    XHS: {escapeHTML: value => String(value)},
     ...overrides
   };
   vm.createContext(context);
@@ -25,6 +27,23 @@ function loadScript(overrides = {}) {
 }
 
 const context = loadScript();
+
+test('受信任 HTTP 图片地址升级为 HTTPS', () => {
+  assert.equal(context.safeImageURL('http://sns-webpic-qc.xhscdn.com/image.jpg'), 'https://sns-webpic-qc.xhscdn.com/image.jpg');
+  assert.equal(context.safeImageURL('javascript:alert(1)'), '');
+});
+
+test('视频源优先选择 H264 并保留 HTTPS 备用地址', () => {
+  const sources = context.videoSources({media:{stream:{
+    h265:[{masterUrl:'http://video.example/h265.mp4', codec:'h265'}],
+    h264:[{masterUrl:'http://video.example/h264.mp4', backupUrls:['http://backup.example/h264.mp4'], codec:'h264', default:true}]
+  }}});
+  assert.deepEqual([...sources.map(source => source.url)], [
+    'https://video.example/h264.mp4',
+    'https://backup.example/h264.mp4',
+    'https://video.example/h265.mp4'
+  ]);
+});
 
 function replyForm(values) {
   return {get: name => values[name]};

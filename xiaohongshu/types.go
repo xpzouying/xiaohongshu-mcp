@@ -75,12 +75,37 @@ type ImageInfo struct {
 
 // Video 表示视频信息
 type Video struct {
-	Capa VideoCapability `json:"capa"`
+	Capa  VideoCapability `json:"capa"`
+	Media VideoMedia      `json:"media"`
 }
 
 // VideoCapability 表示视频能力信息
 type VideoCapability struct {
 	Duration int `json:"duration"` // 视频时长，单位秒
+}
+
+// VideoMedia 表示视频媒体流。
+type VideoMedia struct {
+	Stream VideoStream `json:"stream"`
+}
+
+// VideoStream 按编码格式保存可播放流。
+type VideoStream struct {
+	H264 []VideoStreamInfo `json:"h264"`
+	H265 []VideoStreamInfo `json:"h265"`
+}
+
+// VideoStreamInfo 表示单个视频清晰度和备用地址。
+type VideoStreamInfo struct {
+	MasterURL  string   `json:"masterUrl"`
+	BackupURLs []string `json:"backupUrls"`
+	Format     string   `json:"format"`
+	Codec      string   `json:"codec"`
+	Width      int      `json:"width"`
+	Height     int      `json:"height"`
+	Duration   int      `json:"duration"`
+	Quality    int      `json:"quality"`
+	Default    bool     `json:"default"`
 }
 
 // ================ Feed 详情页相关结构体 ================
@@ -103,6 +128,7 @@ type FeedDetail struct {
 	User         User              `json:"user"`
 	InteractInfo InteractInfo      `json:"interactInfo"`
 	ImageList    []DetailImageInfo `json:"imageList"`
+	Video        *Video            `json:"video,omitempty"`
 }
 
 // DetailImageInfo 表示详情页的图片信息

@@ -2,10 +2,28 @@ const params = new URLSearchParams(location.search);
 const detailState = {feedId: params.get('feed_id') || '', token: params.get('xsec_token') || '', note: null, controller: null};
 function imageURL(image) { return image.urlDefault || image.urlPre || image.url || ''; }
 function safeImageURL(value) {
+  if (!value) return '';
   try {
-    const url = new URL(value, location.origin);
-    return ['http:', 'https:'].includes(url.protocol) ? XHS.escapeHTML(url.href) : '';
+    const url = new URL(String(value), location.origin);
+    if (url.protocol === 'http:') url.protocol = 'https:';
+    return url.protocol === 'https:' ? XHS.escapeHTML(url.href) : '';
   } catch (_) { return ''; }
+}
+function videoSources(video = {}) {
+  const stream = video.media?.stream || {};
+  return ['h264', 'h265'].flatMap(codec => (Array.isArray(stream[codec]) ? stream[codec] : []).flatMap(item => {
+    const urls = [item.masterUrl, ...(Array.isArray(item.backupUrls) ? item.backupUrls : [])];
+    return urls.map(safeImageURL).filter(Boolean).map(url => ({url, codec:item.codec || codec, format:item.format || ''}));
+  }));
+}
+function renderMedia(note) {
+  const images = (note.imageList || []).map(image => safeImageURL(imageURL(image))).filter(Boolean);
+  if (note.type !== 'video') return `<div class="image-gallery">${images.map(url => `<img src="${url}" alt="笔记图片" loading="lazy">`).join('')}</div>`;
+  const sources = videoSources(note.video);
+  const poster = images[0] || '';
+  if (!sources.length) return poster ? `<div class="image-gallery"><img src="${poster}" alt="视频封面"></div>` : '';
+  const sourceTags = sources.map(source => `<source src="${source.url}"${source.format ? ` type="video/${XHS.escapeHTML(source.format)}"` : ''}>`).join('');
+  return `<div class="video-container"><video id="note-video" controls playsinline preload="metadata"${poster ? ` poster="${poster}"` : ''}>${sourceTags}</video><div id="video-fallback" class="video-fallback" hidden>${poster ? `<img src="${poster}" alt="视频封面">` : ''}<a href="${sources[0].url}" target="_blank" rel="noopener noreferrer">打开 HTTPS 视频直链</a></div></div>`;
 }
 function profileURL(user) {
   const userId = user.userId || user.user_id || user.id || '';
@@ -25,10 +43,16 @@ function renderDetail(payload) {
   const data = payload.data || payload; const note = data.note || {}; detailState.note = note;
   const user = note.user || {}, info = note.interactInfo || {};
   const authorURL = profileURL(user), avatar = safeImageURL(user.avatar || '');
-  document.querySelector('#detail-content').innerHTML = `<div class="author">${authorURL ? `<a href="${authorURL}">` : ''}${avatar ? `<img src="${avatar}" alt="">` : ''}${authorURL ? '</a>' : ''}<div>${renderUser(user, '未知作者')}<small>${XHS.escapeHTML(note.ipLocation || '')}</small></div></div><h1>${XHS.escapeHTML(note.title || '无标题')}</h1><p class="note-desc">${XHS.escapeHTML(note.desc || '')}</p><div class="image-gallery">${(note.imageList || []).map(image => safeImageURL(imageURL(image))).filter(Boolean).map(url => `<img src="${url}" alt="笔记图片" loading="lazy">`).join('')}</div><div class="interaction-bar"><button id="like-button" class="${info.liked ? 'active' : ''}">♥ ${XHS.escapeHTML(info.likedCount || '0')}</button><button id="favorite-button" class="${info.collected ? 'active' : ''}">☆ ${XHS.escapeHTML(info.collectedCount || '0')}</button><span>评论 ${XHS.escapeHTML(info.commentCount || '0')}</span><span>分享 ${XHS.escapeHTML(info.sharedCount || '0')}</span></div>`;
+  document.querySelector('#detail-content').innerHTML = `<div class="author">${authorURL ? `<a href="${authorURL}">` : ''}${avatar ? `<img src="${avatar}" alt="">` : ''}${authorURL ? '</a>' : ''}<div>${renderUser(user, '未知作者')}<small>${XHS.escapeHTML(note.ipLocation || '')}</small></div></div><h1>${XHS.escapeHTML(note.title || '无标题')}</h1><p class="note-desc">${XHS.escapeHTML(note.desc || '')}</p>${renderMedia(note)}<div class="interaction-bar"><button id="like-button" class="${info.liked ? 'active' : ''}">♥ ${XHS.escapeHTML(info.likedCount || '0')}</button><button id="favorite-button" class="${info.collected ? 'active' : ''}">☆ ${XHS.escapeHTML(info.collectedCount || '0')}</button><span>评论 ${XHS.escapeHTML(info.commentCount || '0')}</span><span>分享 ${XHS.escapeHTML(info.sharedCount || '0')}</span></div>`;
   document.querySelector('#comments').innerHTML = (data.comments?.list || []).map(item => renderComment(item)).join('') || '<p class="empty">暂无评论</p>';
   document.querySelector('#like-button').addEventListener('click', event => toggleAction('like', info.liked, event.currentTarget));
   document.querySelector('#favorite-button').addEventListener('click', event => toggleAction('favorite', info.collected, event.currentTarget));
+  const video = document.querySelector('#note-video');
+  video?.addEventListener('error', () => {
+    video.hidden = true;
+    const fallback = document.querySelector('#video-fallback');
+    if (fallback) fallback.hidden = false;
+  });
 }
 function detailOptions() {
   const controls = document.querySelector('#comment-options-form').elements;

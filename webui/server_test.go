@@ -192,6 +192,20 @@ func TestHealth(t *testing.T) {
 	}
 }
 
+func TestSecurityHeadersAllowHTTPSMediaAndKeepImagesStrict(t *testing.T) {
+	h := newHandler(handlerConfig{})
+	response := httptest.NewRecorder()
+	h.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/detail.html", nil))
+
+	csp := response.Header().Get("Content-Security-Policy")
+	if !strings.Contains(csp, "media-src 'self' https:") {
+		t.Fatalf("CSP missing HTTPS media policy: %q", csp)
+	}
+	if !strings.Contains(csp, "img-src 'self' data: https:") || strings.Contains(csp, "img-src 'self' data: http:") {
+		t.Fatalf("CSP image policy is not strict: %q", csp)
+	}
+}
+
 func TestEmbeddedStaticFiles(t *testing.T) {
 	h := newHandler(handlerConfig{})
 	for _, path := range []string{

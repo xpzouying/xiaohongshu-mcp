@@ -8,6 +8,7 @@ function safeImageURL(value) {
   if (!value) return '';
   try {
     const url = new URL(String(value), location.origin);
+    if (url.protocol === 'http:') url.protocol = 'https:';
     if (url.protocol === 'https:' || (url.protocol === 'data:' && url.pathname.startsWith('image/'))) return url.href;
   } catch (_) {
     return '';
