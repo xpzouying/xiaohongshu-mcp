@@ -92,6 +92,7 @@ async function search(event) {
           <li>在 App 内搜索一次任意关键词完成验证；</li>
           <li>稍等几分钟后在此页面重试。</li>
         </ol>
+        <p><a class="primary" href="/accounts.html">去账号管理重新扫码</a></p>
       </div>`;
       document.querySelector('#result-count').textContent = '搜索被风控拦截';
     } else {
