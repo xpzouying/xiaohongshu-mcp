@@ -20,8 +20,8 @@ async function loadDashboard() {
   if (account && account.id) {
     try {
       const status = await XHS.callTool('check_login_status', {account_id: account.id});
-      const identity = status.identity || {};
-      const nickname = identity.nickname || identity.display_name || '';
+      const identity = status.identity;
+      const nickname = typeof identity === 'string' ? identity : identity?.nickname || identity?.display_name || '';
       if (nickname) accountEl.textContent = nickname;
       statusEl.textContent = status.is_logged_in ? '已登录' : '需登录';
     } catch (_) { /* 身份查询失败不阻塞概览 */ }

@@ -69,6 +69,15 @@ test('17 个工具均可独立构建请求并透传取消信号', async () => {
   }
 });
 
+test('调用层把冻结账号传给 API，避免跟随全局账号漂移', async () => {
+  let received;
+  await callTool('publish_content', validInputs.publish_content, {
+    accountId:'acct_one', timeoutMs:0,
+    api:async (_path, options) => { received = options.accountId; return {ok:true}; }
+  });
+  assert.equal(received, 'acct_one');
+});
+
 test('账号创建、搜索筛选与详情高级参数精确序列化', () => {
   assert.deepEqual(buildRequest('create_account', validInputs.create_account).options.body, {
     id: 'acct_one', display_name: '账号一', owner: '团队', purpose: '运营'

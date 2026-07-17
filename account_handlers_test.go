@@ -65,8 +65,8 @@ func TestAccountHandlerLoginStatusReturnsRealIdentity(t *testing.T) {
 	if err := json.Unmarshal([]byte(result.Content[0].Text), &status); err != nil {
 		t.Fatal(err)
 	}
-	if status.Identity != "real-xhs-user" {
-		t.Fatalf("identity=%s", status.Identity)
+	if status.Identity == nil || status.Identity.Nickname != "real-xhs-user" {
+		t.Fatalf("identity=%+v", status.Identity)
 	}
 	if !status.IsLoggedIn || status.AccountID != "acct_a" {
 		t.Fatalf("status=%+v", status)

@@ -34,10 +34,11 @@ const XHS = (() => {
   }
   async function api(path, options = {}) {
     const method = (options.method || 'GET').toUpperCase();
-    const accountId = options.account === false ? '' : state.selectedAccountId;
+    const accountId = options.account === false ? '' : (options.accountId ?? state.selectedAccountId);
     let url = path;
     const init = {...options, method};
     delete init.account;
+    delete init.accountId;
     if (accountId && method === 'GET') {
       const separator = url.includes('?') ? '&' : '?';
       url += `${separator}account_id=${encodeURIComponent(accountId)}`;

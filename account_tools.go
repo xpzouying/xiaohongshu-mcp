@@ -13,9 +13,13 @@ type AccountLogin interface {
 }
 
 type AccountLoginStatus struct {
-	AccountID  string `json:"account_id"`
-	IsLoggedIn bool   `json:"is_logged_in"`
-	Identity   string `json:"identity,omitempty"`
+	AccountID  string           `json:"account_id"`
+	IsLoggedIn bool             `json:"is_logged_in"`
+	Identity   *AccountIdentity `json:"identity,omitempty"`
+}
+
+type AccountIdentity struct {
+	Nickname string `json:"nickname"`
 }
 
 type AccountQRCode struct {
@@ -75,7 +79,11 @@ func (t *AccountTools) CheckLoginStatus(ctx context.Context, id string) (Account
 	if err != nil {
 		return AccountLoginStatus{}, err
 	}
-	return AccountLoginStatus{AccountID: id, IsLoggedIn: loggedIn, Identity: identity}, nil
+	status := AccountLoginStatus{AccountID: id, IsLoggedIn: loggedIn}
+	if identity != "" {
+		status.Identity = &AccountIdentity{Nickname: identity}
+	}
+	return status, nil
 }
 
 func (t *AccountTools) GetLoginQRCode(ctx context.Context, id string) (AccountQRCode, error) {

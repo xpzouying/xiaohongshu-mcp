@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/xpzouying/xiaohongshu-mcp/account"
@@ -37,7 +38,7 @@ func TestAccountToolsLifecycleAndRealIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	status, err := tools.CheckLoginStatus(context.Background(), "acct_a")
-	if err != nil || !status.IsLoggedIn || status.Identity != "real-user-123" || status.AccountID != "acct_a" {
+	if err != nil || !status.IsLoggedIn || status.Identity == nil || status.Identity.Nickname != "real-user-123" || status.AccountID != "acct_a" {
 		t.Fatalf("status=%+v err=%v", status, err)
 	}
 	if err := tools.ResetLogin(context.Background(), "acct_a"); err != nil {
@@ -59,5 +60,32 @@ func TestAccountToolsQRCodeDoesNotExposeItThroughErrors(t *testing.T) {
 	result, err := tools.GetLoginQRCode(context.Background(), "acct_a")
 	if err != nil || result.Image != "secret-qr-payload" || result.AccountID != "acct_a" {
 		t.Fatalf("result=%+v err=%v", result, err)
+	}
+}
+
+func TestAccountLoginStatusJSONIdentityContract(t *testing.T) {
+	encoded, err := json.Marshal(AccountLoginStatus{
+		AccountID:  "acct_a",
+		IsLoggedIn: true,
+		Identity:   &AccountIdentity{Nickname: "真实昵称"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var result map[string]any
+	if err := json.Unmarshal(encoded, &result); err != nil {
+		t.Fatal(err)
+	}
+	identity, ok := result["identity"].(map[string]any)
+	if !ok || identity["nickname"] != "真实昵称" {
+		t.Fatalf("identity = %#v, want nickname object", result["identity"])
+	}
+
+	empty, err := json.Marshal(AccountLoginStatus{AccountID: "acct_a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(empty) != `{"account_id":"acct_a","is_logged_in":false}` {
+		t.Fatalf("empty identity JSON = %s", empty)
 	}
 }

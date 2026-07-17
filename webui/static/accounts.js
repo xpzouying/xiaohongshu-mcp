@@ -1,5 +1,9 @@
 let loginTimer;
+let loginPollController;
+let loginPollGeneration = 0;
 let pendingAccountId = null;
+const loginPollDelay = 3000;
+const maxLoginPollErrors = 3;
 const statusLabel = {active:'已登录', needs_login:'需登录', paused:'已暂停', risk_hold:'风控冻结', disabled:'已禁用'};
 const reservedAccountIds = new Set(['accounts', 'system', 'root', 'null', 'unknown']);
 
@@ -7,6 +11,11 @@ function validateAccountId(value) {
   if (!/^[a-z][a-z0-9_]{2,31}$/.test(value) || reservedAccountIds.has(value)) {
     throw new Error('账号 ID 须为 3～32 位小写字母、数字或下划线，且不能使用保留名称');
   }
+}
+
+function loginIdentityName(identity) {
+  if (typeof identity === 'string') return identity;
+  return identity?.nickname || identity?.display_name || '';
 }
 
 async function createAccount(event) {
@@ -86,13 +95,19 @@ function showQRDialog(imageBase64, accountId) {
   dialog.querySelector('img').src = image;
   dialog.querySelector('.qr-status').textContent = '请使用小红书 App 扫码登录…';
   dialog.showModal();
-  clearInterval(loginTimer);
-  // 每 3 秒轮询登录状态
-  loginTimer = setInterval(async () => {
+  stopLoginPolling();
+  const generation = loginPollGeneration;
+  let consecutiveErrors = 0;
+  const poll = async () => {
+    if (!dialog.open || generation !== loginPollGeneration) return;
+    const controller = new AbortController();
+    loginPollController = controller;
     try {
-      const status = await XHS.callTool('check_login_status', {account_id:accountId});
+      const status = await XHS.callTool('check_login_status', {account_id:accountId}, {signal:controller.signal});
+      consecutiveErrors = 0;
+      if (!dialog.open || generation !== loginPollGeneration) return;
       if (status.is_logged_in) {
-        clearInterval(loginTimer);
+        stopLoginPolling();
         dialog.close();
         XHS.toast('登录成功，正在同步账号信息…');
         // 自动同步昵称
@@ -101,9 +116,32 @@ function showQRDialog(imageBase64, accountId) {
         } catch (_) { /* 同步失败不阻塞 */ }
         XHS.toast('登录成功');
         await refresh();
+        return;
       }
-    } catch (_) { /* 轮询期间保留二维码 */ }
-  }, 3000);
+    } catch (error) {
+      if (generation !== loginPollGeneration || error.name === 'AbortError' || error.code === 'REQUEST_ABORTED') return;
+      consecutiveErrors++;
+      const message = error.message || '检查登录状态失败';
+      if (consecutiveErrors >= maxLoginPollErrors) {
+        dialog.querySelector('.qr-status').textContent = `检查登录状态失败：${message}。已停止自动检查，请关闭后重试。`;
+        XHS.toast(`检查登录状态失败：${message}`, 'error');
+        return;
+      }
+      dialog.querySelector('.qr-status').textContent = `检查登录状态失败：${message}，将自动重试（${consecutiveErrors}/${maxLoginPollErrors}）`;
+    } finally {
+      if (loginPollController === controller) loginPollController = null;
+    }
+    if (dialog.open && generation === loginPollGeneration) loginTimer = setTimeout(poll, loginPollDelay);
+  };
+  loginTimer = setTimeout(poll, loginPollDelay);
+}
+
+function stopLoginPolling() {
+  loginPollGeneration++;
+  clearTimeout(loginTimer);
+  loginTimer = null;
+  loginPollController?.abort();
+  loginPollController = null;
 }
 
 async function checkLoginStatus(id, button) {
@@ -111,7 +149,7 @@ async function checkLoginStatus(id, button) {
   const oldLabel = button.textContent; button.textContent = '检查中…';
   try {
     const status = await XHS.callTool('check_login_status', {account_id:id});
-    const identity = status.identity?.nickname || status.identity?.display_name || '';
+    const identity = loginIdentityName(status.identity);
     XHS.toast(status.is_logged_in ? `账号已登录${identity ? `：${identity}` : ''}` : '账号尚未登录', status.is_logged_in ? 'success' : 'warning');
     await refresh();
   } catch (error) { XHS.toast(error.message || '检查登录状态失败', 'error'); }
@@ -140,7 +178,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
   const dialog = document.querySelector('#qr-dialog');
-  dialog.addEventListener('close', () => clearInterval(loginTimer));
+  dialog.addEventListener('close', stopLoginPolling);
   dialog.querySelector('button').addEventListener('click', () => dialog.close());
 });
 window.addEventListener('accountsready', renderAccounts);

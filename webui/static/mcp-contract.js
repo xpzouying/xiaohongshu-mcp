@@ -204,7 +204,8 @@
     else options.signal?.addEventListener('abort', abort, {once: true});
     const timer = timeoutMs > 0 ? setTimeout(() => { timedOut = true; controller.abort(); }, timeoutMs) : null;
     try {
-      const data = await api(request.path, {...request.options, signal: controller.signal});
+      const accountOption = options.accountId == null ? {} : {accountId: options.accountId};
+      const data = await api(request.path, {...request.options, ...accountOption, signal: controller.signal});
       return normalizeResult(toolName, data);
     } catch (error) {
       if (timedOut) {
