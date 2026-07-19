@@ -3,12 +3,12 @@ package main
 import (
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/xpzouying/xiaohongshu-mcp/cookies"
 	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
 
 	"github.com/gin-gonic/gin"
-	"github.com/sirupsen/logrus"
 )
 
 // respondError 返回错误响应
@@ -18,9 +18,6 @@ func respondError(c *gin.Context, statusCode int, code, message string, details 
 		Code:    code,
 		Details: details,
 	}
-
-	logrus.Errorf("%s %s %s %d", c.Request.Method, c.Request.URL.Path,
-		c.GetString("account"), statusCode)
 
 	c.JSON(statusCode, response)
 }
@@ -32,9 +29,6 @@ func respondSuccess(c *gin.Context, data any, message string) {
 		Data:    data,
 		Message: message,
 	}
-
-	logrus.Infof("%s %s %s %d", c.Request.Method, c.Request.URL.Path,
-		c.GetString("account"), http.StatusOK)
 
 	c.JSON(http.StatusOK, response)
 }
@@ -91,8 +85,12 @@ func (s *AppServer) publishHandler(c *gin.Context) {
 	}
 
 	// 执行发布
-	result, err := s.xiaohongshuService.PublishContent(c.Request.Context(), &req)
+	result, err := s.publishContent(c.Request.Context(), &req)
 	if err != nil {
+		if status, uncertain := uncertainHTTPStatus(err); uncertain {
+			respondError(c, status, "PUBLISH_UNKNOWN", "发布结果未知，请勿自动重试", nil)
+			return
+		}
 		respondError(c, http.StatusInternalServerError, "PUBLISH_FAILED",
 			"发布失败", err.Error())
 		return
@@ -111,8 +109,12 @@ func (s *AppServer) publishVideoHandler(c *gin.Context) {
 	}
 
 	// 执行视频发布
-	result, err := s.xiaohongshuService.PublishVideo(c.Request.Context(), &req)
+	result, err := s.publishVideo(c.Request.Context(), &req)
 	if err != nil {
+		if status, uncertain := uncertainHTTPStatus(err); uncertain {
+			respondError(c, status, "PUBLISH_VIDEO_UNKNOWN", "视频发布结果未知，请勿自动重试", nil)
+			return
+		}
 		respondError(c, http.StatusInternalServerError, "PUBLISH_VIDEO_FAILED",
 			"视频发布失败", err.Error())
 		return
@@ -257,8 +259,12 @@ func (s *AppServer) postCommentHandler(c *gin.Context) {
 	}
 
 	// 发表评论
-	result, err := s.xiaohongshuService.PostCommentToFeed(c.Request.Context(), req.FeedID, req.XsecToken, req.Content)
+	result, err := s.postComment(c.Request.Context(), req.FeedID, req.XsecToken, req.Content)
 	if err != nil {
+		if status, uncertain := uncertainHTTPStatus(err); uncertain {
+			respondError(c, status, "POST_COMMENT_UNKNOWN", "评论结果未知，请勿自动重试", nil)
+			return
+		}
 		respondError(c, http.StatusInternalServerError, "POST_COMMENT_FAILED",
 			"发表评论失败", err.Error())
 		return
@@ -277,8 +283,12 @@ func (s *AppServer) replyCommentHandler(c *gin.Context) {
 		return
 	}
 
-	result, err := s.xiaohongshuService.ReplyCommentToFeed(c.Request.Context(), req.FeedID, req.XsecToken, req.CommentID, req.UserID, req.Content)
+	result, err := s.replyComment(c.Request.Context(), req.FeedID, req.XsecToken, req.CommentID, req.UserID, req.Content)
 	if err != nil {
+		if status, uncertain := uncertainHTTPStatus(err); uncertain {
+			respondError(c, status, "REPLY_COMMENT_UNKNOWN", "回复结果未知，请勿自动重试", nil)
+			return
+		}
 		respondError(c, http.StatusInternalServerError, "REPLY_COMMENT_FAILED",
 			"回复评论失败", err.Error())
 		return
@@ -330,12 +340,14 @@ func (s *AppServer) favoriteFeedHandler(c *gin.Context) {
 
 // healthHandler 健康检查
 func healthHandler(c *gin.Context) {
-	respondSuccess(c, map[string]any{
-		"status":    "healthy",
-		"service":   "xiaohongshu-mcp",
-		"account":   "ai-report",
-		"timestamp": "now",
-	}, "服务正常")
+	const body = `{"status":"ok"}`
+	c.Header("Content-Type", "application/json; charset=utf-8")
+	c.Header("Content-Length", strconv.Itoa(len(body)))
+	if c.Request.Method == http.MethodHead {
+		c.Status(http.StatusOK)
+		return
+	}
+	c.Data(http.StatusOK, "application/json; charset=utf-8", []byte(body))
 }
 
 // myProfileHandler 我的信息

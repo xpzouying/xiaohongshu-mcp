@@ -182,18 +182,18 @@ func TestBusinessRESTRoutesUseAccountRouting(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []string{
-		`api.POST("/publish", withRESTAccountRouting`,
-		`api.POST("/publish_video", withRESTAccountRouting`,
-		`api.GET("/feeds/list", withRESTAccountRouting`,
-		`api.GET("/feeds/search", withRESTAccountRouting`,
-		`api.POST("/feeds/search", withRESTAccountRouting`,
-		`api.POST("/feeds/detail", withRESTAccountRouting`,
-		`api.POST("/user/profile", withRESTAccountRouting`,
-		`api.POST("/feeds/comment", withRESTAccountRouting`,
-		`api.POST("/feeds/comment/reply", withRESTAccountRouting`,
-		`api.POST("/feeds/like", withRESTAccountRouting`,
-		`api.POST("/feeds/favorite", withRESTAccountRouting`,
-		`api.GET("/user/me", withRESTAccountRouting`,
+		`api.POST("/publish", requireRESTScope(scopeWrite, "publish.content"), withRESTAccountRouting`,
+		`api.POST("/publish_video", requireRESTScope(scopeWrite, "publish.video"), withRESTAccountRouting`,
+		`api.GET("/feeds/list", requireRESTScope(scopeRead, "feeds.list"), withRESTAccountRouting`,
+		`api.GET("/feeds/search", requireRESTScope(scopeRead, "feeds.search"), withRESTAccountRouting`,
+		`api.POST("/feeds/search", requireRESTScope(scopeRead, "feeds.search"), withRESTAccountRouting`,
+		`api.POST("/feeds/detail", requireRESTScope(scopeRead, "feeds.detail"), withRESTAccountRouting`,
+		`api.POST("/user/profile", requireRESTScope(scopeRead, "user.profile"), withRESTAccountRouting`,
+		`api.POST("/feeds/comment", requireRESTScope(scopeWrite, "feeds.comment"), withRESTAccountRouting`,
+		`api.POST("/feeds/comment/reply", requireRESTScope(scopeWrite, "feeds.comment.reply"), withRESTAccountRouting`,
+		`api.POST("/feeds/like", requireRESTScope(scopeWrite, "feeds.like"), withRESTAccountRouting`,
+		`api.POST("/feeds/favorite", requireRESTScope(scopeWrite, "feeds.favorite"), withRESTAccountRouting`,
+		`api.GET("/user/me", requireRESTScope(scopeRead, "user.me"), withRESTAccountRouting`,
 	}
 	for _, route := range want {
 		if !strings.Contains(string(source), route) {

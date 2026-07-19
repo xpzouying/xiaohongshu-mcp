@@ -28,15 +28,15 @@ type accountListRESTResponse struct {
 
 func registerAccountRESTRoutes(api *gin.RouterGroup, appServer *AppServer) {
 	accounts := api.Group("/accounts")
-	accounts.GET("", appServer.listAccountsRESTHandler)
-	accounts.POST("", appServer.createAccountRESTHandler)
-	accounts.POST("/quick_add", appServer.quickAddAccountRESTHandler)
-	accounts.DELETE("/:id", appServer.removeAccountRESTHandler)
-	accounts.PUT("/:id/default", appServer.setDefaultAccountRESTHandler)
-	accounts.POST("/:id/login/qrcode", appServer.accountLoginQRCodeRESTHandler)
-	accounts.POST("/:id/login/status", appServer.accountLoginStatusRESTHandler)
-	accounts.POST("/:id/sync_profile", appServer.syncAccountProfileRESTHandler)
-	accounts.DELETE("/:id/login", appServer.resetAccountLoginRESTHandler)
+	accounts.GET("", requireRESTScope(scopeRead, "accounts.list"), appServer.listAccountsRESTHandler)
+	accounts.POST("", requireRESTScope(scopeAdmin, "accounts.create"), appServer.createAccountRESTHandler)
+	accounts.POST("/quick_add", requireRESTScope(scopeAdmin, "accounts.quick_add"), appServer.quickAddAccountRESTHandler)
+	accounts.DELETE("/:id", requireRESTScope(scopeAdmin, "accounts.remove"), appServer.removeAccountRESTHandler)
+	accounts.PUT("/:id/default", requireRESTScope(scopeAdmin, "accounts.default"), appServer.setDefaultAccountRESTHandler)
+	accounts.POST("/:id/login/qrcode", requireRESTScope(scopeAdmin, "accounts.login.qrcode"), appServer.accountLoginQRCodeRESTHandler)
+	accounts.POST("/:id/login/status", requireRESTScope(scopeRead, "accounts.login.status"), appServer.accountLoginStatusRESTHandler)
+	accounts.POST("/:id/sync_profile", requireRESTScope(scopeAdmin, "accounts.sync_profile"), appServer.syncAccountProfileRESTHandler)
+	accounts.DELETE("/:id/login", requireRESTScope(scopeAdmin, "accounts.login.reset"), appServer.resetAccountLoginRESTHandler)
 }
 
 func (s *AppServer) listAccountsRESTHandler(c *gin.Context) {

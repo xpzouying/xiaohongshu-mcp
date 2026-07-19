@@ -159,7 +159,7 @@ func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]in
 	// 解析原创参数
 	isOriginal, _ := args["is_original"].(bool)
 
-	logrus.Infof("MCP: 发布内容 - 标题: %s, 图片数量: %d, 标签数量: %d, 定时: %s, 原创: %v, visibility: %s, 商品: %v", title, len(imagePaths), len(tags), scheduleAt, isOriginal, visibility, products)
+	logrus.Infof("MCP: 发布内容 - 图片数量: %d, 标签数量: %d, 是否定时: %t, 原创: %v, visibility: %s, 商品数量: %d", len(imagePaths), len(tags), scheduleAt != "", isOriginal, visibility, len(products))
 
 	// 构建发布请求
 	req := &PublishRequest{
@@ -232,7 +232,7 @@ func (s *AppServer) handlePublishVideo(ctx context.Context, args map[string]inte
 	scheduleAt, _ := args["schedule_at"].(string)
 	visibility := parseVisibility(args)
 
-	logrus.Infof("MCP: 发布视频 - 标题: %s, 标签数量: %d, 定时: %s, visibility: %s, 商品: %v", title, len(tags), scheduleAt, visibility, products)
+	logrus.Infof("MCP: 发布视频 - 标签数量: %d, 是否定时: %t, visibility: %s, 商品数量: %d", len(tags), scheduleAt != "", visibility, len(products))
 
 	// 构建发布请求
 	req := &PublishVideoRequest{
@@ -315,7 +315,7 @@ func (s *AppServer) handleSearchFeeds(ctx context.Context, args SearchFeedsArgs)
 		}
 	}
 
-	logrus.Infof("MCP: 搜索Feeds - 关键词: %s", args.Keyword)
+	logrus.Info("MCP: 搜索Feeds - 参数已校验")
 
 	// 将 MCP 的 FilterOption 转换为 xiaohongshu.FilterOption
 	filter := xiaohongshu.FilterOption{
@@ -442,7 +442,7 @@ func (s *AppServer) handleGetFeedDetail(ctx context.Context, args map[string]any
 		config.ScrollSpeed = raw
 	}
 
-	logrus.Infof("MCP: 获取Feed详情 - Feed ID: %s, loadAllComments=%v, config=%+v", feedID, loadAll, config)
+	logrus.Infof("MCP: 获取Feed详情 - loadAllComments=%v", loadAll)
 
 	result, err := s.xiaohongshuService.GetFeedDetailWithConfig(ctx, feedID, xsecToken, loadAll, config)
 	if err != nil {

@@ -10,27 +10,17 @@ services:
     environment:
       WEBUI_ADDR: ":8080"
       XHS_MCP_URL: "http://xiaohongshu-mcp:18060"
-      # 可选值：off（仅隔离测试）、warn（短期迁移）、enforce（生产）。
       WEBUI_AUTH_MODE: "${WEBUI_AUTH_MODE:-enforce}"
-      # 仅供隔离测试显式绕过缺失 secret；生产必须保持 false。
       WEBUI_INSECURE_TEST_MODE: "${WEBUI_INSECURE_TEST_MODE:-false}"
       WEBUI_USERNAME: "${WEBUI_USERNAME:-admin}"
       WEBUI_PASSWORD_FILE: "/run/secrets/webui_password"
-      XHS_READ_TOKEN_FILE: "/run/secrets/xhs_read_token"
-      XHS_WRITE_TOKEN_FILE: "/run/secrets/xhs_write_token"
-      XHS_ADMIN_TOKEN_FILE: "/run/secrets/xhs_admin_token"
+      XHS_API_TOKEN_FILE: /run/secrets/xhs_api_token
     secrets:
       - source: webui_password
         target: webui_password
         mode: 0400
-      - source: xhs_read_token
-        target: xhs_read_token
-        mode: 0400
-      - source: xhs_write_token
-        target: xhs_write_token
-        mode: 0400
-      - source: xhs_admin_token
-        target: xhs_admin_token
+      - source: xhs_api_token
+        target: xhs_api_token
         mode: 0400
     ports:
       - "${WEBUI_BIND_ADDRESS:-0.0.0.0}:${WEBUI_HOST_PORT:-18080}:8080"
@@ -51,9 +41,5 @@ networks:
 secrets:
   webui_password:
     file: ${WEBUI_PASSWORD_FILE_HOST:?set an absolute host path outside the repository}
-  xhs_read_token:
-    file: ${XHS_READ_TOKEN_FILE_HOST:?set an absolute host path outside the repository}
-  xhs_write_token:
-    file: ${XHS_WRITE_TOKEN_FILE_HOST:?set an absolute host path outside the repository}
-  xhs_admin_token:
-    file: ${XHS_ADMIN_TOKEN_FILE_HOST:?set an absolute host path outside the repository}
+  xhs_api_token:
+    file: ${XHS_API_TOKEN_FILE_HOST:?set an absolute host path outside the repository}

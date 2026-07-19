@@ -41,6 +41,11 @@ var mcpWebCoverage = []toolWebCoverage{
 	{"favorite_feed", http.MethodPost, "/api/web/feeds/favorite", "/api/v1/feeds/favorite", "detail.html", "detail.js", "complete", "'favorite_feed'"},
 }
 
+func insecureTestHandler(config handlerConfig) http.Handler {
+	config.insecureTest = true
+	return newHandler(config)
+}
+
 func TestMCPWebCoverageBaseline(t *testing.T) {
 	wantTools := []string{
 		"check_login_status", "create_account", "favorite_feed", "get_feed_detail",
@@ -180,7 +185,7 @@ func TestDetailPageMapsAdvancedCommentOptionsAndProfileLinks(t *testing.T) {
 }
 
 func TestHealth(t *testing.T) {
-	h := newHandler(handlerConfig{})
+	h := insecureTestHandler(handlerConfig{})
 	response := httptest.NewRecorder()
 	h.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/web/health", nil))
 
@@ -193,7 +198,7 @@ func TestHealth(t *testing.T) {
 }
 
 func TestSecurityHeadersAllowHTTPSMediaAndKeepImagesStrict(t *testing.T) {
-	h := newHandler(handlerConfig{})
+	h := insecureTestHandler(handlerConfig{})
 	response := httptest.NewRecorder()
 	h.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/detail.html", nil))
 
@@ -207,7 +212,7 @@ func TestSecurityHeadersAllowHTTPSMediaAndKeepImagesStrict(t *testing.T) {
 }
 
 func TestEmbeddedStaticFiles(t *testing.T) {
-	h := newHandler(handlerConfig{})
+	h := insecureTestHandler(handlerConfig{})
 	for _, path := range []string{
 		"/", "/accounts.html", "/discover.html", "/publish.html", "/detail.html", "/profile.html",
 		"/static/app.css", "/static/app.js", "/static/mcp-contract.js", "/static/accounts.js", "/static/discover.css", "/static/discover.js", "/static/profile.js",
@@ -221,7 +226,7 @@ func TestEmbeddedStaticFiles(t *testing.T) {
 }
 
 func TestLegacySearchPageRedirectsToDiscover(t *testing.T) {
-	h := newHandler(handlerConfig{})
+	h := insecureTestHandler(handlerConfig{})
 	response := httptest.NewRecorder()
 	h.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/search.html", nil))
 
@@ -272,7 +277,7 @@ func TestProxyForwardsValidatedRequest(t *testing.T) {
 	}))
 	defer upstream.Close()
 
-	h := newHandler(handlerConfig{upstreamURL: upstream.URL})
+	h := insecureTestHandler(handlerConfig{upstreamURL: upstream.URL})
 	response := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/api/web/accounts?source=ui", strings.NewReader(`{"id":"acct_one"}`))
 	request.Header.Set("Content-Type", "application/json")
@@ -294,7 +299,7 @@ func TestProxyMapsBusinessRouteToUpstreamV1(t *testing.T) {
 	}))
 	defer upstream.Close()
 
-	h := newHandler(handlerConfig{upstreamURL: upstream.URL})
+	h := insecureTestHandler(handlerConfig{upstreamURL: upstream.URL})
 	response := httptest.NewRecorder()
 	h.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/web/feeds/search", strings.NewReader(`{"keyword":"test"}`)))
 
@@ -307,7 +312,7 @@ func TestProxyRejectsOversizedBodyBeforeUpstream(t *testing.T) {
 	upstreamCalls := 0
 	upstream := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { upstreamCalls++ }))
 	defer upstream.Close()
-	h := newHandler(handlerConfig{upstreamURL: upstream.URL})
+	h := insecureTestHandler(handlerConfig{upstreamURL: upstream.URL})
 	response := httptest.NewRecorder()
 	body := `{"keyword":"` + strings.Repeat("x", maxProxyRequestBody) + `"}`
 	h.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/web/feeds/search", strings.NewReader(body)))
@@ -324,7 +329,7 @@ func TestProxyRejectsUnknownRoutesAndMethods(t *testing.T) {
 	upstreamCalls := 0
 	upstream := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { upstreamCalls++ }))
 	defer upstream.Close()
-	h := newHandler(handlerConfig{upstreamURL: upstream.URL})
+	h := insecureTestHandler(handlerConfig{upstreamURL: upstream.URL})
 
 	for _, test := range []struct {
 		method string
@@ -347,7 +352,7 @@ func TestProxyRejectsUnknownRoutesAndMethods(t *testing.T) {
 }
 
 func TestCORSAllowsOnlySameOrigin(t *testing.T) {
-	h := newHandler(handlerConfig{})
+	h := insecureTestHandler(handlerConfig{})
 
 	sameOrigin := httptest.NewRequest(http.MethodGet, "/api/web/health", nil)
 	sameOrigin.Host = "ui.example.test"
@@ -369,7 +374,7 @@ func TestCORSAllowsOnlySameOrigin(t *testing.T) {
 }
 
 func TestCORSRejectsSameHostWithDifferentScheme(t *testing.T) {
-	h := newHandler(handlerConfig{})
+	h := insecureTestHandler(handlerConfig{})
 	request := httptest.NewRequest(http.MethodGet, "/api/web/health", nil)
 	request.Host = "ui.example.test"
 	request.Header.Set("Origin", "https://ui.example.test")
@@ -383,7 +388,7 @@ func TestCORSRejectsSameHostWithDifferentScheme(t *testing.T) {
 }
 
 func TestCORSUsesConfiguredExternalSchemeBehindProxy(t *testing.T) {
-	h := newHandler(handlerConfig{externalScheme: "https"})
+	h := insecureTestHandler(handlerConfig{externalScheme: "https"})
 	request := httptest.NewRequest(http.MethodGet, "/api/web/health", nil)
 	request.Host = "ui.example.test"
 	request.Header.Set("Origin", "https://ui.example.test")

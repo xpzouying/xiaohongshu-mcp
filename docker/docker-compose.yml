@@ -1,16 +1,16 @@
 services:
   xiaohongshu-mcp:
     # Docker Hub 镜像（默认）
-    image: xpzouying/xiaohongshu-mcp
+    image: ${XHS_MCP_IMAGE:-xpzouying/xiaohongshu-mcp}
     # 阿里云镜像源（国内用户推荐，拉取更快）
     # image: crpi-hocnvtkomt7w9v8t.cn-beijing.personal.cr.aliyuncs.com/xpzouying/xiaohongshu-mcp
-    container_name: xiaohongshu-mcp
+    container_name: ${XHS_MCP_CONTAINER_NAME:-xiaohongshu-mcp}
     restart: unless-stopped
     init: true
     tty: true
     volumes:
-      - ./data:/app/data
-      - ./images:/app/images
+      - ${XHS_DATA_DIR_HOST:-./data}:/app/data
+      - ${XHS_IMAGES_DIR_HOST:-./images}:/app/images
     environment:
       - ROD_BROWSER_BIN=/usr/local/bin/cloak-chromium
       - XHS_DATA_DIR=/app/data
@@ -18,5 +18,39 @@ services:
       - HOME=/app/data/home
       - XDG_CACHE_HOME=/app/data/cache
       - XDG_CONFIG_HOME=/app/data/config
+      # 可选值：off（仅隔离测试）、warn（短期迁移）、enforce（生产）。
+      - XHS_AUTH_MODE=${XHS_AUTH_MODE:-enforce}
+      # 仅供隔离测试显式绕过缺失 secret；生产必须保持 false。
+      - XHS_ALLOW_INSECURE_TEST_MODE=${XHS_ALLOW_INSECURE_TEST_MODE:-false}
+      # 逗号分隔的精确 Origin allowlist；默认空值表示禁用跨域访问。
+      - XHS_CORS_ALLOWED_ORIGINS=${XHS_CORS_ALLOWED_ORIGINS:-}
+      - XHS_READ_TOKEN_FILE=/run/secrets/xhs_read_token
+      - XHS_WRITE_TOKEN_FILE=/run/secrets/xhs_write_token
+      - XHS_ADMIN_TOKEN_FILE=/run/secrets/xhs_admin_token
+
+    secrets:
+      - source: xhs_read_token
+        target: xhs_read_token
+        mode: 0400
+      - source: xhs_write_token
+        target: xhs_write_token
+        mode: 0400
+      - source: xhs_admin_token
+        target: xhs_admin_token
+        mode: 0400
     ports:
-      - "18060:18060"
+      - "${XHS_MCP_BIND_ADDRESS:-127.0.0.1}:${XHS_MCP_HOST_PORT:-18060}:18060"
+    networks:
+      - xhs
+
+networks:
+  xhs:
+    name: ${XHS_NETWORK_NAME:-xhs}
+
+secrets:
+  xhs_read_token:
+    file: ${XHS_READ_TOKEN_FILE_HOST:?set an absolute host path outside the repository}
+  xhs_write_token:
+    file: ${XHS_WRITE_TOKEN_FILE_HOST:?set an absolute host path outside the repository}
+  xhs_admin_token:
+    file: ${XHS_ADMIN_TOKEN_FILE_HOST:?set an absolute host path outside the repository}

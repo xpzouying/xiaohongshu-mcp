@@ -17,6 +17,10 @@ import (
 // AppServer 应用服务器结构体，封装所有服务和处理器
 type AppServer struct {
 	xiaohongshuService *XiaohongshuService
+	publishContent     func(context.Context, *PublishRequest) (*PublishResponse, error)
+	publishVideo       func(context.Context, *PublishVideoRequest) (*PublishVideoResponse, error)
+	postComment        func(context.Context, string, string, string) (*PostCommentResponse, error)
+	replyComment       func(context.Context, string, string, string, string, string) (*ReplyCommentResponse, error)
 	accountTools       *AccountTools
 	accountRegistry    account.Registry
 	accountManager     *account.Manager
@@ -45,6 +49,10 @@ func NewAppServer(xiaohongshuService *XiaohongshuService, dependencies ...any) *
 	}
 	appServer := &AppServer{
 		xiaohongshuService: xiaohongshuService,
+		publishContent:     xiaohongshuService.PublishContent,
+		publishVideo:       xiaohongshuService.PublishVideo,
+		postComment:        xiaohongshuService.PostCommentToFeed,
+		replyComment:       xiaohongshuService.ReplyCommentToFeed,
 		accountRegistry:    registry,
 		accountManager:     manager,
 	}
@@ -57,7 +65,7 @@ func NewAppServer(xiaohongshuService *XiaohongshuService, dependencies ...any) *
 
 // Start 启动服务器
 func (s *AppServer) Start(port string) error {
-	s.router = setupRoutes(s)
+	s.router = setupRoutesWithSecurity(s, loadBackendSecurityConfig())
 
 	s.httpServer = &http.Server{
 		Addr:    port,

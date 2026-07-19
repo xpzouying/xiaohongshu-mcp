@@ -89,19 +89,29 @@ func respondRESTAccountError(c *gin.Context, err error) {
 
 // setupRoutes 设置路由配置
 func setupRoutes(appServer *AppServer) *gin.Engine {
+	// 仅供不涉及 HTTP 鉴权的现有单元测试使用；生产启动不会启用该开关。
+	return setupRoutesWithSecurity(appServer, backendSecurityConfig{mode: authModeOff, allowInsecure: true})
+}
+
+func setupRoutesWithSecurity(appServer *AppServer, security backendSecurityConfig) *gin.Engine {
 	// 设置 Gin 模式
 	gin.SetMode(gin.ReleaseMode)
 
 	router := gin.New()
-	router.Use(gin.Logger())
+	// 禁止 Gin 将非精确路径重定向到已注册路由，避免公开健康检查旁路。
+	router.RedirectTrailingSlash = false
+	router.RedirectFixedPath = false
 	router.Use(gin.Recovery())
 
 	// 添加中间件
 	router.Use(errorHandlingMiddleware())
-	router.Use(corsMiddleware())
+	router.Use(corsMiddleware(security.allowedOrigins))
+	router.Use(backendAuthMiddleware(security))
+	router.Use(requestAuditMiddleware())
 
 	// 健康检查
 	router.GET("/health", healthHandler)
+	router.HEAD("/health", healthHandler)
 
 	// MCP 端点 - 使用官方 SDK 的 Streamable HTTP Handler
 	mcpHandler := mcp.NewStreamableHTTPHandler(
@@ -119,21 +129,21 @@ func setupRoutes(appServer *AppServer) *gin.Engine {
 	api := router.Group("/api/v1")
 	{
 		registerAccountRESTRoutes(api, appServer)
-		api.GET("/login/status", appServer.checkLoginStatusHandler)
-		api.GET("/login/qrcode", appServer.getLoginQrcodeHandler)
-		api.DELETE("/login/cookies", appServer.deleteCookiesHandler)
-		api.POST("/publish", withRESTAccountRouting(appServer.accountManager, account.OperationWrite, appServer.publishHandler))
-		api.POST("/publish_video", withRESTAccountRouting(appServer.accountManager, account.OperationWrite, appServer.publishVideoHandler))
-		api.GET("/feeds/list", withRESTAccountRouting(appServer.accountManager, account.OperationRead, appServer.listFeedsHandler))
-		api.GET("/feeds/search", withRESTAccountRouting(appServer.accountManager, account.OperationRead, appServer.searchFeedsHandler))
-		api.POST("/feeds/search", withRESTAccountRouting(appServer.accountManager, account.OperationRead, appServer.searchFeedsHandler))
-		api.POST("/feeds/detail", withRESTAccountRouting(appServer.accountManager, account.OperationRead, appServer.getFeedDetailHandler))
-		api.POST("/user/profile", withRESTAccountRouting(appServer.accountManager, account.OperationRead, appServer.userProfileHandler))
-		api.POST("/feeds/comment", withRESTAccountRouting(appServer.accountManager, account.OperationWrite, appServer.postCommentHandler))
-		api.POST("/feeds/comment/reply", withRESTAccountRouting(appServer.accountManager, account.OperationWrite, appServer.replyCommentHandler))
-		api.POST("/feeds/like", withRESTAccountRouting(appServer.accountManager, account.OperationWrite, appServer.likeFeedHandler))
-		api.POST("/feeds/favorite", withRESTAccountRouting(appServer.accountManager, account.OperationWrite, appServer.favoriteFeedHandler))
-		api.GET("/user/me", withRESTAccountRouting(appServer.accountManager, account.OperationRead, appServer.myProfileHandler))
+		api.GET("/login/status", requireRESTScope(scopeRead, "login.status"), appServer.checkLoginStatusHandler)
+		api.GET("/login/qrcode", requireRESTScope(scopeAdmin, "login.qrcode"), appServer.getLoginQrcodeHandler)
+		api.DELETE("/login/cookies", requireRESTScope(scopeAdmin, "login.cookies.delete"), appServer.deleteCookiesHandler)
+		api.POST("/publish", requireRESTScope(scopeWrite, "publish.content"), withRESTAccountRouting(appServer.accountManager, account.OperationWrite, appServer.publishHandler))
+		api.POST("/publish_video", requireRESTScope(scopeWrite, "publish.video"), withRESTAccountRouting(appServer.accountManager, account.OperationWrite, appServer.publishVideoHandler))
+		api.GET("/feeds/list", requireRESTScope(scopeRead, "feeds.list"), withRESTAccountRouting(appServer.accountManager, account.OperationRead, appServer.listFeedsHandler))
+		api.GET("/feeds/search", requireRESTScope(scopeRead, "feeds.search"), withRESTAccountRouting(appServer.accountManager, account.OperationRead, appServer.searchFeedsHandler))
+		api.POST("/feeds/search", requireRESTScope(scopeRead, "feeds.search"), withRESTAccountRouting(appServer.accountManager, account.OperationRead, appServer.searchFeedsHandler))
+		api.POST("/feeds/detail", requireRESTScope(scopeRead, "feeds.detail"), withRESTAccountRouting(appServer.accountManager, account.OperationRead, appServer.getFeedDetailHandler))
+		api.POST("/user/profile", requireRESTScope(scopeRead, "user.profile"), withRESTAccountRouting(appServer.accountManager, account.OperationRead, appServer.userProfileHandler))
+		api.POST("/feeds/comment", requireRESTScope(scopeWrite, "feeds.comment"), withRESTAccountRouting(appServer.accountManager, account.OperationWrite, appServer.postCommentHandler))
+		api.POST("/feeds/comment/reply", requireRESTScope(scopeWrite, "feeds.comment.reply"), withRESTAccountRouting(appServer.accountManager, account.OperationWrite, appServer.replyCommentHandler))
+		api.POST("/feeds/like", requireRESTScope(scopeWrite, "feeds.like"), withRESTAccountRouting(appServer.accountManager, account.OperationWrite, appServer.likeFeedHandler))
+		api.POST("/feeds/favorite", requireRESTScope(scopeWrite, "feeds.favorite"), withRESTAccountRouting(appServer.accountManager, account.OperationWrite, appServer.favoriteFeedHandler))
+		api.GET("/user/me", requireRESTScope(scopeRead, "user.me"), withRESTAccountRouting(appServer.accountManager, account.OperationRead, appServer.myProfileHandler))
 	}
 
 	return router

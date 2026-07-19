@@ -44,6 +44,8 @@ docker build -t xpzouying/xiaohongshu-mcp .
 
 ## 2. 手动 Docker Compose
 
+> 启动前必须按[安全部署与无损回滚文档](../docs/security-deployment.md)准备仓库外的只读 token/password 文件并设置对应 `*_FILE_HOST` 路径。生产保持 `enforce` 且不得启用 insecure 测试开关；不要把真实 secret 写入 Compose 或 `.env`。
+
 > **国内用户提示**：如需使用阿里云镜像源，请修改 `docker-compose.yml` 文件，注释掉 Docker Hub 镜像行，取消阿里云镜像行的注释：
 > ```yaml
 > # image: xpzouying/xiaohongshu-mcp

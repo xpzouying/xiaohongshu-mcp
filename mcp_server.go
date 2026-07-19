@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"runtime/debug"
 	"strings"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/sirupsen/logrus"
@@ -174,6 +175,16 @@ func withAccountRouting[T accountRoutedArgs](
 	}
 }
 
+func withAuthorizedAccountRouting[T accountRoutedArgs](
+	toolName string,
+	manager *account.Manager,
+	kind account.OperationKind,
+	handler func(context.Context, *mcp.CallToolRequest, T) (*mcp.CallToolResult, any, error),
+) func(context.Context, *mcp.CallToolRequest, T) (*mcp.CallToolResult, any, error) {
+	routed := withAccountRouting(manager, kind, withPanicRecoveryOnly(toolName, handler))
+	return withMCPAuthorization(toolName, mcpToolScope(toolName), routed)
+}
+
 // InitMCPServer 初始化 MCP Server
 func InitMCPServer(appServer *AppServer) *mcp.Server {
 	// 创建 MCP Server
@@ -199,6 +210,15 @@ func withPanicRecovery[T any](
 ) func(context.Context, *mcp.CallToolRequest, T) (*mcp.CallToolResult, any, error) {
 
 	return func(ctx context.Context, req *mcp.CallToolRequest, args T) (result *mcp.CallToolResult, resp any, err error) {
+		return withMCPAuthorization(toolName, mcpToolScope(toolName), handler)(ctx, req, args)
+	}
+}
+
+func withPanicRecoveryOnly[T any](
+	toolName string,
+	handler func(context.Context, *mcp.CallToolRequest, T) (*mcp.CallToolResult, any, error),
+) func(context.Context, *mcp.CallToolRequest, T) (*mcp.CallToolResult, any, error) {
+	return func(ctx context.Context, req *mcp.CallToolRequest, args T) (result *mcp.CallToolResult, resp any, err error) {
 		defer func() {
 			if r := recover(); r != nil {
 				logrus.WithFields(logrus.Fields{
@@ -223,6 +243,71 @@ func withPanicRecovery[T any](
 
 		return handler(ctx, req, args)
 	}
+}
+
+func mcpToolScope(toolName string) accessScope {
+	switch toolName {
+	case "list_accounts", "check_login_status", "list_feeds", "search_feeds", "get_feed_detail", "user_profile":
+		return scopeRead
+	case "publish_content", "publish_with_video", "post_comment_to_feed", "reply_comment_in_feed", "like_feed", "favorite_feed":
+		return scopeWrite
+	default:
+		return scopeAdmin
+	}
+}
+
+func withMCPAuthorization[T any](
+	toolName string,
+	scope accessScope,
+	handler func(context.Context, *mcp.CallToolRequest, T) (*mcp.CallToolResult, any, error),
+) func(context.Context, *mcp.CallToolRequest, T) (*mcp.CallToolResult, any, error) {
+	return func(ctx context.Context, req *mcp.CallToolRequest, args T) (*mcp.CallToolResult, any, error) {
+		started := time.Now()
+		principal, ok := principalFromMCPRequest(ctx, req)
+		if !ok || !principal.allows(scope) {
+			logMCPAudit(toolName, scope, principal, req, args, "forbidden", started)
+			return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "FORBIDDEN: tool scope denied"}}}, nil, nil
+		}
+		result, response, err := withPanicRecoveryOnly(toolName, handler)(ctx, req, args)
+		outcome := "success"
+		if isUncertainError(err) && isUncertainWriteOperation(toolName) {
+			outcome = "UNKNOWN"
+		} else if err != nil || result == nil || result.IsError {
+			outcome = "failure"
+		}
+		logMCPAudit(toolName, scope, principal, req, args, outcome, started)
+		return result, response, err
+	}
+}
+
+func logMCPAudit(toolName string, scope accessScope, principal requestPrincipal, req *mcp.CallToolRequest, args any, outcome string, started time.Time) {
+	logrus.WithFields(logrus.Fields{
+		"event": "security_audit", "request_id": mcpRequestID(req), "actor": principal.actor,
+		"scope": scope, "operation": "mcp." + toolName, "account_id_hash": hashAuditValue(mcpAccountID(args)),
+		"target_hash": hashAuditValue(toolName), "outcome": outcome, "duration_ms": time.Since(started).Milliseconds(),
+	}).Info("安全审计")
+}
+
+func mcpRequestID(req *mcp.CallToolRequest) string {
+	if req != nil && req.Extra != nil {
+		if value := strings.TrimSpace(req.Extra.Header.Get("X-Request-ID")); value != "" && len(value) <= 128 {
+			return value
+		}
+	}
+	return randomRequestID()
+}
+
+func mcpAccountID(args any) string {
+	if routed, ok := args.(accountRoutedArgs); ok {
+		return routed.accountID()
+	}
+	if value, ok := args.(AccountIDArgs); ok {
+		return value.AccountID
+	}
+	if value, ok := args.(CreateAccountArgs); ok {
+		return value.AccountID
+	}
+	return ""
 }
 
 // registerTools 注册所有 MCP 工具
@@ -290,7 +375,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				DestructiveHint: boolPtr(true),
 			},
 		},
-		withAccountRouting(appServer.accountManager, account.OperationWrite, withPanicRecovery("publish_content", func(ctx context.Context, req *mcp.CallToolRequest, args PublishContentArgs) (*mcp.CallToolResult, any, error) {
+		withAuthorizedAccountRouting("publish_content", appServer.accountManager, account.OperationWrite, func(ctx context.Context, req *mcp.CallToolRequest, args PublishContentArgs) (*mcp.CallToolResult, any, error) {
 			// 转换参数格式到现有的 handler
 			argsMap := map[string]interface{}{
 				"title":       args.Title,
@@ -304,7 +389,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 			}
 			result := appServer.handlePublishContent(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
-		})),
+		}),
 	)
 
 	// 工具 5: 获取Feed列表
@@ -317,10 +402,10 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				ReadOnlyHint: true,
 			},
 		},
-		withAccountRouting(appServer.accountManager, account.OperationRead, withPanicRecovery("list_feeds", func(ctx context.Context, req *mcp.CallToolRequest, _ ListFeedsArgs) (*mcp.CallToolResult, any, error) {
+		withAuthorizedAccountRouting("list_feeds", appServer.accountManager, account.OperationRead, func(ctx context.Context, req *mcp.CallToolRequest, _ ListFeedsArgs) (*mcp.CallToolResult, any, error) {
 			result := appServer.handleListFeeds(ctx)
 			return convertToMCPResult(result), nil, nil
-		})),
+		}),
 	)
 
 	// 工具 6: 搜索内容
@@ -333,10 +418,10 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				ReadOnlyHint: true,
 			},
 		},
-		withAccountRouting(appServer.accountManager, account.OperationRead, withPanicRecovery("search_feeds", func(ctx context.Context, req *mcp.CallToolRequest, args SearchFeedsArgs) (*mcp.CallToolResult, any, error) {
+		withAuthorizedAccountRouting("search_feeds", appServer.accountManager, account.OperationRead, func(ctx context.Context, req *mcp.CallToolRequest, args SearchFeedsArgs) (*mcp.CallToolResult, any, error) {
 			result := appServer.handleSearchFeeds(ctx, args)
 			return convertToMCPResult(result), nil, nil
-		})),
+		}),
 	)
 
 	// 工具 7: 获取Feed详情
@@ -349,7 +434,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				ReadOnlyHint: true,
 			},
 		},
-		withAccountRouting(appServer.accountManager, account.OperationRead, withPanicRecovery("get_feed_detail", func(ctx context.Context, req *mcp.CallToolRequest, args FeedDetailArgs) (*mcp.CallToolResult, any, error) {
+		withAuthorizedAccountRouting("get_feed_detail", appServer.accountManager, account.OperationRead, func(ctx context.Context, req *mcp.CallToolRequest, args FeedDetailArgs) (*mcp.CallToolResult, any, error) {
 			argsMap := map[string]interface{}{
 				"feed_id":           args.FeedID,
 				"xsec_token":        args.XsecToken,
@@ -381,7 +466,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 
 			result := appServer.handleGetFeedDetail(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
-		})),
+		}),
 	)
 
 	// 工具 8: 获取用户主页
@@ -394,14 +479,14 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				ReadOnlyHint: true,
 			},
 		},
-		withAccountRouting(appServer.accountManager, account.OperationRead, withPanicRecovery("user_profile", func(ctx context.Context, req *mcp.CallToolRequest, args UserProfileArgs) (*mcp.CallToolResult, any, error) {
+		withAuthorizedAccountRouting("user_profile", appServer.accountManager, account.OperationRead, func(ctx context.Context, req *mcp.CallToolRequest, args UserProfileArgs) (*mcp.CallToolResult, any, error) {
 			argsMap := map[string]interface{}{
 				"user_id":    args.UserID,
 				"xsec_token": args.XsecToken,
 			}
 			result := appServer.handleUserProfile(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
-		})),
+		}),
 	)
 
 	// 工具 9: 发表评论
@@ -414,7 +499,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				DestructiveHint: boolPtr(true),
 			},
 		},
-		withAccountRouting(appServer.accountManager, account.OperationWrite, withPanicRecovery("post_comment_to_feed", func(ctx context.Context, req *mcp.CallToolRequest, args PostCommentArgs) (*mcp.CallToolResult, any, error) {
+		withAuthorizedAccountRouting("post_comment_to_feed", appServer.accountManager, account.OperationWrite, func(ctx context.Context, req *mcp.CallToolRequest, args PostCommentArgs) (*mcp.CallToolResult, any, error) {
 			argsMap := map[string]interface{}{
 				"feed_id":    args.FeedID,
 				"xsec_token": args.XsecToken,
@@ -422,7 +507,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 			}
 			result := appServer.handlePostComment(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
-		})),
+		}),
 	)
 
 	// 工具 10: 回复评论
@@ -435,7 +520,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				DestructiveHint: boolPtr(true),
 			},
 		},
-		withAccountRouting(appServer.accountManager, account.OperationWrite, withPanicRecovery("reply_comment_in_feed", func(ctx context.Context, req *mcp.CallToolRequest, args ReplyCommentArgs) (*mcp.CallToolResult, any, error) {
+		withAuthorizedAccountRouting("reply_comment_in_feed", appServer.accountManager, account.OperationWrite, func(ctx context.Context, req *mcp.CallToolRequest, args ReplyCommentArgs) (*mcp.CallToolResult, any, error) {
 			if args.CommentID == "" && args.UserID == "" {
 				return &mcp.CallToolResult{
 					IsError: true,
@@ -452,7 +537,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 			}
 			result := appServer.handleReplyComment(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
-		})),
+		}),
 	)
 
 	// 工具 11: 发布视频（仅本地文件）
@@ -465,7 +550,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				DestructiveHint: boolPtr(true),
 			},
 		},
-		withAccountRouting(appServer.accountManager, account.OperationWrite, withPanicRecovery("publish_with_video", func(ctx context.Context, req *mcp.CallToolRequest, args PublishVideoArgs) (*mcp.CallToolResult, any, error) {
+		withAuthorizedAccountRouting("publish_with_video", appServer.accountManager, account.OperationWrite, func(ctx context.Context, req *mcp.CallToolRequest, args PublishVideoArgs) (*mcp.CallToolResult, any, error) {
 			argsMap := map[string]interface{}{
 				"title":       args.Title,
 				"content":     args.Content,
@@ -477,7 +562,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 			}
 			result := appServer.handlePublishVideo(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
-		})),
+		}),
 	)
 
 	// 工具 12: 点赞笔记
@@ -490,7 +575,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				DestructiveHint: boolPtr(true),
 			},
 		},
-		withAccountRouting(appServer.accountManager, account.OperationWrite, withPanicRecovery("like_feed", func(ctx context.Context, req *mcp.CallToolRequest, args LikeFeedArgs) (*mcp.CallToolResult, any, error) {
+		withAuthorizedAccountRouting("like_feed", appServer.accountManager, account.OperationWrite, func(ctx context.Context, req *mcp.CallToolRequest, args LikeFeedArgs) (*mcp.CallToolResult, any, error) {
 			argsMap := map[string]interface{}{
 				"feed_id":    args.FeedID,
 				"xsec_token": args.XsecToken,
@@ -498,7 +583,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 			}
 			result := appServer.handleLikeFeed(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
-		})),
+		}),
 	)
 
 	// 工具 13: 收藏笔记
@@ -511,7 +596,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				DestructiveHint: boolPtr(true),
 			},
 		},
-		withAccountRouting(appServer.accountManager, account.OperationWrite, withPanicRecovery("favorite_feed", func(ctx context.Context, req *mcp.CallToolRequest, args FavoriteFeedArgs) (*mcp.CallToolResult, any, error) {
+		withAuthorizedAccountRouting("favorite_feed", appServer.accountManager, account.OperationWrite, func(ctx context.Context, req *mcp.CallToolRequest, args FavoriteFeedArgs) (*mcp.CallToolResult, any, error) {
 			argsMap := map[string]interface{}{
 				"feed_id":    args.FeedID,
 				"xsec_token": args.XsecToken,
@@ -519,7 +604,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 			}
 			result := appServer.handleFavoriteFeed(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
-		})),
+		}),
 	)
 
 	logrus.Infof("Registered %d MCP tools", 13)

@@ -11,8 +11,8 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/xiaohon
 FROM alpine:3.22
 
 RUN apk add --no-cache ca-certificates \
-    && addgroup -S webui \
-    && adduser -S -G webui webui
+    && addgroup -S -g 1000 webui \
+    && adduser -S -D -H -u 1000 -G webui webui
 COPY --from=builder /out/xiaohongshu-webui /usr/local/bin/xiaohongshu-webui
 
 USER webui

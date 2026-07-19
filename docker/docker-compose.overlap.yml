@@ -1,0 +1,24 @@
+services:
+  xiaohongshu-mcp:
+    environment:
+      XHS_READ_TOKEN_PREVIOUS_FILE: /run/secrets/xhs_read_token_previous
+      XHS_WRITE_TOKEN_PREVIOUS_FILE: /run/secrets/xhs_write_token_previous
+      XHS_ADMIN_TOKEN_PREVIOUS_FILE: /run/secrets/xhs_admin_token_previous
+    secrets:
+      - source: xhs_read_token_previous
+        target: xhs_read_token_previous
+        mode: 0400
+      - source: xhs_write_token_previous
+        target: xhs_write_token_previous
+        mode: 0400
+      - source: xhs_admin_token_previous
+        target: xhs_admin_token_previous
+        mode: 0400
+
+secrets:
+  xhs_read_token_previous:
+    file: ${XHS_READ_TOKEN_PREVIOUS_FILE_HOST:?set an absolute host path outside the repository}
+  xhs_write_token_previous:
+    file: ${XHS_WRITE_TOKEN_PREVIOUS_FILE_HOST:?set an absolute host path outside the repository}
+  xhs_admin_token_previous:
+    file: ${XHS_ADMIN_TOKEN_PREVIOUS_FILE_HOST:?set an absolute host path outside the repository}

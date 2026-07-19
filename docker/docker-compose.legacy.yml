@@ -1,0 +1,37 @@
+services:
+  xiaohongshu-mcp:
+    image: ${XHS_MCP_IMAGE:-xpzouying/xiaohongshu-mcp}
+    container_name: ${XHS_MCP_CONTAINER_NAME:-xiaohongshu-mcp}
+    restart: unless-stopped
+    init: true
+    tty: true
+    volumes:
+      - ${XHS_DATA_DIR_HOST:-./data}:/app/data
+      - ${XHS_IMAGES_DIR_HOST:-./images}:/app/images
+    environment:
+      ROD_BROWSER_BIN: /usr/local/bin/cloak-chromium
+      XHS_DATA_DIR: /app/data
+      COOKIES_PATH: /app/data/cookies.json
+      HOME: /app/data/home
+      XDG_CACHE_HOME: /app/data/cache
+      XDG_CONFIG_HOME: /app/data/config
+      XHS_AUTH_MODE: ${XHS_AUTH_MODE:-enforce}
+      XHS_ALLOW_INSECURE_TEST_MODE: ${XHS_ALLOW_INSECURE_TEST_MODE:-false}
+      XHS_CORS_ALLOWED_ORIGINS: ${XHS_CORS_ALLOWED_ORIGINS:-}
+      XHS_API_TOKEN_FILE: /run/secrets/xhs_api_token
+    secrets:
+      - source: xhs_api_token
+        target: xhs_api_token
+        mode: 0400
+    ports:
+      - "${XHS_MCP_BIND_ADDRESS:-127.0.0.1}:${XHS_MCP_HOST_PORT:-18060}:18060"
+    networks:
+      - xhs
+
+networks:
+  xhs:
+    name: ${XHS_NETWORK_NAME:-xhs}
+
+secrets:
+  xhs_api_token:
+    file: ${XHS_API_TOKEN_FILE_HOST:?set an absolute host path outside the repository}

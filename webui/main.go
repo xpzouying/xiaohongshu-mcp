@@ -28,46 +28,62 @@ var staticFiles embed.FS
 type handlerConfig struct {
 	upstreamURL    string
 	externalScheme string
+	authMode       authMode
+	username       string
+	password       string
+	upstreamToken  string
+	readToken      string
+	writeToken     string
+	adminToken     string
+	insecureTest   bool
+	securityError  bool
 }
 
 type routeRule struct {
 	methods map[string]struct{}
+	scope   accessScope
 	mapPath func([]string) (string, bool)
 }
 
+type accessScope string
+
+const (
+	scopeRead  accessScope = "read"
+	scopeWrite accessScope = "write"
+	scopeAdmin accessScope = "admin"
+)
+
 var proxyRoutes = []routeRule{
-	newRoute([]string{http.MethodGet, http.MethodPost}, exactMap("/api/v1/accounts", "accounts")),
-	newRoute([]string{http.MethodPost}, exactMap("/api/v1/accounts/quick_add", "accounts", "quick_add")),
-	newRoute([]string{http.MethodDelete}, accountRoute()),
-	newRoute([]string{http.MethodPut}, accountAction("default")),
-	newRoute([]string{http.MethodPost}, accountAction("login", "qrcode")),
-	newRoute([]string{http.MethodPost}, accountAction("login", "status")),
-	newRoute([]string{http.MethodPost}, accountAction("sync_profile")),
-	newRoute([]string{http.MethodDelete}, accountAction("login")),
-	newRoute([]string{http.MethodGet}, exactMap("/api/v1/login/status", "login", "status")),
-	newRoute([]string{http.MethodGet}, exactMap("/api/v1/login/qrcode", "login", "qrcode")),
-	newRoute([]string{http.MethodDelete}, exactMap("/api/v1/login/cookies", "login", "cookies")),
-	newRoute([]string{http.MethodPost}, exactMap("/api/v1/publish", "publish")),
-	newRoute([]string{http.MethodPost}, exactMap("/api/v1/publish_video", "publish_video")),
-	newRoute([]string{http.MethodGet}, exactMap("/api/v1/feeds/list", "feeds", "list")),
-	newRoute([]string{http.MethodGet, http.MethodPost}, exactMap("/api/v1/feeds/search", "feeds", "search")),
-	newRoute([]string{http.MethodPost}, exactMap("/api/v1/feeds/detail", "feeds", "detail")),
-	newRoute([]string{http.MethodPost}, exactMap("/api/v1/feeds/comment", "feeds", "comment")),
-	newRoute([]string{http.MethodPost}, exactMap("/api/v1/feeds/comment/reply", "feeds", "comment", "reply")),
-	newRoute([]string{http.MethodPost}, exactMap("/api/v1/feeds/like", "feeds", "like")),
-	newRoute([]string{http.MethodPost}, exactMap("/api/v1/feeds/favorite", "feeds", "favorite")),
-	newRoute([]string{http.MethodPost}, exactMap("/api/v1/user/profile", "user", "profile")),
-	newRoute([]string{http.MethodGet}, exactMap("/api/v1/user/me", "user", "me")),
+	newRoute([]string{http.MethodGet}, scopeRead, exactMap("/api/v1/accounts", "accounts")),
+	newRoute([]string{http.MethodPost}, scopeAdmin, exactMap("/api/v1/accounts", "accounts")),
+	newRoute([]string{http.MethodPost}, scopeAdmin, exactMap("/api/v1/accounts/quick_add", "accounts", "quick_add")),
+	newRoute([]string{http.MethodDelete}, scopeAdmin, accountRoute()),
+	newRoute([]string{http.MethodPut}, scopeAdmin, accountAction("default")),
+	newRoute([]string{http.MethodPost}, scopeAdmin, accountAction("login", "qrcode")),
+	newRoute([]string{http.MethodPost}, scopeRead, accountAction("login", "status")),
+	newRoute([]string{http.MethodPost}, scopeAdmin, accountAction("sync_profile")),
+	newRoute([]string{http.MethodDelete}, scopeAdmin, accountAction("login")),
+	newRoute([]string{http.MethodGet}, scopeRead, exactMap("/api/v1/login/status", "login", "status")),
+	newRoute([]string{http.MethodGet}, scopeAdmin, exactMap("/api/v1/login/qrcode", "login", "qrcode")),
+	newRoute([]string{http.MethodDelete}, scopeAdmin, exactMap("/api/v1/login/cookies", "login", "cookies")),
+	newRoute([]string{http.MethodPost}, scopeWrite, exactMap("/api/v1/publish", "publish")),
+	newRoute([]string{http.MethodPost}, scopeWrite, exactMap("/api/v1/publish_video", "publish_video")),
+	newRoute([]string{http.MethodGet}, scopeRead, exactMap("/api/v1/feeds/list", "feeds", "list")),
+	newRoute([]string{http.MethodGet, http.MethodPost}, scopeRead, exactMap("/api/v1/feeds/search", "feeds", "search")),
+	newRoute([]string{http.MethodPost}, scopeRead, exactMap("/api/v1/feeds/detail", "feeds", "detail")),
+	newRoute([]string{http.MethodPost}, scopeWrite, exactMap("/api/v1/feeds/comment", "feeds", "comment")),
+	newRoute([]string{http.MethodPost}, scopeWrite, exactMap("/api/v1/feeds/comment/reply", "feeds", "comment", "reply")),
+	newRoute([]string{http.MethodPost}, scopeWrite, exactMap("/api/v1/feeds/like", "feeds", "like")),
+	newRoute([]string{http.MethodPost}, scopeWrite, exactMap("/api/v1/feeds/favorite", "feeds", "favorite")),
+	newRoute([]string{http.MethodPost}, scopeRead, exactMap("/api/v1/user/profile", "user", "profile")),
+	newRoute([]string{http.MethodGet}, scopeRead, exactMap("/api/v1/user/me", "user", "me")),
 }
 
 func main() {
 	listenAddress := envOrDefault("WEBUI_ADDR", defaultListenAddress)
 	server := &http.Server{
-		Addr: listenAddress,
-		Handler: newHandler(handlerConfig{
-			upstreamURL:    envOrDefault("XHS_MCP_URL", defaultUpstreamURL),
-			externalScheme: os.Getenv("WEBUI_EXTERNAL_SCHEME"),
-		}),
+		Addr:              listenAddress,
+		Handler:           newHandler(loadHandlerConfig()),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      60 * time.Second,
@@ -80,6 +96,9 @@ func main() {
 }
 
 func newHandler(config handlerConfig) http.Handler {
+	if config.authMode == "" {
+		config.authMode = authModeOff
+	}
 	if config.externalScheme != "" && config.externalScheme != "http" && config.externalScheme != "https" {
 		panic("WEBUI_EXTERNAL_SCHEME 仅支持 http 或 https")
 	}
@@ -104,6 +123,18 @@ func newHandler(config handlerConfig) http.Handler {
 	proxy.Director = func(r *http.Request) {
 		originalDirector(r)
 		r.Host = upstreamURL.Host
+		r.Header.Del("Authorization")
+		r.Header.Del("Proxy-Authorization")
+		r.Header.Del("X-XHS-Authenticated-Actor")
+		r.Header.Del("X-XHS-Authenticated-Scopes")
+		if token := config.tokenForPath(r.Method, r.URL.Path); token != "" {
+			r.Header.Set("Authorization", "Bearer "+token)
+		}
+	}
+	proxy.ModifyResponse = func(response *http.Response) error {
+		response.Header.Del("Authorization")
+		response.Header.Del("Proxy-Authenticate")
+		return nil
 	}
 
 	staticFS, err := fs.Sub(staticFiles, "static")
@@ -147,7 +178,13 @@ func newHandler(config handlerConfig) http.Handler {
 		mux.HandleFunc("GET /"+page, pageHandler(page))
 	}
 
-	return rejectUnsafePaths(sameOriginOnly(config.externalScheme, securityHeaders(mux)))
+	secured := securityHeaders(mux)
+	if !config.insecureTest {
+		secured = csrfProtection(config.externalScheme, secured)
+	}
+	secured = sameOriginOnly(config.externalScheme, secured)
+	secured = webAuthentication(config, secured)
+	return rejectUnsafePaths(secured)
 }
 
 func limitProxyRequestBody(w http.ResponseWriter, r *http.Request) bool {
@@ -211,12 +248,40 @@ func proxyPath(method, escapedPath string) (string, bool) {
 	return "", false
 }
 
-func newRoute(methods []string, mapPath func([]string) (string, bool)) routeRule {
+func newRoute(methods []string, scope accessScope, mapPath func([]string) (string, bool)) routeRule {
 	allowed := make(map[string]struct{}, len(methods))
 	for _, method := range methods {
 		allowed[method] = struct{}{}
 	}
-	return routeRule{methods: allowed, mapPath: mapPath}
+	return routeRule{methods: allowed, scope: scope, mapPath: mapPath}
+}
+
+func (config handlerConfig) tokenForPath(method, path string) string {
+	for _, rule := range proxyRoutes {
+		if _, ok := rule.methods[method]; !ok {
+			continue
+		}
+		if mapped, matched := rule.mapPath(strings.Split(strings.TrimPrefix(path, "/api/v1/"), "/")); matched && mapped == path {
+			switch rule.scope {
+			case scopeRead:
+				return firstNonEmpty(config.readToken, config.upstreamToken)
+			case scopeWrite:
+				return firstNonEmpty(config.writeToken, config.upstreamToken)
+			case scopeAdmin:
+				return firstNonEmpty(config.adminToken, config.upstreamToken)
+			}
+		}
+	}
+	return ""
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func exactMap(upstreamPath string, want ...string) func([]string) (string, bool) {
@@ -272,15 +337,7 @@ func sameOriginOnly(externalScheme string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
 		if origin != "" {
-			originURL, err := url.Parse(origin)
-			requestScheme := externalScheme
-			if requestScheme == "" {
-				requestScheme = "http"
-				if r.TLS != nil {
-					requestScheme = "https"
-				}
-			}
-			if err != nil || !strings.EqualFold(originURL.Host, r.Host) || originURL.Scheme != requestScheme {
+			if !sameRequestOrigin(r, externalScheme) {
 				http.Error(w, "forbidden origin", http.StatusForbidden)
 				return
 			}
