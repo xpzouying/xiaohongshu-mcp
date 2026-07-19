@@ -206,6 +206,7 @@ func backendAuthMiddleware(config backendSecurityConfig) gin.HandlerFunc {
 		}
 		headers := c.Request.Header.Values("Authorization")
 		if len(headers) > 0 && !validBearerAuthorizationSyntax(headers) {
+			logAuthenticationFailure(c)
 			abortUnauthorized(c)
 			return
 		}
@@ -216,6 +217,7 @@ func backendAuthMiddleware(config backendSecurityConfig) gin.HandlerFunc {
 			return
 		}
 		if len(credentials) == 0 || config.tokenFileError {
+			logAuthenticationFailure(c)
 			abortUnauthorized(c)
 			return
 		}
@@ -231,8 +233,21 @@ func backendAuthMiddleware(config backendSecurityConfig) gin.HandlerFunc {
 			c.Next()
 			return
 		}
+		logAuthenticationFailure(c)
 		abortUnauthorized(c)
 	}
+}
+
+func logAuthenticationFailure(c *gin.Context) {
+	requestID := strings.TrimSpace(c.GetHeader("X-Request-ID"))
+	if requestID == "" || len(requestID) > 128 {
+		requestID = randomRequestID()
+	}
+	logrus.WithFields(logrus.Fields{
+		"event": "security_audit", "request_id": requestID, "actor": "",
+		"scope": "", "operation": "authentication", "account_id_hash": "",
+		"target_hash": hashAuditValue(c.Request.URL.Path), "outcome": "failure", "duration_ms": int64(0),
+	}).Info("安全审计")
 }
 
 func setPrincipal(c *gin.Context, principal requestPrincipal) {

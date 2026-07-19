@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/xiaohongshu-mcp/account"
 )
 
@@ -193,4 +195,55 @@ func mcpResultText(result *mcp.CallToolResult) string {
 		}
 	}
 	return text.String()
+}
+
+func TestRegisteredPublishDeadlineReturnsToolErrorAndAuditsUnknown(t *testing.T) {
+	registry := &routingRegistry{resolved: account.ResolvedAccount{Account: account.Account{ID: "acct_test", Status: account.StatusActive}}}
+	locks, err := account.NewLockManager(1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manager := account.NewAccountManager(registry, locks, routingFactory{browser: &routingBrowser{}})
+	app := &AppServer{
+		accountManager: manager,
+		publishContent: func(context.Context, *PublishRequest) (*PublishResponse, error) {
+			return nil, context.DeadlineExceeded
+		},
+	}
+	app.mcpServer = InitMCPServer(app)
+
+	var logs bytes.Buffer
+	previous := logrus.StandardLogger().Out
+	logrus.SetOutput(&logs)
+	t.Cleanup(func() { logrus.SetOutput(previous) })
+
+	httpServer := httptest.NewServer(setupRoutesWithSecurity(app, scopedTestConfig()))
+	t.Cleanup(httpServer.Close)
+	client := mcp.NewClient(&mcp.Implementation{Name: "unknown-write-test", Version: "1"}, nil)
+	connectContext := context.WithValue(context.Background(), testBearerContextKey{}, "write-token")
+	session, err := client.Connect(connectContext, &mcp.StreamableClientTransport{
+		Endpoint:   httpServer.URL + "/mcp",
+		HTTPClient: &http.Client{Transport: testBearerTransport{}},
+		MaxRetries: -1,
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = session.Close() })
+
+	result, callErr := session.CallTool(connectContext, &mcp.CallToolParams{Name: "publish_content", Arguments: map[string]any{
+		"account_id": "acct_test", "title": "test", "content": "test", "images": []string{"/not-used"},
+	}})
+	if callErr != nil {
+		t.Fatalf("uncertain write must remain a tool result, got protocol error: %v", callErr)
+	}
+	if !result.IsError {
+		t.Fatalf("uncertain write result=%+v, want tool error", result)
+	}
+	if text := mcpResultText(result); !strings.Contains(text, "状态未知") || !strings.Contains(text, "请勿自动重试") {
+		t.Fatalf("uncertain write text=%q", text)
+	}
+	if output := logs.String(); !strings.Contains(output, "operation=mcp.publish_content") || !strings.Contains(output, "outcome=UNKNOWN") {
+		t.Fatalf("audit log=%s", output)
+	}
 }

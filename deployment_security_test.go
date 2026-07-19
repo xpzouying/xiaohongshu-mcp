@@ -49,3 +49,15 @@ func TestCurrentComposeDoesNotInjectEmptyOptionalTokenPaths(t *testing.T) {
 		}
 	}
 }
+
+func TestWebUIComposeDefaultsToLoopbackOnly(t *testing.T) {
+	for _, path := range []string{"docker-compose.webui.yml", "docker-compose.webui.legacy.yml"} {
+		compose, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(compose), "${WEBUI_BIND_ADDRESS:-127.0.0.1}") {
+			t.Fatalf("%s must default to loopback; LAN plaintext access must require explicit opt-in", path)
+		}
+	}
+}

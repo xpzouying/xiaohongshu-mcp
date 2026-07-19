@@ -24,6 +24,7 @@ type SuccessResponse struct {
 type MCPToolResult struct {
 	Content []MCPContent `json:"content"`
 	IsError bool         `json:"isError,omitempty"`
+	Cause   error        `json:"-"`
 }
 
 // MCPContent MCP 内容（内部使用）

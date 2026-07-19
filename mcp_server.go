@@ -167,6 +167,9 @@ func withAccountRouting[T accountRoutedArgs](
 			return handlerErr
 		})
 		if err != nil {
+			if result != nil {
+				return result, response, err
+			}
 			return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{
 				&mcp.TextContent{Text: "账号执行失败: " + err.Error()},
 			}}, nil, nil
@@ -270,12 +273,16 @@ func withMCPAuthorization[T any](
 		}
 		result, response, err := withPanicRecoveryOnly(toolName, handler)(ctx, req, args)
 		outcome := "success"
-		if isUncertainError(err) && isUncertainWriteOperation(toolName) {
+		uncertain := isUncertainError(err) && isUncertainWriteOperation(toolName)
+		if uncertain {
 			outcome = "UNKNOWN"
 		} else if err != nil || result == nil || result.IsError {
 			outcome = "failure"
 		}
 		logMCPAudit(toolName, scope, principal, req, args, outcome, started)
+		if err != nil && result != nil {
+			return result, response, nil
+		}
 		return result, response, err
 	}
 }
@@ -388,7 +395,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				"products":    convertStringsToInterfaces(args.Products),
 			}
 			result := appServer.handlePublishContent(ctx, argsMap)
-			return convertToMCPResult(result), nil, nil
+			return convertToMCPResult(result), nil, result.Cause
 		}),
 	)
 
@@ -506,7 +513,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				"content":    args.Content,
 			}
 			result := appServer.handlePostComment(ctx, argsMap)
-			return convertToMCPResult(result), nil, nil
+			return convertToMCPResult(result), nil, result.Cause
 		}),
 	)
 
@@ -536,7 +543,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				"content":    args.Content,
 			}
 			result := appServer.handleReplyComment(ctx, argsMap)
-			return convertToMCPResult(result), nil, nil
+			return convertToMCPResult(result), nil, result.Cause
 		}),
 	)
 
@@ -561,7 +568,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				"products":    convertStringsToInterfaces(args.Products),
 			}
 			result := appServer.handlePublishVideo(ctx, argsMap)
-			return convertToMCPResult(result), nil, nil
+			return convertToMCPResult(result), nil, result.Cause
 		}),
 	)
 

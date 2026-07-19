@@ -33,7 +33,7 @@ services:
         target: xhs_admin_token
         mode: 0400
     ports:
-      - "${WEBUI_BIND_ADDRESS:-0.0.0.0}:${WEBUI_HOST_PORT:-18080}:8080"
+      - "${WEBUI_BIND_ADDRESS:-127.0.0.1}:${WEBUI_HOST_PORT:-18080}:8080"
     networks:
       - xhs
     healthcheck:

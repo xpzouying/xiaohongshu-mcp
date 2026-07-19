@@ -120,6 +120,18 @@ func (s *AppServer) handleDeleteCookies(ctx context.Context) *MCPToolResult {
 	}
 }
 
+func mcpWriteFailure(action string, err error) *MCPToolResult {
+	status := "失败"
+	if isUncertainError(err) {
+		status = "状态未知，请勿自动重试"
+	}
+	return &MCPToolResult{
+		Content: []MCPContent{{Type: "text", Text: action + status + ": " + err.Error()}},
+		IsError: true,
+		Cause:   err,
+	}
+}
+
 // handlePublishContent 处理发布内容
 func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]interface{}) *MCPToolResult {
 	logrus.Info("MCP: 发布内容")
@@ -174,15 +186,9 @@ func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]in
 	}
 
 	// 执行发布
-	result, err := s.xiaohongshuService.PublishContent(ctx, req)
+	result, err := s.publishContent(ctx, req)
 	if err != nil {
-		return &MCPToolResult{
-			Content: []MCPContent{{
-				Type: "text",
-				Text: "发布失败: " + err.Error(),
-			}},
-			IsError: true,
-		}
+		return mcpWriteFailure("发布", err)
 	}
 
 	resultText := fmt.Sprintf("内容发布成功: %+v", result)
@@ -246,15 +252,9 @@ func (s *AppServer) handlePublishVideo(ctx context.Context, args map[string]inte
 	}
 
 	// 执行发布
-	result, err := s.xiaohongshuService.PublishVideo(ctx, req)
+	result, err := s.publishVideo(ctx, req)
 	if err != nil {
-		return &MCPToolResult{
-			Content: []MCPContent{{
-				Type: "text",
-				Text: "发布失败: " + err.Error(),
-			}},
-			IsError: true,
-		}
+		return mcpWriteFailure("发布", err)
 	}
 
 	resultText := fmt.Sprintf("视频发布成功: %+v", result)
@@ -648,15 +648,9 @@ func (s *AppServer) handlePostComment(ctx context.Context, args map[string]inter
 	logrus.Infof("MCP: 发表评论 - Feed ID: %s, 内容长度: %d", feedID, len(content))
 
 	// 发表评论
-	result, err := s.xiaohongshuService.PostCommentToFeed(ctx, feedID, xsecToken, content)
+	result, err := s.postComment(ctx, feedID, xsecToken, content)
 	if err != nil {
-		return &MCPToolResult{
-			Content: []MCPContent{{
-				Type: "text",
-				Text: "发表评论失败: " + err.Error(),
-			}},
-			IsError: true,
-		}
+		return mcpWriteFailure("发表评论", err)
 	}
 
 	// 返回成功结果，只包含feed_id
@@ -722,15 +716,9 @@ func (s *AppServer) handleReplyComment(ctx context.Context, args map[string]inte
 	logrus.Infof("MCP: 回复评论 - Feed ID: %s, Comment ID: %s, User ID: %s, 内容长度: %d", feedID, commentID, userID, len(content))
 
 	// 回复评论
-	result, err := s.xiaohongshuService.ReplyCommentToFeed(ctx, feedID, xsecToken, commentID, userID, content)
+	result, err := s.replyComment(ctx, feedID, xsecToken, commentID, userID, content)
 	if err != nil {
-		return &MCPToolResult{
-			Content: []MCPContent{{
-				Type: "text",
-				Text: "回复评论失败: " + err.Error(),
-			}},
-			IsError: true,
-		}
+		return mcpWriteFailure("回复评论", err)
 	}
 
 	// 返回成功结果

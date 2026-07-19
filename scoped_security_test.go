@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -50,6 +51,47 @@ func TestRESTScopeMatrix(t *testing.T) {
 			router.ServeHTTP(response, request)
 			if response.Code != test.want {
 				t.Fatalf("status=%d body=%s, want=%d", response.Code, response.Body.String(), test.want)
+			}
+		})
+	}
+}
+
+func TestAuthenticationFailuresAreAudited(t *testing.T) {
+	tests := []struct {
+		name   string
+		config backendSecurityConfig
+		token  string
+	}{
+		{"missing token", scopedTestConfig(), ""},
+		{"invalid token", scopedTestConfig(), "invalid-never-log"},
+		{"credential configuration failure", backendSecurityConfig{mode: authModeEnforce, tokenFileError: true}, ""},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var logs bytes.Buffer
+			previous := logrus.StandardLogger().Out
+			logrus.SetOutput(&logs)
+			defer logrus.SetOutput(previous)
+			request := httptest.NewRequest(http.MethodGet, "/api/v1/accounts", nil)
+			if test.token != "" {
+				request.Header.Set("Authorization", "Bearer "+test.token)
+			}
+			response := httptest.NewRecorder()
+			setupRoutesWithSecurity(&AppServer{}, test.config).ServeHTTP(response, request)
+			if response.Code != http.StatusUnauthorized {
+				t.Fatalf("status=%d", response.Code)
+			}
+			output := logs.String()
+			for _, required := range []string{"event=security_audit", "operation=authentication", "outcome=failure"} {
+				if !strings.Contains(output, required) {
+					t.Fatalf("missing %q in log=%s", required, output)
+				}
+			}
+			if count := strings.Count(output, "event=security_audit"); count != 1 {
+				t.Fatalf("authentication audit count=%d log=%s", count, output)
+			}
+			if test.token != "" && strings.Contains(output, test.token) {
+				t.Fatalf("authentication log leaked token: %s", output)
 			}
 		})
 	}
@@ -164,6 +206,25 @@ func TestMCPUncertainWriteAuditOutcome(t *testing.T) {
 		if !strings.Contains(logs.String(), "outcome=UNKNOWN") {
 			t.Fatalf("err=%v log=%s", handlerErr, logs.String())
 		}
+	}
+}
+
+func TestMCPOrdinaryWriteFailureRemainsToolResultAndAuditsFailure(t *testing.T) {
+	var logs bytes.Buffer
+	previous := logrus.StandardLogger().Out
+	logrus.SetOutput(&logs)
+	defer logrus.SetOutput(previous)
+	handler := withMCPAuthorization("publish_content", scopeWrite, func(context.Context, *mcp.CallToolRequest, any) (*mcp.CallToolResult, any, error) {
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "deterministic failure"}}}, nil, errors.New("deterministic failure")
+	})
+	principal := requestPrincipal{actor: "actor", scopes: map[accessScope]struct{}{scopeWrite: {}}}
+	result, _, err := handler(context.WithValue(context.Background(), principalContextKey{}, principal), nil, nil)
+	if err != nil || result == nil || !result.IsError || !strings.Contains(mcpResultText(result), "deterministic failure") {
+		t.Fatalf("result=%+v err=%v", result, err)
+	}
+	output := logs.String()
+	if !strings.Contains(output, "outcome=failure") || strings.Contains(output, "outcome=UNKNOWN") {
+		t.Fatalf("audit log=%s", output)
 	}
 }
 

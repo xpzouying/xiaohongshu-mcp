@@ -4,7 +4,7 @@
 
 ## 1. 目标边界与流量路径
 
-- Web UI 默认发布在 `0.0.0.0:18080`，供 LAN 浏览器访问。
+- Web UI 默认仅发布在 `127.0.0.1:18080`，避免 LAN 绕过 TLS 直接发送 Basic 凭据；生产 LAN 访问必须经过 TLS 反向代理。只有隔离测试才可显式设置 `WEBUI_BIND_ADDRESS=0.0.0.0`。
 - MCP 默认仅发布在 `127.0.0.1:18060`，LAN 无法直连；迁移稳定后可从 Compose 完全删除 MCP 的 `ports`。
 - Web UI 不经过 host publish 访问 MCP，而是通过 `xhs` bridge 的容器 DNS 请求 `http://xiaohongshu-mcp:18060`。
 - `xhs` 不能是 MCP 的唯一 `internal: true` 网络。MCP 需要通过该非 internal bridge 的默认网关访问小红书。
@@ -40,7 +40,7 @@
 
 | 项目 | 安全默认值 |
 | --- | --- |
-| Web UI publish | `0.0.0.0:18080 -> 8080` |
+| Web UI publish | `127.0.0.1:18080 -> 8080`；生产 LAN 仅经 TLS 代理 |
 | MCP publish | `127.0.0.1:18060 -> 18060` |
 | 容器通信 | `xiaohongshu-mcp:18060` over `xhs` |
 | MCP 网络 | 非 internal，保留 egress |
@@ -95,7 +95,7 @@ docker compose -f docker/docker-compose.legacy.yml config --services
 docker compose -f docker-compose.webui.legacy.yml config --services
 ```
 
-必须确认：MCP host IP 是 `127.0.0.1`、Web UI host IP 是 `0.0.0.0`、两边网络名相同且 `internal` 不是 `true`、secret source 是预期宿主机路径、容器内 target 位于 `/run/secrets/` 且为只读 secret。
+必须确认：MCP 与 Web UI 的默认 host IP 都是 `127.0.0.1`；只有隔离测试显式覆盖时 Web UI 才能是 `0.0.0.0`。两边网络名必须相同且 `internal` 不是 `true`，secret source 是预期宿主机路径，容器内 target 位于 `/run/secrets/` 且为只读 secret。
 
 ## 5. 隔离环境启动
 
@@ -305,7 +305,7 @@ curl --fail http://127.0.0.1:18080/api/web/health
 
 轮换采用 current/previous 双 token overlap。后端可额外挂载只读旧 token，并设置 `XHS_READ_TOKEN_PREVIOUS_FILE`、`XHS_WRITE_TOKEN_PREVIOUS_FILE`、`XHS_ADMIN_TOKEN_PREVIOUS_FILE`；先发布新 token 给客户端，再开启短 overlap，确认旧 token 无调用后删除 previous 挂载并重建容器。不要用环境变量承载 token 内容，也不要长期保留 overlap。
 
-三种可执行模式均只读挂载宿主 secret：默认模板是 current 三 scope；overlap 使用 `docker compose -f docker/docker-compose.yml -f docker/docker-compose.overlap.yml config`，增加三份 previous secret；legacy rollback 使用 `docker compose -f docker/docker-compose.yml -f docker/docker-compose.legacy.yml config`，Web UI 对应使用 `docker compose -f docker-compose.webui.yml -f docker-compose.webui.legacy.yml config`。legacy override 清空三 scope 路径并只设置 `XHS_API_TOKEN_FILE=/run/secrets/xhs_api_token`。legacy 仅限已批准且不超过 24 小时的回滚窗口；窗口结束后先撤销旧客户端，再删除 legacy override/挂载和文件，恢复 current 三 scope 并重新 render 验证。任一已声明路径缺失均 fail closed；不得把 token 内容放进 env。
+三种可执行模式均只读挂载宿主 secret：默认模板是 current 三 scope；overlap 使用 `docker compose -f docker/docker-compose.yml -f docker/docker-compose.overlap.yml config`，增加三份 previous secret；legacy rollback 必须单独使用 `docker compose -f docker/docker-compose.legacy.yml config`，Web UI 同样单独使用 `docker compose -f docker-compose.webui.legacy.yml config`，不得与 current 基础 Compose 叠加。legacy 仅设置 `XHS_API_TOKEN_FILE=/run/secrets/xhs_api_token`，且仅限已批准、不超过 24 小时的回滚窗口；窗口结束后先撤销旧客户端，再删除 legacy 挂载和文件，恢复 current 三 scope 并重新 render 验证。任一已声明路径缺失均 fail closed；不得把 token 内容放进 env。
 
 结构化审计记录 `request_id`、token 哈希 actor、scope、operation、账号/目标哈希、outcome 和 duration；禁止记录 cookie、二维码、xsec_token、正文、素材路径或原始 secret。REST 接受并回显 `X-Request-ID`；发布和评论若返回 408/504，审计 outcome 为 `UNKNOWN`，网关和客户端不得自动重试。完整幂等存储与冲突检测属于 `docs/write-operation-e2e-safety-plan.md` 的后续实现。
 
