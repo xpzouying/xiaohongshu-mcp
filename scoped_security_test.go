@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -206,25 +205,6 @@ func TestMCPUncertainWriteAuditOutcome(t *testing.T) {
 		if !strings.Contains(logs.String(), "outcome=UNKNOWN") {
 			t.Fatalf("err=%v log=%s", handlerErr, logs.String())
 		}
-	}
-}
-
-func TestMCPOrdinaryWriteFailureRemainsToolResultAndAuditsFailure(t *testing.T) {
-	var logs bytes.Buffer
-	previous := logrus.StandardLogger().Out
-	logrus.SetOutput(&logs)
-	defer logrus.SetOutput(previous)
-	handler := withMCPAuthorization("publish_content", scopeWrite, func(context.Context, *mcp.CallToolRequest, any) (*mcp.CallToolResult, any, error) {
-		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "deterministic failure"}}}, nil, errors.New("deterministic failure")
-	})
-	principal := requestPrincipal{actor: "actor", scopes: map[accessScope]struct{}{scopeWrite: {}}}
-	result, _, err := handler(context.WithValue(context.Background(), principalContextKey{}, principal), nil, nil)
-	if err != nil || result == nil || !result.IsError || !strings.Contains(mcpResultText(result), "deterministic failure") {
-		t.Fatalf("result=%+v err=%v", result, err)
-	}
-	output := logs.String()
-	if !strings.Contains(output, "outcome=failure") || strings.Contains(output, "outcome=UNKNOWN") {
-		t.Fatalf("audit log=%s", output)
 	}
 }
 

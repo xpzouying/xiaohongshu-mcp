@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -197,17 +198,27 @@ func mcpResultText(result *mcp.CallToolResult) string {
 	return text.String()
 }
 
-func TestRegisteredPublishDeadlineReturnsToolErrorAndAuditsUnknown(t *testing.T) {
+func TestRegisteredWriteErrorsPreserveToolSemanticsAndAuditOutcome(t *testing.T) {
 	registry := &routingRegistry{resolved: account.ResolvedAccount{Account: account.Account{ID: "acct_test", Status: account.StatusActive}}}
 	locks, err := account.NewLockManager(1)
 	if err != nil {
 		t.Fatal(err)
 	}
 	manager := account.NewAccountManager(registry, locks, routingFactory{browser: &routingBrowser{}})
+	currentErr := error(context.DeadlineExceeded)
 	app := &AppServer{
 		accountManager: manager,
 		publishContent: func(context.Context, *PublishRequest) (*PublishResponse, error) {
-			return nil, context.DeadlineExceeded
+			return nil, currentErr
+		},
+		publishVideo: func(context.Context, *PublishVideoRequest) (*PublishVideoResponse, error) {
+			return nil, currentErr
+		},
+		postComment: func(context.Context, string, string, string) (*PostCommentResponse, error) {
+			return nil, currentErr
+		},
+		replyComment: func(context.Context, string, string, string, string, string) (*ReplyCommentResponse, error) {
+			return nil, currentErr
 		},
 	}
 	app.mcpServer = InitMCPServer(app)
@@ -231,19 +242,46 @@ func TestRegisteredPublishDeadlineReturnsToolErrorAndAuditsUnknown(t *testing.T)
 	}
 	t.Cleanup(func() { _ = session.Close() })
 
-	result, callErr := session.CallTool(connectContext, &mcp.CallToolParams{Name: "publish_content", Arguments: map[string]any{
-		"account_id": "acct_test", "title": "test", "content": "test", "images": []string{"/not-used"},
-	}})
-	if callErr != nil {
-		t.Fatalf("uncertain write must remain a tool result, got protocol error: %v", callErr)
+	tests := []struct {
+		tool, action string
+		arguments    map[string]any
+	}{
+		{"publish_content", "发布", map[string]any{"account_id": "acct_test", "title": "test", "content": "test", "images": []string{"/not-used"}}},
+		{"publish_with_video", "发布", map[string]any{"account_id": "acct_test", "title": "test", "content": "test", "video": "/not-used"}},
+		{"post_comment_to_feed", "发表评论", map[string]any{"account_id": "acct_test", "feed_id": "feed", "xsec_token": "xsec", "content": "test"}},
+		{"reply_comment_in_feed", "回复评论", map[string]any{"account_id": "acct_test", "feed_id": "feed", "xsec_token": "xsec", "comment_id": "comment", "content": "test"}},
 	}
-	if !result.IsError {
-		t.Fatalf("uncertain write result=%+v, want tool error", result)
-	}
-	if text := mcpResultText(result); !strings.Contains(text, "状态未知") || !strings.Contains(text, "请勿自动重试") {
-		t.Fatalf("uncertain write text=%q", text)
-	}
-	if output := logs.String(); !strings.Contains(output, "operation=mcp.publish_content") || !strings.Contains(output, "outcome=UNKNOWN") {
-		t.Fatalf("audit log=%s", output)
+	for _, test := range tests {
+		for _, uncertainErr := range []error{context.DeadlineExceeded, context.Canceled} {
+			logs.Reset()
+			currentErr = uncertainErr
+			result, callErr := session.CallTool(connectContext, &mcp.CallToolParams{Name: test.tool, Arguments: test.arguments})
+			if callErr != nil {
+				t.Fatalf("%s uncertain write returned protocol error: %v", test.tool, callErr)
+			}
+			text := mcpResultText(result)
+			if !result.IsError || !strings.Contains(text, "状态未知") || !strings.Contains(text, "请勿自动重试") {
+				t.Fatalf("%s uncertain result=%+v text=%q", test.tool, result, text)
+			}
+			output := logs.String()
+			if !strings.Contains(output, "operation=mcp."+test.tool) || !strings.Contains(output, "outcome=UNKNOWN") || strings.Count(output, "event=security_audit") != 1 {
+				t.Fatalf("%s uncertain audit log=%s", test.tool, output)
+			}
+		}
+
+		logs.Reset()
+		currentErr = errors.New("deterministic failure")
+		result, callErr := session.CallTool(connectContext, &mcp.CallToolParams{Name: test.tool, Arguments: test.arguments})
+		if callErr != nil {
+			t.Fatalf("%s deterministic write returned protocol error: %v", test.tool, callErr)
+		}
+		text := mcpResultText(result)
+		if !result.IsError || !strings.Contains(text, test.action+"失败") || strings.Contains(text, "状态未知") {
+			t.Fatalf("%s deterministic result=%+v text=%q", test.tool, result, text)
+		}
+		output := logs.String()
+		if !strings.Contains(output, "operation=mcp."+test.tool) || !strings.Contains(output, "outcome=failure") || strings.Contains(output, "outcome=UNKNOWN") || strings.Count(output, "event=security_audit") != 1 {
+			t.Fatalf("%s deterministic audit log=%s", test.tool, output)
+		}
 	}
 }
