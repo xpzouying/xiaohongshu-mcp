@@ -40,16 +40,3 @@ jobs:
           crpi-hocnvtkomt7w9v8t.cn-beijing.personal.cr.aliyuncs.com/xpzouying/xiaohongshu-mcp:latest
         cache-from: type=gha
         cache-to: type=gha,mode=max
-
-    - name: Build and push Docker image (ARM64)
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        file: ./Dockerfile.arm64
-        push: true
-        platforms: linux/arm64
-        tags: |
-          crpi-hocnvtkomt7w9v8t.cn-beijing.personal.cr.aliyuncs.com/xpzouying/xiaohongshu-mcp:${{ github.event.inputs.version }}-arm64
-          crpi-hocnvtkomt7w9v8t.cn-beijing.personal.cr.aliyuncs.com/xpzouying/xiaohongshu-mcp:latest-arm64
-        cache-from: type=gha
-        cache-to: type=gha,mode=max

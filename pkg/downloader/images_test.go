@@ -35,9 +35,8 @@ func TestIsImageURL(t *testing.T) {
 }
 
 func TestNewImageDownloader(t *testing.T) {
-	tempDir := os.TempDir()
-	testPath := filepath.Join(tempDir, "test_downloader")
-	defer os.RemoveAll(testPath)
+	// 子目录尚不存在，用于验证 NewImageDownloader 会创建它；t.TempDir 自动清理。
+	testPath := filepath.Join(t.TempDir(), "test_downloader")
 
 	downloader := NewImageDownloader(testPath)
 
@@ -56,7 +55,7 @@ func TestNewImageDownloader(t *testing.T) {
 }
 
 func TestImageDownloader_isValidImageURL(t *testing.T) {
-	downloader := NewImageDownloader(os.TempDir())
+	downloader := NewImageDownloader(t.TempDir())
 
 	tests := []struct {
 		url      string
@@ -80,7 +79,7 @@ func TestImageDownloader_isValidImageURL(t *testing.T) {
 }
 
 func TestImageDownloader_generateFileName(t *testing.T) {
-	downloader := NewImageDownloader(os.TempDir())
+	downloader := NewImageDownloader(t.TempDir())
 
 	url := "https://example.com/image.jpg"
 	extension := "jpg"

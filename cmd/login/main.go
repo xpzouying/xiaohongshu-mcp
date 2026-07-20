@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
+	"os"
 
 	"github.com/go-rod/rod"
 	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/xiaohongshu-mcp/browser"
+	"github.com/xpzouying/xiaohongshu-mcp/configs"
 	"github.com/xpzouying/xiaohongshu-mcp/cookies"
 	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
 )
@@ -19,8 +21,25 @@ func main() {
 	flag.StringVar(&binPath, "bin", "", "浏览器二进制文件路径")
 	flag.Parse()
 
-	// 登录的时候，需要界面，所以不能无头模式
-	b := browser.NewBrowser(false, browser.WithBinPath(binPath))
+	if binPath == "" {
+		binPath = os.Getenv("ROD_BROWSER_BIN")
+	}
+	// 未指定浏览器：自动准备内置浏览器，失败即退出。
+	if binPath == "" {
+		bin, err := browser.EnsureBrowser()
+		if err != nil {
+			logrus.Fatalf("%v", err)
+		}
+		binPath = bin
+	}
+
+	// 登录的时候，需要界面，所以不能无头模式。
+	// 登录与后续运行用相同的固定指纹（若设了 XHS_FP_SEED）。
+	b := browser.NewBrowser(false,
+		browser.WithBinPath(binPath),
+		browser.WithFingerprintSeed(configs.FingerprintSeedFromEnv()),
+		browser.WithProxy(configs.ProxyFromEnv()),
+	)
 	defer b.Close()
 
 	page := b.NewPage()

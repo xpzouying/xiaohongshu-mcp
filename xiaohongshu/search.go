@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-rod/rod"
 	"github.com/xpzouying/xiaohongshu-mcp/errors"
+	"github.com/xpzouying/xiaohongshu-mcp/humanize"
 )
 
 type SearchResult struct {
@@ -166,7 +167,9 @@ func NewSearchAction(page *rod.Page) *SearchAction {
 }
 
 func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...FilterOption) ([]Feed, error) {
-	page := s.page.Context(ctx)
+	// 注意 .Context(ctx) 会替换掉 NewSearchAction 里设的 60s deadline，必须在其后重新 Timeout，
+	// 否则搜索页不 stable 时 MustWaitStable/MustWait 会永久挂起（无 deadline 可依赖）。
+	page := s.page.Context(ctx).Timeout(60 * time.Second)
 
 	searchURL := makeSearchURL(keyword)
 	page.MustNavigate(searchURL)
@@ -196,16 +199,21 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 		// 悬停在筛选按钮上
 		filterButton := page.MustElement(`div.filter`)
 		filterButton.MustHover()
+		humanize.Delay(ctx, humanize.BeforeClick)
 
 		// 等待筛选面板出现
 		page.MustWait(`() => document.querySelector('div.filter-panel') !== null`)
 
-		// 应用所有筛选条件
+		// 用 ClickNoWait：筛选面板是 hover 浮层，rod 的 WaitInteractable 会误判被遮挡而死等；
+		// ClickNoWait 移进面板内选项（维持 hover、面板不关）再点。
 		for _, filter := range allInternalFilters {
 			selector := fmt.Sprintf(`div.filter-panel div.filters:nth-child(%d) div.tags:nth-child(%d)`,
 				filter.FiltersIndex, filter.TagsIndex)
 			option := page.MustElement(selector)
-			option.MustClick()
+			humanize.Delay(ctx, humanize.BeforeClick)
+			if err := humanize.ClickNoWait(option); err != nil {
+				return nil, fmt.Errorf("点击筛选选项失败: %w", err)
+			}
 		}
 
 		// 等待页面更新

@@ -1,3 +1,7 @@
+//go:build integration
+
+// 集成测试：起有头浏览器 + 触网 + 需登录态，默认 go test 不编译不运行。
+// 手动跑：go test -tags integration ./xiaohongshu/ -run TestGetFeedsList
 package xiaohongshu
 
 import (
@@ -11,9 +15,6 @@ import (
 )
 
 func TestGetFeedsList(t *testing.T) {
-
-	t.Skip("SKIP: 测试发布")
-
 	b := browser.NewBrowser(false)
 	defer b.Close()
 

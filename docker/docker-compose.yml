@@ -12,7 +12,7 @@ services:
       - ./data:/app/data
       - ./images:/app/images
     environment:
-      - ROD_BROWSER_BIN=/usr/local/bin/cloak-chromium
+      - ROD_BROWSER_BIN=/opt/browser/chrome
       - COOKIES_PATH=/app/data/cookies.json
       - HOME=/app/data/home
       - XDG_CACHE_HOME=/app/data/cache

@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/sirupsen/logrus"
+	"github.com/xpzouying/xiaohongshu-mcp/browser"
 	"github.com/xpzouying/xiaohongshu-mcp/configs"
 )
 
@@ -22,14 +23,21 @@ func main() {
 	if len(binPath) == 0 {
 		binPath = os.Getenv("ROD_BROWSER_BIN")
 	}
-	if binPath != "" {
-		logrus.Infof("using browser binary: %s", binPath)
-	} else {
-		logrus.Infof("browser binary is not configured; rod will auto-detect or download Chromium")
+	// 未显式指定浏览器：自动准备内置浏览器，失败即退出。
+	if binPath == "" {
+		bin, err := browser.EnsureBrowser()
+		if err != nil {
+			logrus.Fatalf("%v", err)
+		}
+		binPath = bin
 	}
+	logrus.Infof("using browser binary: %s", binPath)
 
 	configs.InitHeadless(headless)
 	configs.SetBinPath(binPath)
+	// 入口层读 env、解析成固定指纹 seed 和代理，经 configs 透传给浏览器工厂。
+	configs.SetFingerprintSeed(configs.FingerprintSeedFromEnv())
+	configs.SetProxy(configs.ProxyFromEnv())
 
 	// 初始化服务
 	xiaohongshuService := NewXiaohongshuService()
