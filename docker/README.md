@@ -6,7 +6,7 @@
 
 - 启动后，会产生一个 `images/` 目录，用于存储发布的图片。它会挂载到 Docker 容器里面。
   如果要使用本地图片发布的话，请确保图片拷贝到 `./images/` 目录下，并且让 MCP 在发布的时候，指定文件夹为：`/app/images`，否则一定失败。
-- Docker 镜像内置 CloakBrowser Chromium，并在构建阶段预下载浏览器。请挂载 `./data:/app/data`，用于持久化 cookies 和运行数据目录。
+- Docker 镜像内置浏览器，并在构建阶段预下载。请挂载 `./data:/app/data`，用于持久化 cookies 和运行数据目录。
 
 ## 1. 获取 Docker 镜像
 
@@ -109,7 +109,7 @@ docker run -e XHS_PROXY=http://user:pass@proxy:port xpzouying/xiaohongshu-mcp
 
 ```yaml
 environment:
-  - ROD_BROWSER_BIN=/usr/local/bin/cloak-chromium
+  - ROD_BROWSER_BIN=/opt/browser/chrome
   - COOKIES_PATH=/app/data/cookies.json
   - HOME=/app/data/home
   - XDG_CACHE_HOME=/app/data/cache

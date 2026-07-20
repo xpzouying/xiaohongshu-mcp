@@ -12,36 +12,20 @@ import (
 
 	"github.com/avast/retry-go/v4"
 	"github.com/go-rod/rod"
-	"github.com/go-rod/rod/lib/proto"
 	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/xiaohongshu-mcp/errors"
+	"github.com/xpzouying/xiaohongshu-mcp/humanize"
 )
 
 // ========== 配置常量 ==========
 const (
-	defaultMaxAttempts     = 500
-	stagnantLimit          = 20
-	minScrollDelta         = 10
-	maxClickPerRound       = 3
-	stagnantCheckThreshold = 2 // 达到目标后需要停滞几次才确认
-	largeScrollTrigger     = 5 // 停滞多少次后触发大滚动
-	buttonClickInterval    = 3 // 每隔多少次尝试点击一次按钮
-	finalSprintPushCount   = 15
-)
-
-// 延迟时间配置（毫秒）
-type delayConfig struct {
-	min, max int
-}
-
-var (
-	humanDelayRange   = delayConfig{300, 700}
-	reactionTimeRange = delayConfig{300, 800}
-	hoverTimeRange    = delayConfig{100, 300}
-	readTimeRange     = delayConfig{500, 1200}
-	shortReadRange    = delayConfig{600, 1200}
-	scrollWaitRange   = delayConfig{100, 200}
-	postScrollRange   = delayConfig{300, 500}
+	defaultMaxAttempts   = 500
+	stagnantLimit        = 20
+	minScrollDelta       = 10
+	maxClickPerRound     = 3
+	largeScrollTrigger   = 5 // 停滞多少次后触发大滚动
+	buttonClickInterval  = 3 // 每隔多少次尝试点击一次按钮
+	finalSprintPushCount = 15
 )
 
 // ========== 数据结构 ==========
@@ -102,16 +86,21 @@ func (f *FeedDetailAction) GetFeedDetailWithConfig(ctx context.Context, feedID, 
 		logrus.Errorf("页面导航失败: %v", err)
 		return nil, err
 	}
-	sleepRandom(1000, 1000)
+	humanize.Delay(ctx, humanize.AfterNavigate)
 
 	if err := checkPageAccessible(page); err != nil {
 		return nil, err
 	}
 
 	if loadAllComments {
-		if err := f.loadAllCommentsWithConfig(page, config); err != nil {
+		if err := f.loadAllCommentsWithConfig(ctx, page, config); err != nil {
 			logrus.Warnf("加载全部评论失败: %v", err)
 		}
+	}
+
+	// ctx 已取消时直接返回，避免在已取消的 page 上执行 MustEval 触发 panic
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 
 	return f.extractFeedDetail(page, feedID)
@@ -138,7 +127,7 @@ type loadState struct {
 	stagnantChecks int
 }
 
-func (f *FeedDetailAction) loadAllCommentsWithConfig(page *rod.Page, config CommentLoadConfig) error {
+func (f *FeedDetailAction) loadAllCommentsWithConfig(ctx context.Context, page *rod.Page, config CommentLoadConfig) error {
 	loader := &commentLoader{
 		page:   page,
 		config: config,
@@ -146,16 +135,15 @@ func (f *FeedDetailAction) loadAllCommentsWithConfig(page *rod.Page, config Comm
 		state:  &loadState{},
 	}
 
-	return loader.load()
+	return loader.load(ctx)
 }
 
-func (cl *commentLoader) load() error {
+func (cl *commentLoader) load(ctx context.Context) error {
 	maxAttempts := cl.calculateMaxAttempts()
-	scrollInterval := getScrollInterval(cl.config.ScrollSpeed)
 
 	logrus.Info("开始加载评论...")
 	scrollToCommentsArea(cl.page)
-	sleepRandom(humanDelayRange.min, humanDelayRange.max)
+	humanize.Delay(ctx, humanize.BetweenScroll)
 
 	// 检查是否没有评论
 	if cl.checkNoComments() {
@@ -163,14 +151,20 @@ func (cl *commentLoader) load() error {
 	}
 
 	for cl.stats.attempts = 0; cl.stats.attempts < maxAttempts; cl.stats.attempts++ {
+		// 协作取消点：ctx 取消后干净退出，避免空转直到撞上 MustEval panic
+		if err := ctx.Err(); err != nil {
+			logrus.Infof("上下文已取消，停止加载评论: %v", err)
+			return err
+		}
+
 		logrus.Debugf("=== 尝试 %d/%d ===", cl.stats.attempts+1, maxAttempts)
 
-		if cl.checkComplete() {
+		if cl.checkComplete(ctx) {
 			return nil
 		}
 
 		if cl.shouldClickButtons() {
-			cl.clickButtonsWithRetry()
+			cl.clickButtonsWithRetry(ctx)
 		}
 
 		currentCount := getCommentCount(cl.page)
@@ -180,13 +174,13 @@ func (cl *commentLoader) load() error {
 			return nil
 		}
 
-		cl.performScroll()
-		cl.handleStagnation()
+		cl.performScroll(ctx)
+		cl.handleStagnation(ctx)
 
-		time.Sleep(scrollInterval)
+		humanize.Delay(ctx, humanize.BetweenScroll)
 	}
 
-	cl.performFinalSprint()
+	cl.performFinalSprint(ctx)
 	return nil
 }
 
@@ -205,11 +199,11 @@ func (cl *commentLoader) checkNoComments() bool {
 	return false
 }
 
-func (cl *commentLoader) checkComplete() bool {
+func (cl *commentLoader) checkComplete(ctx context.Context) bool {
 	if checkEndContainer(cl.page) {
 		currentCount := getCommentCount(cl.page)
 		logrus.Infof("✓ 检测到 'THE END' 元素，已滑动到底部")
-		sleepRandom(humanDelayRange.min, humanDelayRange.max)
+		humanize.Delay(ctx, humanize.BetweenScroll)
 		logrus.Infof("✓ 加载完成: %d 条评论, 尝试次数: %d, 点击: %d, 跳过: %d",
 			currentCount, cl.stats.attempts+1, cl.stats.totalClicked, cl.stats.totalSkipped)
 		return true
@@ -221,23 +215,23 @@ func (cl *commentLoader) shouldClickButtons() bool {
 	return cl.config.ClickMoreReplies && cl.stats.attempts%buttonClickInterval == 0
 }
 
-func (cl *commentLoader) clickButtonsWithRetry() {
-	clicked, skipped := clickShowMoreButtonsSmart(cl.page, cl.config.MaxRepliesThreshold)
+func (cl *commentLoader) clickButtonsWithRetry(ctx context.Context) {
+	clicked, skipped := clickShowMoreButtonsSmart(ctx, cl.page, cl.config.MaxRepliesThreshold)
 	if clicked > 0 || skipped > 0 {
 		cl.stats.totalClicked += clicked
 		cl.stats.totalSkipped += skipped
 		logrus.Infof("点击'更多': %d 个, 跳过: %d 个, 累计点击: %d, 累计跳过: %d",
 			clicked, skipped, cl.stats.totalClicked, cl.stats.totalSkipped)
 
-		sleepRandom(readTimeRange.min, readTimeRange.max)
+		humanize.Delay(ctx, humanize.Reading)
 
 		// 重试一轮
-		clicked2, skipped2 := clickShowMoreButtonsSmart(cl.page, cl.config.MaxRepliesThreshold)
+		clicked2, skipped2 := clickShowMoreButtonsSmart(ctx, cl.page, cl.config.MaxRepliesThreshold)
 		if clicked2 > 0 || skipped2 > 0 {
 			cl.stats.totalClicked += clicked2
 			cl.stats.totalSkipped += skipped2
 			logrus.Infof("第 2 轮: 点击 %d, 跳过 %d", clicked2, skipped2)
-			sleepRandom(shortReadRange.min, shortReadRange.max)
+			humanize.Delay(ctx, humanize.Reading)
 		}
 	}
 }
@@ -275,11 +269,11 @@ func (cl *commentLoader) shouldStopAtTarget(currentCount int) bool {
 	return false
 }
 
-func (cl *commentLoader) performScroll() {
+func (cl *commentLoader) performScroll(ctx context.Context) {
 	currentCount := getCommentCount(cl.page)
 	if currentCount > 0 {
 		scrollToLastComment(cl.page)
-		sleepRandom(postScrollRange.min, postScrollRange.max)
+		time.Sleep(400 * time.Millisecond) // 技术 settle：等 scrollIntoView 动画落位
 	}
 
 	largeMode := cl.state.stagnantChecks >= largeScrollTrigger
@@ -288,7 +282,7 @@ func (cl *commentLoader) performScroll() {
 		pushCount = 3 + rand.Intn(3)
 	}
 
-	_, scrollDelta, currentScrollTop := humanScroll(cl.page, cl.config.ScrollSpeed, largeMode, pushCount)
+	_, scrollDelta, currentScrollTop := humanScroll(ctx, cl.page, cl.config.ScrollSpeed, largeMode, pushCount)
 
 	if scrollDelta < minScrollDelta || currentScrollTop == cl.state.lastScrollTop {
 		cl.state.stagnantChecks++
@@ -301,10 +295,10 @@ func (cl *commentLoader) performScroll() {
 	}
 }
 
-func (cl *commentLoader) handleStagnation() {
+func (cl *commentLoader) handleStagnation(ctx context.Context) {
 	if cl.state.stagnantChecks >= stagnantLimit {
 		logrus.Infof("停滞过多，尝试大冲刺...")
-		humanScroll(cl.page, cl.config.ScrollSpeed, true, 10)
+		humanScroll(ctx, cl.page, cl.config.ScrollSpeed, true, 10)
 		cl.state.stagnantChecks = 0
 
 		if checkEndContainer(cl.page) {
@@ -314,9 +308,9 @@ func (cl *commentLoader) handleStagnation() {
 	}
 }
 
-func (cl *commentLoader) performFinalSprint() {
+func (cl *commentLoader) performFinalSprint(ctx context.Context) {
 	logrus.Infof("达到最大尝试次数，最后冲刺...")
-	humanScroll(cl.page, cl.config.ScrollSpeed, true, finalSprintPushCount)
+	humanScroll(ctx, cl.page, cl.config.ScrollSpeed, true, finalSprintPushCount)
 
 	currentCount := getCommentCount(cl.page)
 	hasEnd := checkEndContainer(cl.page)
@@ -324,31 +318,9 @@ func (cl *commentLoader) performFinalSprint() {
 		currentCount, cl.stats.totalClicked, cl.stats.totalSkipped, hasEnd)
 }
 
-// ========== 工具函数 ==========
-
-func sleepRandom(minMs, maxMs int) {
-	if maxMs <= minMs {
-		time.Sleep(time.Duration(minMs) * time.Millisecond)
-		return
-	}
-	delay := time.Duration(minMs+rand.Intn(maxMs-minMs)) * time.Millisecond
-	time.Sleep(delay)
-}
-
-func getScrollInterval(speed string) time.Duration {
-	switch speed {
-	case "slow":
-		return time.Duration(1200+rand.Intn(300)) * time.Millisecond
-	case "fast":
-		return time.Duration(300+rand.Intn(100)) * time.Millisecond
-	default: // normal
-		return time.Duration(600+rand.Intn(200)) * time.Millisecond
-	}
-}
-
 // ========== 按钮点击 ==========
 
-func clickShowMoreButtonsSmart(page *rod.Page, maxRepliesThreshold int) (clicked, skipped int) {
+func clickShowMoreButtonsSmart(ctx context.Context, page *rod.Page, maxRepliesThreshold int) (clicked, skipped int) {
 	elements, err := page.Elements(".show-more")
 	if err != nil {
 		return 0, 0
@@ -377,7 +349,7 @@ func clickShowMoreButtonsSmart(page *rod.Page, maxRepliesThreshold int) (clicked
 			continue
 		}
 
-		if clickElementWithHumanBehavior(page, el, text) {
+		if clickElementWithHumanBehavior(ctx, page, el, text) {
 			clicked++
 			clickedInRound++
 		}
@@ -411,7 +383,7 @@ func shouldSkipButton(text string, threshold int, regex *regexp.Regexp) bool {
 	return false
 }
 
-func clickElementWithHumanBehavior(page *rod.Page, el *rod.Element, text string) bool {
+func clickElementWithHumanBehavior(ctx context.Context, page *rod.Page, el *rod.Element, text string) bool {
 	var clickSuccess bool
 
 	// 使用retry-go进行点击操作重试
@@ -424,23 +396,21 @@ func clickElementWithHumanBehavior(page *rod.Page, el *rod.Element, text string)
 				} catch (e) {}
 			}`)
 
-			sleepRandom(reactionTimeRange.min, reactionTimeRange.max)
+			humanize.Delay(ctx, humanize.Reading)
 
-			// 鼠标悬停
 			if box, err := el.Shape(); err == nil && len(box.Quads) > 0 {
 				x := float64(box.Quads[0][0]+box.Quads[0][4]) / 2
 				y := float64(box.Quads[0][1]+box.Quads[0][5]) / 2
 				page.Mouse.MustMoveTo(x, y)
-				sleepRandom(hoverTimeRange.min, hoverTimeRange.max)
+				humanize.Delay(ctx, humanize.BeforeClick)
 			}
 
 			// 点击
-			if err := el.Click(proto.InputMouseButtonLeft, 1); err != nil {
+			if err := humanize.Click(el); err != nil {
 				return err // 返回错误以触发重试
 			}
 
-			// 模拟人类阅读时间
-			sleepRandom(readTimeRange.min, readTimeRange.max)
+			humanize.Delay(ctx, humanize.Reading)
 			clickSuccess = true
 			return nil
 		},
@@ -466,7 +436,7 @@ func clickElementWithHumanBehavior(page *rod.Page, el *rod.Element, text string)
 
 // ========== 滚动相关 ==========
 
-func humanScroll(page *rod.Page, speed string, largeMode bool, pushCount int) (bool, int, int) {
+func humanScroll(ctx context.Context, page *rod.Page, speed string, largeMode bool, pushCount int) (bool, int, int) {
 	beforeTop := getScrollTop(page)
 	viewportHeight := page.MustEval(`() => window.innerHeight`).Int()
 
@@ -483,7 +453,7 @@ func humanScroll(page *rod.Page, speed string, largeMode bool, pushCount int) (b
 		scrollDelta := calculateScrollDelta(viewportHeight, baseRatio)
 		page.MustEval(`(delta) => { window.scrollBy(0, delta); }`, scrollDelta)
 
-		sleepRandom(scrollWaitRange.min, scrollWaitRange.max)
+		time.Sleep(150 * time.Millisecond) // 技术 settle：等 scrollBy 后懒加载渲染，再读 scrollTop
 
 		currentScrollTop = getScrollTop(page)
 		deltaThisTime := currentScrollTop - beforeTop
@@ -496,13 +466,13 @@ func humanScroll(page *rod.Page, speed string, largeMode bool, pushCount int) (b
 		beforeTop = currentScrollTop
 
 		if i < pushCount-1 {
-			sleepRandom(humanDelayRange.min, humanDelayRange.max)
+			humanize.Delay(ctx, humanize.BetweenScroll)
 		}
 	}
 
 	if !scrolled && pushCount > 0 {
 		page.MustEval(`() => window.scrollTo(0, document.body.scrollHeight)`)
-		sleepRandom(postScrollRange.min, postScrollRange.max)
+		time.Sleep(400 * time.Millisecond) // 技术 settle：等 scrollTo 落位
 		currentScrollTop = getScrollTop(page)
 		actualDelta = currentScrollTop - beforeTop + actualDelta
 		scrolled = actualDelta > 5
@@ -542,8 +512,8 @@ func scrollToCommentsArea(page *rod.Page) {
 	if el, err := page.Timeout(2 * time.Second).Element(".comments-container"); err == nil {
 		el.MustScrollIntoView()
 	}
-	// 等待滚动完成
-	time.Sleep(500 * time.Millisecond)
+	// 等 scrollIntoView 动画落位
+	time.Sleep(400 * time.Millisecond)
 
 	// 触发一次小滚动，激活懒加载机制
 	smartScroll(page, 100)
@@ -754,6 +724,7 @@ func checkEndContainer(page *rod.Page) bool {
 // ========== 页面检查 ==========
 
 func checkPageAccessible(page *rod.Page) error {
+	// 等错误提示 UI 渲染出来再检查
 	time.Sleep(500 * time.Millisecond)
 
 	// 查找错误提示容器

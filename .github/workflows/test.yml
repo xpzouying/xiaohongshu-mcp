@@ -1,0 +1,33 @@
+name: Test
+
+# 只跑 hermetic 单元测试（无浏览器/无网络）。
+# 有头浏览器集成测试用 //go:build integration 隔离：默认不运行，仅编译校验。
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache: true
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Unit tests
+        run: go test ./...
+
+      # 集成测试只编译不运行：保证它们始终跟当前 API 一致、不烂掉，
+      # 但绝不在 CI 启动有头浏览器（-run '^$' 匹配空，一个用例都不跑）。
+      - name: Compile integration tests (no run)
+        run: go test -tags integration -run '^$' ./...

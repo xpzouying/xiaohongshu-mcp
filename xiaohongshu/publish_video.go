@@ -9,6 +9,7 @@ import (
 	"github.com/go-rod/rod"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"github.com/xpzouying/xiaohongshu-mcp/humanize"
 )
 
 // PublishVideoContent 发布视频内容
@@ -56,13 +57,14 @@ func (p *PublishAction) PublishVideo(ctx context.Context, content PublishVideoCo
 		return errors.New("视频不能为空")
 	}
 
-	page := p.page.Context(ctx)
+	// 重设超时：.Context(ctx) 会替换掉 NewPublishVideoAction 里 Timeout(300s) 的 deadline
+	page := p.page.Context(ctx).Timeout(300 * time.Second)
 
 	if err := uploadVideo(page, content.VideoPath); err != nil {
 		return errors.Wrap(err, "小红书上传视频失败")
 	}
 
-	if err := submitPublishVideo(page, content.Title, content.Content, content.Tags, content.ScheduleTime, content.Visibility, content.Products); err != nil {
+	if err := submitPublishVideo(ctx, page, content.Title, content.Content, content.Tags, content.ScheduleTime, content.Visibility, content.Products); err != nil {
 		return errors.Wrap(err, "小红书发布失败")
 	}
 	return nil
@@ -99,33 +101,33 @@ func uploadVideo(page *rod.Page, videoPath string) error {
 }
 
 // submitPublishVideo 填写标题、正文、标签并点击发布（等待按钮可点击后再提交）
-func submitPublishVideo(page *rod.Page, title, content string, tags []string, scheduleTime *time.Time, visibility string, products []string) error {
+func submitPublishVideo(ctx context.Context, page *rod.Page, title, content string, tags []string, scheduleTime *time.Time, visibility string, products []string) error {
 	// 标题
 	titleElem, err := page.Element("div.d-input input")
 	if err != nil {
 		return errors.Wrap(err, "查找标题输入框失败")
 	}
-	if err := titleElem.Input(title); err != nil {
+	if err := humanize.Type(ctx, titleElem, title); err != nil {
 		return errors.Wrap(err, "输入标题失败")
 	}
-	time.Sleep(1 * time.Second)
+	humanize.Delay(ctx, humanize.AfterType)
 
 	// 正文 + 标签
 	contentElem, ok := getContentElement(page)
 	if !ok {
 		return errors.New("没有找到内容输入框")
 	}
-	if err := contentElem.Input(content); err != nil {
+	if err := humanize.Type(ctx, contentElem, content); err != nil {
 		return errors.Wrap(err, "输入正文失败")
 	}
 	if err := waitAndClickTitleInput(titleElem); err != nil {
 		return err
 	}
-	if err := inputTags(contentElem, tags); err != nil {
+	if err := inputTags(ctx, contentElem, tags); err != nil {
 		return err
 	}
 
-	time.Sleep(1 * time.Second)
+	humanize.Delay(ctx, humanize.AfterType)
 
 	// 处理定时发布
 	if scheduleTime != nil {
@@ -149,6 +151,6 @@ func submitPublishVideo(page *rod.Page, title, content string, tags []string, sc
 		return err
 	}
 
-	time.Sleep(3 * time.Second)
-	return nil
+	// 校验发布真的成功（成功跳转离开发布页），未跳转判失败——消除假成功
+	return waitPublishSuccess(page, 15*time.Second)
 }

@@ -28,7 +28,7 @@ RUN apt-get update && apt-get install -y ca-certificates wget gnupg && \
     sed -i 's|http://archive.ubuntu.com|https://mirrors.aliyun.com|g' /etc/apt/sources.list && \
     sed -i 's|http://security.ubuntu.com|https://mirrors.aliyun.com|g' /etc/apt/sources.list
 
-# 2. 安装 CloakBrowser Chromium 运行依赖、Python 和中文字体
+# 2. 安装内置浏览器运行依赖（Chromium 库）和中文字体
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
@@ -74,41 +74,36 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxss1 \
     libxtst6 \
     lsb-release \
-    python3 \
-    python3-pip \
     wget \
     xdg-utils \
+    xz-utils \
     && rm -rf /var/lib/apt/lists/*
 
-# 3. 创建共享目录并设置权限。
-# /opt/cloakbrowser 保存构建阶段预下载的浏览器，不能放到运行时会被 volume 覆盖的 /app/data。
-RUN mkdir -p /opt/cloakbrowser/home /opt/cloakbrowser/cache /opt/cloakbrowser/config \
+# 3. 创建目录并设置权限。/opt/browser 保存构建阶段预置的浏览器。
+RUN mkdir -p /opt/browser \
     /app/data/home /app/data/cache /app/data/config /app/images && \
-    chmod -R 755 /opt/cloakbrowser && \
+    chmod -R 755 /opt/browser && \
     chmod -R 777 /app/data /app/images
 
-# 4. 安装 CloakBrowser 并在构建阶段预下载 Chromium，避免容器运行时下载失败。
-COPY build/find_cloakbrowser_binary.py /usr/local/bin/find_cloakbrowser_binary.py
-ARG CLOAKBROWSER_VERSION=0.3.31
-RUN --mount=type=cache,target=/root/.cache/pip \
-    python3 -m pip install "cloakbrowser[geoip]==${CLOAKBROWSER_VERSION}"
-RUN --mount=type=cache,target=/var/cache/cloakbrowser-home/.cloakbrowser \
-    HOME=/var/cache/cloakbrowser-home \
-    XDG_CACHE_HOME=/var/cache/cloakbrowser-cache \
-    XDG_CONFIG_HOME=/var/cache/cloakbrowser-config \
-    python3 /usr/local/bin/find_cloakbrowser_binary.py \
-    --install-home /opt/cloakbrowser/home \
-    --link /usr/local/bin/cloak-chromium
-RUN \
-    test -x /usr/local/bin/cloak-chromium
+# 4. 下载并解压内置浏览器。构建阶段预置，运行时零下载。
+# 版本号唯一来源：browser/browser_version.txt（Go 也读它，避免两处漂移）。
+# 从自建 CDN 下载中性文件名，并校验 SHA256。
+COPY browser/browser_version.txt /tmp/browser_version.txt
+RUN VER="$(cat /tmp/browser_version.txt | tr -d '[:space:]')" && \
+    BASE="https://cdn.one-world.ai/browsers/${VER}" && \
+    curl -fsSL -o /tmp/browser.tar.xz "${BASE}/linux-x64.tar.xz" && \
+    curl -fsSL "${BASE}/SHA256SUMS" | grep " linux-x64.tar.xz$" | awk '{print $1"  /tmp/browser.tar.xz"}' | sha256sum -c - && \
+    tar -xJf /tmp/browser.tar.xz -C /opt/browser --strip-components=1 && \
+    rm /tmp/browser.tar.xz /tmp/browser_version.txt && \
+    test -x /opt/browser/chrome
 
 COPY --from=builder /out/app .
 
-# 5. 设置默认 CloakBrowser Chromium 路径（rod 会用）
+# 5. 设置内置浏览器路径（rod 通过 ROD_BROWSER_BIN 启动它）
 ENV HOME=/app/data/home
 ENV XDG_CACHE_HOME=/app/data/cache
 ENV XDG_CONFIG_HOME=/app/data/config
-ENV ROD_BROWSER_BIN=/usr/local/bin/cloak-chromium
+ENV ROD_BROWSER_BIN=/opt/browser/chrome
 
 EXPOSE 18060
 

@@ -10,6 +10,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	myerrors "github.com/xpzouying/xiaohongshu-mcp/errors"
+	"github.com/xpzouying/xiaohongshu-mcp/humanize"
 )
 
 // ActionResult 通用动作响应（点赞/收藏等）
@@ -50,14 +51,60 @@ func (a *interactAction) preparePage(ctx context.Context, actionType interactAct
 
 	page.MustNavigate(url)
 	page.MustWaitDOMStable()
-	time.Sleep(1 * time.Second)
+	humanize.Delay(ctx, humanize.AfterNavigate)
 
 	return page
 }
 
-func (a *interactAction) performClick(page *rod.Page, selector string) {
-	element := page.MustElement(selector)
-	element.MustClick()
+func (a *interactAction) performClick(page *rod.Page, selector string) error {
+	element, err := page.Element(selector)
+	if err != nil {
+		return fmt.Errorf("未找到交互元素 %s: %w", selector, err)
+	}
+	return humanize.Click(element)
+}
+
+// stateOf 从交互状态里取目标字段（点赞取 liked，收藏取 collected）。
+type stateOf func(liked, collected bool) bool
+
+// toggleInteract 点击交互按钮并轮询校验状态是否变为 want；最多两次点击。
+// 到达即成功；始终未变或无法读状态则返回 error——消除"点了没报错就算成功"的假阳性。
+func (a *interactAction) toggleInteract(page *rod.Page, feedID, selector string, want bool, actionType interactActionType, pick stateOf) error {
+	for attempt := 1; attempt <= 2; attempt++ {
+		if err := a.performClick(page, selector); err != nil {
+			return fmt.Errorf("%s点击失败: %w", actionType, err)
+		}
+
+		ok, err := a.waitInteractState(page, feedID, want, pick, 4*time.Second)
+		if err != nil {
+			return fmt.Errorf("%s后无法确认状态: %w", actionType, err)
+		}
+		if ok {
+			logrus.Infof("feed %s %s成功（第%d次点击）", feedID, actionType, attempt)
+			return nil
+		}
+		logrus.Warnf("feed %s %s第%d次点击后状态未变，重试", feedID, actionType, attempt)
+	}
+	return fmt.Errorf("feed %s %s失败：点击后状态始终未变为预期", feedID, actionType)
+}
+
+// waitInteractState 轮询 __INITIAL_STATE__ 的交互状态，直到 pick()==want 或超时。
+// 状态回写快则立即返回、慢则等满 timeout。
+func (a *interactAction) waitInteractState(page *rod.Page, feedID string, want bool, pick stateOf, timeout time.Duration) (bool, error) {
+	deadline := time.Now().Add(timeout)
+	for {
+		liked, collected, err := a.getInteractState(page, feedID)
+		if err != nil {
+			return false, err
+		}
+		if pick(liked, collected) == want {
+			return true, nil
+		}
+		if time.Now().After(deadline) {
+			return false, nil
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
 }
 
 // LikeAction 负责处理点赞相关交互
@@ -90,7 +137,8 @@ func (a *LikeAction) perform(ctx context.Context, feedID, xsecToken string, targ
 	liked, _, err := a.getInteractState(page, feedID)
 	if err != nil {
 		logrus.Warnf("failed to read interact state: %v (continue to try clicking)", err)
-		return a.toggleLike(page, feedID, targetLiked, actionType)
+		return a.toggleInteract(page, feedID, SelectorLikeButton, targetLiked, actionType,
+			func(liked, collected bool) bool { return liked })
 	}
 
 	if targetLiked && liked {
@@ -102,38 +150,8 @@ func (a *LikeAction) perform(ctx context.Context, feedID, xsecToken string, targ
 		return nil
 	}
 
-	return a.toggleLike(page, feedID, targetLiked, actionType)
-}
-
-func (a *LikeAction) toggleLike(page *rod.Page, feedID string, targetLiked bool, actionType interactActionType) error {
-	a.performClick(page, SelectorLikeButton)
-	time.Sleep(3 * time.Second)
-
-	liked, _, err := a.getInteractState(page, feedID)
-	if err != nil {
-		logrus.Warnf("验证%s状态失败: %v", actionType, err)
-		return nil
-	}
-	if liked == targetLiked {
-		logrus.Infof("feed %s %s成功", feedID, actionType)
-		return nil
-	}
-
-	logrus.Warnf("feed %s %s可能未成功，状态未变化，尝试再次点击", feedID, actionType)
-	a.performClick(page, SelectorLikeButton)
-	time.Sleep(2 * time.Second)
-
-	liked, _, err = a.getInteractState(page, feedID)
-	if err != nil {
-		logrus.Warnf("第二次验证%s状态失败: %v", actionType, err)
-		return nil
-	}
-	if liked == targetLiked {
-		logrus.Infof("feed %s 第二次点击%s成功", feedID, actionType)
-		return nil
-	}
-
-	return nil
+	return a.toggleInteract(page, feedID, SelectorLikeButton, targetLiked, actionType,
+		func(liked, collected bool) bool { return liked })
 }
 
 // FavoriteAction 负责处理收藏相关交互
@@ -166,7 +184,8 @@ func (a *FavoriteAction) perform(ctx context.Context, feedID, xsecToken string, 
 	_, collected, err := a.getInteractState(page, feedID)
 	if err != nil {
 		logrus.Warnf("failed to read interact state: %v (continue to try clicking)", err)
-		return a.toggleFavorite(page, feedID, targetCollected, actionType)
+		return a.toggleInteract(page, feedID, SelectorCollectButton, targetCollected, actionType,
+			func(liked, collected bool) bool { return collected })
 	}
 
 	if targetCollected && collected {
@@ -178,38 +197,8 @@ func (a *FavoriteAction) perform(ctx context.Context, feedID, xsecToken string, 
 		return nil
 	}
 
-	return a.toggleFavorite(page, feedID, targetCollected, actionType)
-}
-
-func (a *FavoriteAction) toggleFavorite(page *rod.Page, feedID string, targetCollected bool, actionType interactActionType) error {
-	a.performClick(page, SelectorCollectButton)
-	time.Sleep(3 * time.Second)
-
-	_, collected, err := a.getInteractState(page, feedID)
-	if err != nil {
-		logrus.Warnf("验证%s状态失败: %v", actionType, err)
-		return nil
-	}
-	if collected == targetCollected {
-		logrus.Infof("feed %s %s成功", feedID, actionType)
-		return nil
-	}
-
-	logrus.Warnf("feed %s %s可能未成功，状态未变化，尝试再次点击", feedID, actionType)
-	a.performClick(page, SelectorCollectButton)
-	time.Sleep(2 * time.Second)
-
-	_, collected, err = a.getInteractState(page, feedID)
-	if err != nil {
-		logrus.Warnf("第二次验证%s状态失败: %v", actionType, err)
-		return nil
-	}
-	if collected == targetCollected {
-		logrus.Infof("feed %s 第二次点击%s成功", feedID, actionType)
-		return nil
-	}
-
-	return nil
+	return a.toggleInteract(page, feedID, SelectorCollectButton, targetCollected, actionType,
+		func(liked, collected bool) bool { return collected })
 }
 
 // getInteractState 从 __INITIAL_STATE__ 读取笔记的点赞/收藏状态

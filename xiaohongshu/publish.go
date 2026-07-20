@@ -14,6 +14,7 @@ import (
 	"github.com/go-rod/rod/lib/proto"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"github.com/xpzouying/xiaohongshu-mcp/humanize"
 )
 
 // PublishImageContent 发布图文内容
@@ -74,7 +75,8 @@ func (p *PublishAction) Publish(ctx context.Context, content PublishImageContent
 		return errors.New("图片不能为空")
 	}
 
-	page := p.page.Context(ctx)
+	// 重设超时：.Context(ctx) 会替换掉 NewPublishImageAction 里 Timeout(300s) 的 deadline
+	page := p.page.Context(ctx).Timeout(300 * time.Second)
 
 	if err := uploadImages(page, content.ImagePaths); err != nil {
 		return errors.Wrap(err, "小红书上传图片失败")
@@ -88,7 +90,7 @@ func (p *PublishAction) Publish(ctx context.Context, content PublishImageContent
 
 	logrus.Infof("发布内容: title=%s, images=%v, tags=%v, schedule=%v, original=%v, visibility=%s, products=%v", content.Title, len(content.ImagePaths), tags, content.ScheduleTime, content.IsOriginal, content.Visibility, content.Products)
 
-	if err := submitPublish(page, content.Title, content.Content, tags, content.ScheduleTime, content.IsOriginal, content.Visibility, content.Products); err != nil {
+	if err := submitPublish(ctx, page, content.Title, content.Content, tags, content.ScheduleTime, content.IsOriginal, content.Visibility, content.Products); err != nil {
 		return errors.Wrap(err, "小红书发布失败")
 	}
 
@@ -272,39 +274,39 @@ func waitForUploadComplete(page *rod.Page, expectedCount int) error {
 	return errors.Errorf("第%d张图片上传超时(60s)，请检查网络连接和图片大小", expectedCount)
 }
 
-func submitPublish(page *rod.Page, title, content string, tags []string, scheduleTime *time.Time, isOriginal bool, visibility string, products []string) error {
+func submitPublish(ctx context.Context, page *rod.Page, title, content string, tags []string, scheduleTime *time.Time, isOriginal bool, visibility string, products []string) error {
 	titleElem, err := page.Element("div.d-input input")
 	if err != nil {
 		return errors.Wrap(err, "查找标题输入框失败")
 	}
-	if err := titleElem.Input(title); err != nil {
+	if err := humanize.Type(ctx, titleElem, title); err != nil {
 		return errors.Wrap(err, "输入标题失败")
 	}
 
 	// 检查标题长度
-	time.Sleep(500 * time.Millisecond)
+	humanize.Delay(ctx, humanize.AfterType)
 	if err := checkTitleMaxLength(page); err != nil {
 		return err
 	}
 	slog.Info("检查标题长度：通过")
 
-	time.Sleep(1 * time.Second)
+	humanize.Delay(ctx, humanize.AfterType)
 
 	contentElem, ok := getContentElement(page)
 	if !ok {
 		return errors.New("没有找到内容输入框")
 	}
-	if err := contentElem.Input(content); err != nil {
+	if err := humanize.Type(ctx, contentElem, content); err != nil {
 		return errors.Wrap(err, "输入正文失败")
 	}
 	if err := waitAndClickTitleInput(titleElem); err != nil {
 		return err
 	}
-	if err := inputTags(contentElem, tags); err != nil {
+	if err := inputTags(ctx, contentElem, tags); err != nil {
 		return err
 	}
 
-	time.Sleep(1 * time.Second)
+	humanize.Delay(ctx, humanize.AfterType)
 
 	// 检查正文长度
 	if err := checkContentMaxLength(page); err != nil {
@@ -325,13 +327,12 @@ func submitPublish(page *rod.Page, title, content string, tags []string, schedul
 		return errors.Wrap(err, "设置可见范围失败")
 	}
 
-	// 处理原创声明
+	// 处理原创声明：显式请求了原创但设置失败 → 报错中止，不静默发成非原创（避免"以为原创其实不是"）
 	if isOriginal {
 		if err := setOriginal(page); err != nil {
-			slog.Warn("设置原创声明失败，继续发布", "error", err)
-		} else {
-			slog.Info("已声明原创")
+			return errors.Wrap(err, "设置原创声明失败（已请求原创，中止发布）")
 		}
+		slog.Info("已声明原创")
 	}
 
 	// 绑定商品
@@ -343,8 +344,25 @@ func submitPublish(page *rod.Page, title, content string, tags []string, schedul
 		return err
 	}
 
-	time.Sleep(3 * time.Second)
-	return nil
+	// 校验发布真的成功：成功后创作平台会跳转离开发布页；未跳转则判定失败，
+	// 消除"点了发布按钮就算成功"的假阳性。
+	return waitPublishSuccess(page, 15*time.Second)
+}
+
+// waitPublishSuccess 轮询等待发布成功的信号：小红书发布成功后会跳转离开发布表单页
+// （URL 不再含 /publish/publish）。超时仍未跳转 → 判定发布失败。
+func waitPublishSuccess(page *rod.Page, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for {
+		if info, err := page.Info(); err == nil && !strings.Contains(info.URL, "/publish/publish") {
+			slog.Info("发布成功，已跳转离开发布页", "url", info.URL)
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return errors.New("发布未确认成功：点击发布后未跳转离开发布页（可能校验未过或被拦截）")
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
 }
 
 type publishButton struct {
@@ -596,7 +614,7 @@ func getContentElement(page *rod.Page) (*rod.Element, bool) {
 	return nil, false
 }
 
-func inputTags(contentElem *rod.Element, tags []string) error {
+func inputTags(ctx context.Context, contentElem *rod.Element, tags []string) error {
 	if len(tags) == 0 {
 		return nil
 	}
@@ -626,27 +644,25 @@ func inputTags(contentElem *rod.Element, tags []string) error {
 
 	for _, tag := range tags {
 		tag = strings.TrimLeft(tag, "#")
-		if err := inputTag(contentElem, tag); err != nil {
+		if err := inputTag(ctx, contentElem, tag); err != nil {
 			return errors.Wrapf(err, "输入标签[%s]失败", tag)
 		}
 	}
 	return nil
 }
 
-func inputTag(contentElem *rod.Element, tag string) error {
+func inputTag(ctx context.Context, contentElem *rod.Element, tag string) error {
+	// 输入 # 触发话题联想（控制字符，直接 Input）
 	if err := contentElem.Input("#"); err != nil {
 		return errors.Wrap(err, "输入#失败")
 	}
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond) // 技术等待：等联想下拉框弹出
 
-	for _, char := range tag {
-		if err := contentElem.Input(string(char)); err != nil {
-			return errors.Wrapf(err, "输入字符[%c]失败", char)
-		}
-		time.Sleep(50 * time.Millisecond)
+	if err := humanize.Type(ctx, contentElem, tag); err != nil {
+		return errors.Wrap(err, "输入标签内容失败")
 	}
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(1 * time.Second) // 技术等待：等联想结果刷新
 
 	page := contentElem.Page()
 	topicContainer, err := page.Element("#creator-editor-topic-container")
@@ -661,13 +677,11 @@ func inputTag(contentElem *rod.Element, tag string) error {
 		return contentElem.Input(" ")
 	}
 
-	if err := firstItem.Click(proto.InputMouseButtonLeft, 1); err != nil {
+	if err := humanize.Click(firstItem); err != nil {
 		return errors.Wrap(err, "点击标签联想选项失败")
 	}
 	slog.Info("成功点击标签联想选项", "tag", tag)
-	time.Sleep(200 * time.Millisecond)
-
-	time.Sleep(500 * time.Millisecond) // 等待标签处理完成
+	time.Sleep(500 * time.Millisecond) // 技术等待：等标签处理完成
 	return nil
 }
 
@@ -948,89 +962,95 @@ func setOriginal(page *rod.Page) error {
 	return errors.New("未找到原创声明选项")
 }
 
-// confirmOriginalDeclaration 处理原创声明确认弹窗
+// confirmOriginalDeclaration 交互（勾选须知、点声明按钮）走 go-rod 点击；
+// 仅用只读 Eval 读取 checkbox 勾选态（不产生交互，无法用属性判断的自定义组件才用）。
 func confirmOriginalDeclaration(page *rod.Page) error {
-	// 等待确认弹窗出现
-	time.Sleep(800 * time.Millisecond)
+	time.Sleep(800 * time.Millisecond) // 技术等待：等确认弹窗渲染
 
-	// 使用 JavaScript 直接处理弹窗，更可靠
-	result, err := page.Eval(`
-		() => {
-			// 查找包含"原创声明须知"的 footer 区域
-			const footers = document.querySelectorAll('div.footer');
-			for (const footer of footers) {
-				// 检查是否包含原创声明相关内容
-				if (!footer.textContent.includes('原创声明须知')) {
-					continue;
-				}
+	if footer, err := findFooterByText(page, "原创声明须知"); err != nil {
+		slog.Warn("未找到原创声明确认弹窗的 footer", "error", err)
+	} else if err := checkFooterCheckbox(footer); err != nil {
+		slog.Warn("勾选原创声明须知失败", "error", err)
+	}
 
-				// 找到 checkbox 并勾选
-				const checkbox = footer.querySelector('div.d-checkbox input[type="checkbox"]');
-				if (checkbox && !checkbox.checked) {
-					checkbox.click();
-					console.log('已勾选原创声明须知 checkbox');
-				}
+	time.Sleep(500 * time.Millisecond) // 技术等待：勾选后等"声明原创"按钮变可用
 
-				// 等待一下让按钮变为可用
-				return 'found_footer';
-			}
-			return 'footer_not_found';
-		}
-	`)
+	footer, err := findFooterByText(page, "声明原创")
 	if err != nil {
-		slog.Warn("执行查找弹窗脚本失败", "error", err)
-	} else if result.Value.String() == "footer_not_found" {
-		slog.Warn("未找到原创声明确认弹窗的 footer")
+		return errors.Wrap(err, "未找到声明原创弹窗")
 	}
 
-	time.Sleep(500 * time.Millisecond)
-
-	// 再次使用 JavaScript 点击声明原创按钮
-	result2, err := page.Eval(`
-		() => {
-			const footers = document.querySelectorAll('div.footer');
-			for (const footer of footers) {
-				if (!footer.textContent.includes('声明原创')) {
-					continue;
-				}
-
-				// 找到声明原创按钮
-				const btn = footer.querySelector('button.custom-button');
-				if (btn) {
-					// 检查是否禁用
-					if (btn.classList.contains('disabled') || btn.disabled) {
-						// 尝试再次勾选 checkbox
-						const checkbox = footer.querySelector('div.d-checkbox input[type="checkbox"]');
-						if (checkbox && !checkbox.checked) {
-							checkbox.click();
-						}
-						return 'button_disabled';
-					}
-					btn.click();
-					return 'clicked';
-				}
-			}
-			return 'button_not_found';
-		}
-	`)
+	btn, err := footer.Element("button.custom-button")
 	if err != nil {
-		return errors.Wrap(err, "执行点击按钮脚本失败")
+		return errors.Wrap(err, "未找到声明原创按钮")
 	}
 
-	status := result2.Value.String()
-	slog.Info("原创声明确认结果", "status", status)
-
-	if status == "button_not_found" {
-		return errors.New("未找到声明原创按钮")
+	if isButtonDisabled(btn) {
+		// 兜底：按钮仍禁用，可能须知未勾上，再勾一次
+		if err := checkFooterCheckbox(footer); err != nil {
+			slog.Warn("二次勾选须知失败", "error", err)
+		}
+		time.Sleep(300 * time.Millisecond)
+		if isButtonDisabled(btn) {
+			return errors.New("声明原创按钮仍处于禁用状态")
+		}
 	}
-	if status == "button_disabled" {
-		return errors.New("声明原创按钮仍处于禁用状态")
-	}
 
+	if err := humanize.Click(btn); err != nil {
+		return errors.Wrap(err, "点击声明原创按钮失败")
+	}
 	slog.Info("已成功点击声明原创按钮")
 	time.Sleep(300 * time.Millisecond)
-
 	return nil
+}
+
+func findFooterByText(page *rod.Page, keyword string) (*rod.Element, error) {
+	footers, err := page.Elements("div.footer")
+	if err != nil {
+		return nil, errors.Wrap(err, "查找弹窗 footer 失败")
+	}
+	for _, footer := range footers {
+		text, err := footer.Text()
+		if err != nil {
+			continue
+		}
+		if strings.Contains(text, keyword) {
+			return footer, nil
+		}
+	}
+	return nil, errors.Errorf("未找到包含%q的弹窗 footer", keyword)
+}
+
+// checkFooterCheckbox 勾选 footer 内的自定义 checkbox（未勾选时才点）。
+func checkFooterCheckbox(footer *rod.Element) error {
+	cb, err := footer.Element("div.d-checkbox")
+	if err != nil {
+		return errors.Wrap(err, "未找到须知 checkbox")
+	}
+
+	// 只读判断当前是否已勾选（隐藏 input.checked 或 simulator 上的 checked 态）
+	checked, err := cb.Eval(`() => {
+		const input = this.querySelector('input[type="checkbox"]');
+		return (input && input.checked) || this.querySelector('.checked') !== null;
+	}`)
+	if err != nil {
+		return errors.Wrap(err, "读取 checkbox 状态失败")
+	}
+	if checked.Value.Bool() {
+		return nil
+	}
+
+	return humanize.Click(cb)
+}
+
+func isButtonDisabled(btn *rod.Element) bool {
+	if disabled, _ := btn.Attribute("disabled"); disabled != nil {
+		return true
+	}
+	if cls, _ := btn.Attribute("class"); cls != nil && hasExactClass(*cls, "disabled") {
+		return true
+	}
+	return false
 }
 
 // bindProducts 绑定商品到发布内容
@@ -1066,7 +1086,7 @@ func bindProducts(page *rod.Page, products []string) error {
 
 	// 点击保存按钮
 	slog.Info("准备点击保存按钮")
-	if err := clickModalSaveButton(page, modal); err != nil {
+	if err := clickModalSaveButton(modal); err != nil {
 		return errors.Wrap(err, "点击保存按钮失败")
 	}
 	slog.Info("保存按钮点击完成，开始等待弹窗关闭")
@@ -1238,7 +1258,6 @@ func searchAndSelectProduct(page *rod.Page, modal *rod.Element, keyword string) 
 		return errors.Wrap(err, "点击商品选择框失败")
 	}
 
-	// 6. 随机延迟模拟人为操作（800-1500ms）
 	randomDelay := 800 + rand.Intn(700)
 	time.Sleep(time.Duration(randomDelay) * time.Millisecond)
 
@@ -1247,7 +1266,7 @@ func searchAndSelectProduct(page *rod.Page, modal *rod.Element, keyword string) 
 }
 
 // clickModalSaveButton 点击保存按钮
-func clickModalSaveButton(page *rod.Page, modal *rod.Element) error {
+func clickModalSaveButton(modal *rod.Element) error {
 	// 查找保存按钮（参考工作代码：直接查找并点击，不强制要求找到）
 	btn, err := modal.Element(".goods-selected-footer button")
 	if err == nil && btn != nil {
