@@ -1,0 +1,24 @@
+name: Update star history chart
+
+# 每周重新生成 README 的 Star History 图表（assets/star-history*.svg）。
+# 背景：GitHub 2026-06-30 起限制 stargazers API，star-history.com 托管图表失效；
+# 改用自研的 gh-star-history Action，在 CI 内用仓库自身的 GITHUB_TOKEN 生成静态图。
+
+on:
+  schedule:
+    - cron: '30 4 * * 1' # 每周一 04:30 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    if: github.repository == 'xpzouying/xiaohongshu-mcp'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: xpzouying/star-history@v1
+        with:
+          commit-message: 'chore: 更新 Star History 图表'
