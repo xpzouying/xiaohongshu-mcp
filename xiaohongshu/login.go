@@ -2,6 +2,7 @@ package xiaohongshu
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/go-rod/rod"
@@ -23,16 +24,11 @@ func (a *LoginAction) CheckLoginStatus(ctx context.Context) (bool, error) {
 
 	time.Sleep(1 * time.Second)
 
-	exists, _, err := pp.Has(`.main-container .user .link-wrapper .channel`)
+	ok, err := a.isLoggedIn(ctx)
 	if err != nil {
 		return false, errors.Wrap(err, "check login status failed")
 	}
-
-	if !exists {
-		return false, errors.Wrap(err, "login status element not found")
-	}
-
-	return true, nil
+	return ok, nil
 }
 
 func (a *LoginAction) Login(ctx context.Context) error {
@@ -45,16 +41,60 @@ func (a *LoginAction) Login(ctx context.Context) error {
 	time.Sleep(2 * time.Second)
 
 	// 检查是否已经登录
-	if exists, _, _ := pp.Has(".main-container .user .link-wrapper .channel"); exists {
+	if exists, _, _ := pp.Has(".main-container .user .link-wrapper .channel"); exists && !hasLoginGate(pp) {
 		// 已经登录，直接返回
 		return nil
 	}
 
-	// 等待扫码成功提示或者登录完成
-	// 这里我们等待登录成功的元素出现，这样更简单可靠
-	pp.MustElement(".main-container .user .link-wrapper .channel")
+	waitCtx, cancel := context.WithTimeout(ctx, 4*time.Minute)
+	defer cancel()
 
-	return nil
+	ticker := time.NewTicker(800 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-waitCtx.Done():
+			return fmt.Errorf("等待登录超时，请在弹出的浏览器中完成扫码登录")
+		case <-ticker.C:
+			ok, err := a.isLoggedIn(waitCtx)
+			if err != nil {
+				// 扫码登录过程中页面会刷新或重建，短暂会话抖动直接重试。
+				continue
+			}
+			if ok {
+				return nil
+			}
+		}
+	}
+}
+
+func hasLoginGate(page *rod.Page) bool {
+	result, err := page.Eval(`() => {
+		const bodyText = document.body ? document.body.innerText : "";
+		const input = document.querySelector('#search-input');
+		const placeholder = input ? (input.getAttribute('placeholder') || '') : '';
+		return bodyText.includes('获取验证码') ||
+			bodyText.includes('登录后查看搜索结果') ||
+			placeholder.includes('登录探索更多内容');
+	}`)
+	if err != nil {
+		return false
+	}
+	return result.Value.Bool()
+}
+
+func (a *LoginAction) isLoggedIn(ctx context.Context) (bool, error) {
+	pp := a.page.Context(ctx)
+	if hasLoginGate(pp) {
+		return false, nil
+	}
+
+	exists, _, err := pp.Has(`.main-container .user .link-wrapper .channel`)
+	if err != nil {
+		return false, err
+	}
+	return exists, nil
 }
 
 func (a *LoginAction) FetchQrcodeImage(ctx context.Context) (string, bool, error) {

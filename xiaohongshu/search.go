@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/go-rod/rod"
+	"github.com/go-rod/rod/lib/input"
 	"github.com/xpzouying/xiaohongshu-mcp/errors"
 	"github.com/xpzouying/xiaohongshu-mcp/humanize"
 )
@@ -166,29 +167,56 @@ func NewSearchAction(page *rod.Page) *SearchAction {
 	return &SearchAction{page: pp}
 }
 
+// waitForFeedsSettled 等待搜索结果异步数据真正加载完成。
+// window.__INITIAL_STATE__ 在页面刚初始化时就已存在（feeds 是空数组占位），
+// 直接判断它 !== undefined 会在异步请求返回之前读到"假的空结果"。
+// 这里改为轮询等待，直到 feeds 数组非空、或明确出现登录墙/笔记链接等可判定信号；
+// 超时（8秒）后放弃等待，按当前状态继续——此时才认为是真实的零结果。
+func waitForFeedsSettled(page *rod.Page) {
+	settledJS := `() => {
+		if (window.__INITIAL_STATE__ === undefined) return false;
+		if (document.body && document.body.innerText.includes('登录后查看搜索结果')) return true;
+		const search = window.__INITIAL_STATE__.search;
+		if (!search) return false;
+		const feeds = search.feeds;
+		const raw = feeds ? (feeds.value !== undefined ? feeds.value : feeds._value) : undefined;
+		if (Array.isArray(raw) && raw.length > 0) return true;
+		return document.querySelectorAll('a[href*="/explore/"]').length > 0;
+	}`
+
+	_ = rod.Try(func() {
+		page.Timeout(8 * time.Second).MustWait(settledJS)
+	})
+}
+
 func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...FilterOption) ([]Feed, error) {
 	// 注意 .Context(ctx) 会替换掉 NewSearchAction 里设的 60s deadline，必须在其后重新 Timeout，
 	// 否则搜索页不 stable 时 MustWaitStable/MustWait 会永久挂起（无 deadline 可依赖）。
 	page := s.page.Context(ctx).Timeout(60 * time.Second)
 
-	searchURL := makeSearchURL(keyword)
-	page.MustNavigate(searchURL)
-	page.MustWaitStable()
+	// 搜索页直接打开经常落到“登录后查看搜索结果”的壳页。
+	// 先从首页进入，复用页面初始化后的登录态和前端上下文，再触发真实搜索。
+	page.MustNavigate("https://www.xiaohongshu.com/explore").MustWaitLoad()
+	page.MustWait(`() => document.querySelector('#search-input') !== null`)
+	searchInput := page.MustElement("#search-input")
+	searchInput.MustSelectAllText()
+	searchInput.MustInput(keyword).MustType(input.Enter)
+	page.MustWait(`() => window.location.href.includes('/search_result') || (document.body && document.body.innerText.includes('登录后查看搜索结果'))`)
+	page.MustWaitLoad()
+	waitForFeedsSettled(page)
 
-	page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
-
-	// 如果有筛选条件，则应用筛选
-	if len(filters) > 0 {
-		// 将所有 FilterOption 转换为内部筛选选项
-		var allInternalFilters []internalFilterOption
-		for _, filter := range filters {
-			internalFilters, err := convertToInternalFilters(filter)
-			if err != nil {
-				return nil, fmt.Errorf("筛选选项转换失败: %w", err)
-			}
-			allInternalFilters = append(allInternalFilters, internalFilters...)
+	// 将所有 FilterOption 转换为内部筛选选项
+	var allInternalFilters []internalFilterOption
+	for _, filter := range filters {
+		internalFilters, err := convertToInternalFilters(filter)
+		if err != nil {
+			return nil, fmt.Errorf("筛选选项转换失败: %w", err)
 		}
+		allInternalFilters = append(allInternalFilters, internalFilters...)
+	}
 
+	// 只有存在有效筛选项时才操作筛选面板；空筛选对象会导致页面一直等待弹层。
+	if len(allInternalFilters) > 0 {
 		// 验证所有内部筛选选项
 		for _, filter := range allInternalFilters {
 			if err := validateInternalFilterOption(filter); err != nil {
@@ -216,10 +244,28 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 			}
 		}
 
-		// 等待页面更新
-		page.MustWaitStable()
-		// 重新等待 __INITIAL_STATE__ 更新
-		page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
+		// 搜索页会持续请求推荐流，等待 stable 容易卡死；这里只等筛选后的状态回填。
+		page.MustWaitLoad()
+		waitForFeedsSettled(page)
+	}
+
+	pageState := page.MustEval(`() => JSON.stringify({
+		bodyText: document.body ? document.body.innerText.slice(0, 500) : "",
+		hasLoginGate: document.body ? document.body.innerText.includes("登录后查看搜索结果") : false,
+		pathname: location.pathname,
+		url: location.href,
+	})`).String()
+
+	if pageState != "" {
+		var state struct {
+			BodyText     string `json:"bodyText"`
+			HasLoginGate bool   `json:"hasLoginGate"`
+			Pathname     string `json:"pathname"`
+			URL          string `json:"url"`
+		}
+		if err := json.Unmarshal([]byte(pageState), &state); err == nil && state.HasLoginGate {
+			return nil, fmt.Errorf("搜索页未进入可见结果态，当前页面提示需要登录查看搜索结果: %s", state.URL)
+		}
 	}
 
 	result := page.MustEval(`() => {

@@ -55,6 +55,10 @@ func main() {
 	logrus.Infof("当前登录状态: %v", status)
 
 	if status {
+		if err := saveCookies(page); err != nil {
+			logrus.Fatalf("failed to save cookies: %v", err)
+		}
+		logrus.Info("检测到已登录，已同步保存当前 cookies。")
 		return
 	}
 
