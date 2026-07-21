@@ -22,11 +22,11 @@ After checking the **Common Issues** list, if you still can't resolve your deplo
 
 ## Star History
 
-<!-- Chart auto-updated weekly by .github/workflows/star-history.yml (star-history.com hosted chart broke due to GitHub API restrictions) -->
+<!-- Chart generated weekly onto the star-history data branch by .github/workflows/star-history.yml (star-history.com hosted chart broke due to GitHub API restrictions) -->
 <a href="https://www.star-history.com/#xpzouying/xiaohongshu-mcp&Timeline">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/star-history-dark.svg" />
-    <img alt="Star History Chart" src="assets/star-history.svg" />
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/xpzouying/xiaohongshu-mcp/star-history/assets/star-history-dark.svg" />
+    <img alt="Star History Chart" src="https://raw.githubusercontent.com/xpzouying/xiaohongshu-mcp/star-history/assets/star-history.svg" />
   </picture>
 </a>
 
