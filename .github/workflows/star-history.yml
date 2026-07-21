@@ -1,8 +1,9 @@
 name: Update star history chart
 
 # 每周重新生成 README 的 Star History 图表（assets/star-history*.svg）。
-# 背景：GitHub 2026-06-30 起限制 stargazers API，star-history.com 托管图表失效；
-# 改用自研的 gh-star-history Action，在 CI 内用仓库自身的 GITHUB_TOKEN 生成静态图。
+# 背景：GitHub 2026-06-30 起限制 stargazers API，star-history.com 托管图表失效，
+# Actions 内置 GITHUB_TOKEN 读 stargazers 也已实测 403；
+# 改用自研 star-history Action + owner 的只读 fine-grained PAT（STAR_HISTORY_TOKEN secret）。
 
 on:
   schedule:
@@ -21,4 +22,5 @@ jobs:
 
       - uses: xpzouying/star-history@v1
         with:
+          token: ${{ secrets.STAR_HISTORY_TOKEN }}
           commit-message: 'chore: 更新 Star History 图表'
