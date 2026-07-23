@@ -107,11 +107,12 @@ type FeedDetail struct {
 
 // DetailImageInfo 表示详情页的图片信息
 type DetailImageInfo struct {
-	Width      int    `json:"width"`
-	Height     int    `json:"height"`
-	URLDefault string `json:"urlDefault"`
-	URLPre     string `json:"urlPre"`
-	LivePhoto  bool   `json:"livePhoto,omitempty"`
+	Width       int    `json:"width"`
+	Height      int    `json:"height"`
+	URLDefault  string `json:"urlDefault"`
+	URLPre      string `json:"urlPre"`
+	URLOriginal string `json:"urlOriginal,omitempty"` // 去除 CDN 压缩参数后的原图 URL
+	LivePhoto   bool   `json:"livePhoto,omitempty"`
 }
 
 // CommentList 表示评论列表
