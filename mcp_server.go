@@ -100,6 +100,13 @@ type FavoriteFeedArgs struct {
 	Unfavorite bool   `json:"unfavorite,omitempty" jsonschema:"是否取消收藏，true为取消收藏，false或未设置则为收藏"`
 }
 
+// FollowUserArgs 关注/取消关注参数
+type FollowUserArgs struct {
+	UserID    string `json:"user_id" jsonschema:"小红书用户ID"`
+	XsecToken string `json:"xsec_token" jsonschema:"访问令牌"`
+	Unfollow  bool   `json:"unfollow,omitempty" jsonschema:"是否取消关注，true为取消关注，false或未设置则为关注"`
+}
+
 // InitMCPServer 初始化 MCP Server
 func InitMCPServer(appServer *AppServer) *mcp.Server {
 	// 创建 MCP Server
@@ -444,6 +451,28 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 	)
 
 	logrus.Infof("Registered %d MCP tools", 13)
+
+	// 工具: 关注/取消关注用户
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "follow_user",
+			Description: "关注或取消关注指定用户（通过浏览器自动化操作用户主页的关注按钮）",
+			Annotations: &mcp.ToolAnnotations{
+				Title:           "Follow User",
+				DestructiveHint: boolPtr(true),
+			},
+		},
+		withPanicRecovery("follow_user", func(ctx context.Context, req *mcp.CallToolRequest, args FollowUserArgs) (*mcp.CallToolResult, any, error) {
+			argsMap := map[string]interface{}{
+				"user_id":    args.UserID,
+				"xsec_token": args.XsecToken,
+				"unfollow":   args.Unfollow,
+			}
+			result := appServer.handleFollowUser(ctx, argsMap)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式
