@@ -13,6 +13,27 @@ import (
 	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
 )
 
+func normalizeVerifyCode(v any) string {
+	switch t := v.(type) {
+	case string:
+		return strings.TrimSpace(strings.Trim(t, `"`))
+	case json.Number:
+		return strings.TrimSpace(t.String())
+	case float64:
+		return strings.TrimSpace(strconv.FormatInt(int64(t), 10))
+	case float32:
+		return strings.TrimSpace(strconv.FormatInt(int64(t), 10))
+	case int:
+		return strconv.Itoa(t)
+	case int64:
+		return strconv.FormatInt(t, 10)
+	case uint64:
+		return strconv.FormatUint(t, 10)
+	default:
+		return strings.TrimSpace(fmt.Sprintf("%v", v))
+	}
+}
+
 // MCP 工具处理函数
 
 // parseVisibility 从 MCP 参数中解析可见范围
@@ -112,6 +133,28 @@ func (s *AppServer) handleDeleteCookies(ctx context.Context) *MCPToolResult {
 
 	cookiePath := cookies.GetCookiesFilePath()
 	resultText := fmt.Sprintf("Cookies 已成功删除，登录状态已重置。\n\n删除的文件路径: %s\n\n下次操作时，需要重新登录。", cookiePath)
+	return &MCPToolResult{
+		Content: []MCPContent{{
+			Type: "text",
+			Text: resultText,
+		}},
+	}
+}
+
+// handleSubmitLoginVerificationCode 处理提交登录验证码
+func (s *AppServer) handleSubmitLoginVerificationCode(ctx context.Context, rawCode any) *MCPToolResult {
+	logrus.Info("MCP: 提交登录验证码")
+
+	code := normalizeVerifyCode(rawCode)
+	status, err := s.xiaohongshuService.SubmitLoginVerificationCode(ctx, code)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "提交验证码失败: " + err.Error()}},
+			IsError: true,
+		}
+	}
+
+	resultText := fmt.Sprintf("✅ 验证码提交成功，当前登录状态：%v\n用户名: %s", status.IsLoggedIn, status.Username)
 	return &MCPToolResult{
 		Content: []MCPContent{{
 			Type: "text",
