@@ -17,6 +17,28 @@ func NewLogin(page *rod.Page) *LoginAction {
 	return &LoginAction{page: page}
 }
 
+// isLoggedIn 检查登录状态，兼容 xiaohongshu.com 和 rednote.com
+// 通过检查侧边栏是否存在"登录按钮"来判断：有登录按钮=未登录，无登录按钮=已登录
+func isLoggedIn(pp *rod.Page) (bool, error) {
+	// 先确认页面已加载侧边栏
+	exists, _, err := pp.Has(`.side-bar`)
+	if err != nil {
+		return false, errors.Wrap(err, "check sidebar failed")
+	}
+	if !exists {
+		// 侧边栏未渲染，视为未登录（页面可能还在加载中）
+		return false, nil
+	}
+
+	// 登录按钮存在 = 未登录
+	hasLoginBtn, _, err := pp.Has(`.side-bar .login-btn`)
+	if err != nil {
+		return false, errors.Wrap(err, "check login button failed")
+	}
+
+	return !hasLoginBtn, nil
+}
+
 func (a *LoginAction) CheckLoginStatus(ctx context.Context) (bool, error) {
 	// 加超时保护：只是查登录态的快速检查，不应无限挂（登录扫码的等待在 Login/WaitForLogin 里）
 	pp := a.page.Context(ctx).Timeout(30 * time.Second)
@@ -24,16 +46,7 @@ func (a *LoginAction) CheckLoginStatus(ctx context.Context) (bool, error) {
 
 	time.Sleep(1 * time.Second)
 
-	exists, _, err := pp.Has(`.main-container .user .link-wrapper .channel`)
-	if err != nil {
-		return false, errors.Wrap(err, "check login status failed")
-	}
-
-	if !exists {
-		return false, errors.Wrap(err, "login status element not found")
-	}
-
-	return true, nil
+	return isLoggedIn(pp)
 }
 
 // CurrentUser 当前登录用户的基础信息。
@@ -80,16 +93,32 @@ func (a *LoginAction) Login(ctx context.Context) error {
 	time.Sleep(2 * time.Second)
 
 	// 检查是否已经登录
-	if exists, _, _ := pp.Has(".main-container .user .link-wrapper .channel"); exists {
-		// 已经登录，直接返回
+	if loggedIn, _ := isLoggedIn(pp); loggedIn {
 		return nil
 	}
 
-	// 等待扫码成功提示或者登录完成
-	// 这里我们等待登录成功的元素出现，这样更简单可靠
-	pp.MustElement(".main-container .user .link-wrapper .channel")
+	// 等待二维码弹窗出现，再开始轮询登录状态
+	qrEl, err := pp.Timeout(30 * time.Second).Element(".login-container .qrcode-img")
+	if err != nil || qrEl == nil {
+		return errors.Wrap(err, "qrcode popup did not appear")
+	}
 
-	return nil
+	// 轮询等待登录完成（登录按钮消失表示登录成功）
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+	timeout := time.After(5 * time.Minute)
+	for {
+		select {
+		case <-ctx.Done():
+			return errors.Wrap(ctx.Err(), "login cancelled")
+		case <-timeout:
+			return errors.New("login timeout after 5 minutes")
+		case <-ticker.C:
+			if loggedIn, _ := isLoggedIn(pp); loggedIn {
+				return nil
+			}
+		}
+	}
 }
 
 func (a *LoginAction) FetchQrcodeImage(ctx context.Context) (string, bool, error) {
@@ -102,7 +131,11 @@ func (a *LoginAction) FetchQrcodeImage(ctx context.Context) (string, bool, error
 	time.Sleep(2 * time.Second)
 
 	// 检查是否已经登录
-	if exists, _, _ := pp.Has(".main-container .user .link-wrapper .channel"); exists {
+	loggedIn, err := isLoggedIn(pp)
+	if err != nil {
+		return "", false, errors.Wrap(err, "check login status failed")
+	}
+	if loggedIn {
 		return "", true, nil
 	}
 
@@ -128,8 +161,7 @@ func (a *LoginAction) WaitForLogin(ctx context.Context) bool {
 		case <-ctx.Done():
 			return false
 		case <-ticker.C:
-			el, err := pp.Element(".main-container .user .link-wrapper .channel")
-			if err == nil && el != nil {
+			if loggedIn, _ := isLoggedIn(pp); loggedIn {
 				return true
 			}
 		}
