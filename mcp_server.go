@@ -6,12 +6,56 @@ import (
 	"fmt"
 	"runtime/debug"
 
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/sirupsen/logrus"
 )
 
 // Helper functions for annotation pointers
 func boolPtr(b bool) *bool { return &b }
+
+func transcribeFeedVideoInputSchema() *jsonschema.Schema {
+	return &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"feed_id": {
+				Type:        "string",
+				Description: "小红书视频笔记ID，从Feed列表获取",
+			},
+			"xsec_token": {
+				Type:        "string",
+				Description: "访问令牌，从Feed列表的xsecToken字段获取",
+			},
+			"provider": {
+				Type:        "string",
+				Description: "转写服务商（可选）：dashscope(默认) 或 glm；可用环境变量 VIDEO_TRANSCRIBE_PROVIDER 覆盖",
+				Enum:        []any{"dashscope", "glm"},
+			},
+			"api_key": {
+				Type:        "string",
+				Description: "转写 API Key（可选）。传入时优先于环境变量；不传时按 provider 使用 DASHSCOPE_API_KEY 或 ZHIPUAI_API_KEY/BIGMODEL_API_KEY",
+			},
+			"model": {
+				Type:        "string",
+				Description: "模型名（可选）。dashscope 默认 qwen3.5-flash，glm 默认 glm-4.6v-flash",
+				Enum:        []any{"qwen3.5-flash", "qwen3.5-plus", "glm-4.6v-flash"},
+			},
+			"language": {
+				Type:        "string",
+				Description: "转写语言（可选），如 zh、en。不填默认自动识别",
+			},
+			"output_dir": {
+				Type:        "string",
+				Description: "输出目录（可选），不填默认写入 /tmp/xhs_transcripts/...",
+			},
+			"keep_artifacts": {
+				Type:        "boolean",
+				Description: "兼容参数（可选）；当前链路无本地中间视频文件，默认 false",
+			},
+		},
+		Required: []string{"feed_id", "xsec_token"},
+	}
+}
 
 // MCP 工具参数结构体定义
 
@@ -62,6 +106,18 @@ type FeedDetailArgs struct {
 	ClickMoreReplies bool   `json:"click_more_replies,omitempty" jsonschema:"【仅当load_all_comments为true时生效】是否展开二级回复。true展开子评论，false不展开（默认）"`
 	ReplyLimit       int    `json:"reply_limit,omitempty" jsonschema:"【仅当click_more_replies为true时生效】跳过回复数过多的评论。例如10表示跳过超过10条回复的，默认10"`
 	ScrollSpeed      string `json:"scroll_speed,omitempty" jsonschema:"【仅当load_all_comments为true时生效】滚动速度slow慢速、normal正常、fast快速"`
+}
+
+// TranscribeFeedVideoArgs 转写视频帖子的参数
+type TranscribeFeedVideoArgs struct {
+	FeedID        string `json:"feed_id" jsonschema:"小红书视频笔记ID，从Feed列表获取"`
+	XsecToken     string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
+	Provider      string `json:"provider,omitempty" jsonschema:"转写服务商（可选）：dashscope(默认) 或 glm；可用环境变量 VIDEO_TRANSCRIBE_PROVIDER 覆盖"`
+	APIKey        string `json:"api_key,omitempty" jsonschema:"转写 API Key（可选）。传入时优先于环境变量；不传时按 provider 使用 DASHSCOPE_API_KEY 或 ZHIPUAI_API_KEY/BIGMODEL_API_KEY"`
+	Model         string `json:"model,omitempty" jsonschema:"模型名（可选）。dashscope 默认 qwen3.5-flash，glm 默认 glm-4.6v-flash"`
+	Language      string `json:"language,omitempty" jsonschema:"转写语言（可选），如 zh、en。不填默认自动识别"`
+	OutputDir     string `json:"output_dir,omitempty" jsonschema:"输出目录（可选），不填默认写入 /tmp/xhs_transcripts/..."`
+	KeepArtifacts bool   `json:"keep_artifacts,omitempty" jsonschema:"兼容参数（可选）；当前链路无本地中间视频文件，默认 false"`
 }
 
 // UserProfileArgs 获取用户主页的参数
@@ -325,6 +381,33 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
+	// 工具 8: 转写视频帖子（MCP-only）
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "transcribe_feed_video",
+			Description: "转写小红书视频帖子内容，返回全文文本与 SRT 文件路径（MCP 专用能力）",
+			InputSchema: transcribeFeedVideoInputSchema(),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Transcribe Feed Video",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("transcribe_feed_video", func(ctx context.Context, req *mcp.CallToolRequest, args TranscribeFeedVideoArgs) (*mcp.CallToolResult, any, error) {
+			argsMap := map[string]interface{}{
+				"feed_id":        args.FeedID,
+				"xsec_token":     args.XsecToken,
+				"provider":       args.Provider,
+				"api_key":        args.APIKey,
+				"model":          args.Model,
+				"language":       args.Language,
+				"output_dir":     args.OutputDir,
+				"keep_artifacts": args.KeepArtifacts,
+			}
+			result := appServer.handleTranscribeFeedVideo(ctx, argsMap)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
 	// 工具 9: 发表评论
 	mcp.AddTool(server,
 		&mcp.Tool{
@@ -443,7 +526,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	logrus.Infof("Registered %d MCP tools", 13)
+	logrus.Infof("Registered %d MCP tools", 14)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式
