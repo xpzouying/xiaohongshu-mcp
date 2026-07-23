@@ -168,3 +168,18 @@ type UserInteractions struct {
 	Name  string `json:"name"`  // 关注 粉丝 获赞与收藏
 	Count string `json:"count"` // 数量
 }
+
+// SearchUser 表示用户搜索结果中的用户卡片
+type SearchUser struct {
+	ID               string `json:"id"`
+	XsecToken        string `json:"xsecToken"`
+	RedID            string `json:"redId"`
+	Name             string `json:"name"`
+	SubTitle         string `json:"subTitle"`
+	Profession       string `json:"profession"`
+	Fans             string `json:"fans"`
+	NoteCount        int    `json:"noteCount"`
+	Verified         bool   `json:"redOfficialVerified"`
+	VerificationType int    `json:"redOfficialVerifyType"`
+	AvatarURL        string `json:"image"`
+}

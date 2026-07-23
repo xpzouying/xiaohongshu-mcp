@@ -59,6 +59,10 @@ type SearchFeedsRequest struct {
 	Filters xiaohongshu.FilterOption `json:"filters,omitempty"`
 }
 
+type SearchUsersRequest struct {
+	Keyword string `json:"keyword" binding:"required"`
+}
+
 // FeedDetailResponse Feed详情响应
 type FeedDetailResponse struct {
 	FeedID string `json:"feed_id"`

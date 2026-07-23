@@ -357,6 +357,52 @@ func (s *AppServer) handleSearchFeeds(ctx context.Context, args SearchFeedsArgs)
 	}
 }
 
+// handleSearchUsers 处理搜索用户
+func (s *AppServer) handleSearchUsers(ctx context.Context, args SearchUsersArgs) *MCPToolResult {
+	logrus.Info("MCP: 搜索用户")
+
+	if args.Keyword == "" {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "搜索用户失败: 缺少关键词参数",
+			}},
+			IsError: true,
+		}
+	}
+
+	logrus.Infof("MCP: 搜索用户 - 关键词: %s", args.Keyword)
+
+	result, err := s.xiaohongshuService.SearchUsers(ctx, args.Keyword)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "搜索用户失败: " + err.Error(),
+			}},
+			IsError: true,
+		}
+	}
+
+	jsonData, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: fmt.Sprintf("搜索用户成功，但序列化失败: %v", err),
+			}},
+			IsError: true,
+		}
+	}
+
+	return &MCPToolResult{
+		Content: []MCPContent{{
+			Type: "text",
+			Text: string(jsonData),
+		}},
+	}
+}
+
 // handleGetFeedDetail 处理获取Feed详情
 func (s *AppServer) handleGetFeedDetail(ctx context.Context, args map[string]any) *MCPToolResult {
 	logrus.Info("MCP: 获取Feed详情")
