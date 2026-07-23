@@ -103,6 +103,16 @@ type UserProfileRequest struct {
 	XsecToken string `json:"xsec_token" binding:"required"`
 }
 
+type FavoriteFeedsByCategoryRequest struct {
+	CategoryID   string `json:"category_id,omitempty"`
+	CategoryName string `json:"category_name,omitempty"`
+	Limit        int    `json:"limit,omitempty"`
+}
+
+type FavoriteListRequest struct {
+	Limit int `json:"limit,omitempty" form:"limit"`
+}
+
 // ActionResult 通用动作响应（点赞/收藏等）
 type ActionResult struct {
 	FeedID  string `json:"feed_id"`
