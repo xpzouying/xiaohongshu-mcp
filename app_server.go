@@ -52,6 +52,20 @@ func (s *AppServer) Start(port string) error {
 	}()
 
 	// 等待中断信号
+	// Handle SIGCHLD to prevent container shutdown when child processes (Chrome) exit
+	// This logs child process exits without triggering server shutdown
+	sigchld := make(chan os.Signal, 1)
+	signal.Notify(sigchld, syscall.SIGCHLD)
+	go func() {
+		for range sigchld {
+			// Wait for child process to prevent zombies
+			// Log but don't shutdown - this is expected when Chrome subprocesses exit
+			var status syscall.WaitStatus
+			syscall.Wait4(-1, &status, syscall.WNOHANG, nil)
+			logrus.Debug("Child process exited, continuing server operation")
+		}
+	}()
+
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
