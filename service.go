@@ -41,7 +41,8 @@ type PublishRequest struct {
 // LoginStatusResponse 登录状态响应
 type LoginStatusResponse struct {
 	IsLoggedIn bool   `json:"is_logged_in"`
-	Username   string `json:"username,omitempty"`
+	Username   string `json:"username,omitempty"` // 当前登录账号的昵称
+	UserID     string `json:"user_id,omitempty"`  // 用户唯一标识（个人主页 URL 中的 ID）
 }
 
 // LoginQrcodeResponse 登录扫码二维码
@@ -117,7 +118,16 @@ func (s *XiaohongshuService) CheckLoginStatus(ctx context.Context) (*LoginStatus
 
 	response := &LoginStatusResponse{
 		IsLoggedIn: isLoggedIn,
-		Username:   configs.Username,
+	}
+
+	// 已登录时从当前页读取真实账号信息；读不到只记 warn，不影响状态返回。
+	if isLoggedIn {
+		if user, err := loginAction.CurrentUser(ctx); err != nil {
+			logrus.Warnf("failed to get current user info: %v", err)
+		} else {
+			response.Username = user.Nickname
+			response.UserID = user.UserID
+		}
 	}
 
 	return response, nil
