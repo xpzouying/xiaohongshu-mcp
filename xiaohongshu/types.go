@@ -123,17 +123,27 @@ type CommentList struct {
 
 // Comment 表示单条评论
 type Comment struct {
-	ID              string    `json:"id"`
-	NoteID          string    `json:"noteId"`
-	Content         string    `json:"content"`
-	LikeCount       string    `json:"likeCount"`
-	CreateTime      int64     `json:"createTime"`
-	IPLocation      string    `json:"ipLocation"`
-	Liked           bool      `json:"liked"`
-	UserInfo        User      `json:"userInfo"`
-	SubCommentCount string    `json:"subCommentCount"`
-	SubComments     []Comment `json:"subComments"`
-	ShowTags        []string  `json:"showTags"`
+	ID              string           `json:"id"`
+	NoteID          string           `json:"noteId"`
+	Content         string           `json:"content"`
+	LikeCount       string           `json:"likeCount"`
+	CreateTime      int64            `json:"createTime"`
+	IPLocation      string           `json:"ipLocation"`
+	Liked           bool             `json:"liked"`
+	UserInfo        User             `json:"userInfo"`
+	SubCommentCount string           `json:"subCommentCount"`
+	SubComments     []Comment        `json:"subComments"`
+	ShowTags        []string         `json:"showTags"`
+	Pictures        []CommentPicture `json:"pictures,omitempty"`
+}
+
+// CommentPicture 表示评论中的图片信息
+type CommentPicture struct {
+	URLDefault string      `json:"urlDefault"`
+	URLPre     string      `json:"urlPre"`
+	Width      int         `json:"width"`
+	Height     int         `json:"height"`
+	InfoList   []ImageInfo `json:"infoList,omitempty"`
 }
 
 // UserProfileResponse 用户详情页完整响应
