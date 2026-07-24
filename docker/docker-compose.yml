@@ -1,7 +1,9 @@
 services:
   xiaohongshu-mcp:
-    # Docker Hub 镜像（默认）
-    image: xpzouying/xiaohongshu-mcp
+    # 本地构建镜像：修复登录页长连接导致二维码接口无界等待的问题
+    image: localhost/xiaohongshu-mcp:login-navigation-fix
+    # Docker Hub 镜像（上游修复后可切回）
+    # image: xpzouying/xiaohongshu-mcp
     # 阿里云镜像源（国内用户推荐，拉取更快）
     # image: crpi-hocnvtkomt7w9v8t.cn-beijing.personal.cr.aliyuncs.com/xpzouying/xiaohongshu-mcp
     container_name: xiaohongshu-mcp
