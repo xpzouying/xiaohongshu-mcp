@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/go-rod/rod"
@@ -104,6 +106,20 @@ func makeUserProfileURL(userID, xsecToken string) string {
 	return fmt.Sprintf("https://www.xiaohongshu.com/user/profile/%s?xsec_token=%s&xsec_source=pc_note", userID, xsecToken)
 }
 
+func userIDFromProfileURL(rawURL string) (string, error) {
+	parsedURL, err := url.Parse(rawURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse profile URL: %w", err)
+	}
+
+	segments := strings.Split(strings.Trim(parsedURL.Path, "/"), "/")
+	if len(segments) < 3 || segments[0] != "user" || segments[1] != "profile" || segments[2] == "" {
+		return "", fmt.Errorf("user ID not found in profile URL: %s", rawURL)
+	}
+
+	return segments[2], nil
+}
+
 func (u *UserProfileAction) GetMyProfileViaSidebar(ctx context.Context) (*UserProfileResponse, error) {
 	page := u.page.Context(ctx).Timeout(60 * time.Second) // 重设被 .Context 清掉的 deadline
 
@@ -111,12 +127,24 @@ func (u *UserProfileAction) GetMyProfileViaSidebar(ctx context.Context) (*UserPr
 	navigate := NewNavigate(page)
 
 	// 通过侧边栏导航到个人主页
-	if err := navigate.ToProfilePage(ctx); err != nil {
+	profileURL, err := navigate.ToProfilePage(ctx)
+	if err != nil {
 		return nil, fmt.Errorf("failed to navigate to profile page via sidebar: %w", err)
+	}
+
+	userID, err := userIDFromProfileURL(profileURL)
+	if err != nil {
+		return nil, err
 	}
 
 	// 等待页面加载完成并获取 __INITIAL_STATE__
 	page.MustWaitStable()
 
-	return u.extractUserProfileData(page)
+	result, err := u.extractUserProfileData(page)
+	if err != nil {
+		return nil, err
+	}
+	result.UserID = userID
+
+	return result, nil
 }

@@ -138,6 +138,7 @@ type Comment struct {
 
 // UserProfileResponse 用户详情页完整响应
 type UserProfileResponse struct {
+	UserID        string             `json:"user_id,omitempty"`
 	UserBasicInfo UserBasicInfo      `json:"userBasicInfo"`
 	Interactions  []UserInteractions `json:"interactions"`
 	Feeds         []Feed             `json:"feeds"`

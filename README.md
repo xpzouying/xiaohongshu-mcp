@@ -890,6 +890,7 @@ npx mcporter list xiaohongshu-mcp
 - `favorite_feed` - 收藏/取消收藏（必需：feed_id, xsec_token）
   - `unfavorite`: 是否取消收藏（可选），true 为取消收藏，默认为收藏
 - `user_profile` - 获取用户个人主页信息（必需：user_id, xsec_token）
+- `current_user_profile` - 获取当前登录账号主页信息（无需参数，返回 user_id 和资料字段）
 
 ### 2.4. 使用示例
 

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/go-rod/rod"
@@ -89,6 +90,7 @@ type FeedsListResponse struct {
 
 // UserProfileResponse 用户主页响应
 type UserProfileResponse struct {
+	UserID        string                         `json:"user_id,omitempty"`
 	UserBasicInfo xiaohongshu.UserBasicInfo      `json:"userBasicInfo"`
 	Interactions  []xiaohongshu.UserInteractions `json:"interactions"`
 	Feeds         []xiaohongshu.Feed             `json:"feeds"`
@@ -136,30 +138,38 @@ func (s *XiaohongshuService) CheckLoginStatus(ctx context.Context) (*LoginStatus
 // GetLoginQrcode 获取登录的扫码二维码
 func (s *XiaohongshuService) GetLoginQrcode(ctx context.Context) (*LoginQrcodeResponse, error) {
 	b := newBrowser()
-	page := b.NewPage()
+	var page *rod.Page
+	resourceHandedOff := false
 
-	deferFunc := func() {
-		_ = page.Close()
-		b.Close()
+	var cleanupOnce sync.Once
+	cleanup := func() {
+		cleanupOnce.Do(func() {
+			if page != nil {
+				_ = page.Close()
+			}
+			b.Close()
+		})
 	}
+	defer func() {
+		if !resourceHandedOff {
+			cleanup()
+		}
+	}()
 
+	page = b.NewPage()
 	loginAction := xiaohongshu.NewLogin(page)
 
-	img, loggedIn, err := loginAction.FetchQrcodeImage(ctx)
-	if err != nil || loggedIn {
-		defer deferFunc()
-	}
+	img, loggedIn, timeout, err := loginAction.FetchQrcodeImage(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	timeout := 4 * time.Minute
-
 	if !loggedIn {
+		resourceHandedOff = true
 		go func() {
 			ctxTimeout, cancel := context.WithTimeout(context.Background(), timeout)
 			defer cancel()
-			defer deferFunc()
+			defer cleanup()
 
 			if loginAction.WaitForLogin(ctxTimeout) {
 				if er := saveCookies(page); er != nil {
@@ -605,6 +615,7 @@ func (s *XiaohongshuService) GetMyProfile(ctx context.Context) (*UserProfileResp
 	}
 
 	response := &UserProfileResponse{
+		UserID:        result.UserID,
 		UserBasicInfo: result.UserBasicInfo,
 		Interactions:  result.Interactions,
 		Feeds:         result.Feeds,

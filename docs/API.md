@@ -656,6 +656,7 @@ GET /api/v1/user/me
   "success": true,
   "data": {
     "data": {
+      "user_id": "current_user_id",
       "userBasicInfo": {
         "nickname": "当前用户昵称",
         "desc": "个人描述",
@@ -705,6 +706,7 @@ GET /api/v1/user/me
 
 **响应字段说明:**
 - 响应结构与"获取用户主页信息"接口相同
+- `user_id`: 当前登录账号的用户 ID
 - 此接口无需 `user_id` 和 `xsec_token` 参数，自动获取当前登录用户信息
 ```
 

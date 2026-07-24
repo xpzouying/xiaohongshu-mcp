@@ -791,6 +791,7 @@ After successful connection, you can use the following MCP tools:
 - `favorite_feed` - Favorite / unfavorite a note (required: feed_id, xsec_token)
   - `unfavorite`: Whether to unfavorite (optional), true to unfavorite, default is favorite
 - `user_profile` - Get user profile information (required: user_id, xsec_token)
+- `current_user_profile` - Get the current logged-in account profile (no parameters; returns user_id and profile fields)
 
 ### 2.4. Usage Examples
 
