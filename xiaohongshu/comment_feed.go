@@ -5,10 +5,47 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/avast/retry-go/v4"
 	"github.com/go-rod/rod"
 	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/xiaohongshu-mcp/humanize"
 )
+
+func retryFeedDetailNavigation(
+	ctx context.Context,
+	operation func() error,
+	options ...retry.Option,
+) error {
+	defaultOptions := []retry.Option{
+		retry.Attempts(3),
+		retry.Delay(2 * time.Second),
+		retry.MaxJitter(time.Second),
+		retry.Context(ctx),
+		retry.RetryIf(func(err error) bool {
+			return !isPermanentAccessError(err)
+		}),
+		retry.OnRetry(func(n uint, err error) {
+			logrus.Warnf("feed 详情页暂不可访问，准备重试 #%d: %v", n+1, err)
+		}),
+	}
+
+	return retry.Do(operation, append(defaultOptions, options...)...)
+}
+
+// navigateToFeedDetail 导航到 feed 详情页并确认页面可访问。
+// 临时风控拦截页可通过重新导航恢复，删除、私密、违规等永久错误不重试。
+func navigateToFeedDetail(ctx context.Context, page *rod.Page, url string) error {
+	return retryFeedDetailNavigation(ctx, func() error {
+		if err := page.Navigate(url); err != nil {
+			return err
+		}
+		if err := page.WaitDOMStable(time.Second, 0); err != nil {
+			return err
+		}
+		humanize.Delay(ctx, humanize.AfterNavigate)
+		return checkPageAccessible(page)
+	})
+}
 
 // CommentFeedAction 表示 Feed 评论动作
 type CommentFeedAction struct {
@@ -28,13 +65,8 @@ func (f *CommentFeedAction) PostComment(ctx context.Context, feedID, xsecToken, 
 	url := makeFeedDetailURL(feedID, xsecToken)
 	logrus.Infof("打开 feed 详情页: %s", url)
 
-	// 导航到详情页
-	page.MustNavigate(url)
-	page.MustWaitDOMStable()
-	humanize.Delay(ctx, humanize.AfterNavigate)
-
-	// 检测页面是否可访问
-	if err := checkPageAccessible(page); err != nil {
+	// 导航到详情页并确认可访问（偶发风控拦截页自动重试）
+	if err := navigateToFeedDetail(ctx, page, url); err != nil {
 		return err
 	}
 
@@ -118,13 +150,8 @@ func (f *CommentFeedAction) ReplyToComment(ctx context.Context, feedID, xsecToke
 	url := makeFeedDetailURL(feedID, xsecToken)
 	logrus.Infof("打开 feed 详情页进行回复: %s", url)
 
-	// 导航到详情页
-	page.MustNavigate(url)
-	page.MustWaitDOMStable()
-	humanize.Delay(ctx, humanize.AfterNavigate)
-
-	// 检测页面是否可访问
-	if err := checkPageAccessible(page); err != nil {
+	// 导航到详情页并确认可访问（偶发风控拦截页自动重试）
+	if err := navigateToFeedDetail(ctx, page, url); err != nil {
 		return err
 	}
 
