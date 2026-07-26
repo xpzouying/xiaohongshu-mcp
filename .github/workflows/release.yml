@@ -152,7 +152,7 @@ jobs:
 
           ### 🐳 Docker 镜像
 
-          Docker 镜像需要手动触发构建，请到 Actions 页面运行 "Docker Release" workflow。
+          正式版本请使用 Docker 镜像：推送语义化版本 tag（如 `git tag v1.2.8 && git push origin v1.2.8`）会自动构建并发布到 Docker Hub 和阿里云。
 
           ### 📊 构建信息
 
