@@ -113,9 +113,14 @@ func removePopCover(page *rod.Page) {
 }
 
 func clickEmptyPosition(page *rod.Page) {
-	x := 380 + rand.Intn(100)
-	y := 20 + rand.Intn(60)
-	page.Mouse.MustMoveTo(float64(x), float64(y)).MustClick(proto.InputMouseButtonLeft)
+	pt := proto.Point{
+		X: float64(380 + rand.Intn(100)),
+		Y: float64(20 + rand.Intn(60)),
+	}
+	// 兜底操作，点不动就算了，不该 panic
+	if err := humanize.ClickAt(page, pt); err != nil {
+		logrus.Debugf("点击空位置失败: %v", err)
+	}
 }
 
 func mustClickPublishTab(page *rod.Page, tabname string) error {
@@ -516,11 +521,8 @@ func clickPublishWidget(page *rod.Page, widget *rod.Element) error {
 
 	x := minX + (maxX-minX)*0.65
 	y := minY + (maxY-minY)/2
-	if err := page.Mouse.MoveTo(proto.Point{X: x, Y: y}); err != nil {
-		return errors.Wrap(err, "移动到新版发布按钮失败")
-	}
-	if err := page.Mouse.Click(proto.InputMouseButtonLeft, 1); err != nil {
-		return errors.Wrap(err, "点击发布按钮失败")
+	if err := humanize.ClickAt(page, proto.Point{X: x, Y: y}); err != nil {
+		return errors.Wrap(err, "点击新版发布按钮失败")
 	}
 	return nil
 }

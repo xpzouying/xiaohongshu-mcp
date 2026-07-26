@@ -52,6 +52,22 @@ func ClickNoWait(elem *rod.Element) error {
 	return mouse.Click(proto.InputMouseButtonLeft, 1)
 }
 
+// MoveTo 沿曲线把指针移到指定坐标，不点击。
+// 用于目标不是元素的场景，比如把指针放进某个滚动容器让滚轮作用在它上面。
+func MoveTo(page *rod.Page, pt proto.Point) error {
+	return moveMouseCurved(page.Mouse, pt)
+}
+
+// ClickAt 沿曲线移到指定坐标再点击。
+// 用于点不到元素、只能算坐标的场景（如取元素区域内的偏移点、点击空白处）；
+// 有元素可点时用 Click。
+func ClickAt(page *rod.Page, pt proto.Point) error {
+	if err := moveMouseCurved(page.Mouse, pt); err != nil {
+		return err
+	}
+	return page.Mouse.Click(proto.InputMouseButtonLeft, 1)
+}
+
 // Type 逐字符输入文本，字间带间隔。
 // 元素只在开头聚焦一次，后续插入都落在该焦点上。
 func Type(ctx context.Context, elem *rod.Element, text string) error {
