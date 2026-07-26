@@ -97,19 +97,45 @@ func (p *PublishAction) Publish(ctx context.Context, content PublishImageContent
 	return nil
 }
 
-func removePopCover(page *rod.Page) {
+// hasPopCover 当前页面是否还有挡人的浮层。
+func hasPopCover(page *rod.Page) bool {
+	has, _, err := page.Has("div.d-popover")
+	return err == nil && has
+}
 
-	// 先移除弹窗封面
-	has, elem, err := page.Has("div.d-popover")
-	if err != nil {
+// dismissPopCover 关掉挡住发布 TAB 的浮层，逐级降级。
+//
+// 顺序：Esc → 点空白 → JS 摘节点。前两步是真实手势，优先用；最后一步是
+// Eval("this.remove()")，是注入，但它只要节点在就必定生效。
+//
+// 为什么保留最后这一步：真机探针实测发布页 d-popover 数量为 0，说明这条
+// 路径本就极少触发——真实收益接近零。而 Esc 关不关得掉取决于小红书自己
+// 有没有写这个监听器，无从预判。拿"可能有效"换掉"必定有效"，赌上的是
+// 发布直接失败（mustClickPublishTab 空转 15s）。不值得。
+func dismissPopCover(page *rod.Page) {
+	if err := page.Keyboard.Press(input.Escape); err != nil {
+		logrus.Debugf("按 Esc 关闭浮层失败: %v", err)
+	}
+	time.Sleep(200 * time.Millisecond) // 技术等待：等浮层收起动画
+	if !hasPopCover(page) {
 		return
 	}
-	if has {
-		elem.MustRemove()
+
+	clickEmptyPosition(page)
+	time.Sleep(200 * time.Millisecond)
+	if !hasPopCover(page) {
+		return
 	}
 
-	// 兜底：点击一下空位置吧
-	clickEmptyPosition(page)
+	// 真实手势都无效，退回摘节点，保证发布能继续。
+	has, elem, err := page.Has("div.d-popover")
+	if err != nil || !has {
+		return
+	}
+	logrus.Warn("Esc 与点击空白都未能关闭浮层，退回 JS 移除节点")
+	if err := elem.Remove(); err != nil {
+		logrus.Warnf("移除浮层失败: %v", err)
+	}
 }
 
 func clickEmptyPosition(page *rod.Page) {
@@ -127,6 +153,8 @@ func mustClickPublishTab(page *rod.Page, tabname string) error {
 	page.MustElement(`div.upload-content`).MustWaitVisible()
 
 	deadline := time.Now().Add(15 * time.Second)
+	blockedAtLeastOnce := false
+
 	for time.Now().Before(deadline) {
 		tab, blocked, err := getTabElement(page, tabname)
 		if err != nil {
@@ -141,8 +169,9 @@ func mustClickPublishTab(page *rod.Page, tabname string) error {
 		}
 
 		if blocked {
-			logrus.Info("发布 TAB 被遮挡，尝试移除遮挡")
-			removePopCover(page)
+			blockedAtLeastOnce = true
+			logrus.Info("发布 TAB 被遮挡，尝试关闭浮层")
+			dismissPopCover(page)
 			time.Sleep(200 * time.Millisecond)
 			continue
 		}
@@ -156,6 +185,12 @@ func mustClickPublishTab(page *rod.Page, tabname string) error {
 		return nil
 	}
 
+	// 区分两种失败：找不到 TAB，和找到了但一直关不掉挡在上面的浮层。
+	// 后者是 dismissPopCover（Esc + 点空白）没奏效——真机上没能复现出浮层，
+	// 这条路径未经走查验证，所以把原因写进错误里，真踩到时一眼可辨。
+	if blockedAtLeastOnce {
+		return errors.Errorf("发布 TAB %s 一直被浮层遮挡，Esc 与点击空白都未能关闭", tabname)
+	}
 	return errors.Errorf("没有找到发布 TAB - %s", tabname)
 }
 
@@ -321,7 +356,7 @@ func submitPublish(ctx context.Context, page *rod.Page, title, content string, t
 
 	// 处理定时发布
 	if scheduleTime != nil {
-		if err := setSchedulePublish(page, *scheduleTime); err != nil {
+		if err := setSchedulePublish(ctx, page, *scheduleTime); err != nil {
 			return errors.Wrap(err, "设置定时发布失败")
 		}
 		slog.Info("定时发布设置完成", "schedule_time", scheduleTime.Format("2006-01-02 15:04"))
@@ -341,7 +376,7 @@ func submitPublish(ctx context.Context, page *rod.Page, title, content string, t
 	}
 
 	// 绑定商品
-	if err := bindProducts(page, products); err != nil {
+	if err := bindProducts(ctx, page, products); err != nil {
 		return errors.Wrap(err, "绑定商品失败")
 	}
 
@@ -654,8 +689,9 @@ func inputTags(ctx context.Context, contentElem *rod.Element, tags []string) err
 }
 
 func inputTag(ctx context.Context, contentElem *rod.Element, tag string) error {
-	// 输入 # 触发话题联想（控制字符，直接 Input）
-	if err := contentElem.Input("#"); err != nil {
+	// 输入 # 触发话题联想。必须走 humanize.Type：rod 的 elem.Input 会在 CDP 插入后
+	// 再补一次 JS dispatchEvent(new Event('input'/'change'))，isTrusted=false。
+	if err := humanize.Type(ctx, contentElem, "#"); err != nil {
 		return errors.Wrap(err, "输入#失败")
 	}
 	time.Sleep(200 * time.Millisecond) // 技术等待：等联想下拉框弹出
@@ -670,13 +706,13 @@ func inputTag(ctx context.Context, contentElem *rod.Element, tag string) error {
 	topicContainer, err := page.Element("#creator-editor-topic-container")
 	if err != nil || topicContainer == nil {
 		slog.Warn("未找到标签联想下拉框，直接输入空格", "tag", tag)
-		return contentElem.Input(" ")
+		return humanize.Type(ctx, contentElem, " ")
 	}
 
 	firstItem, err := topicContainer.Element(".item")
 	if err != nil || firstItem == nil {
 		slog.Warn("未找到标签联想选项，直接输入空格", "tag", tag)
-		return contentElem.Input(" ")
+		return humanize.Type(ctx, contentElem, " ")
 	}
 
 	if err := humanize.Click(firstItem); err != nil {
@@ -852,7 +888,7 @@ func setVisibility(page *rod.Page, visibility string) error {
 }
 
 // setSchedulePublish 设置定时发布时间
-func setSchedulePublish(page *rod.Page, t time.Time) error {
+func setSchedulePublish(ctx context.Context, page *rod.Page, t time.Time) error {
 	// 1. 点击定时发布开关
 	if err := clickScheduleSwitch(page); err != nil {
 		return err
@@ -860,7 +896,7 @@ func setSchedulePublish(page *rod.Page, t time.Time) error {
 	time.Sleep(800 * time.Millisecond)
 
 	// 2. 设置日期时间
-	if err := setDateTime(page, t); err != nil {
+	if err := setDateTime(ctx, page, t); err != nil {
 		return err
 	}
 	time.Sleep(500 * time.Millisecond)
@@ -883,18 +919,20 @@ func clickScheduleSwitch(page *rod.Page) error {
 }
 
 // setDateTime 设置日期时间
-func setDateTime(page *rod.Page, t time.Time) error {
+func setDateTime(ctx context.Context, page *rod.Page, t time.Time) error {
 	dateTimeStr := t.Format("2006-01-02 15:04")
 
-	input, err := page.Element(".date-picker-container input")
+	elem, err := page.Element(".date-picker-container input")
 	if err != nil {
 		return errors.Wrap(err, "查找日期时间输入框失败")
 	}
 
-	if err := input.SelectAllText(); err != nil {
+	// SelectAllText 走 Eval(this.select())：JS 驱动的选中，不派发伪造事件，
+	// 信号弱于 elem.Input，本轮不动（改法需平台相关的 Ctrl/Cmd+A 或三击）。
+	if err := elem.SelectAllText(); err != nil {
 		return errors.Wrap(err, "选择日期时间文本失败")
 	}
-	if err := input.Input(dateTimeStr); err != nil {
+	if err := humanize.Type(ctx, elem, dateTimeStr); err != nil {
 		return errors.Wrap(err, "输入日期时间失败")
 	}
 	slog.Info("已设置日期时间", "datetime", dateTimeStr)
@@ -1056,7 +1094,7 @@ func isButtonDisabled(btn *rod.Element) bool {
 }
 
 // bindProducts 绑定商品到发布内容
-func bindProducts(page *rod.Page, products []string) error {
+func bindProducts(ctx context.Context, page *rod.Page, products []string) error {
 	if len(products) == 0 {
 		return nil
 	}
@@ -1079,7 +1117,7 @@ func bindProducts(page *rod.Page, products []string) error {
 	// 遍历搜索并选择商品
 	var failedProducts []string
 	for _, keyword := range products {
-		if err := searchAndSelectProduct(page, modal, keyword); err != nil {
+		if err := searchAndSelectProduct(ctx, page, modal, keyword); err != nil {
 			slog.Warn("搜索选择商品失败", "keyword", keyword, "error", err)
 			failedProducts = append(failedProducts, keyword)
 		}
@@ -1187,7 +1225,7 @@ func waitForProductModal(page *rod.Page) (*rod.Element, error) {
 }
 
 // searchAndSelectProduct 搜索并选择商品
-func searchAndSelectProduct(page *rod.Page, modal *rod.Element, keyword string) error {
+func searchAndSelectProduct(ctx context.Context, page *rod.Page, modal *rod.Element, keyword string) error {
 	slog.Info("搜索商品", "keyword", keyword)
 
 	// 1. 获取搜索框
@@ -1196,14 +1234,14 @@ func searchAndSelectProduct(page *rod.Page, modal *rod.Element, keyword string) 
 		return errors.Wrap(err, "未找到商品搜索框")
 	}
 
-	// 2. 清空并输入关键词（使用原生 JS setter + 完整事件）
+	// 2. 清空并输入关键词。SelectAllText 走 Eval(this.select())：JS 驱动的选中，不派发伪造事件，
+	// 信号弱于 elem.Input，本轮不动（改法需平台相关的 Ctrl/Cmd+A 或三击）。
 	if err := searchInput.SelectAllText(); err != nil {
 		slog.Warn("选择搜索框文本失败", "error", err)
 	}
 	time.Sleep(100 * time.Millisecond)
 
-	// 使用 rod Input 输入关键词
-	if err := searchInput.Input(keyword); err != nil {
+	if err := humanize.Type(ctx, searchInput, keyword); err != nil {
 		return errors.Wrap(err, "输入搜索关键词失败")
 	}
 	time.Sleep(300 * time.Millisecond)

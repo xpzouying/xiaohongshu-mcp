@@ -2,6 +2,7 @@ package humanize
 
 import (
 	"context"
+	"math"
 	"testing"
 	"time"
 
@@ -40,7 +41,7 @@ func TestLogNormal_noMax(t *testing.T) {
 func TestDefaultProvider_Timing(t *testing.T) {
 	tp := DefaultProvider{}.Timing()
 
-	for _, action := range []Action{AfterClick, AfterType, AfterNavigate, BetweenScroll, BeforeSubmit, BeforeClick, Reading} {
+	for _, action := range []Action{AfterClick, AfterType, AfterNavigate, BetweenScroll, BeforeSubmit, BeforeClick, Reading, Keystroke, ClickHold} {
 		dist, ok := tp[action]
 		assert.True(t, ok, "缺少动作 %s 的时延分布", action)
 		assert.Greater(t, dist.Max, dist.Min, "%s: Max 应大于 Min", action)
@@ -84,6 +85,55 @@ func TestEaseInOut(t *testing.T) {
 	assert.Equal(t, 1.0, easeInOut(1))
 	assert.InDelta(t, 0.5, easeInOut(0.5), 1e-9) // 中点对称
 	assert.Less(t, easeInOut(0.25), easeInOut(0.75))
+}
+
+// TestJitterOffset_Bounds 抖动幅度受两个上限约束：边长的 15%、且不超过 8px。
+func TestJitterOffset_Bounds(t *testing.T) {
+	cases := []struct {
+		size  float64
+		limit float64
+		desc  string
+	}{
+		{size: 20, limit: 3, desc: "小元素按 15% 取"}, // 20*0.15=3 < 8
+		{size: 600, limit: 8, desc: "宽元素封顶 8px"}, // 600*0.15=90，封到 8
+		{size: -40, limit: 6, desc: "负边长按绝对值处理"}, // |−40|*0.15=6
+		{size: 0, limit: 0, desc: "零边长不抖动"},
+	}
+
+	for _, c := range cases {
+		for i := 0; i < 200; i++ { // 采样够多次，覆盖到边界附近
+			got := jitterOffset(c.size)
+			assert.LessOrEqual(t, math.Abs(got), c.limit, "%s: 偏移 %v 超出上限 %v", c.desc, got, c.limit)
+		}
+	}
+}
+
+// TestJitterInQuad_StaysInside 抖动后的落点必须仍在元素框内。
+func TestJitterInQuad_StaysInside(t *testing.T) {
+	// 100x40 的框，左上角 (10,20)；四角顺序：左上、右上、右下、左下
+	q := proto.DOMQuad{10, 20, 110, 20, 110, 60, 10, 60}
+	center := proto.Point{X: 60, Y: 40}
+
+	for i := 0; i < 500; i++ {
+		p := jitterInQuad(center, q)
+		assert.GreaterOrEqual(t, p.X, 10.0)
+		assert.LessOrEqual(t, p.X, 110.0)
+		assert.GreaterOrEqual(t, p.Y, 20.0)
+		assert.LessOrEqual(t, p.Y, 60.0)
+	}
+}
+
+// TestJitterInQuad_Scatters 同一元素多次抖动应产生不同落点，
+// 否则等于没抖动（rod 返回的可点位置本身是常量）。
+func TestJitterInQuad_Scatters(t *testing.T) {
+	q := proto.DOMQuad{0, 0, 200, 0, 200, 60, 0, 60}
+	center := proto.Point{X: 100, Y: 30}
+
+	seen := map[proto.Point]struct{}{}
+	for i := 0; i < 50; i++ {
+		seen[jitterInQuad(center, q)] = struct{}{}
+	}
+	assert.Greater(t, len(seen), 40, "50 次抖动应产生大量不同落点，实际只有 %d 个", len(seen))
 }
 
 // TestDelay_UnknownActionFallback 未知动作应回退而非 panic 或零等待。
