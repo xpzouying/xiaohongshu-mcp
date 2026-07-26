@@ -569,7 +569,7 @@ func moveToCommentScroller(page *rod.Page) {
 
 		// 落点在容器中心附近随机偏移，不固定在几何中心
 		cx, cy := (left+right)/2, (top+bottom)/2
-		_ = page.Mouse.MoveTo(proto.Point{
+		_ = humanize.MoveTo(page, proto.Point{
 			X: cx + (rand.Float64()-0.5)*(right-left)*0.3,
 			Y: cy + (rand.Float64()-0.5)*(bottom-top)*0.3,
 		})
@@ -577,7 +577,7 @@ func moveToCommentScroller(page *rod.Page) {
 	}
 	vw := page.MustEval(`() => window.innerWidth`).Int()
 	vh := page.MustEval(`() => window.innerHeight`).Int()
-	_ = page.Mouse.MoveTo(proto.Point{X: float64(vw) / 2, Y: float64(vh) / 2})
+	_ = humanize.MoveTo(page, proto.Point{X: float64(vw) / 2, Y: float64(vh) / 2})
 }
 
 func scrollToLastComment(page *rod.Page) {
