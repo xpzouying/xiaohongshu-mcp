@@ -12,6 +12,7 @@ import (
 
 	"github.com/avast/retry-go/v4"
 	"github.com/go-rod/rod"
+	"github.com/go-rod/rod/lib/proto"
 	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/xiaohongshu-mcp/errors"
 	"github.com/xpzouying/xiaohongshu-mcp/humanize"
@@ -451,7 +452,7 @@ func humanScroll(ctx context.Context, page *rod.Page, speed string, largeMode bo
 
 	for i := 0; i < max(1, pushCount); i++ {
 		scrollDelta := calculateScrollDelta(viewportHeight, baseRatio)
-		page.MustEval(`(delta) => { window.scrollBy(0, delta); }`, scrollDelta)
+		smartScroll(page, scrollDelta)
 
 		time.Sleep(150 * time.Millisecond) // 技术 settle：等 scrollBy 后懒加载渲染，再读 scrollTop
 
@@ -519,24 +520,36 @@ func scrollToCommentsArea(page *rod.Page) {
 	smartScroll(page, 100)
 }
 
-// smartScroll 智能滚动：触发滚轮事件以正确触发懒加载
+// smartScroll 用真实滚轮向下滚 delta 像素（触发评论懒加载）。
 func smartScroll(page *rod.Page, delta float64) {
-	page.MustEval(`(delta) => {
-		// 查找滚动目标元素
-		let targetElement = document.querySelector('.note-scroller') 
-			|| document.querySelector('.interaction-container') 
-			|| document.documentElement;
-		
-		// 触发滚轮事件（关键！这样才能触发懒加载）
-		const wheelEvent = new WheelEvent('wheel', {
-			deltaY: delta,
-			deltaMode: 0, // 像素模式
-			bubbles: true,
-			cancelable: true,
-			view: window
-		});
-		targetElement.dispatchEvent(wheelEvent);
-	}`, delta)
+	// 指针落在评论滚动容器上，滚轮才只作用于评论区（否则会滚整页）
+	moveToCommentScroller(page)
+
+	steps := int(delta / 120)
+	if steps < 1 {
+		steps = 1
+	}
+	_ = page.Mouse.Scroll(0, delta, steps)
+}
+
+// moveToCommentScroller 把指针移到评论滚动容器中心；找不到则退回视口中心。
+func moveToCommentScroller(page *rod.Page) {
+	for _, sel := range []string{".note-scroller", ".comments-container"} {
+		el, err := page.Timeout(2 * time.Second).Element(sel)
+		if err != nil {
+			continue
+		}
+		shape, err := el.Shape()
+		if err != nil || len(shape.Quads) == 0 {
+			continue
+		}
+		q := shape.Quads[0]
+		_ = page.Mouse.MoveTo(proto.Point{X: (q[0] + q[4]) / 2, Y: (q[1] + q[5]) / 2})
+		return
+	}
+	vw := page.MustEval(`() => window.innerWidth`).Int()
+	vh := page.MustEval(`() => window.innerHeight`).Int()
+	_ = page.Mouse.MoveTo(proto.Point{X: float64(vw) / 2, Y: float64(vh) / 2})
 }
 
 func scrollToLastComment(page *rod.Page) {
