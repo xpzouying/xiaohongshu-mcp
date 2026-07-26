@@ -59,8 +59,8 @@ func DefaultCommentLoadConfig() CommentLoadConfig {
 // 之所以必须在这一层做：配置从 MCP 和 HTTP 两条路进来，字段名和结构都不一样，
 // 漏传很容易发生。HTTP 侧要的是嵌套的 comment_config，传扁平字段会被
 // ShouldBindJSON 静默丢掉，于是 MaxCommentItems=0；而 0 以前表示「无上限」，
-// 一次详情请求就会滚满 defaultMaxAttempts(500) 轮——正是要避免的给平台刷日志。
-// 放在 action 层而不是某个 handler 里，两条路径和以后新增的调用方都能覆盖到。
+// 一次详情请求就会滚满 defaultMaxAttempts(500) 轮。放在 action 层而不是某个
+// handler 里，两条路径和以后新增的调用方都能覆盖到。
 //
 // 真要拉更多评论，显式传一个大的 MaxCommentItems。
 func (c CommentLoadConfig) normalize() CommentLoadConfig {
@@ -493,9 +493,9 @@ func humanScroll(ctx context.Context, page *rod.Page, speed string, largeMode bo
 		}
 	}
 
-	// 兜底：常规幅度没推动，加大力度再滚一次，仍走真实滚轮。
-	// 不能用 window.scrollTo：详情页评论是在容器内滚动的，window 的 scrollTop 恒为 0
-	// （见 getScrollTop），滚 window 既滚错对象、又是一次 JS 注入。
+	// 兜底：常规幅度没推动，加大力度再滚一次。
+	// 不用 window.scrollTo：详情页评论在容器内滚动，window 的 scrollTop 恒为 0
+	// （见 getScrollTop）。实测滚 window 推不动评论容器，读回来的位移也不是它的。
 	if !scrolled && pushCount > 0 {
 		smartScroll(page, float64(viewportHeight)*3)
 		time.Sleep(400 * time.Millisecond) // 技术 settle：等滚动落位
