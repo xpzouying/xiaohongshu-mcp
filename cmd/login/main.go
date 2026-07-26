@@ -17,9 +17,11 @@ func main() {
 	flag.Parse()
 
 	// 登录的时候，需要界面，所以不能无头模式。
-	// 登录与后续运行用相同的固定指纹（若设了 XHS_FP_SEED）。
+	// 登录与后续运行共用同一个 seed：首次登录生成并写入会话文件，之后一直复用。
+	store := cookies.NewLoadCookie(cookies.GetCookiesFilePath())
+
 	b := browser.NewBrowser(false,
-		browser.WithFingerprintSeed(configs.FingerprintSeedFromEnv()),
+		browser.WithFingerprintSeed(configs.ResolveFingerprintSeed(store)),
 		browser.WithProxy(configs.ProxyFromEnv()),
 	)
 	defer b.Close()

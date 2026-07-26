@@ -6,6 +6,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/xiaohongshu-mcp/browser"
 	"github.com/xpzouying/xiaohongshu-mcp/configs"
+	"github.com/xpzouying/xiaohongshu-mcp/cookies"
 )
 
 // version 构建版本号，发布时通过 -ldflags "-X main.version=vX.Y.Z" 注入。
@@ -30,8 +31,10 @@ func main() {
 	logrus.Infof("using browser binary: %s", binPath)
 
 	configs.InitHeadless(headless)
-	// 入口层读 env、解析成固定指纹 seed 和代理，经 configs 透传给浏览器工厂。
-	configs.SetFingerprintSeed(configs.FingerprintSeedFromEnv())
+	// 入口层解析出 seed 和代理，经 configs 透传给浏览器工厂。
+	// seed 取值：环境变量 > 会话文件 > 新生成并写回，保证同一账号每次启动一致。
+	configs.SetFingerprintSeed(configs.ResolveFingerprintSeed(
+		cookies.NewLoadCookie(cookies.GetCookiesFilePath())))
 	configs.SetProxy(configs.ProxyFromEnv())
 
 	// 初始化服务
