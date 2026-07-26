@@ -391,22 +391,13 @@ func clickElementWithHumanBehavior(ctx context.Context, page *rod.Page, el *rod.
 	err := retry.Do(
 		func() error {
 			// 滚动到元素
-			el.MustEval(`() => {
-				try {
-					this.scrollIntoView({behavior: 'smooth', block: 'center'});
-				} catch (e) {}
-			}`)
+			if err := el.ScrollIntoView(); err != nil {
+				return err
+			}
 
 			humanize.Delay(ctx, humanize.Reading)
 
-			if box, err := el.Shape(); err == nil && len(box.Quads) > 0 {
-				x := float64(box.Quads[0][0]+box.Quads[0][4]) / 2
-				y := float64(box.Quads[0][1]+box.Quads[0][5]) / 2
-				page.Mouse.MustMoveTo(x, y)
-				humanize.Delay(ctx, humanize.BeforeClick)
-			}
-
-			// 点击
+			// 点击（humanize.Click 自己取落点并移动过去）
 			if err := humanize.Click(el); err != nil {
 				return err // 返回错误以触发重试
 			}
@@ -521,22 +512,44 @@ func scrollToCommentsArea(page *rod.Page) {
 }
 
 // smartScroll 向下滚动 delta 像素，触发评论区懒加载。
+// 按滚轮格逐格发送，每格幅度小幅浮动、格间留间隔。
 func smartScroll(page *rod.Page, delta float64) {
 	// 指针落在评论滚动容器上，滚轮才只作用于评论区（否则会滚整页）
 	moveToCommentScroller(page)
 
-	steps := int(delta / 120)
-	if steps < 1 {
-		steps = 1
+	for remain := delta; remain > 0; {
+		notch := scrollNotchSize()
+		if notch > remain {
+			notch = remain
+		}
+
+		if err := page.Mouse.Scroll(0, notch, 1); err != nil {
+			return
+		}
+		remain -= notch
+
+		if remain > 0 {
+			time.Sleep(scrollNotchInterval())
+		}
 	}
-	_ = page.Mouse.Scroll(0, delta, steps)
+}
+
+// scrollNotchSize 单格滚轮的幅度，围绕标准的 120px 浮动。
+func scrollNotchSize() float64 {
+	return 100 + rand.Float64()*40
+}
+
+// scrollNotchInterval 连续滚轮格之间的间隔。
+func scrollNotchInterval() time.Duration {
+	return time.Duration(20+rand.Intn(45)) * time.Millisecond
 }
 
 // commentScrollerSelectors 评论区滚动容器，按优先级排列。
 // 滚动与测量位移必须指向同一个容器，因此共用这一份定义。
 var commentScrollerSelectors = []string{".note-scroller", ".comments-container"}
 
-// moveToCommentScroller 把指针移到评论滚动容器中心；找不到则退回视口中心。
+// moveToCommentScroller 把指针移到评论滚动容器内；找不到则退回视口中心。
+// 指针已在容器内时不再移动，避免重复落到同一点。
 func moveToCommentScroller(page *rod.Page) {
 	for _, sel := range commentScrollerSelectors {
 		el, err := page.Timeout(2 * time.Second).Element(sel)
@@ -548,7 +561,18 @@ func moveToCommentScroller(page *rod.Page) {
 			continue
 		}
 		q := shape.Quads[0]
-		_ = page.Mouse.MoveTo(proto.Point{X: (q[0] + q[4]) / 2, Y: (q[1] + q[5]) / 2})
+		left, top, right, bottom := q[0], q[1], q[4], q[5]
+
+		if pos := page.Mouse.Position(); pos.X > left && pos.X < right && pos.Y > top && pos.Y < bottom {
+			return
+		}
+
+		// 落点在容器中心附近随机偏移，不固定在几何中心
+		cx, cy := (left+right)/2, (top+bottom)/2
+		_ = page.Mouse.MoveTo(proto.Point{
+			X: cx + (rand.Float64()-0.5)*(right-left)*0.3,
+			Y: cy + (rand.Float64()-0.5)*(bottom-top)*0.3,
+		})
 		return
 	}
 	vw := page.MustEval(`() => window.innerWidth`).Int()
