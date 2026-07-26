@@ -53,14 +53,27 @@ func ClickNoWait(elem *rod.Element) error {
 }
 
 // Type 逐字符输入文本，字间带间隔。
+// 元素只在开头聚焦一次，后续插入都落在该焦点上。
 func Type(ctx context.Context, elem *rod.Element, text string) error {
 	dist := defaultProvider.Timing()[Keystroke]
+
+	if err := elem.Focus(); err != nil {
+		return err
+	}
+	if err := elem.WaitEnabled(); err != nil {
+		return err
+	}
+	if err := elem.WaitWritable(); err != nil {
+		return err
+	}
+
+	page := elem.Page().Context(ctx)
 
 	for _, r := range text {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if err := elem.Input(string(r)); err != nil {
+		if err := page.InsertText(string(r)); err != nil {
 			return err
 		}
 
