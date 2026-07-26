@@ -256,10 +256,8 @@ func findCommentElement(ctx context.Context, page *rod.Page, commentID, userID s
 
 		// === 5. 继续向下滚动 ===
 		logrus.Infof("继续向下滚动...")
-		_, err := page.Eval(`() => { window.scrollBy(0, window.innerHeight * 0.8); return true; }`)
-		if err != nil {
-			logrus.Warnf("滚动失败: %v", err)
-		}
+		vh := page.MustEval(`() => window.innerHeight`).Int()
+		smartScroll(page, float64(vh)*0.8)
 		time.Sleep(500 * time.Millisecond) // 技术 settle：等滚动后内容加载
 
 		// === 6. 滚动后立即查找（边滚动边查找）===
