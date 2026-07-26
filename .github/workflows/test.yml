@@ -27,6 +27,15 @@ jobs:
       - name: Unit tests
         run: go test ./...
 
+      # 交叉编译检查：发布产物覆盖五个平台，但 CI 默认只在 linux/amd64 上构建，
+      # 平台相关的编译错误会拖到发版时才暴露。这里只编译不留产物，几秒钟。
+      - name: Cross-compile check
+        run: |
+          for target in darwin/arm64 darwin/amd64 linux/amd64 linux/arm64 windows/amd64; do
+            echo "==> $target"
+            GOOS=${target%/*} GOARCH=${target#*/} CGO_ENABLED=0 go build ./...
+          done
+
       # 集成测试只编译不运行：保证它们始终跟当前 API 一致、不烂掉，
       # 但绝不在 CI 启动有头浏览器（-run '^$' 匹配空，一个用例都不跑）。
       - name: Compile integration tests (no run)

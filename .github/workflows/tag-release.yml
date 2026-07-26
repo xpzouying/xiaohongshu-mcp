@@ -3,7 +3,7 @@ name: Tag and Release
 on:
   push:
     tags:
-      # 只匹配语义化版本 tag，不匹配 release.yml 自动生成的日期 tag
+      # 只匹配语义化版本 tag，不匹配历史遗留的日期 tag
       - 'v[0-9]+.[0-9]+.[0-9]+'
       - 'v[0-9]+.[0-9]+.[0-9]+-*'
   workflow_dispatch:
