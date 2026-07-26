@@ -520,7 +520,7 @@ func scrollToCommentsArea(page *rod.Page) {
 	smartScroll(page, 100)
 }
 
-// smartScroll 用真实滚轮向下滚 delta 像素（触发评论懒加载）。
+// smartScroll 向下滚动 delta 像素，触发评论区懒加载。
 func smartScroll(page *rod.Page, delta float64) {
 	// 指针落在评论滚动容器上，滚轮才只作用于评论区（否则会滚整页）
 	moveToCommentScroller(page)

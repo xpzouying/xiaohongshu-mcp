@@ -75,7 +75,7 @@ func (DefaultProvider) Timing() TimingProfile {
 	}
 }
 
-// defaultProvider 是包级默认 Provider。一账号一进程，进程级 Provider 即该账号的行为参数。
+// defaultProvider 是包级默认 Provider。
 // 启动时可用 SetProvider 注入替换，业务代码零改动。
 var defaultProvider Provider = DefaultProvider{}
 
