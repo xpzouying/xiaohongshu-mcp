@@ -356,7 +356,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				DestructiveHint: boolPtr(true),
 			},
 		},
-		func(ctx context.Context, req *mcp.CallToolRequest, args ReplyCommentArgs) (*mcp.CallToolResult, any, error) {
+		withPanicRecovery("reply_comment_in_feed", func(ctx context.Context, req *mcp.CallToolRequest, args ReplyCommentArgs) (*mcp.CallToolResult, any, error) {
 			if args.CommentID == "" && args.UserID == "" {
 				return &mcp.CallToolResult{
 					IsError: true,
@@ -373,7 +373,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 			}
 			result := appServer.handleReplyComment(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
-		},
+		}),
 	)
 
 	// 工具 11: 发布视频（仅本地文件）

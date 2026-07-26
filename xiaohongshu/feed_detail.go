@@ -636,53 +636,28 @@ func getCommentCount(page *rod.Page) int {
 	return result
 }
 
+// getTotalCommentCount 取笔记的评论总数，读 __INITIAL_STATE__ 里的
+// interactInfo.commentCount，不依赖评论区文案。取不到返回 0。
 func getTotalCommentCount(page *rod.Page) int {
-	var result int
-
-	// 使用retry-go来处理可能的DOM查询失败
-	err := retry.Do(
-		func() error {
-			// 使用 Go 获取总评论数元素
-			totalEl, err := page.Timeout(2 * time.Second).Element(".comments-container .total")
-			if err != nil {
-				return err
-			}
-
-			// 获取文本内容
-			text, err := totalEl.Text()
-			if err != nil {
-				return err
-			}
-
-			// 使用正则提取数字
-			re := regexp.MustCompile(`共(\d+)条评论`)
-			matches := re.FindStringSubmatch(text)
-			if len(matches) > 1 {
-				count, err := strconv.Atoi(matches[1])
-				if err != nil {
-					return err
-				}
-				result = count
-			} else {
-				result = 0
-			}
-
-			return nil
-		},
-		retry.Attempts(3),
-		retry.Delay(100*time.Millisecond),
-		retry.MaxJitter(200*time.Millisecond),
-		retry.OnRetry(func(n uint, err error) {
-			logrus.Debugf("获取总评论计数重试 #%d: %v", n, err)
-		}),
-	)
-
+	res, err := page.Eval(`() => {
+		const m = window.__INITIAL_STATE__?.note?.noteDetailMap;
+		if (!m) return "";
+		for (const v of Object.values(m)) {
+			const c = v?.note?.interactInfo?.commentCount;
+			if (c !== undefined && c !== null) return String(c);
+		}
+		return "";
+	}`)
 	if err != nil {
-		logrus.Warnf("获取总评论计数失败: %v", err)
-		return 0 // 失败时返回0
+		logrus.Debugf("获取总评论计数失败: %v", err)
+		return 0
 	}
 
-	return result
+	count, err := strconv.Atoi(strings.TrimSpace(res.Value.Str()))
+	if err != nil {
+		return 0
+	}
+	return count
 }
 
 func checkNoCommentsArea(page *rod.Page) bool {

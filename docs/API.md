@@ -280,11 +280,7 @@ GET /api/v1/feeds/list
           },
           "interactInfo": {
             "liked": false,
-            "likedCount": "100",
-            "collected": false,
-            "collectedCount": "50",
-            "commentCount": "30",
-            "sharedCount": "10"
+            "likedCount": "100"
           },
           "cover": {
             "width": 1080,
@@ -324,11 +320,11 @@ GET /api/v1/feeds/list
   - `capa.duration`: 视频时长（秒）
 - `noteCard.interactInfo`: 互动信息
   - `liked`: 当前用户是否已点赞
-  - `collected`: 当前用户是否已收藏
-  - `likedCount`: 点赞数
-  - `collectedCount`: 收藏数
-  - `commentCount`: 评论数
-  - `sharedCount`: 分享数
+  - `likedCount`: 点赞数（格式化字符串，如 `"1.7万"`、`"10万+"`）
+
+> 注意：推荐流只下发 `liked` 和 `likedCount`。`commentCount`、`collectedCount`、
+> `sharedCount` 等字段虽然在响应结构里存在，但推荐流不提供数据，取到的是空字符串。
+> 需要评论数请改用「搜索 Feeds」或「获取 Feed 详情」。
 ```
 
 #### 4.2 搜索 Feeds
