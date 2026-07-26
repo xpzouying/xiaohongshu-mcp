@@ -71,7 +71,10 @@ var filterOptionsMap = map[int][]internalFilterOption{
 	},
 }
 
-// convertToInternalFilters 将 FilterOption 转换为内部的 internalFilterOption 列表
+// convertToInternalFilters 把用户传的 FilterOption 转成内部筛选项列表。
+//
+// 这里同时是唯一的校验入口：选项只能从 filterOptionsMap 里取，取不到就报错，
+// 所以拿到的每一项按构造就是合法的，后续无需再校验一遍。
 func convertToInternalFilters(filter FilterOption) ([]internalFilterOption, error) {
 	var internalFilters []internalFilterOption
 
@@ -139,27 +142,6 @@ func findInternalOption(filtersIndex int, text string) (internalFilterOption, er
 	return internalFilterOption{}, fmt.Errorf("在筛选组 %d 中未找到文本 '%s'", filtersIndex, text)
 }
 
-// validateInternalFilterOption 验证内部筛选选项是否在有效范围内
-func validateInternalFilterOption(filter internalFilterOption) error {
-	// 检查筛选组索引是否有效
-	if filter.FiltersIndex < 1 || filter.FiltersIndex > 5 {
-		return fmt.Errorf("无效的筛选组索引 %d，有效范围为 1-5", filter.FiltersIndex)
-	}
-
-	// 检查标签索引是否在对应筛选组的有效范围内
-	options, exists := filterOptionsMap[filter.FiltersIndex]
-	if !exists {
-		return fmt.Errorf("筛选组 %d 不存在", filter.FiltersIndex)
-	}
-
-	for _, o := range options {
-		if o.Text == filter.Text {
-			return nil
-		}
-	}
-	return fmt.Errorf("筛选组 %d 中没有选项 %q", filter.FiltersIndex, filter.Text)
-}
-
 type SearchAction struct {
 	page *rod.Page
 }
@@ -193,16 +175,11 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 			allInternalFilters = append(allInternalFilters, internalFilters...)
 		}
 
-		// 验证所有内部筛选选项
-		for _, filter := range allInternalFilters {
-			if err := validateInternalFilterOption(filter); err != nil {
-				return nil, fmt.Errorf("筛选选项验证失败: %w", err)
-			}
-		}
-
-		// 悬停在筛选按钮上
+		// 悬停在筛选按钮上展开面板
 		filterButton := page.MustElement(`div.filter`)
-		filterButton.MustHover()
+		if err := humanize.Hover(filterButton); err != nil {
+			return nil, fmt.Errorf("悬停筛选按钮失败: %w", err)
+		}
 		humanize.Delay(ctx, humanize.BeforeClick)
 
 		// 等待筛选面板出现

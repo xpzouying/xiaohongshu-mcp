@@ -101,6 +101,24 @@ func MoveTo(page *rod.Page, pt proto.Point) error {
 	return moveMouseCurved(page.Mouse, pt)
 }
 
+// Hover 沿曲线把指针移到元素上，不点击。
+// 用于靠悬停触发的交互（如展开 hover 浮层）。
+// 不用 rod 的 elem.Hover：它是一次 MoveTo，指针会直接瞬移过去。
+func Hover(elem *rod.Element) error {
+	shape, err := elem.Shape()
+	if err != nil {
+		return err
+	}
+	if len(shape.Quads) == 0 {
+		return errors.New("元素无可悬停区域")
+	}
+
+	q := shape.Quads[0]
+	center := proto.Point{X: (q[0] + q[4]) / 2, Y: (q[1] + q[5]) / 2}
+
+	return moveMouseCurved(elem.Page().Mouse, jitterInQuad(center, q))
+}
+
 // ClickAt 沿曲线移到指定坐标再点击。
 // 用于点不到元素、只能算坐标的场景（如取元素区域内的偏移点、点击空白处）；
 // 有元素可点时用 Click。

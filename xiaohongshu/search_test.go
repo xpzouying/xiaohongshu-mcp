@@ -16,11 +16,11 @@ func TestFilterValidation(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, internalFilters, 2)
 
-	// 验证转换后的内部筛选选项
-	for _, filter := range internalFilters {
-		err := validateInternalFilterOption(filter)
-		require.NoError(t, err)
-	}
+	// 转换结果应带上正确的组号与原文本
+	require.Equal(t, 2, internalFilters[0].FiltersIndex)
+	require.Equal(t, "图文", internalFilters[0].Text)
+	require.Equal(t, 3, internalFilters[1].FiltersIndex)
+	require.Equal(t, "一天内", internalFilters[1].Text)
 
 	// 测试无效的筛选值
 	invalidFilter := FilterOption{
