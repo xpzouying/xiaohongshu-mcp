@@ -105,13 +105,12 @@ func hasPopCover(page *rod.Page) bool {
 
 // dismissPopCover 关掉挡住发布 TAB 的浮层，逐级降级。
 //
-// 顺序：Esc → 点空白 → JS 摘节点。前两步是真实手势，优先用；最后一步是
-// Eval("this.remove()")，是注入，但它只要节点在就必定生效。
+// 顺序：Esc → 点空白 → 摘节点。前两步走正常交互，多数浮层这样就关掉了；
+// 都无效才落到最后一步。
 //
-// 为什么保留最后这一步：真机探针实测发布页 d-popover 数量为 0，说明这条
-// 路径本就极少触发——真实收益接近零。而 Esc 关不关得掉取决于小红书自己
-// 有没有写这个监听器，无从预判。拿"可能有效"换掉"必定有效"，赌上的是
-// 发布直接失败（mustClickPublishTab 空转 15s）。不值得。
+// 保留最后一步是因为它只要节点还在就必定生效：Esc 和点空白关不关得掉取决于
+// 页面自己有没有写对应的处理，无从预判，不该拿发布失败去赌（关不掉会让
+// mustClickPublishTab 空转满 15 秒）。
 func dismissPopCover(page *rod.Page) {
 	if err := page.Keyboard.Press(input.Escape); err != nil {
 		logrus.Debugf("按 Esc 关闭浮层失败: %v", err)
@@ -127,12 +126,12 @@ func dismissPopCover(page *rod.Page) {
 		return
 	}
 
-	// 真实手势都无效，退回摘节点，保证发布能继续。
+	// 前两步都无效，退回摘节点，保证发布能继续。
 	has, elem, err := page.Has("div.d-popover")
 	if err != nil || !has {
 		return
 	}
-	logrus.Warn("Esc 与点击空白都未能关闭浮层，退回 JS 移除节点")
+	logrus.Warn("Esc 与点击空白都未能关闭浮层，改为移除该节点")
 	if err := elem.Remove(); err != nil {
 		logrus.Warnf("移除浮层失败: %v", err)
 	}
@@ -689,8 +688,8 @@ func inputTags(ctx context.Context, contentElem *rod.Element, tags []string) err
 }
 
 func inputTag(ctx context.Context, contentElem *rod.Element, tag string) error {
-	// 输入 # 触发话题联想。必须走 humanize.Type：rod 的 elem.Input 会在 CDP 插入后
-	// 再补一次 JS dispatchEvent(new Event('input'/'change'))，isTrusted=false。
+	// 输入 # 触发话题联想。统一走 humanize.Type，不用 elem.Input——后者除了
+	// CDP 插入还会额外派发一轮 input/change，与逐字符输入的事件序列对不上。
 	if err := humanize.Type(ctx, contentElem, "#"); err != nil {
 		return errors.Wrap(err, "输入#失败")
 	}
@@ -927,8 +926,8 @@ func setDateTime(ctx context.Context, page *rod.Page, t time.Time) error {
 		return errors.Wrap(err, "查找日期时间输入框失败")
 	}
 
-	// SelectAllText 走 Eval(this.select())：JS 驱动的选中，不派发伪造事件，
-	// 信号弱于 elem.Input，本轮不动（改法需平台相关的 Ctrl/Cmd+A 或三击）。
+	// SelectAllText 走 Eval(this.select())，只改选区、不额外派发事件，暂时保留。
+	// 换成键盘全选要区分 Ctrl/Cmd，换成三击又可能触发日期控件的其他行为。
 	if err := elem.SelectAllText(); err != nil {
 		return errors.Wrap(err, "选择日期时间文本失败")
 	}
@@ -1234,8 +1233,8 @@ func searchAndSelectProduct(ctx context.Context, page *rod.Page, modal *rod.Elem
 		return errors.Wrap(err, "未找到商品搜索框")
 	}
 
-	// 2. 清空并输入关键词。SelectAllText 走 Eval(this.select())：JS 驱动的选中，不派发伪造事件，
-	// 信号弱于 elem.Input，本轮不动（改法需平台相关的 Ctrl/Cmd+A 或三击）。
+	// 2. 清空并输入关键词。SelectAllText 走 Eval(this.select())，只改选区、不额外
+	// 派发事件，暂时保留（换键盘全选要区分 Ctrl/Cmd）。
 	if err := searchInput.SelectAllText(); err != nil {
 		slog.Warn("选择搜索框文本失败", "error", err)
 	}
