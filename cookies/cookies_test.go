@@ -76,10 +76,12 @@ func TestLoadSaveDeleteCookies(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, decodeJSON(t, want), decodeJSON(t, got))
 
-	// 落盘格式是 v2 外层对象，不再是裸数组
+	// 落盘是 v2 外层对象，不再是裸数组。只看结构，不看排版
 	onDisk, err := os.ReadFile(path)
 	assert.NoError(t, err)
-	assert.Contains(t, string(onDisk), `"version": 2`)
+	var f map[string]any
+	assert.NoError(t, json.Unmarshal(onDisk, &f))
+	assert.Equal(t, float64(2), f["version"])
 
 	// 删除后文件消失，且再次删除幂等（不报错）
 	assert.NoError(t, c.DeleteCookies())
@@ -98,7 +100,7 @@ func TestSeed(t *testing.T) {
 
 		got, err := c.LoadCookies()
 		assert.NoError(t, err)
-		assert.Equal(t, raw, got)
+		assert.Equal(t, decodeJSON(t, raw), decodeJSON(t, got))
 		assert.Equal(t, 0, c.LoadSeed())
 	})
 
