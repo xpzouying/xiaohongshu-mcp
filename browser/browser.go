@@ -1,6 +1,7 @@
 package browser
 
 import (
+	"fmt"
 	"net/url"
 	"strings"
 
@@ -10,7 +11,6 @@ import (
 )
 
 type browserConfig struct {
-	binPath string
 	// fingerprintSeed 固定指纹 seed；>0 时钉死，同账号每次同一套指纹。0 = 每次随机。
 	fingerprintSeed int
 	// proxy 代理地址；非空时启用。
@@ -18,12 +18,6 @@ type browserConfig struct {
 }
 
 type Option func(*browserConfig)
-
-func WithBinPath(binPath string) Option {
-	return func(c *browserConfig) {
-		c.binPath = binPath
-	}
-}
 
 // WithProxy 设置代理（http/https/socks5）。空字符串视为不启用。
 func WithProxy(proxy string) Option {
@@ -60,6 +54,15 @@ func NewBrowser(headless bool, options ...Option) *headless_browser.Browser {
 		opt(cfg)
 	}
 
+	// 只用内置浏览器，没有别的来源。二进制必须显式传给 go-rod，
+	// 否则 rod 会自行下载一个默认 Chromium：它不是内置浏览器，也不认识下面
+	// 这些 flag（未知 flag 被静默忽略，日志照样打印 "fingerprint enabled"），
+	// 属于无声降级。宁可不启动，也不启动一个不对的浏览器。
+	binPath, err := EnsureBrowser()
+	if err != nil {
+		panic(fmt.Sprintf("内置浏览器不可用，拒绝启动: %v", err))
+	}
+
 	opts := []headless_browser.Option{
 		headless_browser.WithHeadless(headless),
 		// 用内置浏览器的默认配置，不强制 UA。
@@ -70,9 +73,7 @@ func NewBrowser(headless bool, options ...Option) *headless_browser.Browser {
 		// 注：hardware-concurrency 不设，交给 seed 派生。
 		headless_browser.WithExtraFlags(map[string]string{"fingerprint-brand": "Chrome"}),
 	}
-	if cfg.binPath != "" {
-		opts = append(opts, headless_browser.WithChromeBinPath(cfg.binPath))
-	}
+	opts = append(opts, headless_browser.WithChromeBinPath(binPath))
 
 	// 代理（由调用方经 Option 传入，env 读取放在入口层）。
 	if cfg.proxy != "" {

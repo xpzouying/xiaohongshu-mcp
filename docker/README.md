@@ -109,10 +109,8 @@ docker run -e XHS_PROXY=http://user:pass@proxy:port xpzouying/xiaohongshu-mcp
 
 ```yaml
 environment:
-  - ROD_BROWSER_BIN=/opt/browser/chrome
   - COOKIES_PATH=/app/data/cookies.json
   - HOME=/app/data/home
-  - XDG_CACHE_HOME=/app/data/cache
   - XDG_CONFIG_HOME=/app/data/config
   - XHS_PROXY=http://user:pass@proxy:port
 ```

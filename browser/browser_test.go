@@ -30,11 +30,9 @@ func TestMaskProxyCredentials(t *testing.T) {
 // TestOptions 校验 Option 正确写入 browserConfig（New+Option 的接线）。
 func TestOptions(t *testing.T) {
 	cfg := &browserConfig{}
-	WithBinPath("/opt/browser/chrome")(cfg)
 	WithFingerprintSeed(98759)(cfg)
 	WithProxy("http://127.0.0.1:8080")(cfg)
 
-	assert.Equal(t, "/opt/browser/chrome", cfg.binPath)
 	assert.Equal(t, 98759, cfg.fingerprintSeed)
 	assert.Equal(t, "http://127.0.0.1:8080", cfg.proxy)
 }
@@ -42,7 +40,6 @@ func TestOptions(t *testing.T) {
 // TestOptions_Defaults 未传 Option 时各字段为零值（回退随机 seed / 不设代理）。
 func TestOptions_Defaults(t *testing.T) {
 	cfg := &browserConfig{}
-	assert.Equal(t, "", cfg.binPath)
 	assert.Equal(t, 0, cfg.fingerprintSeed)
 	assert.Equal(t, "", cfg.proxy)
 }
