@@ -454,7 +454,7 @@ func humanScroll(ctx context.Context, page *rod.Page, speed string, largeMode bo
 		scrollDelta := calculateScrollDelta(viewportHeight, baseRatio)
 		smartScroll(page, scrollDelta)
 
-		time.Sleep(150 * time.Millisecond) // 技术 settle：等 scrollBy 后懒加载渲染，再读 scrollTop
+		time.Sleep(150 * time.Millisecond) // 技术 settle：等滚动后懒加载渲染，再读 scrollTop
 
 		currentScrollTop = getScrollTop(page)
 		deltaThisTime := currentScrollTop - beforeTop
@@ -532,9 +532,13 @@ func smartScroll(page *rod.Page, delta float64) {
 	_ = page.Mouse.Scroll(0, delta, steps)
 }
 
+// commentScrollerSelectors 评论区滚动容器，按优先级排列。
+// 滚动与测量位移必须指向同一个容器，因此共用这一份定义。
+var commentScrollerSelectors = []string{".note-scroller", ".comments-container"}
+
 // moveToCommentScroller 把指针移到评论滚动容器中心；找不到则退回视口中心。
 func moveToCommentScroller(page *rod.Page) {
-	for _, sel := range []string{".note-scroller", ".comments-container"} {
+	for _, sel := range commentScrollerSelectors {
 		el, err := page.Timeout(2 * time.Second).Element(sel)
 		if err != nil {
 			continue
@@ -571,9 +575,17 @@ func getScrollTop(page *rod.Page) int {
 	// 使用retry-go来处理可能的DOM查询失败
 	err := retry.Do(
 		func() error {
-			evalResult := page.MustEval(`() => {
+			evalResult := page.MustEval(`(sels) => {
+				// 详情页的评论是在容器内滚动的，window 的 scrollTop 恒为 0，
+				// 必须读实际滚动的那个容器；容器不可滚时才退回 window。
+				for (const sel of sels) {
+					const el = document.querySelector(sel);
+					if (el && el.scrollHeight > el.clientHeight) {
+						return el.scrollTop;
+					}
+				}
 				return window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
-			}`)
+			}`, commentScrollerSelectors)
 
 			result = evalResult.Int()
 			return nil
