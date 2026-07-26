@@ -9,6 +9,9 @@ import (
 	"github.com/xpzouying/xiaohongshu-mcp/configs"
 )
 
+// version 构建版本号，发布时通过 -ldflags "-X main.version=vX.Y.Z" 注入。
+var version = "dev"
+
 func main() {
 	var (
 		headless bool
@@ -19,6 +22,8 @@ func main() {
 	flag.StringVar(&binPath, "bin", "", "浏览器二进制文件路径")
 	flag.StringVar(&port, "port", ":18060", "端口")
 	flag.Parse()
+
+	logrus.Infof("xiaohongshu-mcp version: %s", version)
 
 	if len(binPath) == 0 {
 		binPath = os.Getenv("ROD_BROWSER_BIN")

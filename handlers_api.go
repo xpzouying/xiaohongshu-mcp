@@ -275,6 +275,7 @@ func healthHandler(c *gin.Context) {
 	respondSuccess(c, map[string]any{
 		"status":    "healthy",
 		"service":   "xiaohongshu-mcp",
+		"version":   version,
 		"account":   "ai-report",
 		"timestamp": "now",
 	}, "服务正常")
