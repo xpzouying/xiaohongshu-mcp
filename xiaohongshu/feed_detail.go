@@ -38,13 +38,42 @@ type CommentLoadConfig struct {
 	ScrollSpeed         string
 }
 
+// 未显式指定时的默认值。
+const (
+	defaultMaxCommentItems     = 20
+	defaultMaxRepliesThreshold = 10
+	defaultScrollSpeed         = "normal"
+)
+
 func DefaultCommentLoadConfig() CommentLoadConfig {
 	return CommentLoadConfig{
 		ClickMoreReplies:    false,
-		MaxRepliesThreshold: 10,
-		MaxCommentItems:     0,
-		ScrollSpeed:         "normal",
+		MaxRepliesThreshold: defaultMaxRepliesThreshold,
+		MaxCommentItems:     defaultMaxCommentItems,
+		ScrollSpeed:         defaultScrollSpeed,
 	}
+}
+
+// normalize 把零值字段填回默认值。零值一律按「未设置」处理，不再按「无上限」。
+//
+// 之所以必须在这一层做：配置从 MCP 和 HTTP 两条路进来，字段名和结构都不一样，
+// 漏传很容易发生。HTTP 侧要的是嵌套的 comment_config，传扁平字段会被
+// ShouldBindJSON 静默丢掉，于是 MaxCommentItems=0；而 0 以前表示「无上限」，
+// 一次详情请求就会滚满 defaultMaxAttempts(500) 轮。放在 action 层而不是某个
+// handler 里，两条路径和以后新增的调用方都能覆盖到。
+//
+// 真要拉更多评论，显式传一个大的 MaxCommentItems。
+func (c CommentLoadConfig) normalize() CommentLoadConfig {
+	if c.MaxCommentItems <= 0 {
+		c.MaxCommentItems = defaultMaxCommentItems
+	}
+	if c.MaxRepliesThreshold <= 0 {
+		c.MaxRepliesThreshold = defaultMaxRepliesThreshold
+	}
+	if c.ScrollSpeed == "" {
+		c.ScrollSpeed = defaultScrollSpeed
+	}
+	return c
 }
 
 type FeedDetailAction struct {
@@ -62,6 +91,8 @@ func (f *FeedDetailAction) GetFeedDetail(ctx context.Context, feedID, xsecToken 
 }
 
 func (f *FeedDetailAction) GetFeedDetailWithConfig(ctx context.Context, feedID, xsecToken string, loadAllComments bool, config CommentLoadConfig) (*FeedDetailResponse, error) {
+	config = config.normalize()
+
 	page := f.page.Context(ctx).Timeout(10 * time.Minute)
 	url := makeFeedDetailURL(feedID, xsecToken)
 
@@ -462,11 +493,14 @@ func humanScroll(ctx context.Context, page *rod.Page, speed string, largeMode bo
 		}
 	}
 
+	// 兜底：常规幅度没推动，加大力度再滚一次。
+	// 不用 window.scrollTo：详情页评论在容器内滚动，window 的 scrollTop 恒为 0
+	// （见 getScrollTop）。实测滚 window 推不动评论容器，读回来的位移也不是它的。
 	if !scrolled && pushCount > 0 {
-		page.MustEval(`() => window.scrollTo(0, document.body.scrollHeight)`)
-		time.Sleep(400 * time.Millisecond) // 技术 settle：等 scrollTo 落位
+		smartScroll(page, float64(viewportHeight)*3)
+		time.Sleep(400 * time.Millisecond) // 技术 settle：等滚动落位
 		currentScrollTop = getScrollTop(page)
-		actualDelta = currentScrollTop - beforeTop + actualDelta
+		actualDelta += currentScrollTop - beforeTop
 		scrolled = actualDelta > 5
 	}
 

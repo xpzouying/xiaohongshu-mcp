@@ -131,7 +131,7 @@ func submitPublishVideo(ctx context.Context, page *rod.Page, title, content stri
 
 	// 处理定时发布
 	if scheduleTime != nil {
-		if err := setSchedulePublish(page, *scheduleTime); err != nil {
+		if err := setSchedulePublish(ctx, page, *scheduleTime); err != nil {
 			return errors.Wrap(err, "设置定时发布失败")
 		}
 		slog.Info("定时发布设置完成", "schedule_time", scheduleTime.Format("2006-01-02 15:04"))
@@ -143,7 +143,7 @@ func submitPublishVideo(ctx context.Context, page *rod.Page, title, content stri
 	}
 
 	// 绑定商品
-	if err := bindProducts(page, products); err != nil {
+	if err := bindProducts(ctx, page, products); err != nil {
 		return errors.Wrap(err, "绑定商品失败")
 	}
 
