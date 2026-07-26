@@ -1,5 +1,7 @@
 package xiaohongshu
 
+import "encoding/json"
+
 // 小红书 Feed 相关的数据结构定义
 
 // FeedResponse 表示从 __INITIAL_STATE__ 中获取的完整 Feed 响应
@@ -103,6 +105,116 @@ type FeedDetail struct {
 	User         User              `json:"user"`
 	InteractInfo InteractInfo      `json:"interactInfo"`
 	ImageList    []DetailImageInfo `json:"imageList"`
+	Video        *VideoDetail      `json:"video,omitempty"` // 视频笔记才有，图文笔记为 nil
+}
+
+// VideoDetail 详情页的视频信息，按页面 note.video 原样映射，不替调用方挑档位。
+type VideoDetail struct {
+	Image VideoImage      `json:"image"`
+	Capa  VideoCapability `json:"capa"`
+	Media VideoMedia      `json:"media"`
+	// Subtitles 字幕，从 mediaV2 里解出来（见 UnmarshalJSON）。key 为语言，另有 source 表示原始语种。
+	Subtitles map[string][]VideoSubtitle `json:"subtitles,omitempty"`
+}
+
+// UnmarshalJSON 额外解开 mediaV2。
+// mediaV2 是 media 的字符串化副本，字段基本重复，唯独字幕只在它里面有，
+// 所以只取字幕，不把整个副本塞进返回体。
+func (v *VideoDetail) UnmarshalJSON(data []byte) error {
+	type alias VideoDetail // 借别名避免递归调用本方法
+	aux := struct {
+		MediaV2 string `json:"mediaV2"`
+		*alias
+	}{alias: (*alias)(v)}
+
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	if aux.MediaV2 == "" {
+		return nil
+	}
+
+	var v2 struct {
+		Video struct {
+			Subtitles map[string][]VideoSubtitle `json:"subtitles"`
+		} `json:"video"`
+	}
+	// 字幕属于附加信息，解不出不影响视频地址，静默跳过
+	if err := json.Unmarshal([]byte(aux.MediaV2), &v2); err == nil {
+		v.Subtitles = v2.Video.Subtitles
+	}
+	return nil
+}
+
+// VideoImage 视频的首帧与缩略图，只有 fileid，需自行拼 CDN 地址。
+type VideoImage struct {
+	FirstFrameFileID string `json:"firstFrameFileid"`
+	ThumbnailFileID  string `json:"thumbnailFileid"`
+}
+
+// VideoMedia 视频媒体信息。
+type VideoMedia struct {
+	VideoID int64     `json:"videoId"`
+	Video   VideoMeta `json:"video"`
+	// Stream 按编码名分桶：h264/h265/av1/h266，同一编码下可有多档分辨率，也可能是空数组。
+	// 用 map 而不是写死字段，是为了小红书新增编码时不会被静默丢掉。
+	Stream map[string][]VideoStream `json:"stream"`
+}
+
+// VideoMeta 视频的整体信息。注意 Duration 是秒（四舍五入），精确时长看 VideoStream.Duration。
+type VideoMeta struct {
+	Duration    int    `json:"duration"`
+	MD5         string `json:"md5"`
+	HDRType     int    `json:"hdrType"`
+	DRMType     int    `json:"drmType"`
+	StreamTypes []int  `json:"streamTypes"`
+	BizName     int    `json:"bizName"`
+	BizID       string `json:"bizId"`
+}
+
+// VideoStream 单档视频流。
+// MasterURL 带 sign 与 t（过期时间戳）签名参数，有时效；BackupURLs 不带签名。
+type VideoStream struct {
+	MasterURL  string   `json:"masterUrl"`
+	BackupURLs []string `json:"backupUrls"`
+
+	Format      string `json:"format"`
+	Width       int    `json:"width"`
+	Height      int    `json:"height"`
+	Duration    int    `json:"duration"` // 毫秒
+	Size        int64  `json:"size"`     // 字节
+	FPS         int    `json:"fps"`
+	Rotate      int    `json:"rotate"`
+	QualityType string `json:"qualityType"`
+	StreamType  int    `json:"streamType"`
+	StreamDesc  string `json:"streamDesc"`
+	HDRType     int    `json:"hdrType"`
+
+	VideoCodec    string `json:"videoCodec"`
+	VideoBitrate  int    `json:"videoBitrate"`
+	VideoDuration int    `json:"videoDuration"`
+	AvgBitrate    int    `json:"avgBitrate"`
+
+	AudioCodec    string  `json:"audioCodec"`
+	AudioBitrate  int     `json:"audioBitrate"`
+	AudioDuration int     `json:"audioDuration"`
+	AudioChannels int     `json:"audioChannels"`
+	Volume        float64 `json:"volume"`
+
+	// 转码质量指标，小红书内部用
+	VMAF          float64 `json:"vmaf"`
+	PSNR          float64 `json:"psnr"`
+	SSIM          float64 `json:"ssim"`
+	Weight        int     `json:"weight"`
+	DefaultStream int     `json:"defaultStream"`
+}
+
+// VideoSubtitle 字幕文件，URL 为 .srt 直链，同样带签名有时效。
+type VideoSubtitle struct {
+	URL      string `json:"url"`
+	Language string `json:"language"`
+	Format   int    `json:"format"`
+	Type     int    `json:"type"`
 }
 
 // DetailImageInfo 表示详情页的图片信息
