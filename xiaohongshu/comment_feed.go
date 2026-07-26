@@ -190,117 +190,82 @@ func (f *CommentFeedAction) ReplyToComment(ctx context.Context, feedID, xsecToke
 	return nil
 }
 
-// findCommentElement 查找指定评论元素（参考 feed_detail.go 的滚动逻辑）
+// findCommentElement 滚动查找指定评论：优先按 commentID 命中，否则按 userID 匹配。
+// 每轮先在已渲染的评论里查一次，再判断是否到底，最后滚动加载更多。
 func findCommentElement(ctx context.Context, page *rod.Page, commentID, userID string) (*rod.Element, error) {
 	logrus.Infof("开始查找评论 - commentID: %s, userID: %s", commentID, userID)
 
 	const maxAttempts = 100
 
-	// 先滚动到评论区
 	scrollToCommentsArea(page)
 	humanize.Delay(ctx, humanize.BetweenScroll)
 
-	var lastCommentCount = 0
+	lastCommentCount := 0
 	stagnantChecks := 0
 
-	logrus.Infof("开始循环查找，最大尝试次数: %d", maxAttempts)
-
 	for attempt := 0; attempt < maxAttempts; attempt++ {
-		logrus.Infof("=== 查找尝试 %d/%d ===", attempt+1, maxAttempts)
+		// 1. 先查已渲染的评论——目标可能一开始就在页面上
+		if el := lookupComment(page, commentID, userID); el != nil {
+			logrus.Infof("✓ 找到目标评论（尝试 %d 次）", attempt+1)
+			return el, nil
+		}
 
-		// === 1. 检查是否到达底部 ===
+		// 2. 到底则不再加载
 		if checkEndContainer(page) {
 			logrus.Info("已到达评论底部，未找到目标评论")
 			break
 		}
 
-		// === 2. 获取当前评论数量 ===
+		// 3. 评论数停滞说明加载不动了
 		currentCount := getCommentCount(page)
-		logrus.Infof("当前评论数: %d", currentCount)
-
 		if currentCount != lastCommentCount {
-			logrus.Infof("✓ 评论数增加: %d -> %d", lastCommentCount, currentCount)
 			lastCommentCount = currentCount
 			stagnantChecks = 0
 		} else {
 			stagnantChecks++
-			if stagnantChecks%5 == 0 {
-				logrus.Infof("评论数停滞 %d 次", stagnantChecks)
+			if stagnantChecks >= 10 {
+				logrus.Info("评论数量停滞，停止查找")
+				break
 			}
 		}
 
-		// === 3. 停滞检测 ===
-		if stagnantChecks >= 10 {
-			logrus.Info("评论数量停滞超过10次，可能已加载完所有评论")
-			break
-		}
-
-		// === 4. 先滚动到最后一个评论（触发懒加载）===
+		// 4. 滚到最后一条评论再继续下滚，触发懒加载
 		if currentCount > 0 {
-			logrus.Infof("滚动到最后一个评论（共 %d 条）", currentCount)
-
-			// 使用 Go 获取所有评论元素
-			elements, err := page.Timeout(2 * time.Second).Elements(".parent-comment, .comment-item, .comment")
-			if err == nil && len(elements) > 0 {
-				// 滚动到最后一个评论
-				lastComment := elements[len(elements)-1]
-				err := lastComment.ScrollIntoView()
-				if err != nil {
-					logrus.Warnf("滚动到最后一个评论失败: %v", err)
+			if elements, err := page.Timeout(2 * time.Second).Elements(".parent-comment, .comment-item, .comment"); err == nil && len(elements) > 0 {
+				if err := elements[len(elements)-1].ScrollIntoView(); err != nil {
+					logrus.Debugf("滚动到最后一条评论失败: %v", err)
 				}
-			} else {
-				logrus.Warnf("未找到评论元素: %v", err)
 			}
-			time.Sleep(300 * time.Millisecond) // 技术 settle：等懒加载渲染
+			humanize.Delay(ctx, humanize.BetweenScroll)
 		}
 
-		// === 5. 继续向下滚动 ===
-		logrus.Infof("继续向下滚动...")
-		vh := page.MustEval(`() => window.innerHeight`).Int()
-		smartScroll(page, float64(vh)*0.8)
-		time.Sleep(500 * time.Millisecond) // 技术 settle：等滚动后内容加载
-
-		// === 6. 滚动后立即查找（边滚动边查找）===
-		// 优先通过 commentID 查找（使用 Timeout 避免长时间等待）
-		if commentID != "" {
-			selector := fmt.Sprintf("#comment-%s", commentID)
-			logrus.Infof("尝试通过 commentID 查找: %s", selector)
-
-			// 使用 Timeout 避免长时间等待
-			el, err := page.Timeout(2 * time.Second).Element(selector)
-			if err == nil && el != nil {
-				logrus.Infof("✓ 通过 commentID 找到评论: %s (尝试 %d 次)", commentID, attempt+1)
-				return el, nil
-			}
-			logrus.Infof("未找到 commentID (2秒超时)")
-		}
-
-		// 通过 userID 查找
-		if userID != "" {
-			logrus.Infof("尝试通过 userID 查找: %s", userID)
-
-			// 使用 Timeout 避免长时间等待
-			elements, err := page.Timeout(2 * time.Second).Elements(".comment-item, .comment, .parent-comment")
-			if err == nil && len(elements) > 0 {
-				logrus.Infof("找到 %d 个评论元素", len(elements))
-				for i, el := range elements {
-					// 快速检查，不等待
-					userEl, err := el.Timeout(500 * time.Millisecond).Element(fmt.Sprintf(`[data-user-id="%s"]`, userID))
-					if err == nil && userEl != nil {
-						logrus.Infof("✓ 通过 userID 在第 %d 个元素中找到评论: %s (尝试 %d 次)", i+1, userID, attempt+1)
-						return el, nil
-					}
-				}
-				logrus.Infof("在 %d 个元素中未找到匹配的 userID", len(elements))
-			} else {
-				logrus.Infof("获取评论元素失败或超时: %v", err)
-			}
-		}
-
-		logrus.Infof("本次尝试未找到目标评论，继续下一轮...")
-
+		humanScroll(ctx, page, "normal", false, 1)
 		humanize.Delay(ctx, humanize.BetweenScroll)
 	}
 
-	return nil, fmt.Errorf("未找到评论 (commentID: %s, userID: %s), 尝试次数: %d", commentID, userID, maxAttempts)
+	return nil, fmt.Errorf("未找到评论 (commentID: %s, userID: %s)", commentID, userID)
+}
+
+// lookupComment 在当前已渲染的评论里查找目标，找不到返回 nil。
+func lookupComment(page *rod.Page, commentID, userID string) *rod.Element {
+	if commentID != "" {
+		if el, err := page.Timeout(2 * time.Second).Element(fmt.Sprintf("#comment-%s", commentID)); err == nil && el != nil {
+			return el
+		}
+	}
+
+	if userID == "" {
+		return nil
+	}
+
+	elements, err := page.Timeout(2 * time.Second).Elements(".parent-comment, .comment-item, .comment")
+	if err != nil {
+		return nil
+	}
+	for _, el := range elements {
+		if userEl, err := el.Timeout(500 * time.Millisecond).Element(fmt.Sprintf(`[data-user-id="%s"]`, userID)); err == nil && userEl != nil {
+			return el
+		}
+	}
+	return nil
 }
