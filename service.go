@@ -557,7 +557,6 @@ func (s *XiaohongshuService) ReplyCommentToFeed(ctx context.Context, feedID, xse
 
 func newBrowser() *headless_browser.Browser {
 	return browser.NewBrowser(configs.IsHeadless(),
-		browser.WithBinPath(configs.GetBinPath()),
 		browser.WithFingerprintSeed(configs.FingerprintSeed()),
 		browser.WithProxy(configs.Proxy()),
 	)

@@ -10,8 +10,6 @@ import (
 var (
 	useHeadless = true
 
-	binPath = ""
-
 	fingerprintSeed = 0
 
 	proxy = ""
@@ -24,14 +22,6 @@ func InitHeadless(h bool) {
 // IsHeadless 是否无头模式。
 func IsHeadless() bool {
 	return useHeadless
-}
-
-func SetBinPath(b string) {
-	binPath = b
-}
-
-func GetBinPath() string {
-	return binPath
 }
 
 func SetFingerprintSeed(s int) {

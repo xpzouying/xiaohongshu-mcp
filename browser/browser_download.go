@@ -71,7 +71,7 @@ func browserCacheDir() (string, error) {
 func EnsureBrowser() (string, error) {
 	asset, binName, ok := platformAsset()
 	if !ok {
-		return "", fmt.Errorf("当前平台 %s/%s 无预编译浏览器，请手动指定 --bin", runtime.GOOS, runtime.GOARCH)
+		return "", fmt.Errorf("当前平台 %s/%s 无预编译浏览器，暂不支持", runtime.GOOS, runtime.GOARCH)
 	}
 
 	cacheDir, err := browserCacheDir()
@@ -102,9 +102,8 @@ func EnsureBrowser() (string, error) {
 	}
 	if dlErr != nil {
 		return "", fmt.Errorf("下载内置浏览器失败: %w\n"+
-			"  浏览器是反检测核心，缺它等于裸奔，故不继续。请任选其一：\n"+
-			"  1) 检查网络后重试；\n"+
-			"  2) 手动下载 %s，解压后用 --bin 指定其中的浏览器二进制。", dlErr, browserURL(asset))
+			"  本项目只用内置浏览器，缺它不继续。请检查网络后重试；\n"+
+			"  离线环境可手动下载 %s，解压到 %s 后重启。", dlErr, browserURL(asset), cacheDir)
 	}
 	defer os.Remove(archivePath)
 
