@@ -1083,3 +1083,11 @@ npx mcporter list xiaohongshu-mcp
 </table>
 
 本项目遵循 [all-contributors](https://github.com/all-contributors/all-contributors) 规范。欢迎任何形式的贡献！
+
+## 📄 许可证
+
+本项目采用 [Apache License 2.0](LICENSE) 开源。
+
+你可以自由地使用、修改和分发本项目，包括用于商业用途，只需保留原始的版权声明和许可证文件。详细条款以 [LICENSE](LICENSE) 文件为准。
+
+向本项目提交的贡献，默认按同一许可证授权。
