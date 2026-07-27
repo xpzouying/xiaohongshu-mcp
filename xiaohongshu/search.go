@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -28,118 +29,57 @@ type FilterOption struct {
 	Location    string `json:"location,omitempty" jsonschema:"位置距离: 不限|同城|附近,默认为'不限'"`
 }
 
-// internalFilterOption 一个待应用的筛选项：落在哪个筛选组、选项文本是什么。
+// filterGroup 面板上的一个筛选组：标签是什么、对应入参的哪个字段、允许哪些取值。
 //
-// 只记组序号不记标签序号：面板里每个选项会渲染成两个 div.tags，
-// 且首项是否重复各组不一致（排序依据/位置距离重复，其余不重复），
-// 下标对不上，只能按文本找。
-type internalFilterOption struct {
-	FiltersIndex int    // 筛选组序号（组之间无重复，可用序号定位）
-	Text         string // 选项文本，用于在组内匹配
+// 组和选项一律按文本定位，不用序号。面板里同一个选项可能渲染成多个 div.tags
+// （数量随视口而变），首项是否重复各组也不一致，下标对不齐。
+type filterGroup struct {
+	label   string                    // 面板上这一组的标签文本
+	pick    func(FilterOption) string // 从入参里取这一组的值
+	allowed []string                  // 合法取值；在打开页面之前就能挡掉写错的值
 }
 
-// 预定义的筛选选项映射表（内部使用）
-var filterOptionsMap = map[int][]internalFilterOption{
-	1: { // 排序依据
-		{FiltersIndex: 1, Text: "综合"},
-		{FiltersIndex: 1, Text: "最新"},
-		{FiltersIndex: 1, Text: "最多点赞"},
-		{FiltersIndex: 1, Text: "最多评论"},
-		{FiltersIndex: 1, Text: "最多收藏"},
-	},
-	2: { // 笔记类型
-		{FiltersIndex: 2, Text: "不限"},
-		{FiltersIndex: 2, Text: "视频"},
-		{FiltersIndex: 2, Text: "图文"},
-	},
-	3: { // 发布时间
-		{FiltersIndex: 3, Text: "不限"},
-		{FiltersIndex: 3, Text: "一天内"},
-		{FiltersIndex: 3, Text: "一周内"},
-		{FiltersIndex: 3, Text: "半年内"},
-	},
-	4: { // 搜索范围
-		{FiltersIndex: 4, Text: "不限"},
-		{FiltersIndex: 4, Text: "已看过"},
-		{FiltersIndex: 4, Text: "未看过"},
-		{FiltersIndex: 4, Text: "已关注"},
-	},
-	5: { // 位置距离
-		{FiltersIndex: 5, Text: "不限"},
-		{FiltersIndex: 5, Text: "同城"},
-		{FiltersIndex: 5, Text: "附近"},
-	},
+var filterGroups = []filterGroup{
+	{"排序依据", func(f FilterOption) string { return f.SortBy },
+		[]string{"综合", "最新", "最多点赞", "最多评论", "最多收藏"}},
+	{"笔记类型", func(f FilterOption) string { return f.NoteType },
+		[]string{"不限", "视频", "图文"}},
+	{"发布时间", func(f FilterOption) string { return f.PublishTime },
+		[]string{"不限", "一天内", "一周内", "半年内"}},
+	{"搜索范围", func(f FilterOption) string { return f.SearchScope },
+		[]string{"不限", "已看过", "未看过", "已关注"}},
+	{"位置距离", func(f FilterOption) string { return f.Location },
+		[]string{"不限", "同城", "附近"}},
 }
 
-// convertToInternalFilters 把用户传的 FilterOption 转成内部筛选项列表。
+// pendingFilter 一个待应用的筛选项。
+type pendingFilter struct {
+	group  string // 组标签
+	option string // 选项文本
+}
+
+// collectFilters 把入参展开成待应用的筛选项，顺便校验取值。
 //
-// 这里同时是唯一的校验入口：选项只能从 filterOptionsMap 里取，取不到就报错，
-// 所以拿到的每一项按构造就是合法的，后续无需再校验一遍。
-func convertToInternalFilters(filter FilterOption) ([]internalFilterOption, error) {
-	var internalFilters []internalFilterOption
+// 校验放在这里是为了在打开浏览器之前就挡掉写错的值——否则要等导航、悬停、
+// 在面板里找不到之后才能报错，等于为了说一句"你写错了"先向平台发一次请求。
+func collectFilters(filters []FilterOption) ([]pendingFilter, error) {
+	var pending []pendingFilter
 
-	// 处理排序依据
-	if filter.SortBy != "" {
-		internal, err := findInternalOption(1, filter.SortBy)
-		if err != nil {
-			return nil, fmt.Errorf("排序依据错误: %w", err)
-		}
-		internalFilters = append(internalFilters, internal)
-	}
-
-	// 处理笔记类型
-	if filter.NoteType != "" {
-		internal, err := findInternalOption(2, filter.NoteType)
-		if err != nil {
-			return nil, fmt.Errorf("笔记类型错误: %w", err)
-		}
-		internalFilters = append(internalFilters, internal)
-	}
-
-	// 处理发布时间
-	if filter.PublishTime != "" {
-		internal, err := findInternalOption(3, filter.PublishTime)
-		if err != nil {
-			return nil, fmt.Errorf("发布时间错误: %w", err)
-		}
-		internalFilters = append(internalFilters, internal)
-	}
-
-	// 处理搜索范围
-	if filter.SearchScope != "" {
-		internal, err := findInternalOption(4, filter.SearchScope)
-		if err != nil {
-			return nil, fmt.Errorf("搜索范围错误: %w", err)
-		}
-		internalFilters = append(internalFilters, internal)
-	}
-
-	// 处理位置距离
-	if filter.Location != "" {
-		internal, err := findInternalOption(5, filter.Location)
-		if err != nil {
-			return nil, fmt.Errorf("位置距离错误: %w", err)
-		}
-		internalFilters = append(internalFilters, internal)
-	}
-
-	return internalFilters, nil
-}
-
-// findInternalOption 根据筛选组索引和文本查找内部筛选选项
-func findInternalOption(filtersIndex int, text string) (internalFilterOption, error) {
-	options, exists := filterOptionsMap[filtersIndex]
-	if !exists {
-		return internalFilterOption{}, fmt.Errorf("筛选组 %d 不存在", filtersIndex)
-	}
-
-	for _, option := range options {
-		if option.Text == text {
-			return option, nil
+	for _, f := range filters {
+		for _, g := range filterGroups {
+			value := g.pick(f)
+			if value == "" {
+				continue
+			}
+			if !slices.Contains(g.allowed, value) {
+				return nil, fmt.Errorf("%s 不支持 %q，可选：%s",
+					g.label, value, strings.Join(g.allowed, "、"))
+			}
+			pending = append(pending, pendingFilter{group: g.label, option: value})
 		}
 	}
 
-	return internalFilterOption{}, fmt.Errorf("在筛选组 %d 中未找到文本 '%s'", filtersIndex, text)
+	return pending, nil
 }
 
 type SearchAction struct {
@@ -153,6 +93,12 @@ func NewSearchAction(page *rod.Page) *SearchAction {
 }
 
 func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...FilterOption) ([]Feed, error) {
+	// 先校验筛选取值，必须在导航之前——写错的值不该先向平台发一次请求再报错。
+	pending, err := collectFilters(filters)
+	if err != nil {
+		return nil, err
+	}
+
 	// 注意 .Context(ctx) 会替换掉 NewSearchAction 里设的 60s deadline，必须在其后重新 Timeout，
 	// 否则搜索页不 stable 时 MustWaitStable/MustWait 会永久挂起（无 deadline 可依赖）。
 	page := s.page.Context(ctx).Timeout(60 * time.Second)
@@ -163,18 +109,7 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 
 	page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
 
-	// 如果有筛选条件，则应用筛选
-	if len(filters) > 0 {
-		// 将所有 FilterOption 转换为内部筛选选项
-		var allInternalFilters []internalFilterOption
-		for _, filter := range filters {
-			internalFilters, err := convertToInternalFilters(filter)
-			if err != nil {
-				return nil, fmt.Errorf("筛选选项转换失败: %w", err)
-			}
-			allInternalFilters = append(allInternalFilters, internalFilters...)
-		}
-
+	if len(pending) > 0 {
 		// 悬停在筛选按钮上展开面板
 		filterButton := page.MustElement(`div.filter`)
 		if err := humanize.Hover(filterButton); err != nil {
@@ -187,14 +122,14 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 
 		// 用 ClickNoWait：筛选面板是 hover 浮层，rod 的 WaitInteractable 会误判被遮挡而死等；
 		// ClickNoWait 移进面板内选项（维持 hover、面板不关）再点。
-		for _, filter := range allInternalFilters {
-			option, err := findFilterOption(page, filter)
+		for _, pf := range pending {
+			option, err := findFilterOption(page, pf)
 			if err != nil {
 				return nil, err
 			}
 			humanize.Delay(ctx, humanize.BeforeClick)
 			if err := humanize.ClickNoWait(option); err != nil {
-				return nil, fmt.Errorf("点击筛选选项 %q 失败: %w", filter.Text, err)
+				return nil, fmt.Errorf("点击筛选选项「%s」失败: %w", pf.option, err)
 			}
 		}
 
@@ -229,37 +164,53 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 	return feeds, nil
 }
 
-// findFilterOption 在筛选面板里定位一个选项。
+// findFilterOption 在筛选面板里定位一个选项：按标签找到组，再在组内按文本找选项。
 //
-// 组用序号定位：各组之间没有重复，`:nth-of-type` 稳定。
-// 组内的选项只能按文本找，不能用序号——面板里每个选项会渲染成两个
-// div.tags（两份的位置尺寸完全相同，点哪个都落在同一处），而且首项
-// 是否重复各组并不一致：排序依据、位置距离的首项重复，笔记类型、
-// 发布时间、搜索范围的首项不重复。所以任何下标算术都对不齐，
-// 早前用 div.tags:nth-child(N) 会选错项（如要"最多点赞"点到"最新"）。
-func findFilterOption(page *rod.Page, filter internalFilterOption) (*rod.Element, error) {
-	group, err := page.Element(fmt.Sprintf(
-		`div.filter-panel div.filters:nth-of-type(%d)`, filter.FiltersIndex))
+// 全程不用序号。同一个选项在面板里可能渲染成多个 div.tags（数量随视口而变，
+// 且首项是否重复各组不一致），下标对不齐；早前用 div.tags:nth-child(N) 会选错项。
+// 多份重复的位置尺寸完全相同，取第一个点下去落在同一处。
+//
+// 作用域必须限定在 div.filter-panel 内且只认 div.tags：页面别处存在同文本的
+// 可见元素（顶部频道栏的「图文」「视频」、标签「综合」），放宽会点错地方。
+func findFilterOption(page *rod.Page, pf pendingFilter) (*rod.Element, error) {
+	groups, err := page.Elements("div.filter-panel div.filters")
 	if err != nil {
-		return nil, fmt.Errorf("未找到筛选组 %d（%s）: %w", filter.FiltersIndex, filter.Text, err)
+		return nil, fmt.Errorf("读取筛选面板失败: %w", err)
 	}
 
-	options, err := group.Elements("div.tags")
-	if err != nil {
-		return nil, fmt.Errorf("筛选组 %d 内没有可选项: %w", filter.FiltersIndex, err)
-	}
-
-	for _, opt := range options {
-		text, err := opt.Text()
+	for _, group := range groups {
+		// 组标签是 div.filters 下的直接子 span
+		label, err := group.Element(":scope > span")
 		if err != nil {
 			continue
 		}
-		if strings.TrimSpace(text) == filter.Text {
-			return opt, nil
+		text, err := label.Text()
+		if err != nil || strings.TrimSpace(text) != pf.group {
+			continue
 		}
+
+		options, err := group.Elements("div.tags")
+		if err != nil {
+			return nil, fmt.Errorf("读取「%s」的选项失败: %w", pf.group, err)
+		}
+
+		var available []string
+		for _, opt := range options {
+			t, err := opt.Text()
+			if err != nil {
+				continue
+			}
+			t = strings.TrimSpace(t)
+			if t == pf.option {
+				return opt, nil
+			}
+			available = append(available, t)
+		}
+		return nil, fmt.Errorf("「%s」里没有选项「%s」，页面上是：%s",
+			pf.group, pf.option, strings.Join(available, "、"))
 	}
 
-	return nil, fmt.Errorf("筛选组 %d 内未找到选项 %q", filter.FiltersIndex, filter.Text)
+	return nil, fmt.Errorf("筛选面板里没有「%s」这一组", pf.group)
 }
 
 func makeSearchURL(keyword string) string {
