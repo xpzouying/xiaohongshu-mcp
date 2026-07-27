@@ -103,6 +103,20 @@ type UserProfileRequest struct {
 	XsecToken string `json:"xsec_token" binding:"required"`
 }
 
+// LikeFeedRequest 点赞/取消点赞请求
+type LikeFeedRequest struct {
+	FeedID    string `json:"feed_id" binding:"required"`
+	XsecToken string `json:"xsec_token" binding:"required"`
+	Unlike    bool   `json:"unlike,omitempty"` // true 为取消点赞
+}
+
+// FavoriteFeedRequest 收藏/取消收藏请求
+type FavoriteFeedRequest struct {
+	FeedID     string `json:"feed_id" binding:"required"`
+	XsecToken  string `json:"xsec_token" binding:"required"`
+	Unfavorite bool   `json:"unfavorite,omitempty"` // true 为取消收藏
+}
+
 // ActionResult 通用动作响应（点赞/收藏等）
 type ActionResult struct {
 	FeedID  string `json:"feed_id"`
