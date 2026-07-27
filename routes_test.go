@@ -13,9 +13,7 @@ import (
 
 // TestMCPStatelessSinglePost 固定「/mcp 接受不带 initialize 握手的单次 POST」这一契约。
 //
-// 这是 Stateless 换来的对外承诺：客户端可以一发请求就调用工具，不必先握手拿
-// session id。契约一旦丢失（有人删掉 Stateless、或 SDK 改了语义），编译和其他
-// 单测都不会报错，只有这里能拦住。
+// 契约由 routes.go 里一行 Stateless 支撑，丢掉它编译和其他单测都不会报错。
 func TestMCPStatelessSinglePost(t *testing.T) {
 	router := setupRoutes(NewAppServer(NewXiaohongshuService()))
 	server := httptest.NewServer(router)

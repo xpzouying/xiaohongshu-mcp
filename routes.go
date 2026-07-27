@@ -24,17 +24,16 @@ func setupRoutes(appServer *AppServer) *gin.Engine {
 	router.GET("/health", healthHandler)
 
 	// MCP 端点 - 使用官方 SDK 的 Streamable HTTP Handler
-	//
-	// 注意：Stateless 允许客户端跳过 initialize 握手，单次 POST 直接调用工具；
-	// 代价是服务端无法反向请求客户端（sampling / elicitation / roots）。
-	// 将来要加进度推送或 elicitation，必须同时去掉 Stateless 和 JSONResponse。
 	mcpHandler := mcp.NewStreamableHTTPHandler(
 		func(r *http.Request) *mcp.Server {
 			return appServer.mcpServer
 		},
 		&mcp.StreamableHTTPOptions{
 			JSONResponse: true, // 支持 JSON 响应
-			Stateless:    true,
+			// 换取客户端可跳过 initialize 握手直接调工具。代价是服务端无法反向
+			// 请求客户端（sampling / elicitation / roots），眼下一处都没用到；
+			// 要用得先摘掉这行。
+			Stateless: true,
 		},
 	)
 	router.Any("/mcp", gin.WrapH(mcpHandler))
