@@ -189,3 +189,68 @@ func TestClickPressAndScatter(t *testing.T) {
 	}
 	t.Logf("%d 次点击产生 %d 个不同落点", rounds, len(points))
 }
+
+const guardHTML = `<body style="margin:0;width:800px;height:600px">
+<div data-n="normal"      style="position:absolute;left:100px;top:100px;width:96px;height:40px">x</div>
+<div data-n="display"     style="display:none">x</div>
+<div data-n="visibility"  style="position:absolute;left:100px;top:200px;width:96px;height:40px;visibility:hidden">x</div>
+<div data-n="opacity0"    style="position:absolute;left:100px;top:260px;width:96px;height:40px;opacity:0">x</div>
+<div data-n="offleft"     style="position:absolute;left:-9999px;top:100px;width:96px;height:40px">x</div>
+<div data-n="belowfold"   style="position:absolute;left:100px;top:5000px;width:96px;height:40px">x</div>
+<div data-n="pointernone" style="position:absolute;left:300px;top:100px;width:96px;height:40px;pointer-events:none">x</div>
+<script>
+window.HIT = [];
+document.querySelectorAll('[data-n]').forEach(el =>
+  el.addEventListener('click', () => window.HIT.push(el.dataset.n), true));
+</script></body>`
+
+// TestClickGuards 校验点击前的落点检查：够不到的目标必须报错，而不是静默落空。
+//
+// 反过来同样重要：opacity:0 和 pointer-events:none 的元素必须放行——鼠标点在
+// 那个坐标上本来就是这个结果，拦下来反而与页面的真实行为不符。
+func TestClickGuards(t *testing.T) {
+	bin, err := browser.EnsureBrowser()
+	if err != nil {
+		t.Skipf("SKIP: 浏览器不可用: %v", err)
+	}
+
+	u := launcher.New().Bin(bin).Headless(true).MustLaunch()
+	b := rod.New().ControlURL(u).MustConnect()
+	defer b.MustClose()
+
+	page := b.MustPage("about:blank")
+	page.MustWaitLoad()
+	page.MustSetDocumentContent(guardHTML)
+
+	cases := []struct {
+		name    string
+		blocked bool // 是否应当被拦下
+		reason  string
+	}{
+		{"normal", false, "正常元素"},
+		{"display", true, "display:none 拿不到可点区域"},
+		{"visibility", true, "visibility:hidden 不参与命中测试"},
+		{"opacity0", false, "opacity:0 仍可命中，须放行"},
+		{"offleft", true, "落点在视口左侧之外"},
+		{"belowfold", true, "落点在视口下方之外"},
+		{"pointernone", false, "pointer-events:none 会穿透，须放行"},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			el := page.MustElement(`[data-n="` + c.name + `"]`)
+			page.MustEval(`() => { window.HIT = [] }`)
+
+			err := ClickNoWait(el)
+			if c.blocked {
+				if err == nil {
+					t.Errorf("%s（%s）应被拦下，实际放行了", c.name, c.reason)
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("%s（%s）不应被拦下，实际报错: %v", c.name, c.reason, err)
+			}
+		})
+	}
+}

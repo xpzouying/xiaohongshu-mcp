@@ -2,7 +2,9 @@ package humanize
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"math"
 	"math/rand"
 	"time"
@@ -52,14 +54,69 @@ func jitterOn(elem *rod.Element, pt proto.Point) proto.Point {
 	return jitterInQuad(pt, shape.Quads[0])
 }
 
+// ensurePointInViewport 落点必须在视口内。
+//
+// 视口外的坐标发出去命中不到任何元素，而调用方拿不到任何错误——以为点了，
+// 其实什么也没发生。实测 left:-9999px 和 top:5000px 的元素都是这样静默落空的。
+func ensurePointInViewport(page *rod.Page, pt proto.Point) error {
+	res, err := page.Eval(`() => JSON.stringify([window.innerWidth, window.innerHeight])`)
+	if err != nil {
+		return err // 读不到视口尺寸就不拦，避免误伤
+	}
+
+	var size []float64
+	if json.Unmarshal([]byte(res.Value.Str()), &size) != nil || len(size) != 2 {
+		return nil
+	}
+
+	if pt.X < 0 || pt.Y < 0 || pt.X > size[0] || pt.Y > size[1] {
+		return fmt.Errorf("落点 (%.0f,%.0f) 在视口 %.0fx%.0f 之外", pt.X, pt.Y, size[0], size[1])
+	}
+	return nil
+}
+
+// ensureClickable 落点必须真的能被鼠标打到。
+//
+// 只查两件事，都便宜且与页面的瞬时状态无关：
+//   - 落点在视口内（见 ensurePointInViewport）
+//   - 元素的 visibility 不是 hidden：这类元素有布局盒子、坐标也在视口里，
+//     但按规范不参与命中测试，点下去会落到它下面的元素上，同样是静默落空
+//
+// 刻意不查的三件事：
+//   - 不用 document.elementFromPoint 做命中校验：悬停浮层的状态在程序化移动
+//     指针时并不稳定，实测会把当时可见可点的选项判成不可点，拦错了更糟
+//   - 不查 opacity：opacity:0 的元素真人点下去照样命中，拦了反而不一致
+//   - 不查 pointer-events：设了 none 的元素真人点下去也是穿透到下层，同上
+//
+// display:none 和零象限不用查——它们在 Shape() 那一步就拿不到可点区域了。
+func ensureClickable(elem *rod.Element, pt proto.Point) error {
+	if err := ensurePointInViewport(elem.Page(), pt); err != nil {
+		return err
+	}
+
+	res, err := elem.Eval(`() => getComputedStyle(this).visibility`)
+	if err != nil {
+		return nil // 读不到样式就不拦
+	}
+	if res.Value.Str() == "hidden" {
+		return errors.New("元素 visibility 为 hidden，不参与命中测试")
+	}
+	return nil
+}
+
 func Click(elem *rod.Element) error {
 	pt, err := elem.WaitInteractable()
 	if err != nil {
 		return err
 	}
 
+	target := jitterOn(elem, *pt)
+	if err := ensureClickable(elem, target); err != nil {
+		return err
+	}
+
 	mouse := elem.Page().Mouse
-	if err := moveMouseCurved(mouse, jitterOn(elem, *pt)); err != nil {
+	if err := moveMouseCurved(mouse, target); err != nil {
 		return err
 	}
 
@@ -88,8 +145,13 @@ func ClickNoWait(elem *rod.Element) error {
 	q := shape.Quads[0] // 8 个值 = 4 个角点 (x,y)；对角线中点即中心
 	center := proto.Point{X: (q[0] + q[4]) / 2, Y: (q[1] + q[5]) / 2}
 
+	target := jitterInQuad(center, q)
+	if err := ensureClickable(elem, target); err != nil {
+		return err
+	}
+
 	mouse := elem.Page().Mouse
-	if err := moveMouseCurved(mouse, jitterInQuad(center, q)); err != nil {
+	if err := moveMouseCurved(mouse, target); err != nil {
 		return err
 	}
 	return pressAndRelease(mouse)
@@ -116,7 +178,12 @@ func Hover(elem *rod.Element) error {
 	q := shape.Quads[0]
 	center := proto.Point{X: (q[0] + q[4]) / 2, Y: (q[1] + q[5]) / 2}
 
-	return moveMouseCurved(elem.Page().Mouse, jitterInQuad(center, q))
+	target := jitterInQuad(center, q)
+	if err := ensureClickable(elem, target); err != nil {
+		return err
+	}
+
+	return moveMouseCurved(elem.Page().Mouse, target)
 }
 
 // ClickAt 沿曲线移到指定坐标再点击。
@@ -125,6 +192,9 @@ func Hover(elem *rod.Element) error {
 //
 // 落点由调用方决定，这里不抖动——调用方挑那个坐标通常有它的理由。
 func ClickAt(page *rod.Page, pt proto.Point) error {
+	if err := ensurePointInViewport(page, pt); err != nil {
+		return err
+	}
 	if err := moveMouseCurved(page.Mouse, pt); err != nil {
 		return err
 	}
