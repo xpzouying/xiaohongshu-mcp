@@ -63,7 +63,6 @@ func TestDelay_RespectsContextCancel(t *testing.T) {
 	assert.Less(t, time.Since(start), 100*time.Millisecond, "已取消的 ctx 应让 Delay 立即返回")
 }
 
-// TestCubicBezier_Endpoints 贝塞尔曲线两端点应精确落在 p0/p3。
 func TestCubicBezier_Endpoints(t *testing.T) {
 	p0 := proto.Point{X: 0, Y: 0}
 	p1 := proto.Point{X: 10, Y: 50}

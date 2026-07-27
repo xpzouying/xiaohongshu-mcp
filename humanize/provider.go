@@ -33,8 +33,7 @@ type LogNormal struct {
 	Min, Max  time.Duration // clamp 边界（Max<=0 表示不设上限）
 }
 
-// sample 是纯函数核心：给定一个标准正态样本 norm，返回 clamp 后的时延。
-// 拆出来是为了可确定性单测（喂已知 norm 值）。
+// sample 给定样本 norm，返回 clamp 后的时延。拆成纯函数是为了可确定性单测。
 func (l LogNormal) sample(norm float64) time.Duration {
 	secs := math.Exp(l.Mu + l.Sigma*norm)
 	// 先在"秒"量级上处理上限：secs 极大时直接 float64→Duration 会溢出成负值、

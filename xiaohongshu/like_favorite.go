@@ -20,7 +20,6 @@ type ActionResult struct {
 	Message string `json:"message"`
 }
 
-// 选择器常量
 const (
 	SelectorLikeButton    = ".interact-container .left .like-lottie"
 	SelectorCollectButton = ".interact-container .left .reds-icon.collect-icon"
@@ -216,7 +215,6 @@ func (a *interactAction) getInteractState(page *rod.Page, feedID string) (liked 
 		return false, false, myerrors.ErrNoFeedDetail
 	}
 
-	// 直接解析为 noteDetailMap
 	var noteDetailMap map[string]struct {
 		Note struct {
 			InteractInfo struct {

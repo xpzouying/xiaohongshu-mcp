@@ -41,18 +41,15 @@ func NewPublishImageAction(page *rod.Page) (*PublishAction, error) {
 
 	pp := page.Timeout(300 * time.Second)
 
-	// 使用更稳健的导航和等待策略
 	if err := pp.Navigate(urlOfPublic); err != nil {
 		return nil, errors.Wrap(err, "导航到发布页面失败")
 	}
 
-	// 等待页面加载，使用 WaitLoad 代替 WaitIdle（更宽松）
 	if err := pp.WaitLoad(); err != nil {
 		logrus.Warnf("等待页面加载出现问题: %v，继续尝试", err)
 	}
 	time.Sleep(2 * time.Second)
 
-	// 等待页面稳定
 	if err := pp.WaitDOMStable(time.Second, 0.1); err != nil {
 		logrus.Warnf("等待 DOM 稳定出现问题: %v，继续尝试", err)
 	}
@@ -103,14 +100,9 @@ func hasPopCover(page *rod.Page) bool {
 	return err == nil && has
 }
 
-// dismissPopCover 关掉挡住发布 TAB 的浮层，逐级降级。
-//
-// 顺序：Esc → 点空白 → 摘节点。前两步走正常交互，多数浮层这样就关掉了；
-// 都无效才落到最后一步。
-//
-// 保留最后一步是因为它只要节点还在就必定生效：Esc 和点空白关不关得掉取决于
-// 页面自己有没有写对应的处理，无从预判，不该拿发布失败去赌（关不掉会让
-// mustClickPublishTab 空转满 15 秒）。
+// dismissPopCover 关掉挡住发布 TAB 的浮层，按 Esc → 点空白 → 摘节点逐级降级。
+// 保留摘节点这一步是因为它只要节点还在就必定生效，前两步是否奏效取决于页面
+// 自己有没有写对应的处理，无从预判。
 func dismissPopCover(page *rod.Page) {
 	if err := page.Keyboard.Press(input.Escape); err != nil {
 		logrus.Debugf("按 Esc 关闭浮层失败: %v", err)
@@ -184,9 +176,7 @@ func mustClickPublishTab(page *rod.Page, tabname string) error {
 		return nil
 	}
 
-	// 区分两种失败：找不到 TAB，和找到了但一直关不掉挡在上面的浮层。
-	// 后者是 dismissPopCover（Esc + 点空白）没奏效——真机上没能复现出浮层，
-	// 这条路径未经走查验证，所以把原因写进错误里，真踩到时一眼可辨。
+	// 区分两种失败：找不到 TAB，和找到了但浮层一直关不掉
 	if blockedAtLeastOnce {
 		return errors.Errorf("发布 TAB %s 一直被浮层遮挡，Esc 与点击空白都未能关闭", tabname)
 	}
@@ -244,7 +234,6 @@ func isElementBlocked(elem *rod.Element) (bool, error) {
 }
 
 func uploadImages(page *rod.Page, imagesPaths []string) error {
-	// 验证文件路径有效性
 	validPaths := make([]string, 0, len(imagesPaths))
 	for _, path := range imagesPaths {
 		if _, err := os.Stat(path); os.IsNotExist(err) {
@@ -297,7 +286,6 @@ func waitForUploadComplete(page *rod.Page, expectedCount int) error {
 		}
 
 		currentCount := len(uploadedImages)
-		// 数量变化时才打印，避免刷屏
 		if currentCount != lastLogCount {
 			slog.Info("等待图片上传", "current", currentCount, "expected", expectedCount)
 			lastLogCount = currentCount
@@ -322,7 +310,6 @@ func submitPublish(ctx context.Context, page *rod.Page, title, content string, t
 		return errors.Wrap(err, "输入标题失败")
 	}
 
-	// 检查标题长度
 	humanize.Delay(ctx, humanize.AfterType)
 	if err := checkTitleMaxLength(page); err != nil {
 		return err
@@ -347,13 +334,11 @@ func submitPublish(ctx context.Context, page *rod.Page, title, content string, t
 
 	humanize.Delay(ctx, humanize.AfterType)
 
-	// 检查正文长度
 	if err := checkContentMaxLength(page); err != nil {
 		return err
 	}
 	slog.Info("检查正文长度：通过")
 
-	// 处理定时发布
 	if scheduleTime != nil {
 		if err := setSchedulePublish(ctx, page, *scheduleTime); err != nil {
 			return errors.Wrap(err, "设置定时发布失败")
@@ -361,7 +346,6 @@ func submitPublish(ctx context.Context, page *rod.Page, title, content string, t
 		slog.Info("定时发布设置完成", "schedule_time", scheduleTime.Format("2006-01-02 15:04"))
 	}
 
-	// 设置可见范围
 	if err := setVisibility(page, visibility); err != nil {
 		return errors.Wrap(err, "设置可见范围失败")
 	}
@@ -374,7 +358,6 @@ func submitPublish(ctx context.Context, page *rod.Page, title, content string, t
 		slog.Info("已声明原创")
 	}
 
-	// 绑定商品
 	if err := bindProducts(ctx, page, products); err != nil {
 		return errors.Wrap(err, "绑定商品失败")
 	}
@@ -579,12 +562,10 @@ func checkTitleMaxLength(page *rod.Page) error {
 		return errors.Wrap(err, "检查标题长度元素失败")
 	}
 
-	// 元素不存在，说明标题没超长
 	if !has {
 		return nil
 	}
 
-	// 元素存在，说明标题超长
 	titleLength, err := elem.Text()
 	if err != nil {
 		return errors.Wrap(err, "获取标题长度文本失败")
@@ -599,12 +580,10 @@ func checkContentMaxLength(page *rod.Page) error {
 		return errors.Wrap(err, "检查正文长度元素失败")
 	}
 
-	// 元素不存在，说明正文没超长
 	if !has {
 		return nil
 	}
 
-	// 元素存在，说明正文超长
 	contentLength, err := elem.Text()
 	if err != nil {
 		return errors.Wrap(err, "获取正文长度文本失败")
@@ -688,8 +667,7 @@ func inputTags(ctx context.Context, contentElem *rod.Element, tags []string) err
 }
 
 func inputTag(ctx context.Context, contentElem *rod.Element, tag string) error {
-	// 输入 # 触发话题联想。统一走 humanize.Type，不用 elem.Input——后者除了
-	// CDP 插入还会额外派发一轮 input/change，与逐字符输入的事件序列对不上。
+	// 输入 # 触发话题联想
 	if err := humanize.Type(ctx, contentElem, "#"); err != nil {
 		return errors.Wrap(err, "输入#失败")
 	}
@@ -728,13 +706,11 @@ func findTextboxByPlaceholder(page *rod.Page) (*rod.Element, error) {
 		return nil, errors.New("no p elements found")
 	}
 
-	// 查找包含指定placeholder的元素
 	placeholderElem := findPlaceholderElement(elements, "输入正文描述")
 	if placeholderElem == nil {
 		return nil, errors.New("no placeholder element found")
 	}
 
-	// 向上查找textbox父元素
 	textboxElem := findTextboxParent(placeholderElem)
 	if textboxElem == nil {
 		return nil, errors.New("no textbox parent found")
@@ -783,7 +759,6 @@ func findTextboxParent(elem *rod.Element) *rod.Element {
 // isElementVisible 检查元素是否可见
 func isElementVisible(elem *rod.Element) bool {
 
-	// 检查是否有隐藏样式
 	style, err := elem.Attribute("style")
 	if err == nil && style != nil {
 		styleStr := *style
@@ -806,7 +781,6 @@ func isElementVisible(elem *rod.Element) bool {
 		}
 	}
 
-	// 检查 aria-hidden 属性
 	ariaHidden, err := elem.Attribute("aria-hidden")
 	if err == nil && ariaHidden != nil && *ariaHidden == "true" {
 		return false
@@ -848,13 +822,11 @@ func setVisibility(page *rod.Page, visibility string) error {
 		return nil
 	}
 
-	// 支持的选项校验
 	supported := map[string]bool{"仅自己可见": true, "仅互关好友可见": true}
 	if !supported[visibility] {
 		return errors.Errorf("不支持的可见范围: %s，支持: 公开可见、仅自己可见、仅互关好友可见", visibility)
 	}
 
-	// 点击可见范围下拉框
 	dropdown, err := page.Element("div.permission-card-wrapper div.d-select-content")
 	if err != nil {
 		return errors.Wrap(err, "查找可见范围下拉框失败")

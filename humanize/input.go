@@ -13,10 +13,7 @@ import (
 	"github.com/go-rod/rod/lib/proto"
 )
 
-// pressAndRelease 按下、停留一段采样出的时长、再抬起。
-//
-// rod 的 Mouse.Click 是 Down 紧接着 Up，中间没有间隔；这里按 ClickHold 的
-// 分布补上停留时间。
+// pressAndRelease 按下、停留一段按 ClickHold 采样出的时长、再抬起。
 func pressAndRelease(mouse *rod.Mouse) error {
 	if err := mouse.Down(proto.InputMouseButtonLeft, 1); err != nil {
 		return err
@@ -28,16 +25,14 @@ func pressAndRelease(mouse *rod.Mouse) error {
 }
 
 // jitterOffset 给定边长，返回 ±min(边长的 15%, 8px) 内的随机偏移。
-//
-// 两个上限缺一不可：按比例是为了小元素上不至于偏出去；封顶 8px 是因为宽元素
-// 里真正可点的常常只是中间一小块（比如一整行里只有个图标可点），偏太远会落空。
+// 两个上限缺一不可：按比例保证小元素上不会偏出边界；封顶 8px 是因为宽元素里
+// 可点区域常常只有中间一小块（比如一整行里只有个图标可点），偏太远会落空。
 func jitterOffset(size float64) float64 {
 	limit := math.Min(math.Abs(size)*0.15, 8)
 	return (rand.Float64() - 0.5) * 2 * limit
 }
 
-// jitterInQuad 在元素框内围绕 pt 取一个带小幅随机偏移的落点。
-// rod 对同一元素返回的可点位置是常量，这里让它在元素内有些变化。
+// jitterInQuad 在元素框内围绕 pt 取一个带小幅偏移的落点。
 func jitterInQuad(pt proto.Point, q proto.DOMQuad) proto.Point {
 	return proto.Point{
 		X: pt.X + jitterOffset(q[4]-q[0]),
@@ -75,20 +70,13 @@ func ensurePointInViewport(page *rod.Page, pt proto.Point) error {
 	return nil
 }
 
-// ensureClickable 落点必须真的能被鼠标打到。
+// ensureClickable 落点必须真的能被鼠标打到：坐标在视口内，且元素的 visibility
+// 不是 hidden——后者有布局盒子、坐标也在视口里，但按规范不参与命中测试，
+// 点下去会落到下层元素上，属于静默落空。
 //
-// 只查两件事，都便宜且与页面的瞬时状态无关：
-//   - 落点在视口内（见 ensurePointInViewport）
-//   - 元素的 visibility 不是 hidden：这类元素有布局盒子、坐标也在视口里，
-//     但按规范不参与命中测试，点下去会落到它下面的元素上，同样是静默落空
-//
-// 刻意不查的三件事：
-//   - 不用 document.elementFromPoint 做命中校验：悬停浮层的状态在程序化移动
-//     指针时并不稳定，实测会把当时可见可点的选项判成不可点，拦错了更糟
-//   - 不查 opacity：opacity:0 的元素真人点下去照样命中，拦了反而不一致
-//   - 不查 pointer-events：设了 none 的元素真人点下去也是穿透到下层，同上
-//
-// display:none 和零象限不用查——它们在 Shape() 那一步就拿不到可点区域了。
+// 不用 document.elementFromPoint 做命中校验：悬停浮层的状态在程序化移动指针时
+// 并不稳定，实测会把当时可见可点的选项判成不可点，拦错了更糟。
+// display:none 和零象限不用查，它们在 Shape() 那一步就拿不到可点区域。
 func ensureClickable(elem *rod.Element, pt proto.Point) error {
 	if err := ensurePointInViewport(elem.Page(), pt); err != nil {
 		return err

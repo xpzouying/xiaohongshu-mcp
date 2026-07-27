@@ -26,8 +26,7 @@ func WithProxy(proxy string) Option {
 	}
 }
 
-// WithFingerprintSeed 固定指纹 seed（同账号绑定一套稳定指纹）。
-// seed<=0 视为未设，回退每次随机。
+// WithFingerprintSeed 设置 seed，seed<=0 视为未设，回退每次随机。
 func WithFingerprintSeed(seed int) Option {
 	return func(c *browserConfig) {
 		c.fingerprintSeed = seed
