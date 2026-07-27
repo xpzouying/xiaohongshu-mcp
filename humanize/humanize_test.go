@@ -122,8 +122,7 @@ func TestJitterInQuad_StaysInside(t *testing.T) {
 	}
 }
 
-// TestJitterInQuad_Scatters 同一元素多次抖动应产生不同落点，
-// 否则等于没抖动（rod 返回的可点位置本身是常量）。
+// TestJitterInQuad_Scatters 同一元素多次抖动应产生不同落点。
 func TestJitterInQuad_Scatters(t *testing.T) {
 	q := proto.DOMQuad{0, 0, 200, 0, 200, 60, 0, 60}
 	center := proto.Point{X: 100, Y: 30}

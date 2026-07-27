@@ -21,7 +21,6 @@ func TestGetFeedsList(t *testing.T) {
 	page := b.NewPage()
 	defer page.Close()
 
-	// NewFeedsListAction 内部已经处理导航
 	action := NewFeedsListAction(page)
 
 	feeds, err := action.GetFeedsList(context.Background())
@@ -30,9 +29,7 @@ func TestGetFeedsList(t *testing.T) {
 
 	fmt.Printf("成功获取到 %d 个 Feed\n", len(feeds))
 
-	// 验证 JSON 结构完整性
 	for i, feed := range feeds {
-		// 验证必填字段
 		require.NotEmpty(t, feed.ID, "Feed ID should not be empty")
 		require.NotEmpty(t, feed.ModelType, "ModelType should not be empty")
 		require.NotEmpty(t, feed.XsecToken, "XsecToken should not be empty")
@@ -41,7 +38,6 @@ func TestGetFeedsList(t *testing.T) {
 		require.NotEmpty(t, feed.NoteCard.User.UserID, "User ID should not be empty")
 		require.NotEmpty(t, feed.NoteCard.User.Nickname, "User nickname should not be empty")
 
-		// 如果是视频类型，检查视频信息
 		if feed.NoteCard.Type == "video" {
 			require.NotNil(t, feed.NoteCard.Video, "Video info should not be nil for video type")
 			if feed.NoteCard.Video != nil {
@@ -51,24 +47,20 @@ func TestGetFeedsList(t *testing.T) {
 
 		// 只对第一个 Feed 进行完整 JSON 序列化检查
 		if i == 0 {
-			// 序列化为 JSON
 			jsonData, err := json.MarshalIndent(feed, "", "  ")
 			require.NoError(t, err, "Failed to marshal feed")
 
 			fmt.Printf("\n第一个 Feed 的完整 JSON 结构:\n%s\n", string(jsonData))
 
-			// 反序列化检查
 			var checkFeed Feed
 			err = json.Unmarshal(jsonData, &checkFeed)
 			require.NoError(t, err, "Failed to unmarshal feed")
 
-			// 比较序列化前后是否一致
 			require.Equal(t, feed.ID, checkFeed.ID)
 			require.Equal(t, feed.ModelType, checkFeed.ModelType)
 			require.Equal(t, feed.NoteCard.Type, checkFeed.NoteCard.Type)
 		}
 
-		// 打印前3个 Feed 的信息
 		if i < 3 {
 			fmt.Printf("\nFeed %d 基本信息:\n", i+1)
 			fmt.Printf("  ID: %s\n", feed.ID)

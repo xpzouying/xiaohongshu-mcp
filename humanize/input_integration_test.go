@@ -127,9 +127,8 @@ type clickRecord struct {
 	Y  float64 `json:"y"`
 }
 
-// TestClickPressAndScatter 校验 Click 的两条约定：
-//   - 按下与抬起之间有停留（rod 原生 Mouse.Click 是 Down 紧接 Up，没有间隔）
-//   - 同一元素多次点击的落点不固定（rod 返回的可点位置是常量）
+// TestClickPressAndScatter 校验 Click 的两条约定：按下与抬起之间有停留，
+// 且同一元素多次点击的落点不固定。
 func TestClickPressAndScatter(t *testing.T) {
 	bin, err := browser.EnsureBrowser()
 	if err != nil {
@@ -201,10 +200,8 @@ document.querySelectorAll('[data-n]').forEach(el =>
   el.addEventListener('click', () => window.HIT.push(el.dataset.n), true));
 </script></body>`
 
-// TestClickGuards 校验点击前的落点检查：够不到的目标必须报错，而不是静默落空。
-//
-// 反过来同样重要：opacity:0 和 pointer-events:none 的元素必须放行——鼠标点在
-// 那个坐标上本来就是这个结果，拦下来反而与页面的真实行为不符。
+// TestClickGuards 校验点击前的落点检查：够不到的目标必须报错，而不是静默落空；
+// opacity:0 和 pointer-events:none 则必须放行。
 func TestClickGuards(t *testing.T) {
 	bin, err := browser.EnsureBrowser()
 	if err != nil {
