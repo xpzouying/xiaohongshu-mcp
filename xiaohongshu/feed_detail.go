@@ -27,6 +27,26 @@ const (
 	largeScrollTrigger   = 5 // 停滞多少次后触发大滚动
 	buttonClickInterval  = 3 // 每隔多少次尝试点击一次按钮
 	finalSprintPushCount = 15
+
+	// 查找一条评论时最多下滚多少轮。normal 档一轮滚 0.7 屏，另加一次「滚到最后
+	// 一条评论」的跳转，25 轮覆盖几十屏，远超 get_feed_detail 默认加载的评论数——
+	// 调用方拿到的 comment_id 基本都落在这个范围内，翻不到多半是参数不对。
+	//
+	// 这个上限只管查找。批量拉评论走 get_feed_detail 的 defaultMaxAttempts，
+	// 两者不共用。
+	maxSearchScrolls = 25
+
+	// 查找评论时，最多连续多少轮只展开楼中楼而不下滚。
+	// 防止一个几百条回复的大楼层把查找预算吃光，导致后面的评论根本没机会加载。
+	maxExpandRounds = 5
+
+	// 查找一条评论的墙钟上限。
+	//
+	// 评论区没有固定规模，热帖翻到底可以很久，只靠轮数和停滞检测兜不住
+	// （实测一条热帖跑满 12 分钟仍未收敛）。用时间兜底而不是评论条数：
+	// 条数换算不出耗时——展开一个 50 条回复的楼层，条数只涨 50，耗时却是几十秒。
+	// 实测正常命中在 18~25 秒，留一倍多余量。
+	maxSearchDuration = 90 * time.Second
 )
 
 // ========== 数据结构 ==========
@@ -376,6 +396,10 @@ func clickShowMoreButtonsSmart(ctx context.Context, page *rod.Page, maxRepliesTh
 			continue
 		}
 
+		if !isSafeExpandButton(el, text) {
+			continue
+		}
+
 		if shouldSkipButton(text, maxRepliesThreshold, replyCountRegex) {
 			skipped++
 			continue
@@ -388,6 +412,104 @@ func clickShowMoreButtonsSmart(ctx context.Context, page *rod.Page, maxRepliesTh
 	}
 
 	return clicked, skipped
+}
+
+// expandNearbyReplies 展开视口附近的「展开 N 条回复」，把楼中楼灌进 DOM，返回本轮点开的个数。
+//
+// 与 clickShowMoreButtonsSmart 的差别有两点，都是为「边滚边找某条评论」这个场景准备的：
+//   - 只点视口附近的。clickElementWithHumanBehavior 会先 ScrollIntoView，若不加过滤，
+//     顶部残留的按钮每轮都会把页面拽回去，和向下滚动来回打架。
+//   - 不按回复数跳过。那个阈值是给批量抓取省时间用的，这里漏掉一个大楼层就等于漏掉目标。
+func expandNearbyReplies(ctx context.Context, page *rod.Page) int {
+	elements, err := page.Elements(".show-more")
+	if err != nil || len(elements) == 0 {
+		return 0
+	}
+
+	maxClick := maxClickPerRound + rand.Intn(maxClickPerRound)
+	clicked := 0
+
+	for _, el := range elements {
+		if clicked >= maxClick {
+			break
+		}
+
+		if !isElementClickable(el) || !isNearViewport(page, el) {
+			continue
+		}
+
+		text, err := el.Text()
+		if err != nil {
+			continue
+		}
+
+		if !isSafeExpandButton(el, text) {
+			continue
+		}
+
+		if clickElementWithHumanBehavior(ctx, page, el, text) {
+			clicked++
+		}
+	}
+
+	return clicked
+}
+
+// isSafeExpandButton 判断这个 .show-more 是不是真的展开回复按钮。
+//
+// 这两处的按钮是按 class 扫出来批量点的，不是调用方指定的元素，因此文案和
+// 尺寸都要核一遍再点，避免同 class 的其它元素被误点。
+func isSafeExpandButton(el *rod.Element, text string) bool {
+	if !isExpandRepliesButton(text) {
+		logrus.Debugf("跳过展开按钮：文案不匹配 %q", text)
+		return false
+	}
+
+	if !hasReadableSize(el) {
+		logrus.Debugf("跳过展开按钮：尺寸过小 %q", text)
+		return false
+	}
+
+	return true
+}
+
+// expandRepliesTextRegex 匹配展开楼中楼按钮的两种文案。
+// 大楼层点开一次后文案会从「展开 49 条回复」变成不带数字的「展开更多回复」，
+// 只认数字那一种会在大楼层上半途停住。
+var expandRepliesTextRegex = regexp.MustCompile(`^展开\s*(\d+\s*条|更多)回复$`)
+
+func isExpandRepliesButton(text string) bool {
+	return expandRepliesTextRegex.MatchString(strings.TrimSpace(text))
+}
+
+// hasReadableSize 判断元素尺寸是否达到正常按钮的量级。
+// 展开按钮实测约 279x32；1x1 之类的元素同样有布局盒子、过得了可见性检查，
+// 靠尺寸把它们排除掉。
+func hasReadableSize(el *rod.Element) bool {
+	const minWidth, minHeight = 24, 10
+
+	shape, err := el.Shape()
+	if err != nil || len(shape.Quads) == 0 {
+		return false
+	}
+
+	q := shape.Quads[0] // 四个角点，左上 (q0,q1) 右下 (q4,q5)
+	return q[4]-q[0] >= minWidth && q[5]-q[1] >= minHeight
+}
+
+// isNearViewport 判断元素是否落在视口上下各一屏的范围内。
+// 放宽到一屏是为了留重叠：滚动后刚被划出去的按钮下一轮还能再被捡起来。
+func isNearViewport(page *rod.Page, el *rod.Element) bool {
+	shape, err := el.Shape()
+	if err != nil || len(shape.Quads) == 0 {
+		return false
+	}
+
+	// CDP 给的 quads 是相对视口的 CSS 像素，取左上角的 y 即可。
+	top := shape.Quads[0][1]
+	height := float64(page.MustEval(`() => window.innerHeight`).Int())
+
+	return top > -height && top < 2*height
 }
 
 func isElementClickable(el *rod.Element) bool {

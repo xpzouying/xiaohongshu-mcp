@@ -191,26 +191,59 @@ func (f *CommentFeedAction) ReplyToComment(ctx context.Context, feedID, xsecToke
 }
 
 // findCommentElement 滚动查找指定评论：优先按 commentID 命中，否则按 userID 匹配。
-// 每轮先在已渲染的评论里查一次，再判断是否到底，最后滚动加载更多。
+// 每轮先在已渲染的评论里查一次，再展开视野里的楼中楼，然后判断是否到底，最后滚动加载更多。
+//
+// 展开这一步是楼中楼回复的前提：二级评论默认折叠在「展开 N 条回复」后面，不点开
+// 就压根不在 DOM 里，此时哪怕 commentID 完全正确也只会得到「未找到评论」。
 func findCommentElement(ctx context.Context, page *rod.Page, commentID, userID string) (*rod.Element, error) {
 	logrus.Infof("开始查找评论 - commentID: %s, userID: %s", commentID, userID)
-
-	const maxAttempts = 100
 
 	scrollToCommentsArea(page)
 	humanize.Delay(ctx, humanize.BetweenScroll)
 
 	lastCommentCount := 0
 	stagnantChecks := 0
+	expandRounds := 0
+	deadline := time.Now().Add(maxSearchDuration)
 
-	for attempt := 0; attempt < maxAttempts; attempt++ {
+	// maxSearchScrolls 数的是「下滚」的次数，也就是这次查找能往下走多远。
+	// 展开楼中楼不计入：它是在当前位置就地把内容摊开，不消耗向下的行程；
+	// 让它占用预算的话，楼中楼多的热帖反而扫不到几条一级评论。
+	// 展开那边由 deadline 兜住总时长。
+	for attempt := 0; attempt < maxSearchScrolls; {
+		// 0. 墙钟兜底。评论区没有固定规模，热帖翻到底可以很久，
+		//    到点就停，别让单次请求无限拖下去。
+		if time.Now().After(deadline) {
+			logrus.Warnf("查找超过 %s，停止", maxSearchDuration)
+			return nil, fmt.Errorf("评论区过大，%s 内未找到目标评论 (commentID: %s, userID: %s)",
+				maxSearchDuration, commentID, userID)
+		}
+
 		// 1. 先查已渲染的评论——目标可能一开始就在页面上
 		if el := lookupComment(page, commentID, userID); el != nil {
-			logrus.Infof("✓ 找到目标评论（尝试 %d 次）", attempt+1)
+			logrus.Infof("✓ 找到目标评论（下滚 %d 次）", attempt)
 			return el, nil
 		}
 
-		// 2. 到底则不再加载
+		// 2. 展开视野里的楼中楼，展开后立刻再查一次
+		if expandRounds < maxExpandRounds {
+			if expanded := expandNearbyReplies(ctx, page); expanded > 0 {
+				expandRounds++
+				humanize.Delay(ctx, humanize.Reading)
+
+				if el := lookupComment(page, commentID, userID); el != nil {
+					logrus.Infof("✓ 展开楼中楼后找到目标评论（下滚 %d 次）", attempt)
+					return el, nil
+				}
+
+				// 眼前还有没展开的，先展开完再往下滚，避免滚过去就漏了
+				continue
+			}
+		}
+		expandRounds = 0
+		attempt++
+
+		// 3. 到底则不再加载
 		if checkEndContainer(page) {
 			logrus.Info("已到达评论底部，未找到目标评论")
 			break
@@ -231,7 +264,7 @@ func findCommentElement(ctx context.Context, page *rod.Page, commentID, userID s
 
 		// 4. 滚到最后一条评论再继续下滚，触发懒加载
 		if currentCount > 0 {
-			if elements, err := page.Timeout(2 * time.Second).Elements(".parent-comment, .comment-item, .comment"); err == nil && len(elements) > 0 {
+			if elements, err := page.Timeout(2 * time.Second).Elements(".comment-item"); err == nil && len(elements) > 0 {
 				if err := elements[len(elements)-1].ScrollIntoView(); err != nil {
 					logrus.Debugf("滚动到最后一条评论失败: %v", err)
 				}
@@ -258,7 +291,10 @@ func lookupComment(page *rod.Page, commentID, userID string) *rod.Element {
 		return nil
 	}
 
-	elements, err := page.Timeout(2 * time.Second).Elements(".parent-comment, .comment-item, .comment")
+	// 只认 .comment-item：一级和二级评论都带这个 class，粒度正好是「一条评论」。
+	// 不能带上 .parent-comment——它把整个楼层（含楼中楼）都包在里面，按 userID 找时
+	// 会先命中外层楼层并返回它，结果回复按钮取到的是楼主那条，等于回错了人。
+	elements, err := page.Timeout(2 * time.Second).Elements(".comment-item")
 	if err != nil {
 		return nil
 	}
