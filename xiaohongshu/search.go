@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/go-rod/rod"
@@ -27,47 +28,53 @@ type FilterOption struct {
 	Location    string `json:"location,omitempty" jsonschema:"位置距离: 不限|同城|附近,默认为'不限'"`
 }
 
-// internalFilterOption 内部使用的筛选选项(基于索引)
+// internalFilterOption 一个待应用的筛选项：落在哪个筛选组、选项文本是什么。
+//
+// 只记组序号不记标签序号：面板里每个选项会渲染成两个 div.tags，
+// 且首项是否重复各组不一致（排序依据/位置距离重复，其余不重复），
+// 下标对不上，只能按文本找。
 type internalFilterOption struct {
-	FiltersIndex int    // 筛选组索引
-	TagsIndex    int    // 标签索引
-	Text         string // 标签文本描述
+	FiltersIndex int    // 筛选组序号（组之间无重复，可用序号定位）
+	Text         string // 选项文本，用于在组内匹配
 }
 
 // 预定义的筛选选项映射表（内部使用）
 var filterOptionsMap = map[int][]internalFilterOption{
 	1: { // 排序依据
-		{FiltersIndex: 1, TagsIndex: 1, Text: "综合"},
-		{FiltersIndex: 1, TagsIndex: 2, Text: "最新"},
-		{FiltersIndex: 1, TagsIndex: 3, Text: "最多点赞"},
-		{FiltersIndex: 1, TagsIndex: 4, Text: "最多评论"},
-		{FiltersIndex: 1, TagsIndex: 5, Text: "最多收藏"},
+		{FiltersIndex: 1, Text: "综合"},
+		{FiltersIndex: 1, Text: "最新"},
+		{FiltersIndex: 1, Text: "最多点赞"},
+		{FiltersIndex: 1, Text: "最多评论"},
+		{FiltersIndex: 1, Text: "最多收藏"},
 	},
 	2: { // 笔记类型
-		{FiltersIndex: 2, TagsIndex: 1, Text: "不限"},
-		{FiltersIndex: 2, TagsIndex: 2, Text: "视频"},
-		{FiltersIndex: 2, TagsIndex: 3, Text: "图文"},
+		{FiltersIndex: 2, Text: "不限"},
+		{FiltersIndex: 2, Text: "视频"},
+		{FiltersIndex: 2, Text: "图文"},
 	},
 	3: { // 发布时间
-		{FiltersIndex: 3, TagsIndex: 1, Text: "不限"},
-		{FiltersIndex: 3, TagsIndex: 2, Text: "一天内"},
-		{FiltersIndex: 3, TagsIndex: 3, Text: "一周内"},
-		{FiltersIndex: 3, TagsIndex: 4, Text: "半年内"},
+		{FiltersIndex: 3, Text: "不限"},
+		{FiltersIndex: 3, Text: "一天内"},
+		{FiltersIndex: 3, Text: "一周内"},
+		{FiltersIndex: 3, Text: "半年内"},
 	},
 	4: { // 搜索范围
-		{FiltersIndex: 4, TagsIndex: 1, Text: "不限"},
-		{FiltersIndex: 4, TagsIndex: 2, Text: "已看过"},
-		{FiltersIndex: 4, TagsIndex: 3, Text: "未看过"},
-		{FiltersIndex: 4, TagsIndex: 4, Text: "已关注"},
+		{FiltersIndex: 4, Text: "不限"},
+		{FiltersIndex: 4, Text: "已看过"},
+		{FiltersIndex: 4, Text: "未看过"},
+		{FiltersIndex: 4, Text: "已关注"},
 	},
 	5: { // 位置距离
-		{FiltersIndex: 5, TagsIndex: 1, Text: "不限"},
-		{FiltersIndex: 5, TagsIndex: 2, Text: "同城"},
-		{FiltersIndex: 5, TagsIndex: 3, Text: "附近"},
+		{FiltersIndex: 5, Text: "不限"},
+		{FiltersIndex: 5, Text: "同城"},
+		{FiltersIndex: 5, Text: "附近"},
 	},
 }
 
-// convertToInternalFilters 将 FilterOption 转换为内部的 internalFilterOption 列表
+// convertToInternalFilters 把用户传的 FilterOption 转成内部筛选项列表。
+//
+// 这里同时是唯一的校验入口：选项只能从 filterOptionsMap 里取，取不到就报错，
+// 所以拿到的每一项按构造就是合法的，后续无需再校验一遍。
 func convertToInternalFilters(filter FilterOption) ([]internalFilterOption, error) {
 	var internalFilters []internalFilterOption
 
@@ -135,27 +142,6 @@ func findInternalOption(filtersIndex int, text string) (internalFilterOption, er
 	return internalFilterOption{}, fmt.Errorf("在筛选组 %d 中未找到文本 '%s'", filtersIndex, text)
 }
 
-// validateInternalFilterOption 验证内部筛选选项是否在有效范围内
-func validateInternalFilterOption(filter internalFilterOption) error {
-	// 检查筛选组索引是否有效
-	if filter.FiltersIndex < 1 || filter.FiltersIndex > 5 {
-		return fmt.Errorf("无效的筛选组索引 %d，有效范围为 1-5", filter.FiltersIndex)
-	}
-
-	// 检查标签索引是否在对应筛选组的有效范围内
-	options, exists := filterOptionsMap[filter.FiltersIndex]
-	if !exists {
-		return fmt.Errorf("筛选组 %d 不存在", filter.FiltersIndex)
-	}
-
-	if filter.TagsIndex < 1 || filter.TagsIndex > len(options) {
-		return fmt.Errorf("筛选组 %d 的标签索引 %d 超出范围，有效范围为 1-%d",
-			filter.FiltersIndex, filter.TagsIndex, len(options))
-	}
-
-	return nil
-}
-
 type SearchAction struct {
 	page *rod.Page
 }
@@ -189,16 +175,11 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 			allInternalFilters = append(allInternalFilters, internalFilters...)
 		}
 
-		// 验证所有内部筛选选项
-		for _, filter := range allInternalFilters {
-			if err := validateInternalFilterOption(filter); err != nil {
-				return nil, fmt.Errorf("筛选选项验证失败: %w", err)
-			}
-		}
-
-		// 悬停在筛选按钮上
+		// 悬停在筛选按钮上展开面板
 		filterButton := page.MustElement(`div.filter`)
-		filterButton.MustHover()
+		if err := humanize.Hover(filterButton); err != nil {
+			return nil, fmt.Errorf("悬停筛选按钮失败: %w", err)
+		}
 		humanize.Delay(ctx, humanize.BeforeClick)
 
 		// 等待筛选面板出现
@@ -207,12 +188,13 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 		// 用 ClickNoWait：筛选面板是 hover 浮层，rod 的 WaitInteractable 会误判被遮挡而死等；
 		// ClickNoWait 移进面板内选项（维持 hover、面板不关）再点。
 		for _, filter := range allInternalFilters {
-			selector := fmt.Sprintf(`div.filter-panel div.filters:nth-child(%d) div.tags:nth-child(%d)`,
-				filter.FiltersIndex, filter.TagsIndex)
-			option := page.MustElement(selector)
+			option, err := findFilterOption(page, filter)
+			if err != nil {
+				return nil, err
+			}
 			humanize.Delay(ctx, humanize.BeforeClick)
 			if err := humanize.ClickNoWait(option); err != nil {
-				return nil, fmt.Errorf("点击筛选选项失败: %w", err)
+				return nil, fmt.Errorf("点击筛选选项 %q 失败: %w", filter.Text, err)
 			}
 		}
 
@@ -245,6 +227,39 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 	}
 
 	return feeds, nil
+}
+
+// findFilterOption 在筛选面板里定位一个选项。
+//
+// 组用序号定位：各组之间没有重复，`:nth-of-type` 稳定。
+// 组内的选项只能按文本找，不能用序号——面板里每个选项会渲染成两个
+// div.tags（两份的位置尺寸完全相同，点哪个都落在同一处），而且首项
+// 是否重复各组并不一致：排序依据、位置距离的首项重复，笔记类型、
+// 发布时间、搜索范围的首项不重复。所以任何下标算术都对不齐，
+// 早前用 div.tags:nth-child(N) 会选错项（如要"最多点赞"点到"最新"）。
+func findFilterOption(page *rod.Page, filter internalFilterOption) (*rod.Element, error) {
+	group, err := page.Element(fmt.Sprintf(
+		`div.filter-panel div.filters:nth-of-type(%d)`, filter.FiltersIndex))
+	if err != nil {
+		return nil, fmt.Errorf("未找到筛选组 %d（%s）: %w", filter.FiltersIndex, filter.Text, err)
+	}
+
+	options, err := group.Elements("div.tags")
+	if err != nil {
+		return nil, fmt.Errorf("筛选组 %d 内没有可选项: %w", filter.FiltersIndex, err)
+	}
+
+	for _, opt := range options {
+		text, err := opt.Text()
+		if err != nil {
+			continue
+		}
+		if strings.TrimSpace(text) == filter.Text {
+			return opt, nil
+		}
+	}
+
+	return nil, fmt.Errorf("筛选组 %d 内未找到选项 %q", filter.FiltersIndex, filter.Text)
 }
 
 func makeSearchURL(keyword string) string {
