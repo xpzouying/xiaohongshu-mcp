@@ -28,9 +28,7 @@ func TestGetCookiesFilePath(t *testing.T) {
 		t.Setenv("TMPDIR", tmp)
 		t.Setenv("COOKIES_PATH", "")
 
-		// /tmp 下有旧文件
 		assert.NoError(t, os.WriteFile(filepath.Join(tmp, "cookies.json"), []byte("[]"), 0644))
-		// 本地目录也有
 		cwd := t.TempDir()
 		t.Chdir(cwd)
 		assert.NoError(t, os.WriteFile(filepath.Join(cwd, "cookies.json"), []byte("[]"), 0644))

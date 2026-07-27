@@ -48,7 +48,6 @@ func TestNewImageDownloader(t *testing.T) {
 		t.Errorf("savePath = %q, expected %q", downloader.savePath, testPath)
 	}
 
-	// 验证目录是否创建
 	if _, err := os.Stat(testPath); os.IsNotExist(err) {
 		t.Errorf("save path directory was not created: %s", testPath)
 	}
@@ -86,17 +85,14 @@ func TestImageDownloader_generateFileName(t *testing.T) {
 
 	fileName1 := downloader.generateFileName(url, extension)
 
-	// 文件名应该包含扩展名
 	if filepath.Ext(fileName1) != "."+extension {
 		t.Errorf("fileName should end with .%s, got %s", extension, fileName1)
 	}
 
-	// 文件名应该包含img_前缀
 	if !strings.HasPrefix(filepath.Base(fileName1), "img_") {
 		t.Errorf("fileName should start with img_, got %s", fileName1)
 	}
 
-	// 不同URL应该生成不同的文件名
 	url2 := "https://example.com/different.jpg"
 	fileName2 := downloader.generateFileName(url2, extension)
 	if fileName1 == fileName2 {
