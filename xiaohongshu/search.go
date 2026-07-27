@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/go-rod/rod"
+	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/xiaohongshu-mcp/errors"
 	"github.com/xpzouying/xiaohongshu-mcp/humanize"
 )
@@ -106,7 +107,6 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 	searchURL := makeSearchURL(keyword)
 	page.MustNavigate(searchURL)
 	page.MustWaitStable()
-
 	page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
 
 	if len(pending) > 0 {
@@ -119,6 +119,9 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 
 		// 等待筛选面板出现
 		page.MustWait(`() => document.querySelector('div.filter-panel') !== null`)
+
+		// 记下筛选前的结果，用来判断筛选后的数据什么时候到位
+		before := readFeedIDs(page)
 
 		// 用 ClickNoWait：筛选面板是 hover 浮层，rod 的 WaitInteractable 会误判被遮挡而死等；
 		// ClickNoWait 移进面板内选项（维持 hover、面板不关）再点。
@@ -133,10 +136,7 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 			}
 		}
 
-		// 等待页面更新
-		page.MustWaitStable()
-		// 重新等待 __INITIAL_STATE__ 更新
-		page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
+		waitFeedsChanged(page, before, 15*time.Second)
 	}
 
 	result := page.MustEval(`() => {
@@ -162,6 +162,40 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 	}
 
 	return feeds, nil
+}
+
+// feedIDsJS 读当前结果集的 id 列表，用来判断数据有没有换一批。
+const feedIDsJS = `() => {
+	const f = window.__INITIAL_STATE__?.search?.feeds;
+	const v = f ? (f.value !== undefined ? f.value : f._value) : null;
+	return v ? v.map(x => x.id).join(",") : "";
+}`
+
+func readFeedIDs(page *rod.Page) string {
+	res, err := page.Eval(feedIDsJS)
+	if err != nil {
+		return ""
+	}
+	return res.Value.Str()
+}
+
+// waitFeedsChanged 等筛选后的数据到位。
+//
+// 点完筛选项之后不能立刻读结果：站点是先把 feeds 清空、再灌入新数据，
+// 中间这段时间读到的要么是空，要么还是筛选前那一批。原先用
+// MustWait(__INITIAL_STATE__ !== undefined) 等，而这个条件从首屏起就为真、
+// 立即返回，等于没等——多个筛选项一起用时表现为只有一部分生效。
+//
+// 超时不报错：筛选已经点上了，宁可返回可能偏旧的数据，也不要整个搜索失败。
+func waitFeedsChanged(page *rod.Page, before string, timeout time.Duration) {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if now := readFeedIDs(page); now != "" && now != before {
+			return
+		}
+		time.Sleep(300 * time.Millisecond)
+	}
+	logrus.Warnf("筛选后等待结果刷新超时（%s），返回的可能是筛选前的数据", timeout)
 }
 
 // findFilterOption 在筛选面板里定位一个选项：按标签找到组，再在组内按文本找选项。
