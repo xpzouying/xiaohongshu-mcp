@@ -6,10 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TestIsExpandRepliesButton 只有读得出「展开…回复」的按钮才允许自动点。
-//
-// 两种文案都必须认：大楼层点开一次后，「展开 49 条回复」会变成不带数字的
-// 「展开更多回复」，只匹配数字那一种会在大楼层上半途停住。
+// TestIsExpandRepliesButton 两种文案都要认：带数字的，以及点开一次后不带数字的。
 func TestIsExpandRepliesButton(t *testing.T) {
 	accepted := []string{
 		"展开 49 条回复",
@@ -18,7 +15,7 @@ func TestIsExpandRepliesButton(t *testing.T) {
 		"展开更多回复",
 	}
 	for _, text := range accepted {
-		assert.True(t, isExpandRepliesButton(text), "应认得: %q", text)
+		assert.True(t, isExpandRepliesButton(text), "应匹配: %q", text)
 	}
 
 	rejected := []string{
@@ -26,12 +23,12 @@ func TestIsExpandRepliesButton(t *testing.T) {
 		"收起",
 		"展开",
 		"查看全部评论",
-		"展开 2 条回复并关注", // 多余后缀，不是这个按钮
-		"点击领取优惠券",     // 同 class 的其它元素
+		"展开 2 条回复并关注",
+		"点击领取优惠券",
 		"展开 abc 条回复",
 	}
 	for _, text := range rejected {
-		assert.False(t, isExpandRepliesButton(text), "不该认: %q", text)
+		assert.False(t, isExpandRepliesButton(text), "不应匹配: %q", text)
 	}
 }
 
