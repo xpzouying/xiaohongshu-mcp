@@ -443,7 +443,23 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	logrus.Infof("Registered %d MCP tools", 13)
+	// 工具 14: 获取我的主页
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "get_my_profile",
+			Description: "获取当前登录用户的主页，返回用户基本信息，关注、粉丝、获赞量及其笔记内容",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Get My Profile",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("get_my_profile", func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleGetMyProfile(ctx)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	logrus.Infof("Registered %d MCP tools", 14)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式

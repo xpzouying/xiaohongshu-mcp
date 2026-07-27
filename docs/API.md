@@ -47,6 +47,8 @@
 | GET | `/api/v1/user/me` | 获取当前登录用户信息 |
 | POST | `/api/v1/feeds/comment` | 发表评论 |
 | POST | `/api/v1/feeds/comment/reply` | 回复评论 |
+| POST | `/api/v1/feeds/like` | 点赞/取消点赞 |
+| POST | `/api/v1/feeds/favorite` | 收藏/取消收藏 |
 
 ---
 
@@ -181,7 +183,10 @@ Content-Type: application/json
 - `content` (string, required): 笔记内容
 - `images` (array, required): 图片URL数组，至少包含一张图片
 - `tags` (array, optional): 标签数组
+- `schedule_at` (string, optional): 定时发布时间，ISO8601 格式如 `2024-01-20T10:30:00+08:00`，支持1小时至14天内。不填则立即发布
+- `is_original` (boolean, optional): 是否声明原创，`true` 为声明原创，不填则不声明
 - `visibility` (string, optional): 可见范围，支持: `公开可见`(默认)、`仅自己可见`、`仅互关好友可见`。不填则默认公开可见
+- `products` (array, optional): 商品关键词列表，用于绑定带货商品。填写商品名称或商品ID，自动搜索并选择第一个匹配结果，需账号已开通商品功能
 
 **响应**
 ```json
@@ -224,7 +229,9 @@ Content-Type: application/json
 - `content` (string, required): 视频内容描述
 - `video` (string, required): 本地视频文件绝对路径
 - `tags` (array, optional): 标签数组
+- `schedule_at` (string, optional): 定时发布时间，ISO8601 格式如 `2024-01-20T10:30:00+08:00`，支持1小时至14天内。不填则立即发布
 - `visibility` (string, optional): 可见范围，支持: `公开可见`(默认)、`仅自己可见`、`仅互关好友可见`。不填则默认公开可见
+- `products` (array, optional): 商品关键词列表，用于绑定带货商品。填写商品名称或商品ID，自动搜索并选择第一个匹配结果，需账号已开通商品功能
 
 **响应**
 ```json
@@ -790,6 +797,84 @@ Content-Type: application/json
 
 ---
 
+### 7. 互动管理
+
+#### 7.1 点赞/取消点赞
+
+为指定笔记点赞或取消点赞（如已点赞将跳过点赞，如未点赞将跳过取消点赞）。
+
+**请求**
+```
+POST /api/v1/feeds/like
+Content-Type: application/json
+```
+
+**请求体**
+```json
+{
+  "feed_id": "64f1a2b3c4d5e6f7a8b9c0d1",
+  "xsec_token": "security_token_here",
+  "unlike": false
+}
+```
+
+**请求参数说明:**
+- `feed_id` (string, required): Feed ID
+- `xsec_token` (string, required): 安全令牌
+- `unlike` (boolean, optional): `true` 为取消点赞，不填或 `false` 为点赞
+
+**响应**
+```json
+{
+  "success": true,
+  "data": {
+    "feed_id": "64f1a2b3c4d5e6f7a8b9c0d1",
+    "success": true,
+    "message": "点赞成功"
+  },
+  "message": "点赞成功"
+}
+```
+
+#### 7.2 收藏/取消收藏
+
+收藏指定笔记或取消收藏（如已收藏将跳过收藏，如未收藏将跳过取消收藏）。
+
+**请求**
+```
+POST /api/v1/feeds/favorite
+Content-Type: application/json
+```
+
+**请求体**
+```json
+{
+  "feed_id": "64f1a2b3c4d5e6f7a8b9c0d1",
+  "xsec_token": "security_token_here",
+  "unfavorite": false
+}
+```
+
+**请求参数说明:**
+- `feed_id` (string, required): Feed ID
+- `xsec_token` (string, required): 安全令牌
+- `unfavorite` (boolean, optional): `true` 为取消收藏，不填或 `false` 为收藏
+
+**响应**
+```json
+{
+  "success": true,
+  "data": {
+    "feed_id": "64f1a2b3c4d5e6f7a8b9c0d1",
+    "success": true,
+    "message": "收藏成功"
+  },
+  "message": "收藏成功"
+}
+```
+
+---
+
 ## 错误代码
 
 所有 API 在发生错误时会返回统一格式的错误响应。以下是可能出现的错误代码：
@@ -809,6 +894,8 @@ Content-Type: application/json
 | `GET_MY_PROFILE_FAILED` | 500 | 获取当前用户信息失败 |
 | `POST_COMMENT_FAILED` | 500 | 发表评论失败 |
 | `REPLY_COMMENT_FAILED` | 500 | 回复评论失败 |
+| `LIKE_FEED_FAILED` | 500 | 点赞操作失败 |
+| `FAVORITE_FEED_FAILED` | 500 | 收藏操作失败 |
 | `INTERNAL_ERROR` | 500 | 服务器内部错误 |
 
 ---
