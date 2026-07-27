@@ -188,13 +188,11 @@ func (s *XiaohongshuService) PublishContent(ctx context.Context, req *PublishReq
 		return nil, fmt.Errorf("标题长度超过限制")
 	}
 
-	// 处理图片：下载URL图片或使用本地路径
 	imagePaths, err := s.processImages(req.Images)
 	if err != nil {
 		return nil, err
 	}
 
-	// 解析定时发布时间
 	var scheduleTime *time.Time
 	if req.ScheduleAt != "" {
 		t, err := time.Parse(time.RFC3339, req.ScheduleAt)
@@ -220,7 +218,6 @@ func (s *XiaohongshuService) PublishContent(ctx context.Context, req *PublishReq
 		logrus.Infof("设置定时发布时间: %s", t.Format("2006-01-02 15:04"))
 	}
 
-	// 构建发布内容
 	content := xiaohongshu.PublishImageContent{
 		Title:        req.Title,
 		Content:      req.Content,
@@ -232,7 +229,6 @@ func (s *XiaohongshuService) PublishContent(ctx context.Context, req *PublishReq
 		Products:     req.Products,
 	}
 
-	// 执行发布
 	if err := s.publishContent(ctx, content); err != nil {
 		logrus.Errorf("发布内容失败: title=%s %v", content.Title, err)
 		return nil, err
@@ -267,7 +263,6 @@ func (s *XiaohongshuService) publishContent(ctx context.Context, content xiaohon
 		return err
 	}
 
-	// 执行发布
 	return action.Publish(ctx, content)
 }
 
@@ -286,7 +281,6 @@ func (s *XiaohongshuService) PublishVideo(ctx context.Context, req *PublishVideo
 		return nil, fmt.Errorf("视频文件不存在或不可访问: %v", err)
 	}
 
-	// 解析定时发布时间
 	var scheduleTime *time.Time
 	if req.ScheduleAt != "" {
 		t, err := time.Parse(time.RFC3339, req.ScheduleAt)
@@ -312,7 +306,6 @@ func (s *XiaohongshuService) PublishVideo(ctx context.Context, req *PublishVideo
 		logrus.Infof("设置定时发布时间: %s", t.Format("2006-01-02 15:04"))
 	}
 
-	// 构建发布内容
 	content := xiaohongshu.PublishVideoContent{
 		Title:        req.Title,
 		Content:      req.Content,
@@ -323,7 +316,6 @@ func (s *XiaohongshuService) PublishVideo(ctx context.Context, req *PublishVideo
 		Products:     req.Products,
 	}
 
-	// 执行发布
 	if err := s.publishVideo(ctx, content); err != nil {
 		return nil, err
 	}
@@ -361,10 +353,8 @@ func (s *XiaohongshuService) ListFeeds(ctx context.Context) (*FeedsListResponse,
 	page := b.NewPage()
 	defer page.Close()
 
-	// 创建 Feeds 列表 action
 	action := xiaohongshu.NewFeedsListAction(page)
 
-	// 获取 Feeds 列表
 	feeds, err := action.GetFeedsList(ctx)
 	if err != nil {
 		logrus.Errorf("获取 Feeds 列表失败: %v", err)
@@ -414,10 +404,8 @@ func (s *XiaohongshuService) GetFeedDetailWithConfig(ctx context.Context, feedID
 	page := b.NewPage()
 	defer page.Close()
 
-	// 创建 Feed 详情 action
 	action := xiaohongshu.NewFeedDetailAction(page)
 
-	// 获取 Feed 详情
 	result, err := action.GetFeedDetailWithConfig(ctx, feedID, xsecToken, loadAllComments, config)
 	if err != nil {
 		return nil, err

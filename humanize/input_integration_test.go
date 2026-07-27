@@ -53,9 +53,6 @@ func countEvents(t *testing.T, page *rod.Page, target string) map[string]int {
 }
 
 // assertOneInputPerRune 每个字符应恰好产生一次 input，且不应产生 change。
-//
-// 这两条一起把输入的事件序列钉死：任何人把 Type 换成一次性写入、或换成
-// elem.Input（它在 CDP 插入之外还会多派发一轮 input/change），这里都会红。
 func assertOneInputPerRune(t *testing.T, label string, counts map[string]int, text string) {
 	t.Helper()
 
