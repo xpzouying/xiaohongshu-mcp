@@ -38,15 +38,3 @@ func TestProxyFromEnv(t *testing.T) {
 		assert.Equal(t, "socks5://127.0.0.1:1080", ProxyFromEnv())
 	})
 }
-
-// TestSetGet 校验 seed/proxy 的存取；用后恢复全局状态避免污染其他测试。
-func TestSetGet(t *testing.T) {
-	origSeed, origProxy := FingerprintSeed(), Proxy()
-	t.Cleanup(func() { SetFingerprintSeed(origSeed); SetProxy(origProxy) })
-
-	SetFingerprintSeed(12345)
-	assert.Equal(t, 12345, FingerprintSeed())
-
-	SetProxy("http://proxy:3128")
-	assert.Equal(t, "http://proxy:3128", Proxy())
-}

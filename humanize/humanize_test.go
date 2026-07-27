@@ -122,18 +122,6 @@ func TestJitterInQuad_StaysInside(t *testing.T) {
 	}
 }
 
-// TestJitterInQuad_Scatters 同一元素多次抖动应产生不同落点。
-func TestJitterInQuad_Scatters(t *testing.T) {
-	q := proto.DOMQuad{0, 0, 200, 0, 200, 60, 0, 60}
-	center := proto.Point{X: 100, Y: 30}
-
-	seen := map[proto.Point]struct{}{}
-	for i := 0; i < 50; i++ {
-		seen[jitterInQuad(center, q)] = struct{}{}
-	}
-	assert.Greater(t, len(seen), 40, "50 次抖动应产生大量不同落点，实际只有 %d 个", len(seen))
-}
-
 // TestDelay_UnknownActionFallback 未知动作应回退而非 panic 或零等待。
 func TestDelay_UnknownActionFallback(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())

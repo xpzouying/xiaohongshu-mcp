@@ -127,9 +127,8 @@ type clickRecord struct {
 	Y  float64 `json:"y"`
 }
 
-// TestClickPressAndScatter 校验 Click 的两条约定：按下与抬起之间有停留，
-// 且同一元素多次点击的落点不固定。
-func TestClickPressAndScatter(t *testing.T) {
+// TestClickTiming 校验 Click 的按下时长与落点分布符合约定。
+func TestClickTiming(t *testing.T) {
 	bin, err := browser.EnsureBrowser()
 	if err != nil {
 		t.Skipf("SKIP: 浏览器不可用: %v", err)
