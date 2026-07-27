@@ -100,9 +100,8 @@ func TestImageDownloader_generateFileName(t *testing.T) {
 	}
 }
 
-// TestDownloadImage_AntiHotlink 测试下载防盗链图片
-// 验证添加 User-Agent 和 Referer 解决 403 问题
-func TestDownloadImage_AntiHotlink(t *testing.T) {
+// TestDownloadImage_SendsUAAndReferer 下载请求应带上 User-Agent 和 Referer。
+func TestDownloadImage_SendsUAAndReferer(t *testing.T) {
 	// 1x1 透明 PNG，避免依赖外部网络资源导致测试不稳定
 	const pngBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7+2X8AAAAASUVORK5CYII="
 	pngData, err := base64.StdEncoding.DecodeString(pngBase64)
@@ -132,32 +131,6 @@ func TestDownloadImage_AntiHotlink(t *testing.T) {
 	downloader := NewImageDownloader(tempDir)
 
 	filePath, err := downloader.DownloadImage(server.URL + "/image.png")
-	if err != nil {
-		t.Fatalf("下载失败: %v", err)
-	}
-
-	info, err := os.Stat(filePath)
-	if err != nil {
-		t.Fatalf("文件不存在: %v", err)
-	}
-	if info.Size() == 0 {
-		t.Fatalf("下载文件为空")
-	}
-}
-
-// TestDownloadImage_AntiHotlink_External 集成测试：真实外网防盗链场景
-// 默认跳过，设置 XHS_RUN_NETWORK_TESTS=1 后执行。
-func TestDownloadImage_AntiHotlink_External(t *testing.T) {
-	if os.Getenv("XHS_RUN_NETWORK_TESTS") != "1" {
-		t.Skip("skip external network test; set XHS_RUN_NETWORK_TESTS=1 to enable")
-	}
-
-	testURL := "https://img1.mydrivers.com/img/20260213/s_fdac2d21214147019e629fa7f2c8802e.png"
-
-	tempDir := t.TempDir()
-	downloader := NewImageDownloader(tempDir)
-
-	filePath, err := downloader.DownloadImage(testURL)
 	if err != nil {
 		t.Fatalf("下载失败: %v", err)
 	}

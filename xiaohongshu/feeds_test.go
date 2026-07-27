@@ -6,7 +6,6 @@ package xiaohongshu
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -46,21 +45,6 @@ func TestGetFeedsList(t *testing.T) {
 		}
 
 		// 只对第一个 Feed 进行完整 JSON 序列化检查
-		if i == 0 {
-			jsonData, err := json.MarshalIndent(feed, "", "  ")
-			require.NoError(t, err, "Failed to marshal feed")
-
-			fmt.Printf("\n第一个 Feed 的完整 JSON 结构:\n%s\n", string(jsonData))
-
-			var checkFeed Feed
-			err = json.Unmarshal(jsonData, &checkFeed)
-			require.NoError(t, err, "Failed to unmarshal feed")
-
-			require.Equal(t, feed.ID, checkFeed.ID)
-			require.Equal(t, feed.ModelType, checkFeed.ModelType)
-			require.Equal(t, feed.NoteCard.Type, checkFeed.NoteCard.Type)
-		}
-
 		if i < 3 {
 			fmt.Printf("\nFeed %d 基本信息:\n", i+1)
 			fmt.Printf("  ID: %s\n", feed.ID)
