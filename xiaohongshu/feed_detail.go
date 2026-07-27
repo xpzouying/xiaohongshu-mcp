@@ -237,40 +237,53 @@ func (cl *commentLoader) checkNoComments() bool {
 }
 
 func (cl *commentLoader) checkComplete(ctx context.Context) bool {
-	if checkEndContainer(cl.page) {
-		currentCount := getCommentCount(cl.page)
-		logrus.Infof("✓ 检测到 'THE END' 元素，已滑动到底部")
-		humanize.Delay(ctx, humanize.BetweenScroll)
-		logrus.Infof("✓ 加载完成: %d 条评论, 尝试次数: %d, 点击: %d, 跳过: %d",
-			currentCount, cl.stats.attempts+1, cl.stats.totalClicked, cl.stats.totalSkipped)
-		return true
+	if !checkEndContainer(cl.page) {
+		return false
 	}
-	return false
+
+	// 到底之后再展开一轮：评论区不用怎么滚就能到底时，循环第一轮就走到这里，
+	// 主流程里的展开步骤根本没机会执行。点开了就先不算加载完，让下一轮重新判断
+	// （展开会露出新的按钮）；一个都没点开就收工，避免被阈值跳过的按钮卡住。
+	if cl.config.ClickMoreReplies && cl.clickButtonsWithRetry(ctx) > 0 {
+		return false
+	}
+
+	currentCount := getCommentCount(cl.page)
+	logrus.Infof("✓ 检测到 'THE END' 元素，已滑动到底部")
+	humanize.Delay(ctx, humanize.BetweenScroll)
+	logrus.Infof("✓ 加载完成: %d 条评论, 尝试次数: %d, 点击: %d, 跳过: %d",
+		currentCount, cl.stats.attempts+1, cl.stats.totalClicked, cl.stats.totalSkipped)
+	return true
 }
 
 func (cl *commentLoader) shouldClickButtons() bool {
 	return cl.config.ClickMoreReplies && cl.stats.attempts%buttonClickInterval == 0
 }
 
-func (cl *commentLoader) clickButtonsWithRetry(ctx context.Context) {
+// clickButtonsWithRetry 展开当前页上的回复按钮，返回本次点开的个数。
+func (cl *commentLoader) clickButtonsWithRetry(ctx context.Context) int {
 	clicked, skipped := clickShowMoreButtonsSmart(ctx, cl.page, cl.config.MaxRepliesThreshold)
-	if clicked > 0 || skipped > 0 {
-		cl.stats.totalClicked += clicked
-		cl.stats.totalSkipped += skipped
-		logrus.Infof("点击'更多': %d 个, 跳过: %d 个, 累计点击: %d, 累计跳过: %d",
-			clicked, skipped, cl.stats.totalClicked, cl.stats.totalSkipped)
-
-		humanize.Delay(ctx, humanize.Reading)
-
-		// 重试一轮
-		clicked2, skipped2 := clickShowMoreButtonsSmart(ctx, cl.page, cl.config.MaxRepliesThreshold)
-		if clicked2 > 0 || skipped2 > 0 {
-			cl.stats.totalClicked += clicked2
-			cl.stats.totalSkipped += skipped2
-			logrus.Infof("第 2 轮: 点击 %d, 跳过 %d", clicked2, skipped2)
-			humanize.Delay(ctx, humanize.Reading)
-		}
+	if clicked == 0 && skipped == 0 {
+		return 0
 	}
+
+	cl.stats.totalClicked += clicked
+	cl.stats.totalSkipped += skipped
+	logrus.Infof("点击'更多': %d 个, 跳过: %d 个, 累计点击: %d, 累计跳过: %d",
+		clicked, skipped, cl.stats.totalClicked, cl.stats.totalSkipped)
+
+	humanize.Delay(ctx, humanize.Reading)
+
+	// 重试一轮
+	clicked2, skipped2 := clickShowMoreButtonsSmart(ctx, cl.page, cl.config.MaxRepliesThreshold)
+	if clicked2 > 0 || skipped2 > 0 {
+		cl.stats.totalClicked += clicked2
+		cl.stats.totalSkipped += skipped2
+		logrus.Infof("第 2 轮: 点击 %d, 跳过 %d", clicked2, skipped2)
+		humanize.Delay(ctx, humanize.Reading)
+	}
+
+	return clicked + clicked2
 }
 
 func (cl *commentLoader) updateState(currentCount int) {
