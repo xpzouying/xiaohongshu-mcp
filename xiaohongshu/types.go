@@ -28,6 +28,26 @@ type Feed struct {
 	Index     int      `json:"index"`
 }
 
+// modelTypeNote 笔记条目的 modelType 取值。
+const modelTypeNote = "note"
+
+// onlyNotes 滤掉非笔记条目。
+//
+// 站点返回的列表里混着直播卡片（live_v2）和搜索热词（hot_query），它们没有
+// noteCard，取出来标题为空、也没有可用的 id，对调用方是纯噪音。
+//
+// 判据用 modelType 而非 noteCard.type：图文与视频笔记的 modelType 同为 note，
+// 差异体现在 noteCard.type（normal / video），按 modelType 过滤不会误伤视频。
+func onlyNotes(feeds []Feed) []Feed {
+	notes := make([]Feed, 0, len(feeds))
+	for _, f := range feeds {
+		if f.ModelType == modelTypeNote {
+			notes = append(notes, f)
+		}
+	}
+	return notes
+}
+
 // NoteCard 表示笔记卡片信息
 type NoteCard struct {
 	Type         string       `json:"type"`
