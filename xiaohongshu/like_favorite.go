@@ -68,7 +68,7 @@ type stateOf func(liked, collected bool) bool
 
 // toggleInteract 点击交互按钮并轮询校验状态是否变为 want；最多两次点击。
 // 到达即成功；始终未变或无法读状态则返回 error——消除"点了没报错就算成功"的假阳性。
-func (a *interactAction) toggleInteract(page *rod.Page, feedID, selector string, want bool, actionType interactActionType, pick stateOf) error {
+func (a *interactAction) toggleInteract(ctx context.Context, page *rod.Page, feedID, selector string, want bool, actionType interactActionType, pick stateOf) error {
 	for attempt := 1; attempt <= 2; attempt++ {
 		if err := a.performClick(page, selector); err != nil {
 			return fmt.Errorf("%s点击失败: %w", actionType, err)
@@ -79,6 +79,7 @@ func (a *interactAction) toggleInteract(page *rod.Page, feedID, selector string,
 			return fmt.Errorf("%s后无法确认状态: %w", actionType, err)
 		}
 		if ok {
+			humanize.Delay(ctx, humanize.AfterInteract)
 			logrus.Infof("feed %s %s成功（第%d次点击）", feedID, actionType, attempt)
 			return nil
 		}
@@ -136,7 +137,7 @@ func (a *LikeAction) perform(ctx context.Context, feedID, xsecToken string, targ
 	liked, _, err := a.getInteractState(page, feedID)
 	if err != nil {
 		logrus.Warnf("failed to read interact state: %v (continue to try clicking)", err)
-		return a.toggleInteract(page, feedID, SelectorLikeButton, targetLiked, actionType,
+		return a.toggleInteract(ctx, page, feedID, SelectorLikeButton, targetLiked, actionType,
 			func(liked, collected bool) bool { return liked })
 	}
 
@@ -149,7 +150,7 @@ func (a *LikeAction) perform(ctx context.Context, feedID, xsecToken string, targ
 		return nil
 	}
 
-	return a.toggleInteract(page, feedID, SelectorLikeButton, targetLiked, actionType,
+	return a.toggleInteract(ctx, page, feedID, SelectorLikeButton, targetLiked, actionType,
 		func(liked, collected bool) bool { return liked })
 }
 
@@ -183,7 +184,7 @@ func (a *FavoriteAction) perform(ctx context.Context, feedID, xsecToken string, 
 	_, collected, err := a.getInteractState(page, feedID)
 	if err != nil {
 		logrus.Warnf("failed to read interact state: %v (continue to try clicking)", err)
-		return a.toggleInteract(page, feedID, SelectorCollectButton, targetCollected, actionType,
+		return a.toggleInteract(ctx, page, feedID, SelectorCollectButton, targetCollected, actionType,
 			func(liked, collected bool) bool { return collected })
 	}
 
@@ -196,7 +197,7 @@ func (a *FavoriteAction) perform(ctx context.Context, feedID, xsecToken string, 
 		return nil
 	}
 
-	return a.toggleInteract(page, feedID, SelectorCollectButton, targetCollected, actionType,
+	return a.toggleInteract(ctx, page, feedID, SelectorCollectButton, targetCollected, actionType,
 		func(liked, collected bool) bool { return collected })
 }
 

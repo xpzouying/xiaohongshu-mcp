@@ -25,6 +25,7 @@ const (
 	Reading       Action = "reading"        // 浏览内容时的驻留
 	Keystroke     Action = "keystroke"      // 逐字符输入的字间间隔
 	ClickHold     Action = "click_hold"     // 单次点击里按下到抬起的按压时长
+	AfterInteract Action = "after_interact" // 交互写操作点击后的停留
 )
 
 // LogNormal 描述一个右偏时延分布：ln(时延/秒) ~ Normal(Mu, Sigma)，采样后 clamp 到 [Min, Max]。
@@ -73,6 +74,7 @@ func (DefaultProvider) Timing() TimingProfile {
 		Reading:       {Mu: -0.36, Sigma: 0.40, Min: 300 * time.Millisecond, Max: 3 * time.Second},       // ~0.7s
 		Keystroke:     {Mu: -2.12, Sigma: 0.50, Min: 30 * time.Millisecond, Max: 400 * time.Millisecond}, // ~120ms/字
 		ClickHold:     {Mu: -2.47, Sigma: 0.33, Min: 45 * time.Millisecond, Max: 250 * time.Millisecond}, // ~85ms
+		AfterInteract: {Mu: 0.88, Sigma: 0.30, Min: 2 * time.Second, Max: 3 * time.Second},               // ~2.4s
 	}
 }
 
