@@ -19,7 +19,9 @@ import (
 )
 
 // XiaohongshuService 小红书业务服务
-type XiaohongshuService struct{}
+type XiaohongshuService struct {
+	logins loginSessions
+}
 
 // NewXiaohongshuService 创建小红书服务实例
 func NewXiaohongshuService() *XiaohongshuService {
@@ -156,17 +158,7 @@ func (s *XiaohongshuService) GetLoginQrcode(ctx context.Context) (*LoginQrcodeRe
 	timeout := 4 * time.Minute
 
 	if !loggedIn {
-		go func() {
-			ctxTimeout, cancel := context.WithTimeout(context.Background(), timeout)
-			defer cancel()
-			defer deferFunc()
-
-			if loginAction.WaitForLogin(ctxTimeout) {
-				if er := saveCookies(page); er != nil {
-					logrus.Errorf("failed to save cookies: %v", er)
-				}
-			}
-		}()
+		s.waitScanInBackground(loginAction, page, deferFunc, timeout)
 	}
 
 	return &LoginQrcodeResponse{
@@ -179,6 +171,36 @@ func (s *XiaohongshuService) GetLoginQrcode(ctx context.Context) (*LoginQrcodeRe
 		Img:        img,
 		IsLoggedIn: loggedIn,
 	}, nil
+}
+
+// waitScanInBackground 在后台等用户扫码，扫上了就存 cookie。
+//
+// 浏览器必须一直活着才检测得到扫码，所以这里不能提前关；但也不能任由它堆积——
+// 再取一次二维码就会把上一个还在等的会话关掉，同一时刻只留一个。
+func (s *XiaohongshuService) waitScanInBackground(
+	loginAction *xiaohongshu.LoginAction, page *rod.Page, closeBrowser func(), timeout time.Duration,
+) {
+	ctxTimeout, cancel := context.WithTimeout(context.Background(), timeout)
+	seq := s.logins.start(cancel)
+	logrus.Infof("等待扫码登录，会话 #%d，超时 %s", seq, timeout)
+
+	go func() {
+		defer closeBrowser()
+		defer cancel()
+		defer s.logins.finish(seq)
+
+		if loginAction.WaitForLogin(ctxTimeout) {
+			if err := saveCookies(page); err != nil {
+				logrus.Errorf("扫码成功但保存 cookies 失败，会话 #%d: %v", seq, err)
+				return
+			}
+			logrus.Infof("扫码登录成功，cookies 已保存，会话 #%d", seq)
+			return
+		}
+
+		// 没等到扫码：要么超时，要么被新取的二维码取代
+		logrus.Infof("登录会话 #%d 结束，未检测到扫码（超时或已被新的二维码取代）", seq)
+	}()
 }
 
 // PublishContent 发布内容
