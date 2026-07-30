@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/xpzouying/xiaohongshu-mcp/cookies"
 	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
@@ -134,6 +135,7 @@ func (s *AppServer) listFeedsHandler(c *gin.Context) {
 // searchFeedsHandler 搜索Feeds
 func (s *AppServer) searchFeedsHandler(c *gin.Context) {
 	var keyword string
+	var maxResults int
 	var filters xiaohongshu.FilterOption
 
 	switch c.Request.Method {
@@ -146,9 +148,19 @@ func (s *AppServer) searchFeedsHandler(c *gin.Context) {
 			return
 		}
 		keyword = searchReq.Keyword
+		maxResults = searchReq.MaxResults
 		filters = searchReq.Filters
 	default:
 		keyword = c.Query("keyword")
+		if raw := c.Query("max_results"); raw != "" {
+			parsed, err := strconv.Atoi(raw)
+			if err != nil || parsed < 1 || parsed > 50 {
+				respondError(c, http.StatusBadRequest, "INVALID_MAX_RESULTS",
+					"max_results 必须是 1 到 50 的整数", raw)
+				return
+			}
+			maxResults = parsed
+		}
 	}
 
 	if keyword == "" {
@@ -157,7 +169,7 @@ func (s *AppServer) searchFeedsHandler(c *gin.Context) {
 		return
 	}
 
-	result, err := s.xiaohongshuService.SearchFeeds(c.Request.Context(), keyword, filters)
+	result, err := s.xiaohongshuService.SearchFeedsWithLimit(c.Request.Context(), keyword, maxResults, filters)
 	if err != nil {
 		respondError(c, http.StatusInternalServerError, "SEARCH_FEEDS_FAILED",
 			"搜索Feeds失败", err.Error())

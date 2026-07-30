@@ -55,8 +55,9 @@ type FeedDetailRequest struct {
 }
 
 type SearchFeedsRequest struct {
-	Keyword string                   `json:"keyword" binding:"required"`
-	Filters xiaohongshu.FilterOption `json:"filters,omitempty"`
+	Keyword    string                   `json:"keyword" binding:"required"`
+	MaxResults int                      `json:"max_results,omitempty" binding:"omitempty,min=1,max=50"`
+	Filters    xiaohongshu.FilterOption `json:"filters,omitempty"`
 }
 
 // FeedDetailResponse Feed详情响应
