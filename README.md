@@ -1003,9 +1003,9 @@ npx mcporter list xiaohongshu-mcp
 **重要：在群里问问题之前，请一定要先仔细看完 README 文档以及查看 Issues。**
 
 ### 微信群
-|                                                 微信群 24 群                                        |                                                 微信群 25 群                                         |
+|                                                 微信群 25 群                                        |                                                 微信群 26 群                                         |
 | :------------------------------------------------------------------------------------------------: | :------------------------------------------------------------------------------------------------: |
-| <img src="https://github.com/user-attachments/assets/918a48d5-1d3c-40ce-b225-4af0d77078db" alt="WechatIMG119" width="300"> | <img src="https://github.com/user-attachments/assets/c49ad483-0f27-46f3-a6a7-31b3ba31540f" alt="WechatIMG119" width="300">|
+| <img src="https://github.com/user-attachments/assets/49ef7f34-d1f0-4161-8e3e-fead4ca404df" alt="WechatIMG119" width="300"> | <img src="https://github.com/user-attachments/assets/0204d097-b446-4845-8322-d72dc1d2eac8" alt="WechatIMG119" width="300">|
 
 ### 飞书群
 
