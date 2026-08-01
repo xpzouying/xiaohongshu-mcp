@@ -108,6 +108,7 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 	page.MustNavigate(searchURL)
 	page.MustWaitStable()
 	page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
+	humanize.Delay(ctx, humanize.AfterNavigate)
 
 	if len(pending) > 0 {
 		// 悬停在筛选按钮上展开面板
