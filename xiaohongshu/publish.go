@@ -167,7 +167,7 @@ func mustClickPublishTab(page *rod.Page, tabname string) error {
 			continue
 		}
 
-		if err := tab.Click(proto.InputMouseButtonLeft, 1); err != nil {
+		if err := humanize.Click(tab); err != nil {
 			logrus.Warnf("点击发布 TAB 失败: %v", err)
 			time.Sleep(200 * time.Millisecond)
 			continue
@@ -402,7 +402,7 @@ func clickPublishButton(page *rod.Page) error {
 		return clickPublishWidget(page, btn.elem)
 	}
 
-	if err := btn.elem.Click(proto.InputMouseButtonLeft, 1); err != nil {
+	if err := humanize.Click(btn.elem); err != nil {
 		return errors.Wrap(err, "点击发布按钮失败")
 	}
 	return nil
@@ -548,7 +548,7 @@ func clickPublishWidget(page *rod.Page, widget *rod.Element) error {
 func waitAndClickTitleInput(titleElem *rod.Element) error {
 	slog.Info("正文填写完成，准备等待后回点标题输入框")
 	time.Sleep(1 * time.Second)
-	if err := titleElem.Click(proto.InputMouseButtonLeft, 1); err != nil {
+	if err := humanize.Click(titleElem); err != nil {
 		return errors.Wrap(err, "回点标题输入框失败")
 	}
 	slog.Info("已回点标题输入框，继续后续发布流程")
@@ -831,7 +831,7 @@ func setVisibility(page *rod.Page, visibility string) error {
 	if err != nil {
 		return errors.Wrap(err, "查找可见范围下拉框失败")
 	}
-	if err := dropdown.Click(proto.InputMouseButtonLeft, 1); err != nil {
+	if err := humanize.Click(dropdown); err != nil {
 		return errors.Wrap(err, "点击可见范围下拉框失败")
 	}
 	time.Sleep(500 * time.Millisecond)
@@ -847,7 +847,7 @@ func setVisibility(page *rod.Page, visibility string) error {
 			continue
 		}
 		if strings.Contains(text, visibility) {
-			if err := opt.Click(proto.InputMouseButtonLeft, 1); err != nil {
+			if err := humanize.Click(opt); err != nil {
 				return errors.Wrap(err, "选择可见范围失败")
 			}
 			slog.Info("已设置可见范围", "visibility", visibility)
@@ -882,7 +882,7 @@ func clickScheduleSwitch(page *rod.Page) error {
 		return errors.Wrap(err, "查找定时发布开关失败")
 	}
 
-	if err := switchElem.Click(proto.InputMouseButtonLeft, 1); err != nil {
+	if err := humanize.Click(switchElem); err != nil {
 		return errors.Wrap(err, "点击定时发布开关失败")
 	}
 	slog.Info("已点击定时发布开关")
@@ -955,7 +955,7 @@ func setOriginal(page *rod.Page) error {
 		}
 
 		// 点击开关
-		if err := switchElem.Click(proto.InputMouseButtonLeft, 1); err != nil {
+		if err := humanize.Click(switchElem); err != nil {
 			return errors.Wrap(err, "点击原创声明开关失败")
 		}
 
@@ -1152,7 +1152,7 @@ func clickAddProductButton(page *rod.Page) error {
 
 				// 检查是否为 button 或含 d-button class
 				if tag == "button" {
-					if err := parent.Click(proto.InputMouseButtonLeft, 1); err != nil {
+					if err := humanize.Click(parent); err != nil {
 						return errors.Wrap(err, "点击添加商品按钮失败")
 					}
 					slog.Info("已点击添加商品按钮")
@@ -1162,7 +1162,7 @@ func clickAddProductButton(page *rod.Page) error {
 
 				cls, _ := parent.Attribute("class")
 				if cls != nil && strings.Contains(*cls, "d-button") {
-					if err := parent.Click(proto.InputMouseButtonLeft, 1); err != nil {
+					if err := humanize.Click(parent); err != nil {
 						return errors.Wrap(err, "点击添加商品按钮失败")
 					}
 					slog.Info("已点击添加商品按钮")
@@ -1265,7 +1265,7 @@ func searchAndSelectProduct(ctx context.Context, page *rod.Page, modal *rod.Elem
 		return nil
 	}
 
-	if err := checkbox.Click(proto.InputMouseButtonLeft, 1); err != nil {
+	if err := humanize.Click(checkbox); err != nil {
 		return errors.Wrap(err, "点击商品选择框失败")
 	}
 
@@ -1281,7 +1281,7 @@ func clickModalSaveButton(modal *rod.Element) error {
 	// 查找保存按钮（参考工作代码：直接查找并点击，不强制要求找到）
 	btn, err := modal.Element(".goods-selected-footer button")
 	if err == nil && btn != nil {
-		if err := btn.Click(proto.InputMouseButtonLeft, 1); err != nil {
+		if err := humanize.Click(btn); err != nil {
 			slog.Warn("点击保存按钮失败", "error", err)
 		} else {
 			slog.Info("已点击保存按钮")
@@ -1292,7 +1292,7 @@ func clickModalSaveButton(modal *rod.Element) error {
 	// 尝试点击主按钮
 	primaryBtn, err := modal.Element(".goods-selected-footer .d-button--primary")
 	if err == nil && primaryBtn != nil {
-		if err := primaryBtn.Click(proto.InputMouseButtonLeft, 1); err != nil {
+		if err := humanize.Click(primaryBtn); err != nil {
 			slog.Warn("点击主按钮失败", "error", err)
 		} else {
 			slog.Info("已点击主按钮")

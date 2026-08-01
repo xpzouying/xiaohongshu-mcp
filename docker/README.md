@@ -58,7 +58,7 @@ docker build -t xpzouying/xiaohongshu-mcp .
 docker compose up -d
 
 # 查看日志
-docker logs -f xpzouying/xiaohongshu-mcp
+docker logs -f xiaohongshu-mcp
 
 # 或者
 docker compose logs -f
@@ -74,7 +74,7 @@ docker compose logs -f
 docker compose stop
 
 # 查看实时日志
-docker logs -f xpzouying/xiaohongshu-mcp
+docker logs -f xiaohongshu-mcp
 
 # 进入容器
 docker exec -it xiaohongshu-mcp bash
