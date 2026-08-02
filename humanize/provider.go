@@ -1,8 +1,3 @@
-// Package humanize 封装交互的统一原语（延迟、输入、点击）。
-//
-// 约定：业务代码统一调 humanize.*，不直接调底层原语。
-//
-// 行为参数走 Provider 接口：DefaultProvider 提供一套静态默认，可用 SetProvider 替换。
 package humanize
 
 import (
@@ -11,33 +6,29 @@ import (
 	"time"
 )
 
-// Action 标识一类停顿场景。
 type Action string
 
 const (
-	AfterClick    Action = "after_click"    // 点击后
-	AfterType     Action = "after_type"     // 输入后
-	AfterNavigate Action = "after_navigate" // 页面跳转/加载后
-	BetweenScroll Action = "between_scroll" // 连续滚动之间
-	BeforeSubmit  Action = "before_submit"  // 提交前
-	BeforeClick   Action = "before_click"   // 移到元素上、点击前
-	Reading       Action = "reading"        // 浏览内容时的驻留
-	Keystroke     Action = "keystroke"      // 逐字符输入的字间间隔
-	ClickHold     Action = "click_hold"     // 单次点击里按下到抬起的按压时长
-	AfterInteract Action = "after_interact" // 交互写操作点击后的停留
+	AfterClick    Action = "after_click"
+	AfterType     Action = "after_type"
+	AfterNavigate Action = "after_navigate"
+	BetweenScroll Action = "between_scroll"
+	BeforeSubmit  Action = "before_submit"
+	BeforeClick   Action = "before_click"
+	Reading       Action = "reading"
+	Keystroke     Action = "keystroke"
+	ClickHold     Action = "click_hold"
+	AfterInteract Action = "after_interact"
 )
 
-// LogNormal 是一类时延分布，采样值 clamp 到 [Min, Max]。
 type LogNormal struct {
-	Mu, Sigma float64       // 分布参数
-	Min, Max  time.Duration // clamp 边界（Max<=0 表示不设上限）
+	Mu, Sigma float64
+	Min, Max  time.Duration
 }
 
-// sample 给定样本 norm，返回 clamp 后的时延。拆成纯函数是为了可确定性单测。
 func (l LogNormal) sample(norm float64) time.Duration {
 	secs := math.Exp(l.Mu + l.Sigma*norm)
-	// 先在"秒"量级上处理上限：secs 极大时直接 float64→Duration 会溢出成负值、
-	// 破坏 clamp，所以在转换前就拦掉。
+	// 转换前先处理上限：secs 极大时 float64→Duration 会溢出成负值
 	if l.Max > 0 && secs >= l.Max.Seconds() {
 		return l.Max
 	}
@@ -48,7 +39,6 @@ func (l LogNormal) sample(norm float64) time.Duration {
 	return d
 }
 
-// Sample 采样一个时延（Go 1.20+ 全局 rand 已自动播种且并发安全）。
 func (l LogNormal) Sample() time.Duration {
 	return l.sample(rand.NormFloat64())
 }
@@ -76,11 +66,8 @@ func (DefaultProvider) Timing() TimingProfile {
 	}
 }
 
-// defaultProvider 是包级默认 Provider。
-// 启动时可用 SetProvider 注入替换，业务代码零改动。
 var defaultProvider Provider = DefaultProvider{}
 
-// SetProvider 注入行为参数 Provider。传 nil 忽略，保证任何时候都有可用的 Provider。
 func SetProvider(p Provider) {
 	if p != nil {
 		defaultProvider = p
