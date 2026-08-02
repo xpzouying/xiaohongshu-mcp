@@ -100,6 +100,24 @@ type FavoriteFeedArgs struct {
 	Unfavorite bool   `json:"unfavorite,omitempty" jsonschema:"是否取消收藏，true为取消收藏，false或未设置则为收藏"`
 }
 
+// ListNotificationsArgs 通知列表参数
+type ListNotificationsArgs struct {
+	Tab   string `json:"tab,omitempty" jsonschema:"通知分区: mentions(评论和@,默认)|likes(赞和收藏)|connections(新增关注)"`
+	Limit int    `json:"limit,omitempty" jsonschema:"返回条数上限，默认20"`
+}
+
+// LikeNotificationArgs 通知点赞参数
+type LikeNotificationArgs struct {
+	CommentID string `json:"comment_id" jsonschema:"目标评论ID，从 list_notifications 的 comment_id 字段获取"`
+	Unlike    bool   `json:"unlike,omitempty" jsonschema:"是否取消点赞，true为取消点赞，false或未设置则为点赞"`
+}
+
+// ReplyNotificationArgs 通知回复参数
+type ReplyNotificationArgs struct {
+	CommentID string `json:"comment_id" jsonschema:"目标评论ID，从 list_notifications 的 comment_id 字段获取"`
+	Content   string `json:"content" jsonschema:"回复内容"`
+}
+
 // InitMCPServer 初始化 MCP Server
 func InitMCPServer(appServer *AppServer) *mcp.Server {
 	// 创建 MCP Server
@@ -459,7 +477,71 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	logrus.Infof("Registered %d MCP tools", 14)
+	// 工具 15: 通知未读数
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "get_unread_count",
+			Description: "获取通知未读数，返回「评论和@」「赞和收藏」「新增关注」三个分区各自的未读条数。不会清除未读标记。查看具体内容用 list_notifications。",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Get Unread Count",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("get_unread_count", func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleGetUnreadCount(ctx)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	// 工具 16: 通知列表
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "list_notifications",
+			Description: "获取通知列表。返回评论内容、评论者、以及对应笔记的 feed_id 和 xsec_token（可用于 get_feed_detail 读原帖）。已删除或不可见的条目会被过滤，过滤数量见 filtered 字段。注意：会清除该分区的未读标记，只需要未读数时用 get_unread_count。",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "List Notifications",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("list_notifications", func(ctx context.Context, req *mcp.CallToolRequest, args ListNotificationsArgs) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleListNotifications(ctx, args.Tab, args.Limit)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	// 工具 17: 回复通知里的评论
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "reply_notification",
+			Description: "回复「评论和@」里的一条评论。comment_id 从 list_notifications 获取。适合处理收到的评论，无需先定位笔记。",
+			Annotations: &mcp.ToolAnnotations{
+				Title:           "Reply Notification",
+				DestructiveHint: boolPtr(true),
+			},
+		},
+		withPanicRecovery("reply_notification", func(ctx context.Context, req *mcp.CallToolRequest, args ReplyNotificationArgs) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleReplyNotification(ctx, args.CommentID, args.Content)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	// 工具 18: 给通知里的评论点赞
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "like_notification",
+			Description: "给「评论和@」里的一条评论点赞或取消点赞。comment_id 从 list_notifications 获取（其 liked 字段是当前状态）。已是目标状态时跳过。",
+			Annotations: &mcp.ToolAnnotations{
+				Title:           "Like Notification",
+				DestructiveHint: boolPtr(true),
+			},
+		},
+		withPanicRecovery("like_notification", func(ctx context.Context, req *mcp.CallToolRequest, args LikeNotificationArgs) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleLikeNotification(ctx, args.CommentID, args.Unlike)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	logrus.Infof("Registered %d MCP tools", 18)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式
