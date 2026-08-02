@@ -13,7 +13,6 @@ import (
 	"github.com/go-rod/rod/lib/proto"
 )
 
-// pressAndRelease 按下、停留、再抬起。
 func pressAndRelease(mouse *rod.Mouse) error {
 	if err := mouse.Down(proto.InputMouseButtonLeft, 1); err != nil {
 		return err

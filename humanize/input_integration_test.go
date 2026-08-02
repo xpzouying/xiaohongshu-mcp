@@ -127,7 +127,7 @@ type clickRecord struct {
 	Y  float64 `json:"y"`
 }
 
-// TestClickTiming 校验 Click 的按下与落点行为符合约定。
+// TestClickTiming 校验 Click 的行为符合约定。
 func TestClickTiming(t *testing.T) {
 	bin, err := browser.EnsureBrowser()
 	if err != nil {
