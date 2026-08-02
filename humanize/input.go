@@ -51,8 +51,7 @@ func jitterOn(elem *rod.Element, pt proto.Point) proto.Point {
 
 // ensurePointInViewport 落点必须在视口内。
 //
-// 视口外的坐标发出去命中不到任何元素，而调用方拿不到任何错误——以为点了，
-// 其实什么也没发生。实测 left:-9999px 和 top:5000px 的元素都是这样静默落空的。
+// 视口外的坐标命中不到任何元素，且调用方拿不到错误，属于静默失败。
 func ensurePointInViewport(page *rod.Page, pt proto.Point) error {
 	res, err := page.Eval(`() => JSON.stringify([window.innerWidth, window.innerHeight])`)
 	if err != nil {
@@ -70,13 +69,11 @@ func ensurePointInViewport(page *rod.Page, pt proto.Point) error {
 	return nil
 }
 
-// ensureClickable 落点必须真的能被鼠标打到：坐标在视口内，且元素的 visibility
-// 不是 hidden——后者有布局盒子、坐标也在视口里，但按规范不参与命中测试，
-// 点下去会落到下层元素上，属于静默落空。
+// ensureClickable 校验落点确实能命中该元素。
 //
-// 不用 document.elementFromPoint 做命中校验：悬停浮层的状态在程序化移动指针时
-// 并不稳定，实测会把当时可见可点的选项判成不可点，拦错了更糟。
-// display:none 和零象限不用查，它们在 Shape() 那一步就拿不到可点区域。
+// 不用 document.elementFromPoint 做命中校验：指针移动过程中它的结果并不稳定，
+// 会把当时可点的元素判成不可点，拦错了更糟。
+// 拿不到可点区域的情况不用在这里查，Shape() 那一步就已经拦下。
 func ensureClickable(elem *rod.Element, pt proto.Point) error {
 	if err := ensurePointInViewport(elem.Page(), pt); err != nil {
 		return err
@@ -87,7 +84,7 @@ func ensureClickable(elem *rod.Element, pt proto.Point) error {
 		return nil // 读不到样式就不拦
 	}
 	if res.Value.Str() == "hidden" {
-		return errors.New("元素 visibility 为 hidden，不参与命中测试")
+		return errors.New("元素当前不可命中")
 	}
 	return nil
 }

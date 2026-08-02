@@ -199,8 +199,8 @@ document.querySelectorAll('[data-n]').forEach(el =>
   el.addEventListener('click', () => window.HIT.push(el.dataset.n), true));
 </script></body>`
 
-// TestClickGuards 校验点击前的落点检查：够不到的目标必须报错，而不是静默落空；
-// opacity:0 和 pointer-events:none 则必须放行。
+// TestClickGuards 校验点击前的落点检查：够不到的目标必须报错而不是静默失败，
+// 能命中的目标必须放行。
 func TestClickGuards(t *testing.T) {
 	bin, err := browser.EnsureBrowser()
 	if err != nil {
@@ -221,12 +221,12 @@ func TestClickGuards(t *testing.T) {
 		reason  string
 	}{
 		{"normal", false, "正常元素"},
-		{"display", true, "display:none 拿不到可点区域"},
-		{"visibility", true, "visibility:hidden 不参与命中测试"},
-		{"opacity0", false, "opacity:0 仍可命中，须放行"},
-		{"offleft", true, "落点在视口左侧之外"},
-		{"belowfold", true, "落点在视口下方之外"},
-		{"pointernone", false, "pointer-events:none 会穿透，须放行"},
+		{"display", true, "拿不到可点区域"},
+		{"visibility", true, "不可命中"},
+		{"opacity0", false, "仍可命中，须放行"},
+		{"offleft", true, "落点在视口之外"},
+		{"belowfold", true, "落点在视口之外"},
+		{"pointernone", false, "可穿透但仍应放行"},
 	}
 
 	for _, c := range cases {
