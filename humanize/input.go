@@ -174,7 +174,7 @@ func Hover(elem *rod.Element) error {
 // 用于点不到元素、只能算坐标的场景（如取元素区域内的偏移点、点击空白处）；
 // 有元素可点时用 Click。
 //
-// 落点由调用方决定，这里不做偏移——调用方挑那个坐标通常有它的理由。
+// 落点由调用方决定。
 func ClickAt(page *rod.Page, pt proto.Point) error {
 	if err := ensurePointInViewport(page, pt); err != nil {
 		return err
