@@ -18,8 +18,7 @@ func respondError(c *gin.Context, statusCode int, code, message string, details 
 		Details: details,
 	}
 
-	logrus.Errorf("%s %s %s %d", c.Request.Method, c.Request.URL.Path,
-		c.GetString("account"), statusCode)
+	logrus.Errorf("%s %s %d", c.Request.Method, c.Request.URL.Path, statusCode)
 
 	c.JSON(statusCode, response)
 }
@@ -32,8 +31,7 @@ func respondSuccess(c *gin.Context, data any, message string) {
 		Message: message,
 	}
 
-	logrus.Infof("%s %s %s %d", c.Request.Method, c.Request.URL.Path,
-		c.GetString("account"), http.StatusOK)
+	logrus.Infof("%s %s %d", c.Request.Method, c.Request.URL.Path, http.StatusOK)
 
 	c.JSON(http.StatusOK, response)
 }
@@ -47,7 +45,6 @@ func (s *AppServer) checkLoginStatusHandler(c *gin.Context) {
 		return
 	}
 
-	c.Set("account", "ai-report")
 	respondSuccess(c, status, "检查登录状态成功")
 }
 
@@ -127,7 +124,6 @@ func (s *AppServer) listFeedsHandler(c *gin.Context) {
 		return
 	}
 
-	c.Set("account", "ai-report")
 	respondSuccess(c, result, "获取Feeds列表成功")
 }
 
@@ -164,7 +160,6 @@ func (s *AppServer) searchFeedsHandler(c *gin.Context) {
 		return
 	}
 
-	c.Set("account", "ai-report")
 	respondSuccess(c, result, "搜索Feeds成功")
 }
 
@@ -198,7 +193,6 @@ func (s *AppServer) getFeedDetailHandler(c *gin.Context) {
 		return
 	}
 
-	c.Set("account", "ai-report")
 	respondSuccess(c, result, "获取Feed详情成功")
 }
 
@@ -218,7 +212,6 @@ func (s *AppServer) userProfileHandler(c *gin.Context) {
 		return
 	}
 
-	c.Set("account", "ai-report")
 	respondSuccess(c, map[string]any{"data": result}, "result.Message")
 }
 
@@ -239,7 +232,6 @@ func (s *AppServer) postCommentHandler(c *gin.Context) {
 		return
 	}
 
-	c.Set("account", "ai-report")
 	respondSuccess(c, result, result.Message)
 }
 
@@ -259,7 +251,6 @@ func (s *AppServer) replyCommentHandler(c *gin.Context) {
 		return
 	}
 
-	c.Set("account", "ai-report")
 	respondSuccess(c, result, result.Message)
 }
 
@@ -285,7 +276,6 @@ func (s *AppServer) likeFeedHandler(c *gin.Context) {
 		return
 	}
 
-	c.Set("account", "ai-report")
 	respondSuccess(c, result, result.Message)
 }
 
@@ -311,7 +301,6 @@ func (s *AppServer) favoriteFeedHandler(c *gin.Context) {
 		return
 	}
 
-	c.Set("account", "ai-report")
 	respondSuccess(c, result, result.Message)
 }
 
@@ -321,7 +310,7 @@ func healthHandler(c *gin.Context) {
 		"status":    "healthy",
 		"service":   "xiaohongshu-mcp",
 		"version":   version,
-		"account":   "ai-report",
+		"account":   "github.com/xpzouying/xiaohongshu-mcp",
 		"timestamp": "now",
 	}, "服务正常")
 }
@@ -336,6 +325,5 @@ func (s *AppServer) myProfileHandler(c *gin.Context) {
 		return
 	}
 
-	c.Set("account", "ai-report")
 	respondSuccess(c, map[string]any{"data": result}, "获取我的主页成功")
 }

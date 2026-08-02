@@ -14,7 +14,6 @@ func moveMouseCurved(mouse *rod.Mouse, target proto.Point) error {
 	dx, dy := target.X-start.X, target.Y-start.Y
 	dist := math.Hypot(dx, dy)
 
-	// 距离极近：直接到位
 	if dist < 6 {
 		return mouse.MoveTo(target)
 	}
@@ -34,7 +33,7 @@ func moveMouseCurved(mouse *rod.Mouse, target proto.Point) error {
 	return mouse.MoveAlong(func() (proto.Point, bool) {
 		i++
 		if i >= steps {
-			return target, true // 最后一步精确落到目标
+			return target, true
 		}
 		p := cubicBezier(start, c1, c2, target, easeInOut(float64(i)/float64(steps)))
 		time.Sleep(perStep)
@@ -43,8 +42,8 @@ func moveMouseCurved(mouse *rod.Mouse, target proto.Point) error {
 }
 
 func curveControlPoints(a, b proto.Point, dist float64) (proto.Point, proto.Point) {
-	nx, ny := -(b.Y-a.Y)/dist, (b.X-a.X)/dist  // 单位垂直向量
-	off := dist * (0.05 + rand.Float64()*0.10) // 弧度偏移：距离的 5%~15%
+	nx, ny := -(b.Y-a.Y)/dist, (b.X-a.X)/dist
+	off := dist * (0.05 + rand.Float64()*0.10)
 	if rand.Intn(2) == 0 {
 		off = -off
 	}

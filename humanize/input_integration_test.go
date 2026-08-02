@@ -1,7 +1,5 @@
 //go:build integration
 
-// 集成测试：起无头浏览器验证输入行为，本地页面、不联网、不登录。
-// 手动跑：go test -tags integration ./humanize/ -v
 package humanize
 
 import (
@@ -32,7 +30,6 @@ type typedEvent struct {
 	Target string `json:"target"`
 }
 
-// countEvents 统计指定元素上各类事件的次数，并清空记录。
 func countEvents(t *testing.T, page *rod.Page, target string) map[string]int {
 	t.Helper()
 
@@ -52,7 +49,6 @@ func countEvents(t *testing.T, page *rod.Page, target string) map[string]int {
 	return counts
 }
 
-// assertOneInputPerRune 每个字符应恰好产生一次 input，且不应产生 change。
 func assertOneInputPerRune(t *testing.T, label string, counts map[string]int, text string) {
 	t.Helper()
 
@@ -87,7 +83,6 @@ func TestTypeEventSequence(t *testing.T) {
 
 	const text = "你好abc"
 
-	// 普通输入框
 	input := page.MustElement("#a")
 	if err := Type(ctx, input, text); err != nil {
 		t.Fatalf("输入框输入失败: %v", err)
@@ -97,7 +92,6 @@ func TestTypeEventSequence(t *testing.T) {
 		t.Errorf("<input> 文本不符: 期望 %q，实际 %q", text, got)
 	}
 
-	// contenteditable：评论框、发布编辑器都是这种形态
 	editable := page.MustElement("#b")
 	if err := Type(ctx, editable, text); err != nil {
 		t.Fatalf("contenteditable 输入失败: %v", err)
@@ -127,7 +121,6 @@ type clickRecord struct {
 	Y  float64 `json:"y"`
 }
 
-// TestClickTiming 校验 Click 的按下时长与落点分布符合约定。
 func TestClickTiming(t *testing.T) {
 	bin, err := browser.EnsureBrowser()
 	if err != nil {
@@ -170,7 +163,6 @@ func TestClickTiming(t *testing.T) {
 		if down.T != "down" || up.T != "up" {
 			t.Fatalf("第 %d 组事件顺序异常: %s/%s", i/2+1, down.T, up.T)
 		}
-		// timeStamp 单位是毫秒；留 10ms 余量给时钟精度
 		hold := time.Duration(up.TS-down.TS) * time.Millisecond
 		if hold+10*time.Millisecond < minHold {
 			t.Errorf("第 %d 次按压时长 %v，短于下限 %v", i/2+1, hold, minHold)
@@ -199,8 +191,6 @@ document.querySelectorAll('[data-n]').forEach(el =>
   el.addEventListener('click', () => window.HIT.push(el.dataset.n), true));
 </script></body>`
 
-// TestClickGuards 校验点击前的落点检查：够不到的目标必须报错，而不是静默落空；
-// opacity:0 和 pointer-events:none 则必须放行。
 func TestClickGuards(t *testing.T) {
 	bin, err := browser.EnsureBrowser()
 	if err != nil {
@@ -217,16 +207,16 @@ func TestClickGuards(t *testing.T) {
 
 	cases := []struct {
 		name    string
-		blocked bool // 是否应当被拦下
+		blocked bool
 		reason  string
 	}{
 		{"normal", false, "正常元素"},
-		{"display", true, "display:none 拿不到可点区域"},
-		{"visibility", true, "visibility:hidden 不参与命中测试"},
-		{"opacity0", false, "opacity:0 仍可命中，须放行"},
-		{"offleft", true, "落点在视口左侧之外"},
-		{"belowfold", true, "落点在视口下方之外"},
-		{"pointernone", false, "pointer-events:none 会穿透，须放行"},
+		{"display", true, "拿不到可点区域"},
+		{"visibility", true, "不可命中"},
+		{"opacity0", false, "仍可命中，须放行"},
+		{"offleft", true, "落点在视口之外"},
+		{"belowfold", true, "落点在视口之外"},
+		{"pointernone", false, "可穿透但仍应放行"},
 	}
 
 	for _, c := range cases {
