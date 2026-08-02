@@ -489,7 +489,9 @@ func (s *AppServer) handleUserProfile(ctx context.Context, args map[string]any) 
 
 	logrus.Infof("MCP: 获取用户主页 - User ID: %s", userID)
 
-	result, err := s.xiaohongshuService.UserProfile(ctx, userID, xsecToken)
+	tab, _ := args["tab"].(string)
+
+	result, err := s.xiaohongshuService.UserProfile(ctx, userID, xsecToken, tab)
 	if err != nil {
 		return &MCPToolResult{
 			Content: []MCPContent{{
@@ -722,10 +724,10 @@ func (s *AppServer) handleReplyComment(ctx context.Context, args map[string]inte
 }
 
 // handleGetMyProfile 获取当前登录用户主页
-func (s *AppServer) handleGetMyProfile(ctx context.Context) *MCPToolResult {
-	logrus.Info("MCP: 获取我的主页")
+func (s *AppServer) handleGetMyProfile(ctx context.Context, tab string) *MCPToolResult {
+	logrus.Infof("MCP: 获取我的主页 tab=%s", tab)
 
-	result, err := s.xiaohongshuService.GetMyProfile(ctx)
+	result, err := s.xiaohongshuService.GetMyProfile(ctx, tab)
 	if err != nil {
 		return &MCPToolResult{
 			Content: []MCPContent{{

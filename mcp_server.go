@@ -68,6 +68,12 @@ type FeedDetailArgs struct {
 type UserProfileArgs struct {
 	UserID    string `json:"user_id" jsonschema:"小红书用户ID，从Feed列表获取"`
 	XsecToken string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
+	Tab       string `json:"tab,omitempty" jsonschema:"主页 tab: note(笔记,默认)|fav(收藏)|liked(点赞)。收藏和点赞可能被对方设为不公开"`
+}
+
+// MyProfileArgs 我的主页参数
+type MyProfileArgs struct {
+	Tab string `json:"tab,omitempty" jsonschema:"主页 tab: note(笔记,默认)|fav(收藏)|liked(点赞)"`
 }
 
 // PostCommentArgs 发表评论的参数
@@ -327,7 +333,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "user_profile",
-			Description: "获取指定的小红书用户主页，返回用户基本信息，关注、粉丝、获赞量及其笔记内容",
+			Description: "获取指定的小红书用户主页，返回用户基本信息，关注、粉丝、获赞量，以及指定 tab 下的内容。tab 可选 note(笔记,默认)、fav(收藏)、liked(点赞)，后两者可能被对方设为不公开",
 			Annotations: &mcp.ToolAnnotations{
 				Title:        "User Profile",
 				ReadOnlyHint: true,
@@ -337,6 +343,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 			argsMap := map[string]interface{}{
 				"user_id":    args.UserID,
 				"xsec_token": args.XsecToken,
+				"tab":        args.Tab,
 			}
 			result := appServer.handleUserProfile(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
@@ -465,14 +472,14 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "get_my_profile",
-			Description: "获取当前登录用户的主页，返回用户基本信息，关注、粉丝、获赞量及其笔记内容",
+			Description: "获取当前登录用户的主页，返回用户基本信息，关注、粉丝、获赞量，以及指定 tab 下的内容。tab 可选 note(自己发的笔记,默认)、fav(自己收藏的)、liked(自己点赞的)",
 			Annotations: &mcp.ToolAnnotations{
 				Title:        "Get My Profile",
 				ReadOnlyHint: true,
 			},
 		},
-		withPanicRecovery("get_my_profile", func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, any, error) {
-			result := appServer.handleGetMyProfile(ctx)
+		withPanicRecovery("get_my_profile", func(ctx context.Context, req *mcp.CallToolRequest, args MyProfileArgs) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleGetMyProfile(ctx, args.Tab)
 			return convertToMCPResult(result), nil, nil
 		}),
 	)

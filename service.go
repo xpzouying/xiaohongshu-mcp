@@ -442,7 +442,12 @@ func (s *XiaohongshuService) GetFeedDetailWithConfig(ctx context.Context, feedID
 }
 
 // UserProfile 获取用户信息
-func (s *XiaohongshuService) UserProfile(ctx context.Context, userID, xsecToken string) (*UserProfileResponse, error) {
+func (s *XiaohongshuService) UserProfile(ctx context.Context, userID, xsecToken, tab string) (*UserProfileResponse, error) {
+	parsed, err := xiaohongshu.ParseProfileTab(tab)
+	if err != nil {
+		return nil, err
+	}
+
 	b := newBrowser()
 	defer b.Close()
 
@@ -451,7 +456,7 @@ func (s *XiaohongshuService) UserProfile(ctx context.Context, userID, xsecToken 
 
 	action := xiaohongshu.NewUserProfileAction(page)
 
-	result, err := action.UserProfile(ctx, userID, xsecToken)
+	result, err := action.UserProfile(ctx, userID, xsecToken, parsed)
 	if err != nil {
 		return nil, err
 	}
@@ -648,13 +653,17 @@ func withBrowserPage(fn func(*rod.Page) error) error {
 }
 
 // GetMyProfile 获取当前登录用户的个人信息
-func (s *XiaohongshuService) GetMyProfile(ctx context.Context) (*UserProfileResponse, error) {
+func (s *XiaohongshuService) GetMyProfile(ctx context.Context, tab string) (*UserProfileResponse, error) {
+	parsed, err := xiaohongshu.ParseProfileTab(tab)
+	if err != nil {
+		return nil, err
+	}
+
 	var result *xiaohongshu.UserProfileResponse
-	var err error
 
 	err = withBrowserPage(func(page *rod.Page) error {
 		action := xiaohongshu.NewUserProfileAction(page)
-		result, err = action.GetMyProfileViaSidebar(ctx)
+		result, err = action.GetMyProfileViaSidebar(ctx, parsed)
 		return err
 	})
 
