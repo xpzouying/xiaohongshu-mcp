@@ -101,6 +101,7 @@ type ReplyCommentResponse struct {
 type UserProfileRequest struct {
 	UserID    string `json:"user_id" binding:"required"`
 	XsecToken string `json:"xsec_token" binding:"required"`
+	Tab       string `json:"tab,omitempty"`
 }
 
 // LikeFeedRequest 点赞/取消点赞请求

@@ -206,7 +206,7 @@ func (s *AppServer) userProfileHandler(c *gin.Context) {
 		return
 	}
 
-	result, err := s.xiaohongshuService.UserProfile(c.Request.Context(), req.UserID, req.XsecToken)
+	result, err := s.xiaohongshuService.UserProfile(c.Request.Context(), req.UserID, req.XsecToken, req.Tab)
 	if err != nil {
 		respondError(c, http.StatusInternalServerError, "GET_USER_PROFILE_FAILED",
 			"获取用户主页失败", err.Error())
@@ -319,7 +319,7 @@ func healthHandler(c *gin.Context) {
 // myProfileHandler 我的信息
 func (s *AppServer) myProfileHandler(c *gin.Context) {
 	// 获取当前登录用户信息
-	result, err := s.xiaohongshuService.GetMyProfile(c.Request.Context())
+	result, err := s.xiaohongshuService.GetMyProfile(c.Request.Context(), c.Query("tab"))
 	if err != nil {
 		respondError(c, http.StatusInternalServerError, "GET_MY_PROFILE_FAILED",
 			"获取我的主页失败", err.Error())
