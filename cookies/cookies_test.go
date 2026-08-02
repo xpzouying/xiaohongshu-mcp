@@ -155,3 +155,20 @@ func decodeJSON(t *testing.T, data []byte) any {
 	assert.NoError(t, json.Unmarshal(data, &v))
 	return v
 }
+
+// TestSaveCookies_CreatesParentDir 保存时父目录不存在也应能落盘。
+//
+// COOKIES_PATH 指向一个还没创建的目录时，原先会直接写失败。
+func TestSaveCookies_CreatesParentDir(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "nested", "deeper", "cookies.json")
+
+	c := NewLoadCookie(path)
+	assert.NoError(t, c.SaveCookies([]byte(`[{"name":"a","value":"b"}]`)))
+
+	got, err := c.LoadCookies()
+	assert.NoError(t, err)
+
+	var cks []map[string]string
+	assert.NoError(t, json.Unmarshal(got, &cks))
+	assert.Equal(t, "a", cks[0]["name"])
+}

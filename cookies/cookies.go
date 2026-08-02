@@ -106,6 +106,12 @@ func (c *localCookie) write(cks []byte, seed int) error {
 		return errors.Wrap(err, "marshal session file failed")
 	}
 
+	if dir := filepath.Dir(c.path); dir != "" && dir != "." {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return errors.Wrap(err, "create cookies dir failed")
+		}
+	}
+
 	return os.WriteFile(c.path, data, 0644)
 }
 
