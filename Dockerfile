@@ -113,7 +113,8 @@ ENV XDG_CONFIG_HOME=/app/data/config
 
 EXPOSE 18060
 
-# 用 tini 当 PID 1，回收浏览器退出后被过继过来的子进程，避免堆积僵尸进程
-ENTRYPOINT ["/usr/bin/tini", "--"]
+# 用 tini 回收浏览器退出后被过继过来的子进程，避免堆积僵尸进程。
+# -s 注册为 child subreaper，容器另外带了 init 进程（如 compose 的 init: true）时同样生效
+ENTRYPOINT ["/usr/bin/tini", "-s", "--"]
 
 CMD ["./app"]
