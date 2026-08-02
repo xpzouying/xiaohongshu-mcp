@@ -92,6 +92,8 @@ func Click(elem *rod.Element) error {
 		return err
 	}
 
+	Delay(elem.Page().GetContext(), PointerSettle)
+
 	if err := elem.WaitEnabled(); err != nil {
 		return err
 	}
