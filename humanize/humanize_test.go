@@ -116,14 +116,12 @@ func TestDelay_UnknownActionFallback(t *testing.T) {
 	})
 }
 
-// TestPointerSettle_HasSufficientFloor 钉住 PointerSettle 的下限。
 func TestPointerSettle_HasSufficientFloor(t *testing.T) {
 	dist := DefaultProvider{}.Timing()[PointerSettle]
 
 	assert.GreaterOrEqual(t, dist.Min, 200*time.Millisecond,
 		"PointerSettle 的下限不应低于 200ms")
 
-	// Min 是 clamp 下限，等价于最坏情况的采样
 	assert.GreaterOrEqual(t, dist.sample(-5), 200*time.Millisecond,
 		"极端偏小的采样也应被 clamp 到 200ms 以上")
 }

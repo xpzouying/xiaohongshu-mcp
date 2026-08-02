@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/xpzouying/xiaohongshu-mcp/cookies"
 	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
@@ -326,4 +327,81 @@ func (s *AppServer) myProfileHandler(c *gin.Context) {
 	}
 
 	respondSuccess(c, map[string]any{"data": result}, "获取我的主页成功")
+}
+
+// getUnreadCountHandler 获取通知未读数
+func (s *AppServer) getUnreadCountHandler(c *gin.Context) {
+	result, err := s.xiaohongshuService.GetUnreadCount(c.Request.Context())
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "GET_UNREAD_COUNT_FAILED",
+			"获取未读数失败", err.Error())
+		return
+	}
+
+	respondSuccess(c, map[string]any{"data": result}, "获取未读数成功")
+}
+
+// listNotificationsHandler 获取通知列表。两个参数都可选，因此 GET 走 query、POST 走 JSON。
+func (s *AppServer) listNotificationsHandler(c *gin.Context) {
+	var req ListNotificationsRequest
+
+	if c.Request.Method == http.MethodPost {
+		if err := c.ShouldBindJSON(&req); err != nil {
+			respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
+				"请求参数错误", err.Error())
+			return
+		}
+	} else {
+		req.Tab = c.Query("tab")
+		if limit, err := strconv.Atoi(c.Query("limit")); err == nil {
+			req.Limit = limit
+		}
+	}
+
+	result, err := s.xiaohongshuService.ListNotifications(c.Request.Context(), req.Tab, req.Limit)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "LIST_NOTIFICATIONS_FAILED",
+			"获取通知列表失败", err.Error())
+		return
+	}
+
+	respondSuccess(c, map[string]any{"data": result}, "获取通知列表成功")
+}
+
+// replyNotificationHandler 回复通知里的评论
+func (s *AppServer) replyNotificationHandler(c *gin.Context) {
+	var req ReplyNotificationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
+			"请求参数错误", err.Error())
+		return
+	}
+
+	result, err := s.xiaohongshuService.ReplyNotification(c.Request.Context(), req.CommentID, req.Content)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "REPLY_NOTIFICATION_FAILED",
+			"回复通知失败", err.Error())
+		return
+	}
+
+	respondSuccess(c, map[string]any{"data": result}, "回复成功")
+}
+
+// likeNotificationHandler 给通知里的评论点赞/取消点赞
+func (s *AppServer) likeNotificationHandler(c *gin.Context) {
+	var req LikeNotificationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
+			"请求参数错误", err.Error())
+		return
+	}
+
+	result, err := s.xiaohongshuService.LikeNotification(c.Request.Context(), req.CommentID, req.Unlike)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "LIKE_NOTIFICATION_FAILED",
+			"点赞失败", err.Error())
+		return
+	}
+
+	respondSuccess(c, map[string]any{"data": result}, "操作成功")
 }
