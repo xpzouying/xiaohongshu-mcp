@@ -37,7 +37,7 @@ func TestLogNormal_noMax(t *testing.T) {
 	assert.Greater(t, d.sample(3), 15*time.Second)
 }
 
-// TestDefaultProvider_Timing 校验默认时延表：动作齐全、参数自洽（Min<Max、median 落在区间）。
+// TestDefaultProvider_Timing 校验默认时延表：动作齐全、参数自洽。
 func TestDefaultProvider_Timing(t *testing.T) {
 	tp := DefaultProvider{}.Timing()
 
@@ -46,10 +46,10 @@ func TestDefaultProvider_Timing(t *testing.T) {
 		assert.True(t, ok, "缺少动作 %s 的时延分布", action)
 		assert.Greater(t, dist.Max, dist.Min, "%s: Max 应大于 Min", action)
 
-		// median = sample(0)，应落在 [Min, Max] 内（分布参数合理性）
-		median := dist.sample(0)
-		assert.GreaterOrEqual(t, median, dist.Min, "%s: median 不应小于 Min", action)
-		assert.LessOrEqual(t, median, dist.Max, "%s: median 不应大于 Max", action)
+		// 中位样本应落在 [Min, Max] 内（参数合理性）
+		mid := dist.sample(0)
+		assert.GreaterOrEqual(t, mid, dist.Min, "%s: 中位样本不应小于 Min", action)
+		assert.LessOrEqual(t, mid, dist.Max, "%s: 中位样本不应大于 Max", action)
 	}
 }
 
@@ -86,17 +86,17 @@ func TestEaseInOut(t *testing.T) {
 	assert.Less(t, easeInOut(0.25), easeInOut(0.75))
 }
 
-// TestJitterOffset_Bounds 抖动幅度受两个上限约束：边长的 15%、且不超过 8px。
+// TestJitterOffset_Bounds 偏移幅度受两个上限约束：按边长比例、且有绝对上限。
 func TestJitterOffset_Bounds(t *testing.T) {
 	cases := []struct {
 		size  float64
 		limit float64
 		desc  string
 	}{
-		{size: 20, limit: 3, desc: "小元素按 15% 取"}, // 20*0.15=3 < 8
-		{size: 600, limit: 8, desc: "宽元素封顶 8px"}, // 600*0.15=90，封到 8
-		{size: -40, limit: 6, desc: "负边长按绝对值处理"}, // |−40|*0.15=6
-		{size: 0, limit: 0, desc: "零边长不抖动"},
+		{size: 20, limit: 3, desc: "小元素按比例取"},
+		{size: 600, limit: 8, desc: "宽元素封顶"},
+		{size: -40, limit: 6, desc: "负边长按绝对值处理"},
+		{size: 0, limit: 0, desc: "零边长不偏移"},
 	}
 
 	for _, c := range cases {
@@ -107,7 +107,7 @@ func TestJitterOffset_Bounds(t *testing.T) {
 	}
 }
 
-// TestJitterInQuad_StaysInside 抖动后的落点必须仍在元素框内。
+// TestJitterInQuad_StaysInside 偏移后的落点必须仍在元素框内。
 func TestJitterInQuad_StaysInside(t *testing.T) {
 	// 100x40 的框，左上角 (10,20)；四角顺序：左上、右上、右下、左下
 	q := proto.DOMQuad{10, 20, 110, 20, 110, 60, 10, 60}

@@ -1,7 +1,6 @@
-// Package humanize 封装交互行为的统一原语（延迟、输入、点击）。
+// Package humanize 封装交互的统一原语（延迟、输入、点击）。
 //
-// 约定：业务代码统一调 humanize.*，不直接调 time.Sleep / rod 的 Mouse.MoveTo /
-// elem.Input 等裸原语。
+// 约定：业务代码统一调 humanize.*，不直接调底层原语。
 //
 // 行为参数走 Provider 接口：DefaultProvider 提供一套静态默认，可用 SetProvider 替换。
 package humanize
@@ -28,9 +27,9 @@ const (
 	AfterInteract Action = "after_interact" // 交互写操作点击后的停留
 )
 
-// LogNormal 描述一个右偏时延分布：ln(时延/秒) ~ Normal(Mu, Sigma)，采样后 clamp 到 [Min, Max]。
+// LogNormal 是一类时延分布，采样值 clamp 到 [Min, Max]。
 type LogNormal struct {
-	Mu, Sigma float64       // 对 ln(秒) 的正态参数；median = exp(Mu)
+	Mu, Sigma float64       // 分布参数
 	Min, Max  time.Duration // clamp 边界（Max<=0 表示不设上限）
 }
 
@@ -49,7 +48,7 @@ func (l LogNormal) sample(norm float64) time.Duration {
 	return d
 }
 
-// Sample 用全局 rng 采样一个时延（Go 1.20+ 全局 rand 已自动播种且并发安全）。
+// Sample 采样一个时延（Go 1.20+ 全局 rand 已自动播种且并发安全）。
 func (l LogNormal) Sample() time.Duration {
 	return l.sample(rand.NormFloat64())
 }
@@ -64,17 +63,16 @@ type DefaultProvider struct{}
 
 func (DefaultProvider) Timing() TimingProfile {
 	return TimingProfile{
-		// median ≈ exp(Mu) 秒
-		AfterClick:    {Mu: -0.92, Sigma: 0.35, Min: 150 * time.Millisecond, Max: 2 * time.Second},       // ~0.4s
-		AfterType:     {Mu: -0.51, Sigma: 0.40, Min: 200 * time.Millisecond, Max: 3 * time.Second},       // ~0.6s
-		AfterNavigate: {Mu: 0.41, Sigma: 0.45, Min: 600 * time.Millisecond, Max: 6 * time.Second},        // ~1.5s
-		BetweenScroll: {Mu: -0.22, Sigma: 0.40, Min: 250 * time.Millisecond, Max: 3 * time.Second},       // ~0.8s
-		BeforeSubmit:  {Mu: 0.0, Sigma: 0.40, Min: 400 * time.Millisecond, Max: 4 * time.Second},         // ~1.0s
-		BeforeClick:   {Mu: -1.61, Sigma: 0.45, Min: 80 * time.Millisecond, Max: 1 * time.Second},        // ~0.2s
-		Reading:       {Mu: -0.36, Sigma: 0.40, Min: 300 * time.Millisecond, Max: 3 * time.Second},       // ~0.7s
-		Keystroke:     {Mu: -2.12, Sigma: 0.50, Min: 30 * time.Millisecond, Max: 400 * time.Millisecond}, // ~120ms/字
-		ClickHold:     {Mu: -2.47, Sigma: 0.33, Min: 45 * time.Millisecond, Max: 250 * time.Millisecond}, // ~85ms
-		AfterInteract: {Mu: 0.88, Sigma: 0.30, Min: 2 * time.Second, Max: 3 * time.Second},               // ~2.4s
+		AfterClick:    {Mu: -0.92, Sigma: 0.35, Min: 150 * time.Millisecond, Max: 2 * time.Second},
+		AfterType:     {Mu: -0.51, Sigma: 0.40, Min: 200 * time.Millisecond, Max: 3 * time.Second},
+		AfterNavigate: {Mu: 0.41, Sigma: 0.45, Min: 600 * time.Millisecond, Max: 6 * time.Second},
+		BetweenScroll: {Mu: -0.22, Sigma: 0.40, Min: 250 * time.Millisecond, Max: 3 * time.Second},
+		BeforeSubmit:  {Mu: 0.0, Sigma: 0.40, Min: 400 * time.Millisecond, Max: 4 * time.Second},
+		BeforeClick:   {Mu: -1.61, Sigma: 0.45, Min: 80 * time.Millisecond, Max: 1 * time.Second},
+		Reading:       {Mu: -0.36, Sigma: 0.40, Min: 300 * time.Millisecond, Max: 3 * time.Second},
+		Keystroke:     {Mu: -2.12, Sigma: 0.50, Min: 30 * time.Millisecond, Max: 400 * time.Millisecond},
+		ClickHold:     {Mu: -2.47, Sigma: 0.33, Min: 45 * time.Millisecond, Max: 250 * time.Millisecond},
+		AfterInteract: {Mu: 0.88, Sigma: 0.30, Min: 2 * time.Second, Max: 3 * time.Second},
 	}
 }
 

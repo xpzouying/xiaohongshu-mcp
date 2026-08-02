@@ -13,7 +13,7 @@ import (
 	"github.com/go-rod/rod/lib/proto"
 )
 
-// pressAndRelease 按下、停留一段按 ClickHold 采样出的时长、再抬起。
+// pressAndRelease 按下、停留、再抬起。
 func pressAndRelease(mouse *rod.Mouse) error {
 	if err := mouse.Down(proto.InputMouseButtonLeft, 1); err != nil {
 		return err
@@ -24,9 +24,9 @@ func pressAndRelease(mouse *rod.Mouse) error {
 	return mouse.Up(proto.InputMouseButtonLeft, 1)
 }
 
-// jitterOffset 给定边长，返回 ±min(边长的 15%, 8px) 内的随机偏移。
-// 两个上限缺一不可：按比例保证小元素上不会偏出边界；封顶 8px 是因为宽元素里
-// 可点区域常常只有中间一小块（比如一整行里只有个图标可点），偏太远会落空。
+// jitterOffset 给定边长，返回一个随机偏移。
+// 两个上限缺一不可：按比例保证小元素上不会偏出边界；再封一个绝对上限，
+// 是因为宽元素里可点区域常常只有中间一小块，偏太远会落空。
 func jitterOffset(size float64) float64 {
 	limit := math.Min(math.Abs(size)*0.15, 8)
 	return (rand.Float64() - 0.5) * 2 * limit
@@ -142,15 +142,15 @@ func ClickNoWait(elem *rod.Element) error {
 	return pressAndRelease(mouse)
 }
 
-// MoveTo 沿曲线把指针移到指定坐标，不点击。
+// MoveTo 把指针移到指定坐标，不点击。
 // 用于目标不是元素的场景，比如把指针放进某个滚动容器让滚轮作用在它上面。
 func MoveTo(page *rod.Page, pt proto.Point) error {
 	return moveMouseCurved(page.Mouse, pt)
 }
 
-// Hover 沿曲线把指针移到元素上，不点击。
+// Hover 把指针移到元素上，不点击。
 // 用于靠悬停触发的交互（如展开 hover 浮层）。
-// 不用 rod 的 elem.Hover：它是一次 MoveTo，指针会直接瞬移过去。
+// 不用 rod 的 elem.Hover：其行为不符合这里的需要。
 func Hover(elem *rod.Element) error {
 	shape, err := elem.Shape()
 	if err != nil {
@@ -171,11 +171,11 @@ func Hover(elem *rod.Element) error {
 	return moveMouseCurved(elem.Page().Mouse, target)
 }
 
-// ClickAt 沿曲线移到指定坐标再点击。
+// ClickAt 移到指定坐标再点击。
 // 用于点不到元素、只能算坐标的场景（如取元素区域内的偏移点、点击空白处）；
 // 有元素可点时用 Click。
 //
-// 落点由调用方决定，这里不抖动——调用方挑那个坐标通常有它的理由。
+// 落点由调用方决定，这里不做偏移——调用方挑那个坐标通常有它的理由。
 func ClickAt(page *rod.Page, pt proto.Point) error {
 	if err := ensurePointInViewport(page, pt); err != nil {
 		return err

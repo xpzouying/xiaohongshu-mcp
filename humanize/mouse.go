@@ -44,7 +44,7 @@ func moveMouseCurved(mouse *rod.Mouse, target proto.Point) error {
 
 func curveControlPoints(a, b proto.Point, dist float64) (proto.Point, proto.Point) {
 	nx, ny := -(b.Y-a.Y)/dist, (b.X-a.X)/dist  // 单位垂直向量
-	off := dist * (0.05 + rand.Float64()*0.10) // 弧度偏移：距离的 5%~15%
+	off := dist * (0.05 + rand.Float64()*0.10) // 弧度偏移
 	if rand.Intn(2) == 0 {
 		off = -off
 	}
