@@ -76,6 +76,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxss1 \
     libxtst6 \
     lsb-release \
+    tini \
     wget \
     xdg-utils \
     xz-utils \
@@ -111,5 +112,8 @@ ENV HOME=/app/data/home
 ENV XDG_CONFIG_HOME=/app/data/config
 
 EXPOSE 18060
+
+# 用 tini 当 PID 1，回收浏览器退出后被过继过来的子进程，避免堆积僵尸进程
+ENTRYPOINT ["/usr/bin/tini", "--"]
 
 CMD ["./app"]
