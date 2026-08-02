@@ -123,3 +123,21 @@ type ActionResult struct {
 	Success bool   `json:"success"`
 	Message string `json:"message"`
 }
+
+// ListNotificationsRequest 通知列表请求
+type ListNotificationsRequest struct {
+	Tab   string `json:"tab,omitempty"`
+	Limit int    `json:"limit,omitempty"`
+}
+
+// ReplyNotificationRequest 通知回复请求
+type ReplyNotificationRequest struct {
+	CommentID string `json:"comment_id" binding:"required"`
+	Content   string `json:"content" binding:"required"`
+}
+
+// LikeNotificationRequest 通知点赞请求
+type LikeNotificationRequest struct {
+	CommentID string `json:"comment_id" binding:"required"`
+	Unlike    bool   `json:"unlike,omitempty"`
+}

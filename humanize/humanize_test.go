@@ -34,7 +34,7 @@ func TestLogNormal_noMax(t *testing.T) {
 func TestDefaultProvider_Timing(t *testing.T) {
 	tp := DefaultProvider{}.Timing()
 
-	for _, action := range []Action{AfterClick, AfterType, AfterNavigate, BetweenScroll, BeforeSubmit, BeforeClick, Reading, Keystroke, ClickHold} {
+	for _, action := range []Action{AfterClick, AfterType, AfterNavigate, BetweenScroll, BeforeSubmit, BeforeClick, Reading, Keystroke, ClickHold, AfterInteract, PointerSettle} {
 		dist, ok := tp[action]
 		assert.True(t, ok, "缺少动作 %s 的时延分布", action)
 		assert.Greater(t, dist.Max, dist.Min, "%s: Max 应大于 Min", action)
@@ -114,4 +114,14 @@ func TestDelay_UnknownActionFallback(t *testing.T) {
 	assert.NotPanics(t, func() {
 		Delay(ctx, Action("nonexistent"))
 	})
+}
+
+func TestPointerSettle_HasSufficientFloor(t *testing.T) {
+	dist := DefaultProvider{}.Timing()[PointerSettle]
+
+	assert.GreaterOrEqual(t, dist.Min, 200*time.Millisecond,
+		"PointerSettle 的下限不应低于 200ms")
+
+	assert.GreaterOrEqual(t, dist.sample(-5), 200*time.Millisecond,
+		"极端偏小的采样也应被 clamp 到 200ms 以上")
 }

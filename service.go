@@ -565,6 +565,55 @@ func (s *XiaohongshuService) ReplyCommentToFeed(ctx context.Context, feedID, xse
 	}, nil
 }
 
+// GetUnreadCount 获取通知未读数
+func (s *XiaohongshuService) GetUnreadCount(ctx context.Context) (*xiaohongshu.NotificationCount, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	return xiaohongshu.NewNotificationAction(page).UnreadCount(ctx)
+}
+
+// ListNotifications 获取指定分区的通知列表
+func (s *XiaohongshuService) ListNotifications(ctx context.Context, tab string, limit int) (*xiaohongshu.NotificationList, error) {
+	parsed, err := xiaohongshu.ParseNotificationTab(tab)
+	if err != nil {
+		return nil, err
+	}
+
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	return xiaohongshu.NewNotificationAction(page).List(ctx, parsed, limit)
+}
+
+// LikeNotification 给通知里的评论点赞或取消点赞
+func (s *XiaohongshuService) LikeNotification(ctx context.Context, commentID string, unlike bool) (*xiaohongshu.NotificationLikeResult, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	return xiaohongshu.NewNotificationAction(page).Like(ctx, commentID, unlike)
+}
+
+// ReplyNotification 在通知页就地回复评论
+func (s *XiaohongshuService) ReplyNotification(ctx context.Context, commentID, content string) (*xiaohongshu.NotificationReplyResult, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	return xiaohongshu.NewNotificationAction(page).Reply(ctx, commentID, content)
+}
+
 func newBrowser() *headless_browser.Browser {
 	return browser.NewBrowser(configs.IsHeadless(),
 		browser.WithFingerprintSeed(configs.FingerprintSeed()),

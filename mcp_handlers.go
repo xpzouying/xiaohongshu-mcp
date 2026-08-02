@@ -754,3 +754,81 @@ func (s *AppServer) handleGetMyProfile(ctx context.Context) *MCPToolResult {
 		}},
 	}
 }
+
+// handleGetUnreadCount 获取通知未读数
+func (s *AppServer) handleGetUnreadCount(ctx context.Context) *MCPToolResult {
+	logrus.Info("MCP: 获取通知未读数")
+
+	result, err := s.xiaohongshuService.GetUnreadCount(ctx)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "获取未读数失败: " + err.Error()}},
+			IsError: true,
+		}
+	}
+
+	return marshalMCPResult(result, "获取未读数")
+}
+
+// handleListNotifications 获取通知列表
+func (s *AppServer) handleListNotifications(ctx context.Context, tab string, limit int) *MCPToolResult {
+	logrus.Infof("MCP: 获取通知列表 tab=%s limit=%d", tab, limit)
+
+	result, err := s.xiaohongshuService.ListNotifications(ctx, tab, limit)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "获取通知列表失败: " + err.Error()}},
+			IsError: true,
+		}
+	}
+
+	return marshalMCPResult(result, "获取通知列表")
+}
+
+// handleReplyNotification 回复通知里的评论
+func (s *AppServer) handleReplyNotification(ctx context.Context, commentID, content string) *MCPToolResult {
+	logrus.Infof("MCP: 回复通知评论 comment=%s", commentID)
+
+	result, err := s.xiaohongshuService.ReplyNotification(ctx, commentID, content)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "回复失败: " + err.Error()}},
+			IsError: true,
+		}
+	}
+
+	return marshalMCPResult(result, "回复")
+}
+
+// marshalMCPResult 把结果序列化成 MCP 文本内容。
+func marshalMCPResult(result any, action string) *MCPToolResult {
+	jsonData, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: fmt.Sprintf("%s成功，但序列化失败: %v", action, err),
+			}},
+			IsError: true,
+		}
+	}
+
+	return &MCPToolResult{
+		Content: []MCPContent{{Type: "text", Text: string(jsonData)}},
+	}
+}
+
+// handleLikeNotification 给通知里的评论点赞/取消点赞
+func (s *AppServer) handleLikeNotification(ctx context.Context, commentID string, unlike bool) *MCPToolResult {
+	logrus.Infof("MCP: 通知点赞 comment=%s unlike=%v", commentID, unlike)
+
+	result, err := s.xiaohongshuService.LikeNotification(ctx, commentID, unlike)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "点赞失败: " + err.Error()}},
+			IsError: true,
+		}
+	}
+
+	return marshalMCPResult(result, "点赞")
+}

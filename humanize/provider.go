@@ -19,6 +19,7 @@ const (
 	Keystroke     Action = "keystroke"
 	ClickHold     Action = "click_hold"
 	AfterInteract Action = "after_interact"
+	PointerSettle Action = "pointer_settle"
 )
 
 type LogNormal struct {
@@ -63,6 +64,7 @@ func (DefaultProvider) Timing() TimingProfile {
 		Keystroke:     {Mu: -2.12, Sigma: 0.50, Min: 30 * time.Millisecond, Max: 400 * time.Millisecond},
 		ClickHold:     {Mu: -2.47, Sigma: 0.33, Min: 45 * time.Millisecond, Max: 250 * time.Millisecond},
 		AfterInteract: {Mu: 0.88, Sigma: 0.30, Min: 2 * time.Second, Max: 3 * time.Second},
+		PointerSettle: {Mu: -1.20, Sigma: 0.35, Min: 200 * time.Millisecond, Max: 1200 * time.Millisecond},
 	}
 }
 
