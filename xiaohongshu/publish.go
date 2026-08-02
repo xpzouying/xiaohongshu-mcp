@@ -35,6 +35,9 @@ type PublishAction struct {
 
 const (
 	urlOfPublic = `https://creator.xiaohongshu.com/publish/publish?source=official`
+
+	// contentElemTimeout 查找正文输入框的轮询窗口
+	contentElemTimeout = 10 * time.Second
 )
 
 func NewPublishImageAction(page *rod.Page) (*PublishAction, error) {
@@ -246,12 +249,7 @@ func uploadImages(page *rod.Page, imagesPaths []string) error {
 
 	// 逐张上传：每张上传后等待预览出现，再上传下一张
 	for i, path := range validPaths {
-		selector := `input[type="file"]`
-		if i == 0 {
-			selector = ".upload-input"
-		}
-
-		uploadInput, err := page.Element(selector)
+		uploadInput, err := findImageUploadInput(page, i == 0)
 		if err != nil {
 			return errors.Wrapf(err, "查找上传输入框失败(第%d张)", i+1)
 		}
@@ -269,6 +267,48 @@ func uploadImages(page *rod.Page, imagesPaths []string) error {
 	}
 
 	return nil
+}
+
+// findImageUploadInput 查找图片上传的输入框
+func findImageUploadInput(page *rod.Page, first bool) (*rod.Element, error) {
+	if first {
+		return page.Element(".upload-input")
+	}
+
+	inputs, err := page.Elements(`input[type="file"]`)
+	if err != nil {
+		return nil, err
+	}
+	if len(inputs) == 0 {
+		return nil, errors.New("页面没有文件上传输入框")
+	}
+
+	for _, input := range inputs {
+		accept, err := input.Attribute("accept")
+		if err != nil || accept == nil {
+			continue
+		}
+		if acceptsImage(*accept) {
+			return input, nil
+		}
+	}
+
+	return inputs[0], nil
+}
+
+// acceptsImage 判断 accept 属性是否接受图片
+func acceptsImage(accept string) bool {
+	accept = strings.ToLower(accept)
+	if strings.Contains(accept, "image/") {
+		return true
+	}
+
+	for _, ext := range []string{".jpg", ".jpeg", ".png", ".webp", ".heic"} {
+		if strings.Contains(accept, ext) {
+			return true
+		}
+	}
+	return false
 }
 
 // waitForUploadComplete 等待第 expectedCount 张图片上传完成，最多等 60 秒
@@ -318,9 +358,9 @@ func submitPublish(ctx context.Context, page *rod.Page, title, content string, t
 
 	humanize.Delay(ctx, humanize.AfterType)
 
-	contentElem, ok := getContentElement(page)
-	if !ok {
-		return errors.New("没有找到内容输入框")
+	contentElem, err := getContentElement(page, contentElemTimeout)
+	if err != nil {
+		return err
 	}
 	if err := humanize.Type(ctx, contentElem, content); err != nil {
 		return errors.Wrap(err, "输入正文失败")
@@ -603,30 +643,45 @@ func makeMaxLengthError(elemText string) error {
 	return errors.Errorf("当前输入长度为%s，最大长度为%s", currLen, maxLen)
 }
 
-// 查找内容输入框 - 使用Race方法处理两种样式
-func getContentElement(page *rod.Page) (*rod.Element, bool) {
-	var foundElement *rod.Element
-	var found bool
+// contentElemSelectors 正文输入框的候选选择器，按先后顺序尝试。
+var contentElemSelectors = []string{
+	`div[role="textbox"][contenteditable="true"]`,
+	`div.tiptap[contenteditable="true"]`,
+	`div.ql-editor`,
+}
 
-	page.Race().
-		Element("div.ql-editor").MustHandle(func(e *rod.Element) {
-		foundElement = e
-		found = true
-	}).
-		ElementFunc(func(page *rod.Page) (*rod.Element, error) {
-			return findTextboxByPlaceholder(page)
-		}).MustHandle(func(e *rod.Element) {
-		foundElement = e
-		found = true
-	}).
-		MustDo()
+// getContentElement 在 timeout 内轮询查找正文输入框，全部落空返回错误。
+func getContentElement(page *rod.Page, timeout time.Duration) (*rod.Element, error) {
+	deadline := time.Now().Add(timeout)
 
-	if found {
-		return foundElement, true
+	for {
+		elem, err := findContentElement(page)
+		if err == nil {
+			return elem, nil
+		}
+
+		if time.Now().After(deadline) {
+			return nil, errors.Wrap(err, "查找正文输入框失败")
+		}
+		time.Sleep(300 * time.Millisecond)
+	}
+}
+
+func findContentElement(page *rod.Page) (*rod.Element, error) {
+	for _, selector := range contentElemSelectors {
+		elems, err := page.Elements(selector)
+		if err != nil {
+			return nil, errors.Wrapf(err, "查找正文输入框失败: %s", selector)
+		}
+
+		for _, elem := range elems {
+			if isElementVisible(elem) {
+				return elem, nil
+			}
+		}
 	}
 
-	slog.Warn("no content element found by any method")
-	return nil, false
+	return findTextboxByPlaceholder(page)
 }
 
 func inputTags(ctx context.Context, contentElem *rod.Element, tags []string) error {
@@ -701,8 +756,11 @@ func inputTag(ctx context.Context, contentElem *rod.Element, tag string) error {
 }
 
 func findTextboxByPlaceholder(page *rod.Page) (*rod.Element, error) {
-	elements := page.MustElements("p")
-	if elements == nil {
+	elements, err := page.Elements("p")
+	if err != nil {
+		return nil, errors.Wrap(err, "查找正文候选元素失败")
+	}
+	if len(elements) == 0 {
 		return nil, errors.New("no p elements found")
 	}
 
@@ -726,7 +784,7 @@ func findPlaceholderElement(elements []*rod.Element, searchText string) *rod.Ele
 			continue
 		}
 
-		if strings.Contains(*placeholder, searchText) {
+		if strings.Contains(*placeholder, searchText) && isElementVisible(elem) {
 			return elem
 		}
 	}
