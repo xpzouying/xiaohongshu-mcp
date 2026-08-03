@@ -196,8 +196,7 @@ Content-Type: application/json
     "title": "笔记标题",
     "content": "笔记内容",
     "images": 2,
-    "status": "published",
-    "post_id": "64f1a2b3c4d5e6f7a8b9c0d1"
+    "status": "发布完成"
   },
   "message": "发布成功"
 }
@@ -241,8 +240,7 @@ Content-Type: application/json
     "title": "视频标题",
     "content": "视频内容描述",
     "video": "/Users/username/Videos/video.mp4",
-    "status": "发布完成",
-    "post_id": "64f1a2b3c4d5e6f7a8b9c0d1"
+    "status": "发布完成"
   },
   "message": "视频发布成功"
 }
