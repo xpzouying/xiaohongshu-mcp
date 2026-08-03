@@ -76,3 +76,19 @@ func TestFilterGroupsCoverFilterOption(t *testing.T) {
 		require.NotNil(t, g.pick, "%s 没有取值函数", g.label)
 	}
 }
+
+func TestAppendUniqueNotes(t *testing.T) {
+	seen := make(map[string]struct{})
+	got := appendUniqueNotes(nil, seen, []Feed{
+		{ID: "note-1", ModelType: modelTypeNote},
+		{ID: "live-1", ModelType: "live_v2"},
+		{ID: "note-2", ModelType: modelTypeNote},
+	}, 3)
+	got = appendUniqueNotes(got, seen, []Feed{
+		{ID: "note-2", ModelType: modelTypeNote},
+		{ID: "note-3", ModelType: modelTypeNote},
+		{ID: "note-4", ModelType: modelTypeNote},
+	}, 3)
+
+	require.Equal(t, []string{"note-1", "note-2", "note-3"}, []string{got[0].ID, got[1].ID, got[2].ID})
+}
