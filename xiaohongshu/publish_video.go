@@ -9,6 +9,7 @@ import (
 	"github.com/go-rod/rod"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"github.com/xpzouying/xiaohongshu-mcp/humanize"
 )
 
 // PublishVideoContent 发布视频内容
@@ -27,7 +28,7 @@ func NewPublishVideoAction(page *rod.Page) (*PublishAction, error) {
 	pp := page.Timeout(300 * time.Second)
 
 	if err := pp.Navigate(urlOfPublic); err != nil {
-		return nil, errors.Wrap(err, "navigate to publish page failed")
+		return nil, errors.Wrap(err, "导航到发布页面失败")
 	}
 
 	// 使用 WaitLoad 代替 WaitIdle（更宽松）
@@ -42,7 +43,7 @@ func NewPublishVideoAction(page *rod.Page) (*PublishAction, error) {
 	time.Sleep(1 * time.Second)
 
 	if err := mustClickPublishTab(pp, "上传视频"); err != nil {
-		return nil, errors.Wrap(err, "switch to upload video failed")
+		return nil, errors.Wrap(err, "切换到上传视频失败")
 	}
 
 	time.Sleep(1 * time.Second)
@@ -53,17 +54,18 @@ func NewPublishVideoAction(page *rod.Page) (*PublishAction, error) {
 // PublishVideo 上传视频并提交
 func (p *PublishAction) PublishVideo(ctx context.Context, content PublishVideoContent) error {
 	if content.VideoPath == "" {
-		return errors.New("video path cannot be empty")
+		return errors.New("视频不能为空")
 	}
 
-	page := p.page.Context(ctx)
+	// 重设超时：.Context(ctx) 会替换掉 NewPublishVideoAction 里 Timeout(300s) 的 deadline
+	page := p.page.Context(ctx).Timeout(300 * time.Second)
 
 	if err := uploadVideo(page, content.VideoPath); err != nil {
-		return errors.Wrap(err, "upload video to xiaohongshu failed")
+		return errors.Wrap(err, "小红书上传视频失败")
 	}
 
-	if err := submitPublishVideo(page, content.Title, content.Content, content.Tags, content.ScheduleTime, content.Visibility, content.Products); err != nil {
-		return errors.Wrap(err, "publish to xiaohongshu failed")
+	if err := submitPublishVideo(ctx, page, content.Title, content.Content, content.Tags, content.ScheduleTime, content.Visibility, content.Products); err != nil {
+		return errors.Wrap(err, "小红书发布失败")
 	}
 	return nil
 }
@@ -73,7 +75,7 @@ func uploadVideo(page *rod.Page, videoPath string) error {
 	pp := page.Timeout(5 * time.Minute) // 视频处理耗时更长
 
 	if _, err := os.Stat(videoPath); os.IsNotExist(err) {
-		return errors.Wrapf(err, "video file not found: %s", videoPath)
+		return errors.Wrapf(err, "视频文件不存在: %s", videoPath)
 	}
 
 	// 寻找文件上传输入框（与图文一致的 class，或退回到 input[type=file]）
@@ -83,7 +85,7 @@ func uploadVideo(page *rod.Page, videoPath string) error {
 	if err != nil || fileInput == nil {
 		fileInput, err = pp.Element("input[type='file']")
 		if err != nil || fileInput == nil {
-			return errors.New("video upload input not found")
+			return errors.New("未找到视频上传输入框")
 		}
 	}
 
@@ -99,56 +101,56 @@ func uploadVideo(page *rod.Page, videoPath string) error {
 }
 
 // submitPublishVideo 填写标题、正文、标签并点击发布（等待按钮可点击后再提交）
-func submitPublishVideo(page *rod.Page, title, content string, tags []string, scheduleTime *time.Time, visibility string, products []string) error {
+func submitPublishVideo(ctx context.Context, page *rod.Page, title, content string, tags []string, scheduleTime *time.Time, visibility string, products []string) error {
 	// 标题
 	titleElem, err := page.Element("div.d-input input")
 	if err != nil {
-		return errors.Wrap(err, "find title input failed")
+		return errors.Wrap(err, "查找标题输入框失败")
 	}
-	if err := titleElem.Input(title); err != nil {
-		return errors.Wrap(err, "input title failed")
+	if err := humanize.Type(ctx, titleElem, title); err != nil {
+		return errors.Wrap(err, "输入标题失败")
 	}
-	time.Sleep(1 * time.Second)
+	humanize.Delay(ctx, humanize.AfterType)
 
 	// 正文 + 标签
-	contentElem, ok := getContentElement(page)
-	if !ok {
-		return errors.New("content input not found")
+	contentElem, err := getContentElement(page, contentElemTimeout)
+	if err != nil {
+		return err
 	}
-	if err := contentElem.Input(content); err != nil {
-		return errors.Wrap(err, "input content failed")
+	if err := humanize.Type(ctx, contentElem, content); err != nil {
+		return errors.Wrap(err, "输入正文失败")
 	}
 	if err := waitAndClickTitleInput(titleElem); err != nil {
 		return err
 	}
-	if err := inputTags(contentElem, tags); err != nil {
+	if err := inputTags(ctx, contentElem, tags); err != nil {
 		return err
 	}
 
-	time.Sleep(1 * time.Second)
+	humanize.Delay(ctx, humanize.AfterType)
 
 	// 处理定时发布
 	if scheduleTime != nil {
-		if err := setSchedulePublish(page, *scheduleTime); err != nil {
-			return errors.Wrap(err, "set scheduled publish failed")
+		if err := setSchedulePublish(ctx, page, *scheduleTime); err != nil {
+			return errors.Wrap(err, "设置定时发布失败")
 		}
 		slog.Info("定时发布设置完成", "schedule_time", scheduleTime.Format("2006-01-02 15:04"))
 	}
 
 	// 设置可见范围
 	if err := setVisibility(page, visibility); err != nil {
-		return errors.Wrap(err, "set visibility failed")
+		return errors.Wrap(err, "设置可见范围失败")
 	}
 
 	// 绑定商品
-	if err := bindProducts(page, products); err != nil {
-		return errors.Wrap(err, "bind products failed")
+	if err := bindProducts(ctx, page, products); err != nil {
+		return errors.Wrap(err, "绑定商品失败")
 	}
 
 	if err := clickPublishButton(page); err != nil {
 		return err
 	}
 
-	time.Sleep(3 * time.Second)
-	return nil
+	// 校验发布真的成功（成功跳转离开发布页），未跳转判失败——消除假成功
+	return waitPublishSuccess(page, 15*time.Second)
 }

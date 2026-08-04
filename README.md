@@ -10,30 +10,55 @@
 
 MCP for 小红书 / xiaohongshu.com。让你的 AI 助手直接访问小红书数据。
 
-## 选择适合你的版本
+### 🚀 快速开始：选择最适合你的版本
 
 > [!IMPORTANT]
-> #### 方案 A：Openclaw 深度集成（推荐给开发者）
-> - **已支持 Openclaw 集成，分为两种，请按需选择：**
+> #### 🔥 方案 A：Openclaw 深度集成 (推荐给开发者)
+> - **Openclaw 太火啦 🔥🔥🔥 ，新增 Openclaw 支持，分为两种，请各位按需使用：**
 > - [xiaohongshu-mcp-skills](https://github.com/autoclaw-cc/xiaohongshu-mcp-skills)（适用于已部署完本项目的用户）
 > - [xiaohongshu-skills](https://github.com/autoclaw-cc/xiaohongshu-skills)（开箱即用版）
 
 > [!TIP]
-> #### 方案 B：x-mcp 浏览器插件版（推荐给非技术用户 / 追求极简的用户）
+> #### ✨ 方案 B：x-mcp 浏览器插件版 (推荐给非技术同学 / 追求极简的用户)
 > - **不想折腾 Docker 或部署环境？试试：[xpzouying/x-mcp](https://github.com/xpzouying/x-mcp)**
 > - **零配置**：安装插件即用，无需任何代码、代理或复杂的环境配置。
 > - **安全稳定**：直接在常用浏览器 (Chrome/Edge) 及本地网络运行，无服务器 IP 风险，且能解决 90% 的部署报错。
 
-## 相关资源
+### 📖 相关资源
 
 - **我的博客文章**：[haha.ai/xiaohongshu-mcp](https://www.haha.ai/xiaohongshu-mcp)
 - **贡献指南**：[Contributing Guide](./CONTRIBUTING.md)
 
-## 疑难杂症
+### 🛠️ 疑难杂症
 
 如果您在部署传统 Docker 版本时遇到问题，**务必先查看：[各种疑难杂症 (Issues #56)](https://github.com/xpzouying/xiaohongshu-mcp/issues/56)**。
 
 > *提示：如果环境排查太耗时，切换到 [x-mcp 插件版](https://github.com/xpzouying/x-mcp) 通常是更高效的选择。*
+
+## Star History
+
+<!-- 图表由 .github/workflows/star-history.yml 每周生成到 star-history 数据分支（star-history.com 托管图表因 GitHub API 限制已失效） -->
+<a href="https://www.star-history.com/#xpzouying/xiaohongshu-mcp&Timeline">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/xpzouying/xiaohongshu-mcp/star-history/assets/star-history-dark.svg" />
+    <img alt="Star History Chart" src="https://raw.githubusercontent.com/xpzouying/xiaohongshu-mcp/star-history/assets/star-history.svg" />
+  </picture>
+</a>
+
+## 赞赏支持
+
+本项目所有的赞赏都会用于慈善捐赠。所有的慈善捐赠记录，请参考 [DONATIONS.md](./DONATIONS.md)。
+
+**捐赠时，请备注 MCP 以及名字。**
+如需更正/撤回署名，请开 Issue 或通过邮箱联系。
+
+**支付宝（不展示二维码）：**
+
+通过支付宝向 **xpzouying@gmail.com** 赞赏。
+
+**微信：**
+
+<img src="donate/wechat@2x.png" alt="WeChat Pay QR" width="260" />
 
 ## 项目简介
 
@@ -309,16 +334,16 @@ https://github.com/user-attachments/assets/cc385b6c-422c-489b-a5fc-63e92c695b80
 **主程序（MCP 服务）：**
 
 - **macOS Apple Silicon**: `xiaohongshu-mcp-darwin-arm64`
-- **macOS Intel**: `xiaohongshu-mcp-darwin-amd64`
 - **Windows x64**: `xiaohongshu-mcp-windows-amd64.exe`
 - **Linux x64**: `xiaohongshu-mcp-linux-amd64`
 
 **登录工具：**
 
 - **macOS Apple Silicon**: `xiaohongshu-login-darwin-arm64`
-- **macOS Intel**: `xiaohongshu-login-darwin-amd64`
 - **Windows x64**: `xiaohongshu-login-windows-amd64.exe`
 - **Linux x64**: `xiaohongshu-login-linux-amd64`
+
+> 目前支持以上三个平台。macOS Intel 与 Linux ARM64 暂不支持。
 
 使用步骤：
 
@@ -408,10 +433,10 @@ docker build -t xpzouying/xiaohongshu-mcp .
 
 Docker 版本会自动：
 
-- 配置 CloakBrowser Chromium 和中文字体
+- 配置内置浏览器和中文字体
 - 挂载 `./data` 用于存储 cookies 和运行数据目录
 - 挂载 `./images` 用于存储发布的图片
-- 暴露 18060 端口供 MCP 连接（docker-compose 默认仅映射到宿主机回环 `127.0.0.1`，避免暴露到局域网；如需跨机访问自行放开端口映射）
+- 暴露 18060 端口供 MCP 连接
 
 详细使用说明请参考：[Docker 部署指南](./docker/README.md)
 
@@ -474,7 +499,7 @@ XHS_PROXY=http://proxy:port go run .
 
 支持 HTTP/HTTPS/SOCKS5 代理，日志中会自动隐藏代理的认证信息。
 
-### 1.4. 验证 MCP
+## 1.4. 验证 MCP
 
 ```bash
 npx @modelcontextprotocol/inspector
@@ -490,7 +515,7 @@ npx @modelcontextprotocol/inspector
 
 按照上面配置 MCP inspector 后，点击 `List Tools` 按钮，查看所有的 Tools。
 
-### 1.5. 使用 MCP 发布
+## 1.5. 使用 MCP 发布
 
 ### 检查登录状态
 
@@ -978,9 +1003,9 @@ npx mcporter list xiaohongshu-mcp
 **重要：在群里问问题之前，请一定要先仔细看完 README 文档以及查看 Issues。**
 
 ### 微信群
-|                                                 微信群 24 群                                        |                                                 微信群 25 群                                         |
+|                                                 微信群 25 群                                        |                                                 微信群 26 群                                         |
 | :------------------------------------------------------------------------------------------------: | :------------------------------------------------------------------------------------------------: |
-| <img src="https://github.com/user-attachments/assets/477b6ceb-4b5e-456a-8b30-4c98cf594bfd" alt="WechatIMG119" width="300"> | <img src="https://github.com/user-attachments/assets/7cf89118-2b83-491b-903d-ba0153e3eba6" alt="WechatIMG119" width="300">|
+| <img src="https://github.com/user-attachments/assets/49ef7f34-d1f0-4161-8e3e-fead4ca404df" alt="WechatIMG119" width="300"> | <img src="https://github.com/user-attachments/assets/0204d097-b446-4845-8322-d72dc1d2eac8" alt="WechatIMG119" width="300">|
 
 ### 飞书群
 
@@ -992,25 +1017,6 @@ npx mcporter list xiaohongshu-mcp
 >
 > 1. 微信群的二维码有时间限制，有时候忘记更新，麻烦等待更新或者提交 Issue 催我更新。
 > 2. 飞书群，如果有的群满了，可以尝试扫一下另外一个群，总有坑位。
-
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=xpzouying/xiaohongshu-mcp&type=Timeline)](https://www.star-history.com/#xpzouying/xiaohongshu-mcp&Timeline)
-
-## 赞赏支持
-
-本项目所有的赞赏都会用于慈善捐赠。所有的慈善捐赠记录，请参考 [DONATIONS.md](./DONATIONS.md)。
-
-**捐赠时，请备注 MCP 以及名字。**
-如需更正/撤回署名，请开 Issue 或通过邮箱联系。
-
-**支付宝（不展示二维码）：**
-
-通过支付宝向 **xpzouying@gmail.com** 赞赏。
-
-**微信：**
-
-<img src="donate/wechat@2x.png" alt="WeChat Pay QR" width="260" />
 
 ## 🙏 致谢贡献者 ✨
 
@@ -1077,3 +1083,11 @@ npx mcporter list xiaohongshu-mcp
 </table>
 
 本项目遵循 [all-contributors](https://github.com/all-contributors/all-contributors) 规范。欢迎任何形式的贡献！
+
+## 📄 许可证
+
+本项目采用 [Apache License 2.0](LICENSE) 开源。
+
+你可以自由地使用、修改和分发本项目，包括用于商业用途，只需保留原始的版权声明和许可证文件。详细条款以 [LICENSE](LICENSE) 文件为准。
+
+向本项目提交的贡献，默认按同一许可证授权。

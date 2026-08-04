@@ -1,6 +1,11 @@
 name: Tag and Release
 
 on:
+  push:
+    tags:
+      # 只匹配语义化版本 tag，不匹配历史遗留的日期 tag
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-*'
   workflow_dispatch:
     inputs:
       version:
@@ -25,9 +30,21 @@ jobs:
       with:
         fetch-depth: 0
 
-    - name: Validate version format
+    # tag 触发时版本号取自 tag 本身；手动触发时取输入参数
+    - name: Resolve version
+      id: version
       run: |
-        VERSION="${{ github.event.inputs.version }}"
+        if [ "${{ github.event_name }}" = "push" ]; then
+          echo "version=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+        else
+          echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+        fi
+
+    # 校验只在手动触发时需要：tag 触发时格式已由 tag 过滤保证，且 tag 必然已存在
+    - name: Validate version format
+      if: github.event_name == 'workflow_dispatch'
+      run: |
+        VERSION="${{ steps.version.outputs.version }}"
         if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9\.]+)?$ ]]; then
           echo "Error: Version must follow semantic versioning (e.g., v1.0.0, v1.0.0-beta.1)"
           exit 1
@@ -47,33 +64,32 @@ jobs:
         go-version: '1.24'
 
     - name: Build for multiple platforms
+      env:
+        VERSION: ${{ steps.version.outputs.version }}
       run: |
         # 主程序构建
-        # macOS ARM64 (Apple Silicon)
-        GOOS=darwin GOARCH=arm64 go build -o xiaohongshu-mcp-darwin-arm64 .
-        GOOS=darwin GOARCH=arm64 go build -o xiaohongshu-login-darwin-arm64 ./cmd/login
+        # 禁用 CGO 生成静态二进制；通过 ldflags 注入版本号
+        # 只构建有内置浏览器的平台，其余平台即使编译出来也无法启动
+        LDFLAGS="-s -w -X main.version=${VERSION}"
 
-        # macOS Intel
-        GOOS=darwin GOARCH=amd64 go build -o xiaohongshu-mcp-darwin-amd64 .
-        GOOS=darwin GOARCH=amd64 go build -o xiaohongshu-login-darwin-amd64 ./cmd/login
+        # macOS ARM64 (Apple Silicon)
+        CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -ldflags "$LDFLAGS" -o xiaohongshu-mcp-darwin-arm64 .
+        CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -ldflags "$LDFLAGS" -o xiaohongshu-login-darwin-arm64 ./cmd/login
 
         # Windows x64
-        GOOS=windows GOARCH=amd64 go build -o xiaohongshu-mcp-windows-amd64.exe .
-        GOOS=windows GOARCH=amd64 go build -o xiaohongshu-login-windows-amd64.exe ./cmd/login
+        CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags "$LDFLAGS" -o xiaohongshu-mcp-windows-amd64.exe .
+        CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags "$LDFLAGS" -o xiaohongshu-login-windows-amd64.exe ./cmd/login
 
         # Linux x64
-        GOOS=linux GOARCH=amd64 go build -o xiaohongshu-mcp-linux-amd64 .
-        GOOS=linux GOARCH=amd64 go build -o xiaohongshu-login-linux-amd64 ./cmd/login
-
-        # Linux ARM64
-        GOOS=linux GOARCH=arm64 go build -o xiaohongshu-mcp-linux-arm64 .
-        GOOS=linux GOARCH=arm64 go build -o xiaohongshu-login-linux-arm64 ./cmd/login
+        CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "$LDFLAGS" -o xiaohongshu-mcp-linux-amd64 .
+        CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "$LDFLAGS" -o xiaohongshu-login-linux-amd64 ./cmd/login
 
     - name: Generate changelog
       id: changelog
       run: |
-        # Get the previous tag
-        PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+        # 取上一个语义化版本 tag：排除当前版本和自动生成的日期 tag
+        VERSION="${{ steps.version.outputs.version }}"
+        PREV_TAG=$(git tag -l | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$' | grep -vx "$VERSION" | sort -V | tail -1 || echo "")
 
         if [ -z "$PREV_TAG" ]; then
           echo "No previous tag found, including all commits"
@@ -93,12 +109,12 @@ jobs:
     - name: Create tag and release
       uses: softprops/action-gh-release@v1
       with:
-        tag_name: ${{ github.event.inputs.version }}
-        name: Release ${{ github.event.inputs.version }}
+        tag_name: ${{ steps.version.outputs.version }}
+        name: Release ${{ steps.version.outputs.version }}
         draft: false
-        prerelease: ${{ contains(github.event.inputs.version, '-') }}
+        prerelease: ${{ contains(steps.version.outputs.version, '-') }}
         body: |
-          ## 🚀 新版本发布: ${{ github.event.inputs.version }}
+          ## 🚀 新版本发布: ${{ steps.version.outputs.version }}
 
           ${{ github.event.inputs.release_notes }}
 
@@ -112,17 +128,13 @@ jobs:
 
           **主程序（MCP 服务）：**
           - **macOS Apple Silicon**: `xiaohongshu-mcp-darwin-arm64`
-          - **macOS Intel**: `xiaohongshu-mcp-darwin-amd64`
           - **Windows x64**: `xiaohongshu-mcp-windows-amd64.exe`
           - **Linux x64**: `xiaohongshu-mcp-linux-amd64`
-          - **Linux ARM64**: `xiaohongshu-mcp-linux-arm64`
 
           **登录工具：**
           - **macOS Apple Silicon**: `xiaohongshu-login-darwin-arm64`
-          - **macOS Intel**: `xiaohongshu-login-darwin-amd64`
           - **Windows x64**: `xiaohongshu-login-windows-amd64.exe`
           - **Linux x64**: `xiaohongshu-login-linux-amd64`
-          - **Linux ARM64**: `xiaohongshu-login-linux-arm64`
 
           ### 🔧 使用方法
 
@@ -150,12 +162,8 @@ jobs:
           - **Build Time**: ${{ github.event.repository.updated_at }}
         files: |
           xiaohongshu-mcp-darwin-arm64
-          xiaohongshu-mcp-darwin-amd64
           xiaohongshu-mcp-windows-amd64.exe
           xiaohongshu-mcp-linux-amd64
-          xiaohongshu-mcp-linux-arm64
           xiaohongshu-login-darwin-arm64
-          xiaohongshu-login-darwin-amd64
           xiaohongshu-login-windows-amd64.exe
           xiaohongshu-login-linux-amd64
-          xiaohongshu-login-linux-arm64

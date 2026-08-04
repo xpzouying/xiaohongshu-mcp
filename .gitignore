@@ -50,3 +50,7 @@ test_concurrent/
 cookies.json
 docker/data/
 docker/images/
+docker/docker-compose.override.yml
+
+# 本地分析/调试产物，不进仓库
+debug/

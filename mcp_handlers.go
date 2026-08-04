@@ -42,12 +42,11 @@ func (s *AppServer) handleCheckLoginStatus(ctx context.Context) *MCPToolResult {
 		}
 	}
 
-	// 根据 IsLoggedIn 判断并返回友好的提示
 	var resultText string
 	if status.IsLoggedIn {
 		resultText = fmt.Sprintf("✅ 已登录\n用户名: %s\n\n你可以使用其他功能了。", status.Username)
 	} else {
-		resultText = fmt.Sprintf("❌ 未登录\n\n请使用 get_login_qrcode 工具获取二维码进行登录。")
+		resultText = "❌ 未登录\n\n请使用 get_login_qrcode 工具获取二维码进行登录。"
 	}
 
 	return &MCPToolResult{
@@ -124,7 +123,6 @@ func (s *AppServer) handleDeleteCookies(ctx context.Context) *MCPToolResult {
 func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]interface{}) *MCPToolResult {
 	logrus.Info("MCP: 发布内容")
 
-	// 解析参数
 	title, _ := args["title"].(string)
 	content, _ := args["content"].(string)
 	imagePathsInterface, _ := args["images"].([]interface{})
@@ -152,16 +150,13 @@ func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]in
 		}
 	}
 
-	// 解析定时发布参数
 	scheduleAt, _ := args["schedule_at"].(string)
 	visibility := parseVisibility(args)
 
-	// 解析原创参数
 	isOriginal, _ := args["is_original"].(bool)
 
 	logrus.Infof("MCP: 发布内容 - 标题: %s, 图片数量: %d, 标签数量: %d, 定时: %s, 原创: %v, visibility: %s, 商品: %v", title, len(imagePaths), len(tags), scheduleAt, isOriginal, visibility, products)
 
-	// 构建发布请求
 	req := &PublishRequest{
 		Title:      title,
 		Content:    content,
@@ -173,7 +168,6 @@ func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]in
 		Products:   products,
 	}
 
-	// 执行发布
 	result, err := s.xiaohongshuService.PublishContent(ctx, req)
 	if err != nil {
 		return &MCPToolResult{
@@ -228,13 +222,11 @@ func (s *AppServer) handlePublishVideo(ctx context.Context, args map[string]inte
 		}
 	}
 
-	// 解析定时发布参数
 	scheduleAt, _ := args["schedule_at"].(string)
 	visibility := parseVisibility(args)
 
 	logrus.Infof("MCP: 发布视频 - 标题: %s, 标签数量: %d, 定时: %s, visibility: %s, 商品: %v", title, len(tags), scheduleAt, visibility, products)
 
-	// 构建发布请求
 	req := &PublishVideoRequest{
 		Title:      title,
 		Content:    content,
@@ -245,7 +237,6 @@ func (s *AppServer) handlePublishVideo(ctx context.Context, args map[string]inte
 		Products:   products,
 	}
 
-	// 执行发布
 	result, err := s.xiaohongshuService.PublishVideo(ctx, req)
 	if err != nil {
 		return &MCPToolResult{
@@ -281,7 +272,6 @@ func (s *AppServer) handleListFeeds(ctx context.Context) *MCPToolResult {
 		}
 	}
 
-	// 格式化输出，转换为JSON字符串
 	jsonData, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
 		return &MCPToolResult{
@@ -317,7 +307,6 @@ func (s *AppServer) handleSearchFeeds(ctx context.Context, args SearchFeedsArgs)
 
 	logrus.Infof("MCP: 搜索Feeds - 关键词: %s", args.Keyword)
 
-	// 将 MCP 的 FilterOption 转换为 xiaohongshu.FilterOption
 	filter := xiaohongshu.FilterOption{
 		SortBy:      args.Filters.SortBy,
 		NoteType:    args.Filters.NoteType,
@@ -337,7 +326,6 @@ func (s *AppServer) handleSearchFeeds(ctx context.Context, args SearchFeedsArgs)
 		}
 	}
 
-	// 格式化输出，转换为JSON字符串
 	jsonData, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
 		return &MCPToolResult{
@@ -361,7 +349,6 @@ func (s *AppServer) handleSearchFeeds(ctx context.Context, args SearchFeedsArgs)
 func (s *AppServer) handleGetFeedDetail(ctx context.Context, args map[string]any) *MCPToolResult {
 	logrus.Info("MCP: 获取Feed详情")
 
-	// 解析参数
 	feedID, ok := args["feed_id"].(string)
 	if !ok || feedID == "" {
 		return &MCPToolResult{
@@ -455,7 +442,6 @@ func (s *AppServer) handleGetFeedDetail(ctx context.Context, args map[string]any
 		}
 	}
 
-	// 格式化输出，转换为JSON字符串
 	jsonData, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
 		return &MCPToolResult{
@@ -479,7 +465,6 @@ func (s *AppServer) handleGetFeedDetail(ctx context.Context, args map[string]any
 func (s *AppServer) handleUserProfile(ctx context.Context, args map[string]any) *MCPToolResult {
 	logrus.Info("MCP: 获取用户主页")
 
-	// 解析参数
 	userID, ok := args["user_id"].(string)
 	if !ok || userID == "" {
 		return &MCPToolResult{
@@ -504,7 +489,9 @@ func (s *AppServer) handleUserProfile(ctx context.Context, args map[string]any) 
 
 	logrus.Infof("MCP: 获取用户主页 - User ID: %s", userID)
 
-	result, err := s.xiaohongshuService.UserProfile(ctx, userID, xsecToken)
+	tab, _ := args["tab"].(string)
+
+	result, err := s.xiaohongshuService.UserProfile(ctx, userID, xsecToken, tab)
 	if err != nil {
 		return &MCPToolResult{
 			Content: []MCPContent{{
@@ -515,7 +502,6 @@ func (s *AppServer) handleUserProfile(ctx context.Context, args map[string]any) 
 		}
 	}
 
-	// 格式化输出，转换为JSON字符串
 	jsonData, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
 		return &MCPToolResult{
@@ -611,7 +597,6 @@ func (s *AppServer) handleFavoriteFeed(ctx context.Context, args map[string]inte
 func (s *AppServer) handlePostComment(ctx context.Context, args map[string]interface{}) *MCPToolResult {
 	logrus.Info("MCP: 发表评论到Feed")
 
-	// 解析参数
 	feedID, ok := args["feed_id"].(string)
 	if !ok || feedID == "" {
 		return &MCPToolResult{
@@ -647,7 +632,6 @@ func (s *AppServer) handlePostComment(ctx context.Context, args map[string]inter
 
 	logrus.Infof("MCP: 发表评论 - Feed ID: %s, 内容长度: %d", feedID, len(content))
 
-	// 发表评论
 	result, err := s.xiaohongshuService.PostCommentToFeed(ctx, feedID, xsecToken, content)
 	if err != nil {
 		return &MCPToolResult{
@@ -659,7 +643,6 @@ func (s *AppServer) handlePostComment(ctx context.Context, args map[string]inter
 		}
 	}
 
-	// 返回成功结果，只包含feed_id
 	resultText := fmt.Sprintf("评论发表成功 - Feed ID: %s", result.FeedID)
 	return &MCPToolResult{
 		Content: []MCPContent{{
@@ -673,7 +656,6 @@ func (s *AppServer) handlePostComment(ctx context.Context, args map[string]inter
 func (s *AppServer) handleReplyComment(ctx context.Context, args map[string]interface{}) *MCPToolResult {
 	logrus.Info("MCP: 回复评论")
 
-	// 解析参数
 	feedID, ok := args["feed_id"].(string)
 	if !ok || feedID == "" {
 		return &MCPToolResult{
@@ -721,7 +703,6 @@ func (s *AppServer) handleReplyComment(ctx context.Context, args map[string]inte
 
 	logrus.Infof("MCP: 回复评论 - Feed ID: %s, Comment ID: %s, User ID: %s, 内容长度: %d", feedID, commentID, userID, len(content))
 
-	// 回复评论
 	result, err := s.xiaohongshuService.ReplyCommentToFeed(ctx, feedID, xsecToken, commentID, userID, content)
 	if err != nil {
 		return &MCPToolResult{
@@ -733,7 +714,6 @@ func (s *AppServer) handleReplyComment(ctx context.Context, args map[string]inte
 		}
 	}
 
-	// 返回成功结果
 	responseText := fmt.Sprintf("评论回复成功 - Feed ID: %s, Comment ID: %s, User ID: %s", result.FeedID, result.TargetCommentID, result.TargetUserID)
 	return &MCPToolResult{
 		Content: []MCPContent{{
@@ -741,4 +721,116 @@ func (s *AppServer) handleReplyComment(ctx context.Context, args map[string]inte
 			Text: responseText,
 		}},
 	}
+}
+
+// handleGetMyProfile 获取当前登录用户主页
+func (s *AppServer) handleGetMyProfile(ctx context.Context, tab string) *MCPToolResult {
+	logrus.Infof("MCP: 获取我的主页 tab=%s", tab)
+
+	result, err := s.xiaohongshuService.GetMyProfile(ctx, tab)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "获取我的主页失败: " + err.Error(),
+			}},
+			IsError: true,
+		}
+	}
+
+	jsonData, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: fmt.Sprintf("获取我的主页成功，但序列化失败: %v", err),
+			}},
+			IsError: true,
+		}
+	}
+
+	return &MCPToolResult{
+		Content: []MCPContent{{
+			Type: "text",
+			Text: string(jsonData),
+		}},
+	}
+}
+
+// handleGetUnreadCount 获取通知未读数
+func (s *AppServer) handleGetUnreadCount(ctx context.Context) *MCPToolResult {
+	logrus.Info("MCP: 获取通知未读数")
+
+	result, err := s.xiaohongshuService.GetUnreadCount(ctx)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "获取未读数失败: " + err.Error()}},
+			IsError: true,
+		}
+	}
+
+	return marshalMCPResult(result, "获取未读数")
+}
+
+// handleListNotifications 获取通知列表
+func (s *AppServer) handleListNotifications(ctx context.Context, tab string, limit int) *MCPToolResult {
+	logrus.Infof("MCP: 获取通知列表 tab=%s limit=%d", tab, limit)
+
+	result, err := s.xiaohongshuService.ListNotifications(ctx, tab, limit)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "获取通知列表失败: " + err.Error()}},
+			IsError: true,
+		}
+	}
+
+	return marshalMCPResult(result, "获取通知列表")
+}
+
+// handleReplyNotification 回复通知里的评论
+func (s *AppServer) handleReplyNotification(ctx context.Context, commentID, content string) *MCPToolResult {
+	logrus.Infof("MCP: 回复通知评论 comment=%s", commentID)
+
+	result, err := s.xiaohongshuService.ReplyNotification(ctx, commentID, content)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "回复失败: " + err.Error()}},
+			IsError: true,
+		}
+	}
+
+	return marshalMCPResult(result, "回复")
+}
+
+// marshalMCPResult 把结果序列化成 MCP 文本内容。
+func marshalMCPResult(result any, action string) *MCPToolResult {
+	jsonData, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: fmt.Sprintf("%s成功，但序列化失败: %v", action, err),
+			}},
+			IsError: true,
+		}
+	}
+
+	return &MCPToolResult{
+		Content: []MCPContent{{Type: "text", Text: string(jsonData)}},
+	}
+}
+
+// handleLikeNotification 给通知里的评论点赞/取消点赞
+func (s *AppServer) handleLikeNotification(ctx context.Context, commentID string, unlike bool) *MCPToolResult {
+	logrus.Infof("MCP: 通知点赞 comment=%s unlike=%v", commentID, unlike)
+
+	result, err := s.xiaohongshuService.LikeNotification(ctx, commentID, unlike)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "点赞失败: " + err.Error()}},
+			IsError: true,
+		}
+	}
+
+	return marshalMCPResult(result, "点赞")
 }

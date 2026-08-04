@@ -2,16 +2,17 @@ package configs
 
 import (
 	"os"
-	"path/filepath"
-	"runtime"
+	"strconv"
+
+	"github.com/sirupsen/logrus"
 )
 
 var (
-	useHeadless = false
+	useHeadless = true
 
-	binPath = ""
+	fingerprintSeed = 0
 
-	userDataDir = ""
+	proxy = ""
 )
 
 func InitHeadless(h bool) {
@@ -23,46 +24,38 @@ func IsHeadless() bool {
 	return useHeadless
 }
 
-func SetBinPath(b string) {
-	binPath = b
+func SetFingerprintSeed(s int) {
+	fingerprintSeed = s
 }
 
-func GetBinPath() string {
-	if binPath != "" {
-		return binPath
+func FingerprintSeed() int {
+	return fingerprintSeed
+}
+
+// FingerprintSeedFromEnv 从 XHS_FP_SEED 环境变量解析固定 seed。
+// 未设或非法返回 0（回退随机）。env 读取集中在配置层，浏览器工厂只收 Option。
+func FingerprintSeedFromEnv() int {
+	s := os.Getenv("XHS_FP_SEED")
+	if s == "" {
+		return 0
 	}
-	return defaultChromeBinPath()
-}
-
-func SetUserDataDir(dir string) {
-	userDataDir = dir
-}
-
-func GetUserDataDir() string {
-	if userDataDir != "" {
-		return userDataDir
+	seed, err := strconv.Atoi(s)
+	if err != nil || seed <= 0 {
+		logrus.Warnf("invalid XHS_FP_SEED=%q, ignored (fallback to random seed)", s)
+		return 0
 	}
-	return defaultUserDataDir()
+	return seed
 }
 
-func defaultChromeBinPath() string {
-	if runtime.GOOS == "darwin" {
-		if p := "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"; fileExists(p) {
-			return p
-		}
-	}
-	return ""
+func SetProxy(p string) {
+	proxy = p
 }
 
-func defaultUserDataDir() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return ""
-	}
-	return filepath.Join(home, ".xiaohongshu-mcp", "chrome-profile")
+func Proxy() string {
+	return proxy
 }
 
-func fileExists(p string) bool {
-	_, err := os.Stat(p)
-	return err == nil
+// ProxyFromEnv 从 XHS_PROXY 环境变量读取代理地址。env 读取集中在配置层。
+func ProxyFromEnv() string {
+	return os.Getenv("XHS_PROXY")
 }

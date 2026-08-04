@@ -30,6 +30,10 @@ func setupRoutes(appServer *AppServer) *gin.Engine {
 		},
 		&mcp.StreamableHTTPOptions{
 			JSONResponse: true, // 支持 JSON 响应
+			// 换取客户端可跳过 initialize 握手直接调工具。代价是服务端无法反向
+			// 请求客户端（sampling / elicitation / roots），眼下一处都没用到；
+			// 要用得先摘掉这行。
+			Stateless: true,
 		},
 	)
 	router.Any("/mcp", gin.WrapH(mcpHandler))
@@ -50,7 +54,14 @@ func setupRoutes(appServer *AppServer) *gin.Engine {
 		api.POST("/user/profile", appServer.userProfileHandler)
 		api.POST("/feeds/comment", appServer.postCommentHandler)
 		api.POST("/feeds/comment/reply", appServer.replyCommentHandler)
+		api.POST("/feeds/like", appServer.likeFeedHandler)
+		api.POST("/feeds/favorite", appServer.favoriteFeedHandler)
 		api.GET("/user/me", appServer.myProfileHandler)
+		api.GET("/notifications/unread", appServer.getUnreadCountHandler)
+		api.GET("/notifications/list", appServer.listNotificationsHandler)
+		api.POST("/notifications/list", appServer.listNotificationsHandler)
+		api.POST("/notifications/reply", appServer.replyNotificationHandler)
+		api.POST("/notifications/like", appServer.likeNotificationHandler)
 	}
 
 	return router

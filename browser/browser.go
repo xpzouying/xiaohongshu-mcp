@@ -1,168 +1,101 @@
 package browser
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/url"
-	"os"
-	"time"
+	"strings"
 
-	"github.com/go-rod/rod"
-	"github.com/go-rod/rod/lib/launcher"
-	"github.com/go-rod/rod/lib/proto"
-	"github.com/go-rod/stealth"
 	"github.com/sirupsen/logrus"
+	"github.com/xpzouying/headless_browser"
 	"github.com/xpzouying/xiaohongshu-mcp/cookies"
 )
 
-type Browser struct {
-	browser  *rod.Browser
-	launcher *launcher.Launcher
-}
-
 type browserConfig struct {
-	binPath     string
-	userDataDir string
+	// fingerprintSeed 固定指纹 seed；>0 时钉死，同账号每次同一套指纹。0 = 每次随机。
+	fingerprintSeed int
+	// proxy 代理地址；非空时启用。
+	proxy string
 }
 
 type Option func(*browserConfig)
 
-func WithBinPath(binPath string) Option {
+// WithProxy 设置代理（http/https/socks5）。空字符串视为不启用。
+func WithProxy(proxy string) Option {
 	return func(c *browserConfig) {
-		c.binPath = binPath
+		c.proxy = proxy
 	}
 }
 
-func WithUserDataDir(dir string) Option {
+// WithFingerprintSeed 设置 seed，seed<=0 视为未设，回退每次随机。
+func WithFingerprintSeed(seed int) Option {
 	return func(c *browserConfig) {
-		c.userDataDir = dir
+		c.fingerprintSeed = seed
 	}
 }
 
+// maskProxyCredentials masks username and password in proxy URL for safe logging.
 func maskProxyCredentials(proxyURL string) string {
 	u, err := url.Parse(proxyURL)
 	if err != nil || u.User == nil {
 		return proxyURL
 	}
+	cred := "***"
 	if _, hasPassword := u.User.Password(); hasPassword {
-		u.User = url.UserPassword("***", "***")
-	} else {
-		u.User = url.User("***")
+		cred = "***:***"
 	}
-	return u.String()
+	// 直接在原串替换 userinfo，避免 url.String() 把 * 编码成 %2A（日志变乱码）。
+	return strings.Replace(proxyURL, u.User.String()+"@", cred+"@", 1)
 }
 
-// NewBrowser 启动一个浏览器实例。
-func NewBrowser(headless bool, options ...Option) *Browser {
+func NewBrowser(headless bool, options ...Option) *headless_browser.Browser {
 	cfg := &browserConfig{}
 	for _, opt := range options {
 		opt(cfg)
 	}
 
-	l := launcher.New().
-		HeadlessNew(headless).
-		Delete("enable-automation").
-		Delete("disable-background-networking").
-		Delete("disable-features").
-		Delete("disable-site-isolation-trials").
-		Delete("disable-breakpad").
-		Delete("disable-default-apps").
-		Delete("disable-sync").
-		Delete("metrics-recording-only").
-		Delete("enable-features").
-		Delete("no-startup-window").
-		Set("no-first-run", "true").
-		Set("no-default-browser-check", "true").
-		// 从 Blink 层关闭自动化特征，navigator.webdriver 原生保持 false，无需依赖注入
-		Set("disable-blink-features", "AutomationControlled")
-
-	if cfg.binPath != "" {
-		l = l.Bin(cfg.binPath)
-		logrus.Infof("using Chrome binary: %s", cfg.binPath)
-	} else {
-		logrus.Infof("Chrome binary not specified, rod will auto-detect or download Chromium")
+	// 只用内置浏览器，没有别的来源。二进制必须显式传给 go-rod，
+	// 否则 rod 会自行下载一个默认 Chromium：它不是内置浏览器，也不认识下面
+	// 这些 flag（未知 flag 被静默忽略，日志照样打印 "fingerprint enabled"），
+	// 属于无声降级。宁可不启动，也不启动一个不对的浏览器。
+	binPath, err := EnsureBrowser()
+	if err != nil {
+		panic(fmt.Sprintf("内置浏览器不可用，拒绝启动: %v", err))
 	}
 
-	if cfg.userDataDir != "" {
-		// profile 目录含完整登录态，用 0700 仅属主可访问
-		if err := os.MkdirAll(cfg.userDataDir, 0700); err != nil {
-			logrus.Warnf("failed to create user data dir %s: %v", cfg.userDataDir, err)
-		} else {
-			l = l.Set("user-data-dir", cfg.userDataDir)
-			logrus.Infof("using Chrome profile directory: %s", cfg.userDataDir)
-		}
+	opts := []headless_browser.Option{
+		headless_browser.WithHeadless(headless),
+		// 用内置浏览器的默认配置，不强制 UA。
+		headless_browser.WithFingerprint(""), // 空 = 按运行 OS 自动：Linux→windows，mac→macos
+		headless_browser.WithStealthJS(false),
+		headless_browser.WithLanguage("zh-CN"), // 面向小红书
+		// 品牌报 Chrome。
+		// 注：hardware-concurrency 不设，交给 seed 派生。
+		headless_browser.WithExtraFlags(map[string]string{"fingerprint-brand": "Chrome"}),
+	}
+	opts = append(opts, headless_browser.WithChromeBinPath(binPath))
+
+	// 代理（由调用方经 Option 传入，env 读取放在入口层）。
+	if cfg.proxy != "" {
+		opts = append(opts, headless_browser.WithProxy(cfg.proxy))
+		logrus.Infof("Using proxy: %s", maskProxyCredentials(cfg.proxy))
 	}
 
-	if proxy := os.Getenv("XHS_PROXY"); proxy != "" {
-		l = l.Proxy(proxy)
-		logrus.Infof("Using proxy: %s", maskProxyCredentials(proxy))
+	// 固定指纹 seed（由调用方经 Option 传入，env 读取放在入口层）。
+	if cfg.fingerprintSeed > 0 {
+		opts = append(opts, headless_browser.WithFingerprintSeed(cfg.fingerprintSeed))
+		logrus.Infof("fingerprint seed pinned: %d", cfg.fingerprintSeed)
 	}
 
-	url := l.MustLaunch()
-
-	browser := rod.New().
-		ControlURL(url).
-		MustConnect()
-
+	// 加载 cookies
 	cookiePath := cookies.GetCookiesFilePath()
 	cookieLoader := cookies.NewLoadCookie(cookiePath)
 
 	if data, err := cookieLoader.LoadCookies(); err == nil {
-		var cks []*proto.NetworkCookie
-		if err := json.Unmarshal([]byte(data), &cks); err != nil {
-			logrus.Warnf("failed to unmarshal cookies: %v", err)
-		} else {
-			browser.MustSetCookies(cks...)
-			logrus.Debugf("loaded cookies from file successfully")
-		}
+		opts = append(opts, headless_browser.WithCookies(string(data)))
+		logrus.Debugf("loaded cookies from filesuccessfully")
 	} else {
-		logrus.Debugf("no legacy cookie file loaded (using Chrome profile cookies)")
+		logrus.Warnf("failed to load cookies: %v", err)
 	}
 
-	return &Browser{
-		browser:  browser,
-		launcher: l,
-	}
-}
-
-func (b *Browser) NewPage() *rod.Page {
-	return stealth.MustPage(b.browser)
-}
-
-// NewPageSafe 开 tab，连接异常时返回 error 而非 panic。
-func (b *Browser) NewPageSafe() (page *rod.Page, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("failed to open page: %v", r)
-			page = nil
-		}
-	}()
-	return stealth.Page(b.browser)
-}
-
-func (b *Browser) Close() {
-	b.CloseWithTimeout(5 * time.Second)
-}
-
-// CloseWithTimeout 关闭浏览器；超时后 Kill 进程，避免死连接永久阻塞。
-// 不调用 launcher.Cleanup()，防止误删持久化 Chrome profile。
-func (b *Browser) CloseWithTimeout(timeout time.Duration) {
-	if b == nil {
-		return
-	}
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		if b.browser != nil {
-			_ = b.browser.Close()
-		}
-	}()
-	select {
-	case <-done:
-	case <-time.After(timeout):
-		logrus.Warnf("browser close timeout after %v, killing process", timeout)
-	}
-	if b.launcher != nil {
-		b.launcher.Kill()
-	}
+	return headless_browser.New(opts...)
 }

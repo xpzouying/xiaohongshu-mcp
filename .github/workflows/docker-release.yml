@@ -1,12 +1,17 @@
 name: Docker Release
 
 on:
+  push:
+    tags:
+      # 只匹配语义化版本 tag（如 v1.2.8、v1.3.0-beta.1），
+      # 不匹配历史遗留的日期 tag（如 v2026.07.23.0205-85aed8b）
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-*'
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version tag (e.g., v1.0.0)'
+        description: 'Version tag (e.g., v1.2.8)'
         required: true
-        default: 'v1.0.0'
 
 permissions:
   contents: read
@@ -18,6 +23,16 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    # tag 触发时版本号取自 tag 本身；手动触发时取输入参数
+    - name: Resolve version
+      id: version
+      run: |
+        if [ "${{ github.event_name }}" = "push" ]; then
+          echo "version=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+        else
+          echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+        fi
+
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
@@ -27,6 +42,14 @@ jobs:
         username: xpzouying
         password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+    - name: Log in to Aliyun Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: crpi-hocnvtkomt7w9v8t.cn-beijing.personal.cr.aliyuncs.com
+        username: ${{ secrets.ALIYUN_REGISTRY_USERNAME }}
+        password: ${{ secrets.ALIYUN_REGISTRY_PASSWORD }}
+
+    # 一次构建，同时推送 Docker Hub 和阿里云
     - name: Build and push Docker image (AMD64)
       uses: docker/build-push-action@v5
       with:
@@ -34,21 +57,12 @@ jobs:
         file: ./Dockerfile
         push: true
         platforms: linux/amd64
+        build-args: |
+          VERSION=${{ steps.version.outputs.version }}
         tags: |
-          xpzouying/xiaohongshu-mcp:${{ github.event.inputs.version }}
+          xpzouying/xiaohongshu-mcp:${{ steps.version.outputs.version }}
           xpzouying/xiaohongshu-mcp:latest
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-
-    - name: Build and push Docker image (ARM64)
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        file: ./Dockerfile.arm64
-        push: true
-        platforms: linux/arm64
-        tags: |
-          xpzouying/xiaohongshu-mcp:${{ github.event.inputs.version }}-arm64
-          xpzouying/xiaohongshu-mcp:latest-arm64
+          crpi-hocnvtkomt7w9v8t.cn-beijing.personal.cr.aliyuncs.com/xpzouying/xiaohongshu-mcp:${{ steps.version.outputs.version }}
+          crpi-hocnvtkomt7w9v8t.cn-beijing.personal.cr.aliyuncs.com/xpzouying/xiaohongshu-mcp:latest
         cache-from: type=gha
         cache-to: type=gha,mode=max

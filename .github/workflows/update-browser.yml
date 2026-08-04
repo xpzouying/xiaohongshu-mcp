@@ -1,0 +1,78 @@
+name: Update browser version
+
+# 每周检测内置浏览器是否有新版本（读自建 CDN 的 latest 指针，公开 repo 不引用上游）。
+# 有新版 + CDN 三平台文件就绪 → 直接提交 browser/browser_version.txt 到 main（不开 PR）；
+# 文件未就绪 → 开 Issue 提醒。版本号单一来源，Go 与 Dockerfile 都读它。
+
+on:
+  schedule:
+    - cron: '0 4 * * 1' # 每周一 04:00 UTC，晚于镜像同步
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  issues: write
+
+env:
+  CDN_BASE: https://cdn.one-world.ai/browsers
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    if: github.repository == 'xpzouying/xiaohongshu-mcp'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 检测最新版本（读 CDN latest 指针）
+        id: check
+        run: |
+          LATEST=$(curl -fsS "${CDN_BASE}/latest.txt" | tr -d '[:space:]' || true)
+          CURRENT=$(tr -d '[:space:]' < browser/browser_version.txt)
+          echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+          if [ -n "$LATEST" ] && [ "$LATEST" != "$CURRENT" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "无更新（current=$CURRENT latest=$LATEST）"
+          fi
+
+      - name: 校验 CDN 三平台文件就绪
+        id: verify
+        if: steps.check.outputs.changed == 'true'
+        env:
+          LATEST: ${{ steps.check.outputs.latest }}
+        run: |
+          OK=true
+          for f in linux-x64.tar.xz macos-arm64.dmg windows-x64.zip SHA256SUMS; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' -I "${CDN_BASE}/${LATEST}/${f}")
+            if [ "$code" != "200" ]; then echo "缺失: ${f} (HTTP ${code})"; OK=false; fi
+          done
+          echo "ok=$OK" >> "$GITHUB_OUTPUT"
+
+      - name: 校验通过 → 提交到 main
+        if: steps.check.outputs.changed == 'true' && steps.verify.outputs.ok == 'true'
+        env:
+          LATEST: ${{ steps.check.outputs.latest }}
+          CURRENT: ${{ steps.check.outputs.current }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          printf '%s\n' "$LATEST" > browser/browser_version.txt
+          git add browser/browser_version.txt
+          git commit -m "chore: bump browser ${CURRENT} -> ${LATEST}"
+          git push origin HEAD:main
+
+      - name: 校验失败 → 开 Issue
+        if: steps.check.outputs.changed == 'true' && steps.verify.outputs.ok == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LATEST: ${{ steps.check.outputs.latest }}
+          CURRENT: ${{ steps.check.outputs.current }}
+        run: |
+          TITLE="浏览器 ${LATEST} CDN 文件未就绪，未自动升级"
+          if [ -n "$(gh issue list --state open --search "$TITLE" --json number --jq '.[0].number')" ]; then
+            echo "Issue 已存在，跳过"; exit 0
+          fi
+          gh issue create --title "$TITLE" \
+            --body "检测到新版本 ${LATEST}（当前 ${CURRENT}），但 CDN 上 browsers/${LATEST}/ 的文件不全，自动升级已中止。请检查镜像同步是否完成。"

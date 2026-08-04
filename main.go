@@ -2,38 +2,40 @@ package main
 
 import (
 	"flag"
-	"os"
 
 	"github.com/sirupsen/logrus"
+	"github.com/xpzouying/xiaohongshu-mcp/browser"
 	"github.com/xpzouying/xiaohongshu-mcp/configs"
+	"github.com/xpzouying/xiaohongshu-mcp/cookies"
 )
+
+// version 构建版本号，发布时通过 -ldflags "-X main.version=vX.Y.Z" 注入。
+var version = "dev"
 
 func main() {
 	var (
 		headless bool
-		binPath  string // 浏览器二进制文件路径
 		port     string
 	)
-	flag.BoolVar(&headless, "headless", false, "是否无头模式")
-	flag.StringVar(&binPath, "bin", "", "浏览器二进制文件路径")
-	// 默认仅绑定回环地址，避免把可代用户执行写操作的服务暴露到局域网；
-	// 需要全网卡监听（如 Docker 端口映射）时显式传 --port :18060。
-	flag.StringVar(&port, "port", "127.0.0.1:18060", "监听地址，如 127.0.0.1:18060 或 :18060")
+	flag.BoolVar(&headless, "headless", false, "是否无头模式（默认有头，降低自动化特征）")
+	flag.StringVar(&port, "port", "127.0.0.1:18060", "监听地址，默认仅回环；全网卡用 --port :18060")
 	flag.Parse()
 
-	if len(binPath) == 0 {
-		binPath = os.Getenv("ROD_BROWSER_BIN")
+	logrus.Infof("xiaohongshu-mcp version: %s", version)
+
+	// 只用内置浏览器。启动时就备好，缺它直接退出，不拖到第一个请求才失败。
+	binPath, err := browser.EnsureBrowser()
+	if err != nil {
+		logrus.Fatalf("%v", err)
 	}
+	logrus.Infof("using browser binary: %s", binPath)
 
 	configs.InitHeadless(headless)
-	configs.SetBinPath(binPath)
-
-	if resolvedBin := configs.GetBinPath(); resolvedBin != "" {
-		logrus.Infof("using browser binary: %s", resolvedBin)
-	} else {
-		logrus.Infof("browser binary not found; rod will auto-download Chromium")
-	}
-	logrus.Infof("Chrome profile directory: %s", configs.GetUserDataDir())
+	// 入口层解析出 seed 和代理，经 configs 透传给浏览器工厂。
+	// seed 取值：环境变量 > 会话文件 > 新生成并写回，保证同一账号每次启动一致。
+	configs.SetFingerprintSeed(configs.ResolveFingerprintSeed(
+		cookies.NewLoadCookie(cookies.GetCookiesFilePath())))
+	configs.SetProxy(configs.ProxyFromEnv())
 
 	// 初始化服务
 	xiaohongshuService := NewXiaohongshuService()

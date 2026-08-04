@@ -34,6 +34,10 @@ MCP 端点为 `http://localhost:18060/mcp`。多数集成测试依赖真实浏�
 - 注释用中文，简洁明了，专业名词可用英文
 - 错误信息（`error` / `panic`）用英文并遵循 Go 惯例：小写开头、结尾无标点；日志与注释保持中文
 
+## 发版规范
+
+- 发版=打语义化 tag `vX.Y.Z` 推上去（触发 Release 与 Docker 镜像），破坏性变更进 major；main 每次推送自动生成的日期 tag `vYYYY.MM.DD.HHMM-sha` 不是发版，别跟它混。
+
 ## PR Review 重点
 
 - 警惕大量 JS 注入：若某处 `page.Eval` 等 JS 注入并非必要、可用 go-rod 原生行为（点击、输入、查找元素）替代，直接评论要求改用 go-rod
