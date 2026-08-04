@@ -24,7 +24,6 @@ const localCookiesPath = "cookies.json"
 type Cookier interface {
 	LoadCookies() ([]byte, error)
 	SaveCookies(data []byte) error
-	DeleteCookies() error
 	// LoadSeed 读取会话绑定的 seed；老格式、文件损坏或未设时返回 0。
 	LoadSeed() int
 	// SaveSeed 写入 seed，保留文件中已有的 cookies。
@@ -114,15 +113,6 @@ func (c *localCookie) write(cks []byte, seed int) error {
 
 	// cookies 含登录态，0600 仅属主可读
 	return os.WriteFile(c.path, data, 0600)
-}
-
-// DeleteCookies 删除 cookies 文件。
-func (c *localCookie) DeleteCookies() error {
-	if _, err := os.Stat(c.path); os.IsNotExist(err) {
-		// 文件不存在，返回 nil（认为已经删除）
-		return nil
-	}
-	return os.Remove(c.path)
 }
 
 // GetCookiesFilePath 获取 cookies 文件路径。

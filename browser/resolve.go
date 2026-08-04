@@ -15,7 +15,8 @@ import (
 //  2. ROD_BROWSER_BIN
 //  3. 本机系统 Google Chrome / Chromium 常见路径
 //
-// 浏览器必须由用户或操作系统包管理器自行安装，并通过路径或系统标准位置提供。
+// 浏览器必须由用户或操作系统包管理器自行安装，并通过路径或系统标准位置提供；
+// 本项目不自动下载或执行未审计的浏览器二进制。
 func ResolveBrowserBin() (path string, source string, err error) {
 	if p := strings.TrimSpace(os.Getenv("XHS_BROWSER_BIN")); p != "" {
 		if err := mustExecutable(p); err != nil {
@@ -36,7 +37,7 @@ func ResolveBrowserBin() (path string, source string, err error) {
 
 	return "", "", fmt.Errorf(
 		"no trusted browser binary found\n" +
-			"  set XHS_BROWSER_BIN to a local Chrome/Chromium (or CloakBrowser you installed yourself), e.g.\n" +
+			"  set XHS_BROWSER_BIN to a local Chrome/Chromium, e.g.\n" +
 			"    export XHS_BROWSER_BIN=\"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome\"\n" +
 			"  or install Google Chrome on this machine\n" +
 			"  (this project does not download browsers automatically)",

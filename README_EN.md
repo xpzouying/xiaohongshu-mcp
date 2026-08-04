@@ -11,6 +11,8 @@
 
 MCP for RedNote (Xiaohongshu) / xiaohongshu.com. Give your AI assistant direct access to RedNote data.
 
+> This workspace is the read-only trimmed edition: it keeps login initialization, Feed reads, and user-profile reads (7 MCP tools). Publishing, comment/reply writes, like/favorite operations, notifications, and cookie deletion have been removed. See [docs/API.md](./docs/API.md) for the current API.
+
 ### 🚀 Quick Start: Pick the Version That Fits You
 
 > [!IMPORTANT]
@@ -21,7 +23,7 @@ MCP for RedNote (Xiaohongshu) / xiaohongshu.com. Give your AI assistant direct a
 
 > [!TIP]
 > #### ✨ Option B: x-mcp Browser Extension (recommended for non-technical users / anyone who wants the simplest setup)
-> - **Don't want to deal with deployment? Try [xpzouying/x-mcp](https://github.com/xpzouying/x-mcp).**
+> - **Don't want to deal with local deployment? Try [xpzouying/x-mcp](https://github.com/xpzouying/x-mcp).**
 > - **Zero configuration**: install the extension and it just works — no code, no proxy, no complicated environment setup.
 > - **Safe and stable**: runs directly in your everyday browser (Chrome/Edge) on your local network, with no server IP risk, and it solves 90% of deployment errors.
 
@@ -83,68 +85,14 @@ https://github.com/user-attachments/assets/bd9a9a4a-58cb-4421-b8f3-015f703ce1f9
 </details>
 
 <details>
-<summary><b>2. Publish Image and Text Content</b></summary>
+<summary><b>2. Get Login QR Code</b></summary>
 
-Supports publishing image and text content to RedNote, including title, content description, and images.
-
-**Image Support Methods:**
-
-Supports two image input methods:
-
-1. **HTTP/HTTPS Image Links**
-
-   ```
-   ["https://example.com/image1.jpg", "https://example.com/image2.png"]
-   ```
-
-2. **Local Image Absolute Paths** (Recommended)
-   ```
-   ["/Users/username/Pictures/image1.jpg", "/home/user/images/image2.png"]
-   ```
-
-**Why Local Paths are Recommended:**
-
-- ✅ Better stability, not dependent on network
-- ✅ Faster upload speed
-- ✅ Avoid image link expiration issues
-- ✅ Support more image formats
-
-**Publish Image-Text Post Demo:**
-
-https://github.com/user-attachments/assets/8aee0814-eb96-40af-b871-e66e6bbb6b06
+When not logged in, obtain a QR code and scan it with the RedNote app. After a successful scan, the service stores the login Cookie for subsequent reads. This is session initialization only; no content is published or modified.
 
 </details>
 
 <details>
-<summary><b>3. Publish Video Content</b></summary>
-
-Supports publishing video content to RedNote, including title, content description, and local video files.
-
-**Video Support Methods:**
-
-Only supports local video file absolute paths:
-
-```
-"/Users/username/Videos/video.mp4"
-```
-
-**Features:**
-
-- ✅ Supports local video file upload
-- ✅ Automatic video format processing
-- ✅ Supports title, content description, and tags
-- ✅ Automatically publishes after video processing is complete
-
-**Important Notes:**
-
-- Only supports local video files, not HTTP links
-- Video processing takes longer, please be patient
-- Recommended video file size should not exceed 1GB
-
-</details>
-
-<details>
-<summary><b>4. Search Content</b></summary>
+<summary><b>3. Search Content</b></summary>
 
 Search RedNote content by keywords.
 
@@ -155,7 +103,7 @@ https://github.com/user-attachments/assets/03c5077d-6160-4b18-b629-2e40933a1fd3
 </details>
 
 <details>
-<summary><b>5. Get Recommendation List</b></summary>
+<summary><b>4. Get Recommendation List</b></summary>
 
 Get RedNote homepage recommendation content list.
 
@@ -166,7 +114,7 @@ https://github.com/user-attachments/assets/110fc15d-46f2-4cca-bdad-9de5b5b8cc28
 </details>
 
 <details>
-<summary><b>6. Get Post Details (Including Interaction Data and Comments)</b></summary>
+<summary><b>5. Get Post Details (Including Interaction Data and Comments)</b></summary>
 
 Get complete details of RedNote posts, including:
 
@@ -188,30 +136,7 @@ https://github.com/user-attachments/assets/76a26130-a216-4371-a6b3-937b8fda092a
 </details>
 
 <details>
-<summary><b>7. Post Comments to Posts</b></summary>
-
-Supports automatically posting comments to RedNote posts.
-
-**Feature Description:**
-
-- Automatically locate comment input box
-- Input comment content and publish
-- Supports HTTP API and MCP tool calls
-
-**⚠️ Important Note:**
-
-- Must login first to use this feature
-- Need to provide post ID, xsec_token, and comment content
-- These parameters can be obtained from Feed list or search results
-
-**Post Comment Demo:**
-
-https://github.com/user-attachments/assets/cc385b6c-422c-489b-a5fc-63e92c695b80
-
-</details>
-
-<details>
-<summary><b>8. Get User Profile</b></summary>
+<summary><b>6. Get User Profile</b></summary>
 
 Get RedNote user's personal profile information, including basic user information and note content.
 
@@ -237,92 +162,25 @@ Get RedNote user's personal profile information, including basic user informatio
 </details>
 
 <details>
-<summary><b>9. Reply to Comments</b></summary>
+<summary><b>7. Current Capability Boundary</b></summary>
 
-Reply to a specific comment under a note, supporting precise replies to specific users' comments.
-
-**Feature Description:**
-
-- Reply to a specific comment under a note
-- Support locating target comment by comment ID or user ID
-- Requires feed_id, xsec_token, comment_id/user_id, and reply content
-
-**⚠️ Important Note:**
-
-- Must login first to use this feature
-- At least one of comment_id or user_id must be provided
-- These parameters can be obtained from the comment list in post details
+This trimmed edition only reads the homepage Feed, search results, note details, comments, user profiles, and the current user's profile. Publishing, comment/reply writes, like/favorite operations, notification reads, and cookie deletion are not provided.
 
 </details>
 
-<details>
-<summary><b>10. Like / Unlike</b></summary>
+**Usage Boundary**
 
-Like or unlike a note, with smart detection of current status to avoid duplicate operations.
-
-**Feature Description:**
-
-- Like or unlike a specified note
-- Smart detection: skips liking if already liked, skips unliking if not liked
-- Requires feed_id and xsec_token
-
-**⚠️ Important Note:**
-
-- Must login first to use this feature
-- Default action is like, set unlike=true to unlike
-
-</details>
-
-<details>
-<summary><b>11. Favorite / Unfavorite</b></summary>
-
-Favorite a note or unfavorite it, with smart detection of current status to avoid duplicate operations.
-
-**Feature Description:**
-
-- Favorite or unfavorite a specified note
-- Smart detection: skips favoriting if already favorited, skips unfavoriting if not favorited
-- Requires feed_id and xsec_token
-
-**⚠️ Important Note:**
-
-- Must login first to use this feature
-- Default action is favorite, set unfavorite=true to unfavorite
-
-</details>
-
-**RedNote Basic Operation Knowledge**
-
-- **Title: (Very Important) RedNote requires titles to not exceed 20 characters**
-- **Content: (Very Important) Content cannot exceed 1000 characters**
-- Currently supports both image-text and video posting: From a recommendation perspective, image-text posts get better traffic than video or pure text.
-- (Low priority) Pure text support can be considered. 1. I personally feel pure text would greatly increase operation complexity; 2. Pure text has low value in my use scenarios.
-- Tags: Now supported. Adding appropriate tags can bring more traffic.
-- According to my practical experience, RedNote should allow **50 posts** per day.
+- This edition is read-only and does not provide publishing, comment/reply, like, or favorite writes.
 - **(Very Important) RedNote does not allow the same account to login on multiple web platforms**. If you login to the current xiaohongshu-mcp, don't login to that account on other web platforms, otherwise it will "kick out" the current MCP account login. You can use the mobile app to check current account information.
-- If your reach is low, first check whether your content contains banned words — there are plenty of free third-party tools you can search for.
-- Never do traffic diversion or pure content scraping/reposting — these are exactly what the platform cracks down on.
 
 **Risk Explanation**
 
 1. This project is open-sourced based on another project of mine. The original project has been running stably for over a year without any account bans, only occasional cookie expiration requiring re-login.
-2. I used Claude Code CLI integration and verified stable automated operation for several weeks before open-sourcing.
+2. I used Claude Code CLI integration and verified stable read access for several weeks before open-sourcing.
 3. If an account has not completed real-name verification, especially a new account, it will usually trigger a **real-name verification** prompt (see the screenshot below). ⚠️ This is not an account ban — you would be asked to verify even without using the MCP. Once verified, the account works normally. It is recommended to complete verification before using this project.
    <img width="508" height="306" alt="image" src="https://github.com/user-attachments/assets/34383e1b-f666-409f-9870-002655507dc1" />
 
 This project is for learning purposes only. All illegal activities are prohibited.
-
-**Practical Results**
-
-First day likes/favorites reached 999+,
-
-<img width="386" height="278" alt="CleanShot 2025-09-05 at 01 31 55@2x" src="https://github.com/user-attachments/assets/4b5a283b-bd38-45b8-b608-8f818997366c" />
-
-<img width="350" height="280" alt="CleanShot 2025-09-05 at 01 32 49@2x" src="https://github.com/user-attachments/assets/4481e1e7-3ef6-4bbd-8483-dcee8f77a8f2" />
-
-Results after about a week
-
-<img width="1840" height="582" alt="CleanShot 2025-09-05 at 01 33 13@2x" src="https://github.com/user-attachments/assets/fb367944-dc48-4bbd-8ece-934caa86323e" />
 
 ## 1. Usage Tutorial
 
@@ -358,7 +216,7 @@ chmod +x xiaohongshu-mcp-darwin-arm64
 ./xiaohongshu-mcp-darwin-arm64
 ```
 
-**⚠️ Important Note**: This project does not download a browser automatically. Install system Chrome/Chromium first, or set `XHS_BROWSER_BIN` to an executable browser path. Chromium's sandbox is enabled by default; on Linux, run the service as a non-root user and ensure the system browser's sandbox prerequisites are available. If you use your own container, configure it to run as non-root as well.
+**⚠️ Important Note**: This project does not automatically download a browser. Install system Google Chrome/Chromium first, or set `XHS_BROWSER_BIN` to an executable browser path. Chromium's sandbox is enabled by default; on Linux, run the service as a non-root user and ensure the system browser's sandbox prerequisites are available. If you use your own container, configure it to run as non-root as well.
 
 **Method 2: Build from Source**
 
@@ -372,7 +230,7 @@ Set Go domestic proxy source:
 ```bash
 # Configure GOPROXY environment variable, choose one of the following three
 
-# 1. Qiniu CDN
+# 1. Qiniu Go module mirror
 go env -w  GOPROXY=https://goproxy.cn,direct
 
 # 2. Alibaba Cloud
@@ -457,17 +315,11 @@ After running, open the red-marked link, configure MCP inspector, enter `http://
 
 After configuring MCP inspector as above, click the `List Tools` button to view all Tools.
 
-## 1.5. Use MCP for Publishing
+## 1.5. Use MCP for Reading
 
 ### Check Login Status
 
 ![Check Login Status](./assets/check_login.gif)
-
-### Publish Image-Text
-
-The example uses a random image from https://unsplash.com/ for testing.
-
-![Publish Image-Text](./assets/inspect_mcp_publish.gif)
 
 ### Search Content
 
@@ -589,7 +441,7 @@ Create `.cursor/mcp.json` in project root directory:
   "mcpServers": {
     "xiaohongshu-mcp": {
       "url": "http://localhost:18060/mcp",
-      "description": "RedNote content publishing service - MCP Streamable HTTP"
+      "description": "RedNote read-only data service - MCP Streamable HTTP"
     }
   }
 }
@@ -744,7 +596,7 @@ Help me check RedNote login status
 ```
 
 ```
-Help me publish a spring-themed image-text post to RedNote, using this image: /path/to/spring.jpg
+Help me search RedNote for spring-related content and read one note's details
 ```
 
 ```
@@ -797,20 +649,6 @@ After successful connection, you can use the following MCP tools:
 
 - `check_login_status` - Check RedNote login status (no parameters)
 - `get_login_qrcode` - Get login QR code, returns Base64 image and timeout (no parameters)
-- `delete_cookies` - Delete cookies file, reset login status, requires re-login after deletion (no parameters)
-- `publish_content` - Publish image-text content to RedNote (required: title, content, images)
-  - `images`: Image path list (minimum 1), supports HTTP links or local absolute paths, local paths recommended
-  - `tags`: Topic tags list (optional), e.g. `["food", "travel", "lifestyle"]`
-  - `schedule_at`: Scheduled publish time (optional), ISO8601 format, supports 1 hour to 14 days ahead
-  - `is_original`: Declare as original content (optional), default is not declared
-  - `visibility`: Visibility scope (optional), supports `公开可见` / public (default), `仅自己可见` / self-only, `仅互关好友可见` / mutual-followers-only
-  - `products`: Product keyword list (optional), used to attach products for social commerce. Provide a product name or product ID; the system searches automatically and picks the first match. Requires the product feature to be enabled on your account. Example: [面膜, 防晒霜SPF50]
-- `publish_with_video` - Publish video content to RedNote (required: title, content, video)
-  - `video`: Local video file absolute path (single file only)
-  - `tags`: Topic tags list (optional), e.g. `["food", "travel", "lifestyle"]`
-  - `schedule_at`: Scheduled publish time (optional), ISO8601 format, supports 1 hour to 14 days ahead
-  - `visibility`: Visibility scope (optional), supports `公开可见` / public (default), `仅自己可见` / self-only, `仅互关好友可见` / mutual-followers-only
-  - `products`: Product keyword list (optional), used to attach products for social commerce. Provide a product name or product ID; the system searches automatically and picks the first match. Requires the product feature to be enabled on your account. Example: [面膜, 防晒霜SPF50]
 - `list_feeds` - Get RedNote homepage recommendation list (no parameters)
 - `search_feeds` - Search RedNote content (required: keyword)
   - `filters`: Filter options (optional). Values must be passed exactly as the Chinese strings below — they match the labels on the RedNote filter panel.
@@ -825,54 +663,19 @@ After successful connection, you can use the following MCP tools:
   - `click_more_replies`: Whether to expand nested replies (optional), only effective when load_all_comments=true, default false
   - `reply_limit`: Skip comments with too many replies (optional), only effective when click_more_replies=true, default 10
   - `scroll_speed`: Scroll speed (optional), `slow` | `normal` | `fast`, only effective when load_all_comments=true
-- `post_comment_to_feed` - Post comments to RedNote posts (required: feed_id, xsec_token, content)
-- `reply_comment_in_feed` - Reply to a specific comment under a note (required: feed_id, xsec_token, content, and at least one of comment_id or user_id)
-- `like_feed` - Like / unlike a note (required: feed_id, xsec_token)
-  - `unlike`: Whether to unlike (optional), true to unlike, default is like
-- `favorite_feed` - Favorite / unfavorite a note (required: feed_id, xsec_token)
-  - `unfavorite`: Whether to unfavorite (optional), true to unfavorite, default is favorite
 - `user_profile` - Get user profile information (required: user_id, xsec_token)
+- `get_my_profile` - Get the current user's profile (optional: tab)
 
 ### 2.4. Usage Examples
 
-Using Claude Code to publish content to RedNote:
-
-**Example 1: Using HTTP Image Links**
+Using Claude Code to read RedNote content:
 
 ```
-Help me write a post to publish on RedNote,
-with image: https://cn.bing.com/th?id=OHR.MaoriRock_EN-US6499689741_UHD.jpg&w=3840
-The image is: "Maori rock carving at Ngātoroirangi Mine Bay, Lake Taupo, New Zealand (© Joppi/Getty Images)"
-
-Use xiaohongshu-mcp for publishing.
+Use xiaohongshu-mcp to search for “travel”, return the matching notes,
+then read one note's full text and comments.
 ```
 
-**Example 2: Using Local Image Paths (Recommended)**
-
-```
-Help me write a post about spring to publish on RedNote,
-using these local images:
-- /Users/username/Pictures/spring_flowers.jpg
-- /Users/username/Pictures/cherry_blossom.jpg
-
-Use xiaohongshu-mcp for publishing.
-```
-
-**Example 3: Publishing Video Content**
-
-```
-Help me write a video post about cooking tutorials to publish on RedNote,
-using this local video file:
-- /Users/username/Videos/cooking_tutorial.mp4
-
-Use xiaohongshu-mcp's video publishing feature.
-```
-
-![claude-cli publishing](./assets/claude_push.gif)
-
-**Publishing Result:**
-
-<img src="./assets/publish_result.jpeg" alt="xiaohongshu-mcp publishing result" width="300">
+The trimmed MCP only initializes the login session and reads data; it does not publish or modify RedNote content.
 
 ### 2.5. 💬 MCP FAQ
 
@@ -894,15 +697,8 @@ If you do not specifically need OpenClaw, we strongly recommend switching to a c
 
 ---
 
-**Q:** It shows publish success but the post doesn't actually appear?
-**A:** Troubleshooting steps:
-
-1. Re-publish using **non-headless mode**.
-2. Try publishing with **different content**.
-3. Login to RedNote web version and check if the account has been **restricted from web publishing due to risk control**.
-4. Check if the **image size** is too large.
-5. Make sure there are **no Chinese characters in the image path**.
-6. If using network image URLs, confirm the **image links are accessible**.
+**Q:** Why does reading a Feed fail?
+**A:** Confirm that the session is logged in, and that `feed_id` and `xsec_token` came from a current Feed list or search result. Video links and some page data may also expire when the platform's signature expires.
 
 ---
 
@@ -910,7 +706,7 @@ If you do not specifically need OpenClaw, we strongly recommend switching to a c
 **A:**
 
 1. It is recommended to **build from source**.
-2. You can also visit the [X-MCP Project Page](https://github.com/xpzouying/x-mcp/).
+2. If local deployment is inconvenient, use the [X-MCP project](https://github.com/xpzouying/x-mcp/).
 
 ---
 
@@ -929,10 +725,9 @@ If you do not specifically need OpenClaw, we strongly recommend switching to a c
 
 ### 📚 Complete Tutorial List
 
-1. **[n8n Complete Integration Tutorial](./examples/n8n/README.md)** - Workflow automation platform integration
-2. **[Cherry Studio Complete Configuration Tutorial](./examples/cherrystudio/README.md)** - Perfect AI client integration
-3. **[Claude Code + Kimi K2 Integration Tutorial](./examples/claude-code/claude-code-kimi-k2.md)** - If Claude Code's barrier is too high, then integrate with Kimi domestic LLM!
-4. **[AnythingLLM Complete Guide](./examples/anythingLLM/readme.md)** - AnythingLLM is an all-in-one multimodal AI client that supports workflow definition, multiple LLMs, and plugin extensions.
+1. **[Cherry Studio Complete Configuration Tutorial](./examples/cherrystudio/README.md)** - Perfect AI client integration
+2. **[Claude Code + Kimi K2 Integration Tutorial](./examples/claude-code/claude-code-kimi-k2.md)** - If Claude Code's barrier is too high, then integrate with Kimi domestic LLM!
+3. **[AnythingLLM Complete Guide](./examples/anythingLLM/readme.md)** - AnythingLLM is an all-in-one multimodal AI client supporting multiple LLMs and plugin extensions.
 
 > 🎯 **Tip**: Click the links above to view detailed step-by-step tutorials for quick setup of various integration solutions!
 >

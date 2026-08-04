@@ -9,6 +9,8 @@
 
 MCP for 小红书 / xiaohongshu.com。让你的 AI 助手直接访问小红书数据。
 
+> 当前工作区是只读裁剪版：保留登录状态/二维码、Feed 读取和用户主页读取，共 7 个 MCP 工具。发布、评论/回复写入、点赞/收藏操作、通知和 Cookie 删除接口已移除，正式 API 说明见 [docs/API.md](./docs/API.md)。
+
 ### 🚀 快速开始：选择最适合你的版本
 
 > [!IMPORTANT]
@@ -19,7 +21,7 @@ MCP for 小红书 / xiaohongshu.com。让你的 AI 助手直接访问小红书�
 
 > [!TIP]
 > #### ✨ 方案 B：x-mcp 浏览器插件版 (推荐给非技术同学 / 追求极简的用户)
-> - **不想折腾部署环境？试试：[xpzouying/x-mcp](https://github.com/xpzouying/x-mcp)**
+> - **不想折腾本地部署环境？试试：[xpzouying/x-mcp](https://github.com/xpzouying/x-mcp)**
 > - **零配置**：安装插件即用，无需任何代码、代理或复杂的环境配置。
 > - **安全稳定**：直接在常用浏览器 (Chrome/Edge) 及本地网络运行，无服务器 IP 风险，且能解决 90% 的部署报错。
 
@@ -81,68 +83,14 @@ https://github.com/user-attachments/assets/bd9a9a4a-58cb-4421-b8f3-015f703ce1f9
 </details>
 
 <details>
-<summary><b>2. 发布图文内容</b></summary>
+<summary><b>2. 获取登录二维码</b></summary>
 
-支持发布图文内容到小红书，包括标题、内容描述和图片。
-
-**图片支持方式：**
-
-支持两种图片输入方式：
-
-1. **HTTP/HTTPS 图片链接**
-
-   ```
-   ["https://example.com/image1.jpg", "https://example.com/image2.png"]
-   ```
-
-2. **本地图片绝对路径**（推荐）
-   ```
-   ["/Users/username/Pictures/image1.jpg", "/home/user/images/image2.png"]
-   ```
-
-**为什么推荐使用本地路径：**
-
-- ✅ 稳定性更好，不依赖网络
-- ✅ 上传速度更快
-- ✅ 避免图片链接失效问题
-- ✅ 支持更多图片格式
-
-**发布图文帖子演示：**
-
-https://github.com/user-attachments/assets/8aee0814-eb96-40af-b871-e66e6bbb6b06
+未登录时获取二维码，扫码成功后服务保存登录 Cookie。该能力只用于初始化读取会话，不执行内容发布或互动写入。
 
 </details>
 
 <details>
-<summary><b>3. 发布视频内容</b></summary>
-
-支持发布视频内容到小红书，包括标题、内容描述和本地视频文件。
-
-**视频支持方式：**
-
-仅支持本地视频文件绝对路径：
-
-```
-"/Users/username/Videos/video.mp4"
-```
-
-**功能特点：**
-
-- ✅ 支持本地视频文件上传
-- ✅ 自动处理视频格式转换
-- ✅ 支持标题、内容描述和标签
-- ✅ 等待视频处理完成后自动发布
-
-**注意事项：**
-
-- 仅支持本地视频文件，不支持 HTTP 链接
-- 视频处理时间较长，请耐心等待
-- 建议视频文件大小不超过 1GB
-
-</details>
-
-<details>
-<summary><b>4. 搜索内容</b></summary>
+<summary><b>3. 搜索内容</b></summary>
 
 根据关键词搜索小红书内容。
 
@@ -153,7 +101,7 @@ https://github.com/user-attachments/assets/03c5077d-6160-4b18-b629-2e40933a1fd3
 </details>
 
 <details>
-<summary><b>5. 获取推荐列表</b></summary>
+<summary><b>4. 获取推荐列表</b></summary>
 
 获取小红书首页推荐内容列表。
 
@@ -164,7 +112,7 @@ https://github.com/user-attachments/assets/110fc15d-46f2-4cca-bdad-9de5b5b8cc28
 </details>
 
 <details>
-<summary><b>6. 获取帖子详情（包括互动数据和评论）</b></summary>
+<summary><b>5. 获取帖子详情（包括互动数据和评论）</b></summary>
 
 获取小红书帖子的完整详情，包括：
 
@@ -186,30 +134,7 @@ https://github.com/user-attachments/assets/76a26130-a216-4371-a6b3-937b8fda092a
 </details>
 
 <details>
-<summary><b>7. 发表评论到帖子</b></summary>
-
-支持自动发表评论到小红书帖子。
-
-**功能说明：**
-
-- 自动定位评论输入框
-- 输入评论内容并发布
-- 支持 HTTP API 和 MCP 工具调用
-
-**⚠️ 重要提示：**
-
-- 需要先登录才能使用此功能
-- 需要提供帖子 ID、xsec_token 和评论内容
-- 这些参数可以从 Feed 列表或搜索结果中获取
-
-**发表评论演示：**
-
-https://github.com/user-attachments/assets/cc385b6c-422c-489b-a5fc-63e92c695b80
-
-</details>
-
-<details>
-<summary><b>8. 获取用户个人主页</b></summary>
+<summary><b>6. 获取用户个人主页</b></summary>
 
 获取小红书用户的个人主页信息，包括用户基本信息和笔记内容。
 
@@ -235,92 +160,25 @@ https://github.com/user-attachments/assets/cc385b6c-422c-489b-a5fc-63e92c695b80
 </details>
 
 <details>
-<summary><b>9. 回复评论</b></summary>
+<summary><b>7. 当前能力边界</b></summary>
 
-回复笔记下的指定评论，支持精准回复特定用户的评论。
-
-**功能说明：**
-
-- 回复指定笔记下的特定评论
-- 支持通过评论 ID 或用户 ID 定位目标评论
-- 需要提供 feed_id、xsec_token、comment_id/user_id 和回复内容
-
-**⚠️ 重要提示：**
-
-- 需要先登录才能使用此功能
-- comment_id 和 user_id 至少提供一个
-- 这些参数可以从帖子详情的评论列表中获取
+本裁剪版只读取首页 Feed、搜索结果、笔记详情、评论、用户主页和当前账号主页。发布、评论/回复写入、点赞/收藏操作、通知读取及 Cookie 删除均不再提供。
 
 </details>
 
-<details>
-<summary><b>10. 点赞/取消点赞</b></summary>
+**使用边界**
 
-为笔记点赞或取消点赞，智能检测当前状态避免重复操作。
-
-**功能说明：**
-
-- 为指定笔记点赞或取消点赞
-- 智能检测：已点赞时跳过点赞，未点赞时跳过取消点赞
-- 需要提供 feed_id 和 xsec_token
-
-**⚠️ 重要提示：**
-
-- 需要先登录才能使用此功能
-- 默认为点赞操作，设置 unlike=true 可取消点赞
-
-</details>
-
-<details>
-<summary><b>11. 收藏/取消收藏</b></summary>
-
-收藏笔记或取消收藏，智能检测当前状态避免重复操作。
-
-**功能说明：**
-
-- 收藏指定笔记或取消收藏
-- 智能检测：已收藏时跳过收藏，未收藏时跳过取消收藏
-- 需要提供 feed_id 和 xsec_token
-
-**⚠️ 重要提示：**
-
-- 需要先登录才能使用此功能
-- 默认为收藏操作，设置 unfavorite=true 可取消收藏
-
-</details>
-
-**小红书基础运营知识**
-
-- **标题：（非常重要）小红书要求标题不超过 20 个字**
-- **正文：（非常重要）：正文不能超过 1000 个字**
-- 当前支持图文发送以及视频发送：从推荐的角度看，图文的流量会比视频以及纯文字的更好。
-- （低优先级）可以考虑纯文字的支持。1. 个人感觉纯文字会大大增加运营的复杂度；2. 纯文字在我的使用场景的价值较低。
-- Tags：现已支持。添加合适的 Tags 能带来更多的流量。
-- 根据本人实操，小红书每天的发帖量应该是 **50 篇**。
+- 本版本只读，不提供发帖、评论/回复、点赞、收藏等写入操作。
 - **（非常重要）小红书的同一个账号不允许在多个网页端登录**，如果你登录了当前 xiaohongshu-mcp 后，就不要再在其他的网页端登录该账号，否则就会把当前 MCP 的账号“踢出登录”。你可以使用移动 App 端进行查看当前账号信息。
-- 曝光低的话，首先查看内容中是否有违禁词，搜一下有很多第三方免费工具。
-- 一定不要出现引流、纯搬运的情况，属于官方重点打击对象。
 
 **风险说明**
 
 1. 该项目是在自己的另外一个项目的基础上开源出来的，原来的项目稳定运行一年多，没有出现过封号的情况，只有出现过 Cookies 过期需要重新登录。
-2. 我是使用 Claude Code 接入，稳定自动化运营数周后，验证没有问题后开源。
+2. 我是使用 Claude Code 接入，稳定读取数周后，验证没有问题后开源。
 3. 如果账号没有实名认证，特别是新号，一般会触发 **实名认证** 的消息提醒（参见下图）。⚠️ 这个不是封号，不用 MCP 也会要求实名认证。实名认证后，账号就正常了。建议使用该项目前就先实名。
    <img width="508" height="306" alt="image" src="https://github.com/user-attachments/assets/34383e1b-f666-409f-9870-002655507dc1" />
 
 该项目是基于学习的目的，禁止一切违法行为。
-
-**实操结果**
-
-第一天点赞/收藏数达到了 999+，
-
-<img width="386" height="278" alt="CleanShot 2025-09-05 at 01 31 55@2x" src="https://github.com/user-attachments/assets/4b5a283b-bd38-45b8-b608-8f818997366c" />
-
-<img width="350" height="280" alt="CleanShot 2025-09-05 at 01 32 49@2x" src="https://github.com/user-attachments/assets/4481e1e7-3ef6-4bbd-8483-dcee8f77a8f2" />
-
-一周左右的成果
-
-<img width="1840" height="582" alt="CleanShot 2025-09-05 at 01 33 13@2x" src="https://github.com/user-attachments/assets/fb367944-dc48-4bbd-8ece-934caa86323e" />
 
 ## 1. 使用教程
 
@@ -356,7 +214,7 @@ chmod +x xiaohongshu-mcp-darwin-arm64
 ./xiaohongshu-mcp-darwin-arm64
 ```
 
-**⚠️ 重要提示**：本项目不会自动下载浏览器。运行前请自行安装系统 Chrome/Chromium，或通过 `XHS_BROWSER_BIN` 指定浏览器可执行文件。浏览器默认启用 Chromium 沙箱；Linux 环境请使用非 root 用户运行，并确保系统 Chrome/Chromium 的沙箱依赖正常。若在自建容器中运行，也请配置为非 root 用户。
+**⚠️ 重要提示**：本项目不会自动下载浏览器。运行前请安装系统 Google Chrome/Chromium，或通过 `XHS_BROWSER_BIN` 指定浏览器可执行文件。浏览器默认启用 Chromium 沙箱；Linux 环境请使用非 root 用户运行，并确保系统 Chrome/Chromium 的沙箱依赖正常。若在自建容器中运行，也请配置为非 root 用户。
 
 **方式二：源码编译**
 
@@ -370,7 +228,7 @@ chmod +x xiaohongshu-mcp-darwin-arm64
 ```bash
 # 配置 GOPROXY 环境变量，以下三选一
 
-# 1. 七牛 CDN
+# 1. 七牛 Go 模块镜像
 go env -w  GOPROXY=https://goproxy.cn,direct
 
 # 2. 阿里云
@@ -455,17 +313,11 @@ npx @modelcontextprotocol/inspector
 
 按照上面配置 MCP inspector 后，点击 `List Tools` 按钮，查看所有的 Tools。
 
-## 1.5. 使用 MCP 发布
+## 1.5. 使用 MCP 读取
 
 ### 检查登录状态
 
 ![检查登录状态](./assets/check_login.gif)
-
-### 发布图文
-
-示例中是从 https://unsplash.com/ 中随机找了个图片做测试。
-
-![发布图文](./assets/inspect_mcp_publish.gif)
 
 ### 搜索内容
 
@@ -587,7 +439,7 @@ opencode mcp list
   "mcpServers": {
     "xiaohongshu-mcp": {
       "url": "http://localhost:18060/mcp",
-      "description": "小红书内容发布服务 - MCP Streamable HTTP"
+      "description": "小红书只读数据服务 - MCP Streamable HTTP"
     }
   }
 }
@@ -742,7 +594,7 @@ Cline 是一个强大的 AI 编程助手，支持 MCP 协议集成。
 ```
 
 ```
-帮我发布一篇关于春天的图文到小红书，使用这张图片：/path/to/spring.jpg
+帮我读取小红书上关于春天的内容，并返回相关笔记详情
 ```
 
 ```
@@ -795,20 +647,6 @@ npx mcporter list xiaohongshu-mcp
 
 - `check_login_status` - 检查小红书登录状态（无参数）
 - `get_login_qrcode` - 获取登录二维码，返回 Base64 图片和超时时间（无参数）
-- `delete_cookies` - 删除 cookies 文件，重置登录状态，删除后需要重新登录（无参数）
-- `publish_content` - 发布图文内容到小红书（必需：title, content, images）
-  - `images`: 图片路径列表（至少1张），支持 HTTP 链接或本地绝对路径，推荐使用本地路径
-  - `tags`: 话题标签列表（可选），如 `["美食", "旅行", "生活"]`
-  - `schedule_at`: 定时发布时间（可选），ISO8601 格式，支持 1 小时至 14 天内
-  - `is_original`: 是否声明原创（可选），默认不声明
-  - `visibility`: 可见范围（可选），支持 `公开可见`（默认）、`仅自己可见`、`仅互关好友可见`
-  - `products`: 商品关键词列表（可选），用于绑定带货商品。填写商品名称或商品ID，系统会自动搜索并选择第一个匹配结果。需账号已开通商品功能。示例: [面膜, 防晒霜SPF50]
-- `publish_with_video` - 发布视频内容到小红书（必需：title, content, video）
-  - `video`: 本地视频文件绝对路径（仅支持单个视频文件）
-  - `tags`: 话题标签列表（可选），如 `["美食", "旅行", "生活"]`
-  - `schedule_at`: 定时发布时间（可选），ISO8601 格式，支持 1 小时至 14 天内
-  - `visibility`: 可见范围（可选），支持 `公开可见`（默认）、`仅自己可见`、`仅互关好友可见`
-  - `products`: 商品关键词列表（可选），用于绑定带货商品。填写商品名称或商品ID，系统会自动搜索并选择第一个匹配结果。需账号已开通商品功能。示例: [面膜, 防晒霜SPF50]
 - `list_feeds` - 获取小红书首页推荐列表（无参数）
 - `search_feeds` - 搜索小红书内容（必需：keyword）
   - `filters`: 筛选选项（可选）
@@ -823,54 +661,21 @@ npx mcporter list xiaohongshu-mcp
   - `click_more_replies`: 是否展开二级回复（可选），仅当 load_all_comments=true 时生效，默认 false
   - `reply_limit`: 跳过回复数过多的评论（可选），仅当 click_more_replies=true 时生效，默认 10
   - `scroll_speed`: 滚动速度（可选），`slow` | `normal` | `fast`，仅当 load_all_comments=true 时生效
-- `post_comment_to_feed` - 发表评论到小红书帖子（必需：feed_id, xsec_token, content）
-- `reply_comment_in_feed` - 回复笔记下的指定评论（必需：feed_id, xsec_token, content，以及 comment_id 或 user_id 至少一个）
-- `like_feed` - 点赞/取消点赞（必需：feed_id, xsec_token）
-  - `unlike`: 是否取消点赞（可选），true 为取消点赞，默认为点赞
-- `favorite_feed` - 收藏/取消收藏（必需：feed_id, xsec_token）
-  - `unfavorite`: 是否取消收藏（可选），true 为取消收藏，默认为收藏
 - `user_profile` - 获取用户个人主页信息（必需：user_id, xsec_token）
+- `get_my_profile` - 获取当前登录用户主页（可选：tab）
 
 ### 2.4. 使用示例
 
-使用 Claude Code 发布内容到小红书：
-
-**示例 1：使用 HTTP 图片链接**
+使用 Claude Code 读取小红书内容：
 
 ```
-帮我写一篇帖子发布到小红书上，
-配图为：https://cn.bing.com/th?id=OHR.MaoriRock_EN-US6499689741_UHD.jpg&w=3840
-图片是："纽西兰陶波湖的Ngātoroirangi矿湾毛利岩雕（© Joppi/Getty Images）"
-
-使用 xiaohongshu-mcp 进行发布。
+请使用 xiaohongshu-mcp：
+1. 搜索关键词“旅行”；
+2. 返回搜索结果中的笔记标题、作者和链接信息；
+3. 读取其中一篇笔记的完整正文和评论。
 ```
 
-**示例 2：使用本地图片路径（推荐）**
-
-```
-帮我写一篇关于春天的帖子发布到小红书上，
-使用这些本地图片：
-- /Users/username/Pictures/spring_flowers.jpg
-- /Users/username/Pictures/cherry_blossom.jpg
-
-使用 xiaohongshu-mcp 进行发布。
-```
-
-**示例 3：发布视频内容**
-
-```
-帮我写一篇关于美食制作的视频发布到小红书上，
-使用这个本地视频文件：
-- /Users/username/Videos/cooking_tutorial.mp4
-
-使用 xiaohongshu-mcp 的视频发布功能。
-```
-
-![claude-cli 进行发布](./assets/claude_push.gif)
-
-**发布结果：**
-
-<img src="./assets/publish_result.jpeg" alt="xiaohongshu-mcp 发布结果" width="300">
+当前 MCP 只执行登录初始化和数据读取，不会发布或修改小红书内容。
 
 ### 2.5. 💬 MCP 使用常见问题解答
 
@@ -892,15 +697,8 @@ npx mcporter list xiaohongshu-mcp
 
 ---
 
-**Q:** 显示发布成功后，但实际上没有显示？
-**A:** 排查步骤如下：
-
-1. 使用 **非无头模式** 重新发布一次。
-2. 更换 **不同的内容** 重新发布。
-3. 登录网页版小红书，查看账号是否被 **风控限制网页版发布**。
-4. 检查 **图片大小** 是否过大。
-5. 确认 **图片路径中没有中文字符**。
-6. 若使用网络图片地址，请确认 **图片链接可正常访问**。
+**Q:** 为什么读取 Feed 失败？
+**A:** 先确认已登录，并检查 `feed_id` 与 `xsec_token` 是否来自最新的 Feed 列表或搜索结果；详情中的视频链接和部分页面数据还可能因平台签名过期而失效。
 
 ---
 
@@ -908,7 +706,7 @@ npx mcporter list xiaohongshu-mcp
 **A:**
 
 1. 建议 **从源码安装**。
-2. 也可以使用 [X-MCP 项目页面](https://github.com/xpzouying/x-mcp/)。
+2. 如果不方便本地部署，可以改用 [X-MCP 项目](https://github.com/xpzouying/x-mcp/)。
 
 ---
 
@@ -927,10 +725,9 @@ npx mcporter list xiaohongshu-mcp
 
 ### 📚 完整教程列表
 
-1. **[n8n 完整集成教程](./examples/n8n/README.md)** - 工作流自动化平台集成
-2. **[Cherry Studio 完整配置教程](./examples/cherrystudio/README.md)** - AI 客户端完美接入
-3. **[Claude Code + Kimi K2 接入教程](./examples/claude-code/claude-code-kimi-k2.md)** - Claude Code 门槛太高，那么就接入 Kimi 国产大模型吧～
-4. **[AnythingLLM 完整指南](./examples/anythingLLM/readme.md)** - AnythingLLM 是一款 all-in-one 多模态 AI 客户端，支持 workflow 定义，支持多种大模型和插件扩展。
+1. **[Cherry Studio 完整配置教程](./examples/cherrystudio/README.md)** - AI 客户端完美接入
+2. **[Claude Code + Kimi K2 接入教程](./examples/claude-code/claude-code-kimi-k2.md)** - Claude Code 门槛太高，那么就接入 Kimi 国产大模型吧～
+3. **[AnythingLLM 完整指南](./examples/anythingLLM/readme.md)** - AnythingLLM 是一款 all-in-one 多模态 AI 客户端，支持多种大模型和插件扩展。
 
 > 🎯 **提示**: 点击上方链接查看详细的图文教程，快速上手各种集成方案！
 >

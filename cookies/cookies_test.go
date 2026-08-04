@@ -58,8 +58,8 @@ func TestGetCookiesFilePath(t *testing.T) {
 	})
 }
 
-// TestLoadSaveDeleteCookies 校验 cookie 文件存取往返与删除的幂等。
-func TestLoadSaveDeleteCookies(t *testing.T) {
+// TestLoadSaveCookies 校验 cookie 文件存取往返。
+func TestLoadSaveCookies(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "cookies.json")
 	c := NewLoadCookie(path)
 
@@ -81,10 +81,6 @@ func TestLoadSaveDeleteCookies(t *testing.T) {
 	assert.NoError(t, json.Unmarshal(onDisk, &f))
 	assert.Equal(t, float64(2), f["version"])
 
-	// 删除后文件消失，且再次删除幂等（不报错）
-	assert.NoError(t, c.DeleteCookies())
-	assert.NoFileExists(t, path)
-	assert.NoError(t, c.DeleteCookies())
 }
 
 // TestSeed 校验 seed 的持久化与 v1/v2 两种格式的读取。

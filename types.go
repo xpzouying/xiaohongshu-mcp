@@ -65,80 +65,9 @@ type FeedDetailResponse struct {
 	Data   any    `json:"data"`
 }
 
-// PostCommentRequest 发表评论请求
-type PostCommentRequest struct {
-	FeedID    string `json:"feed_id" binding:"required"`
-	XsecToken string `json:"xsec_token" binding:"required"`
-	Content   string `json:"content" binding:"required"`
-}
-
-// PostCommentResponse 发表评论响应
-type PostCommentResponse struct {
-	FeedID  string `json:"feed_id"`
-	Success bool   `json:"success"`
-	Message string `json:"message"`
-}
-
-// ReplyCommentRequest 回复评论请求
-type ReplyCommentRequest struct {
-	FeedID    string `json:"feed_id" binding:"required"`
-	XsecToken string `json:"xsec_token" binding:"required"`
-	CommentID string `json:"comment_id" binding:"required_without=UserID"`
-	UserID    string `json:"user_id" binding:"required_without=CommentID"`
-	Content   string `json:"content" binding:"required"`
-}
-
-// ReplyCommentResponse 回复评论响应
-type ReplyCommentResponse struct {
-	FeedID          string `json:"feed_id"`
-	TargetCommentID string `json:"target_comment_id,omitempty"`
-	TargetUserID    string `json:"target_user_id,omitempty"`
-	Success         bool   `json:"success"`
-	Message         string `json:"message"`
-}
-
 // UserProfileRequest 用户主页请求
 type UserProfileRequest struct {
 	UserID    string `json:"user_id" binding:"required"`
 	XsecToken string `json:"xsec_token" binding:"required"`
 	Tab       string `json:"tab,omitempty"`
-}
-
-// LikeFeedRequest 点赞/取消点赞请求
-type LikeFeedRequest struct {
-	FeedID    string `json:"feed_id" binding:"required"`
-	XsecToken string `json:"xsec_token" binding:"required"`
-	Unlike    bool   `json:"unlike,omitempty"` // true 为取消点赞
-}
-
-// FavoriteFeedRequest 收藏/取消收藏请求
-type FavoriteFeedRequest struct {
-	FeedID     string `json:"feed_id" binding:"required"`
-	XsecToken  string `json:"xsec_token" binding:"required"`
-	Unfavorite bool   `json:"unfavorite,omitempty"` // true 为取消收藏
-}
-
-// ActionResult 通用动作响应（点赞/收藏等）
-type ActionResult struct {
-	FeedID  string `json:"feed_id"`
-	Success bool   `json:"success"`
-	Message string `json:"message"`
-}
-
-// ListNotificationsRequest 通知列表请求
-type ListNotificationsRequest struct {
-	Tab   string `json:"tab,omitempty"`
-	Limit int    `json:"limit,omitempty"`
-}
-
-// ReplyNotificationRequest 通知回复请求
-type ReplyNotificationRequest struct {
-	CommentID string `json:"comment_id" binding:"required"`
-	Content   string `json:"content" binding:"required"`
-}
-
-// LikeNotificationRequest 通知点赞请求
-type LikeNotificationRequest struct {
-	CommentID string `json:"comment_id" binding:"required"`
-	Unlike    bool   `json:"unlike,omitempty"`
 }

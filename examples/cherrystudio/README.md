@@ -4,7 +4,7 @@
 
 Cherry Studio 是目前最热门的 AI 客户端之一，它简单易用且支持多种开源和闭源大模型。
 
-通过 Cherry Studio 调用我们的 xiaohongshu-mcp 服务，您可以使用免费的开源大模型，无需 API key，无需复杂的配置文件，轻松实现小红书内容创作和发布功能。
+通过 Cherry Studio 调用我们的 xiaohongshu-mcp 服务，您可以使用免费的开源大模型，无需 API key，无需复杂的配置文件，读取小红书公开内容和用户主页信息。
 
 ## 🚀 Cherry Studio 安装
 
@@ -86,14 +86,8 @@ Cherry Studio 配合 xiaohongshu-mcp 可以实现多种智能功能：
 
 ![cherry-studio-use-2](./images/use-2.png)
 
-* 发布图文内容
-
-![cherry-studio-use-3](./images/use-3.png)
-
-* 发布成功
-
-![cherry-studio-use-4](./images/use-4.png)
+* 读取笔记详情、评论和用户主页
 
 ---
 
-通过以上配置，您可以在 Cherry Studio 中高效地使用 xiaohongshu-mcp 服务，实现智能化的小红书内容创作和管理！
+通过以上配置，您可以在 Cherry Studio 中使用 xiaohongshu-mcp 进行小红书内容检索和读取。本裁剪版不提供发布或互动写入操作。
