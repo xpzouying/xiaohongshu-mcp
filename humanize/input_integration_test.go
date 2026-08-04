@@ -30,6 +30,16 @@ type typedEvent struct {
 	Target string `json:"target"`
 }
 
+func integrationBrowserBin(t *testing.T) string {
+	t.Helper()
+
+	bin, _, err := browser.ResolveBrowserBin()
+	if err != nil {
+		t.Skipf("SKIP: 本机浏览器不可用: %v", err)
+	}
+	return bin
+}
+
 func countEvents(t *testing.T, page *rod.Page, target string) map[string]int {
 	t.Helper()
 
@@ -62,10 +72,7 @@ func assertOneInputPerRune(t *testing.T, label string, counts map[string]int, te
 }
 
 func TestTypeEventSequence(t *testing.T) {
-	bin, err := browser.EnsureBrowser()
-	if err != nil {
-		t.Skipf("SKIP: 浏览器不可用: %v", err)
-	}
+	bin := integrationBrowserBin(t)
 
 	u := launcher.New().Bin(bin).Headless(true).MustLaunch()
 	b := rod.New().ControlURL(u).MustConnect()
@@ -122,10 +129,7 @@ type clickRecord struct {
 }
 
 func TestClickTiming(t *testing.T) {
-	bin, err := browser.EnsureBrowser()
-	if err != nil {
-		t.Skipf("SKIP: 浏览器不可用: %v", err)
-	}
+	bin := integrationBrowserBin(t)
 
 	u := launcher.New().Bin(bin).Headless(true).MustLaunch()
 	b := rod.New().ControlURL(u).MustConnect()
@@ -192,10 +196,7 @@ document.querySelectorAll('[data-n]').forEach(el =>
 </script></body>`
 
 func TestClickGuards(t *testing.T) {
-	bin, err := browser.EnsureBrowser()
-	if err != nil {
-		t.Skipf("SKIP: 浏览器不可用: %v", err)
-	}
+	bin := integrationBrowserBin(t)
 
 	u := launcher.New().Bin(bin).Headless(true).MustLaunch()
 	b := rod.New().ControlURL(u).MustConnect()

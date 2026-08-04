@@ -54,7 +54,6 @@ do_start() {
 		log_warn "cookies.json missing in $XHS_MCP_DIR — login may be required"
 	fi
 	# 显式有头 + 仅回环，避免旧二进制默认 headless/全网卡漂移
-	# XHS_READ_ONLY=1 时禁用写工具（分析侧推荐）
 	local listen="127.0.0.1:${PORT}"
 	local headless_flag="${XHS_HEADLESS:-false}"
 	log_info "Starting xiaohongshu-mcp on ${listen} headless=${headless_flag} (cwd=$XHS_MCP_DIR)"
@@ -65,8 +64,6 @@ do_start() {
 		nohup env \
 			COOKIES_PATH="${COOKIES_PATH:-$XHS_MCP_DIR/cookies.json}" \
 			XHS_BROWSER_BIN="${XHS_BROWSER_BIN:-}" \
-			XHS_ALLOW_BUNDLED_CDN="${XHS_ALLOW_BUNDLED_CDN:-}" \
-			XHS_READ_ONLY="${XHS_READ_ONLY:-}" \
 			XHS_RISK_STREAK_LIMIT="${XHS_RISK_STREAK_LIMIT:-}" \
 			XHS_FP_SEED="${XHS_FP_SEED:-}" \
 			XHS_PROXY="${XHS_PROXY:-}" \

@@ -69,7 +69,7 @@ jobs:
       run: |
         # 主程序构建
         # 禁用 CGO 生成静态二进制；通过 ldflags 注入版本号
-        # 只构建有内置浏览器的平台，其余平台即使编译出来也无法启动
+        # 构建主程序和登录工具；浏览器由运行环境提供，不随二进制自动下载。
         LDFLAGS="-s -w -X main.version=${VERSION}"
 
         # macOS ARM64 (Apple Silicon)
@@ -151,8 +151,8 @@ jobs:
 
           ### ⚠️ 注意事项
 
-          - 首次运行时会自动下载无头浏览器（约 150MB），请确保网络连接正常
-          - 后续运行无需重复下载浏览器
+          - 运行前请安装本机 Google Chrome/Chromium，或设置 `XHS_BROWSER_BIN` 指向浏览器可执行文件
+          - 程序不会自动下载浏览器二进制
           - 登录工具生成的 cookie 保存在 `~/.xiaohongshu/cookies.json`
 
           ### 📊 构建信息

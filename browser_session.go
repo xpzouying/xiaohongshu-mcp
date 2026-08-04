@@ -89,19 +89,6 @@ func checkRiskCircuit() error {
 	return nil
 }
 
-// readOnlyMode 分析侧默认可开：禁用写操作，零时延缩面。
-func readOnlyMode() bool {
-	v := strings.TrimSpace(os.Getenv("XHS_READ_ONLY"))
-	return v == "1" || strings.EqualFold(v, "true") || strings.EqualFold(v, "yes")
-}
-
-func assertWritable(op string) error {
-	if readOnlyMode() {
-		return fmt.Errorf("read-only mode (XHS_READ_ONLY): write op %q disabled", op)
-	}
-	return nil
-}
-
 func (s *browserSession) ensureLocked() error {
 	if s.b != nil {
 		return nil

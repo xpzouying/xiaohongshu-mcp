@@ -37,11 +37,13 @@
 
 [github.com](https://github.com/xpzouying/xiaohongshu-mcp/releases)
 
-如果当前系统为Windows 则选择 xiaohongshu-mcp-windows-amd64.zip 下载
+如果当前系统为 Windows，则选择 `xiaohongshu-mcp-windows-amd64.exe` 下载。
 
 ![](https://wdcdn.qpic.cn/MTY4ODg1NTIyMTY1ODI2NQ_597379_Dw_WBLdYI-KsFlXm_1760067122?w=1137&h=633&type=image/png)
 
 下载完解压文件
+
+运行前请先安装本机 Google Chrome 或 Chromium。项目不会自动下载浏览器；如果浏览器不在默认路径，请设置 `XHS_BROWSER_BIN` 指向 `chrome.exe`。
 
 ![](https://wdcdn.qpic.cn/MTY4ODg1NTIyMTY1ODI2NQ_806026_wozodlNLyXADgJzQ_1760067150?w=1097&h=437&type=image/png)
 
@@ -57,7 +59,7 @@
 
 ![](https://wdcdn.qpic.cn/MTY4ODg1NTIyMTY1ODI2NQ_557435_MEWWz-JeHubKmkhc_1760067518?w=1709&h=810&type=image/png)
 
-等待下载完
+登录工具直接使用本机浏览器，不会下载额外的内置浏览器。
 
 ### 2. 解决 Windows 11 报病毒问题
 

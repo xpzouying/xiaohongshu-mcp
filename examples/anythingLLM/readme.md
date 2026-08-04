@@ -2,11 +2,11 @@
 
 ## 📋 概述
 
-AnythingLLM 是一款all-in-one 多模态 AI 客户端，支持**workflow**定义，支持多种大模型和插件扩展。通过 AnythingLLM 调用 **xiaohongshu-mcp** 服务，可以直接在对话中调用小红书相关功能，实现自动化的内容创作与发布。
+AnythingLLM 是一款 all-in-one 多模态 AI 客户端，支持多种大模型和插件扩展。通过 AnythingLLM 调用 **xiaohongshu-mcp** 服务，可以直接在对话中调用小红书内容读取功能。
 
 ### ✅ 该工具链优势
 
-- 支持 **本地笔记 → 润色 → 批量发布**，适合内容创作者账号日常运营
+- 支持登录状态检查、内容搜索、笔记详情和用户主页读取
 - 相比于Claude Code节省token；支持免费开源模型
 
 ## 🚀 AnythingLLM 安装
@@ -93,31 +93,8 @@ macOS（Desktop）的路径：
 
 ---
 
-### 方法二：Agent Workflow 自动化发布本地笔记
-
-![Agent Workflow 配置](images/agent-workflow-config.png)
-
-1. 新建 Agent flow，命名为 `publish_notes` 
-2. 设置 **Flow Variables**，包括本地文件路径（如 `file_path`）和 `notes` 内容
-3. 使用 **Read File** 块，读取本地笔记文件，存入 `notes` 变量
-4. 在 **LLM Instruction** 块写入逻辑：
-    
-    ```
-    多篇笔记原文为 ${notes}
-    请使用xiaohongshu-mcp依次发布笔记。
-    ```
-    
-
-5. 在对话中输入 `@agent`调用 workflow，实现「本地笔记 → 自动发布」闭环
-
-| Workflow 设置过程 | Workflow 调用结果 |
-| --- | --- |
-| <a href="images/workflow-execution-process.png" target="_blank"><img src="images/workflow-execution-process.png" alt="Workflow 执行过程" width="420"></a> | <a href="images/workflow-execution-results.png" target="_blank"><img src="images/workflow-execution-results.png" alt="Workflow 执行结果" width="420"></a> |
-
-
 更多功能，参考官方docs：https://docs.anythingllm.com/agent-flows/overview
 
 ## ✅ 总结
 
-通过以上步骤，您就能在 AnythingLLM 中成功接入并使用 **xiaohongshu-mcp** 服务，实现 **本地笔记 → 润色 → 自动化发布到小红书** 的完整闭环工作流 🚀
-
+通过以上步骤，您就能在 AnythingLLM 中成功接入并使用 **xiaohongshu-mcp** 服务读取小红书内容。本裁剪版不提供发布或互动写入操作。

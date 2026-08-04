@@ -23,7 +23,7 @@ func main() {
 
 	logrus.Infof("xiaohongshu-mcp version: %s", version)
 
-	// 默认：系统 Chrome 或 XHS_BROWSER_BIN；禁止静默从 cdn.one-world.ai 下载。
+	// 浏览器由运行环境提供：系统 Chrome/Chromium 或 XHS_BROWSER_BIN。
 	binPath, binSource, err := browser.ResolveBrowserBin()
 	if err != nil {
 		logrus.Fatalf("%v", err)
@@ -39,9 +39,6 @@ func main() {
 		cookies.NewLoadCookie(cookies.GetCookiesFilePath())))
 	configs.SetProxy(configs.ProxyFromEnv())
 
-	if readOnlyMode() {
-		logrus.Info("XHS_READ_ONLY enabled: write tools rejected")
-	}
 	logrus.Infof("browser session: shared+serial lease; risk_streak_limit=%d", riskStreakLimit())
 
 	// 初始化服务

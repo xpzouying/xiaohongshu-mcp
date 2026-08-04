@@ -15,14 +15,8 @@ import (
 //  2. ROD_BROWSER_BIN
 //  3. 本机系统 Google Chrome / Chromium 常见路径
 //
-// 供应链说明：
-//   - cdn.one-world.ai 内置包：与 CloakHQ 公开 Release hash 对不上，默认禁用。
-//   - CloakHQ/CloakBrowser：GitHub 分发 + SHA256SUMS.sig 比自建 CDN 透明，但二进制属
-//     专有 BINARY-LICENSE（禁再分发）、最新主版本常要订阅，且为闭源补丁构建——
-//     不作为本项目自动下载默认。若你已自行从官方 Release 安装，可把路径写入
-//     XHS_BROWSER_BIN。
-//
-// 仅当显式 XHS_ALLOW_BUNDLED_CDN=1 时，才回落到 EnsureBrowser()（强烈不推荐）。
+// 浏览器必须由运行环境提供：通过 XHS_BROWSER_BIN、ROD_BROWSER_BIN，或本机系统
+// Chrome/Chromium 路径指定。本项目不自动下载或执行未审计的浏览器二进制。
 func ResolveBrowserBin() (path string, source string, err error) {
 	if p := strings.TrimSpace(os.Getenv("XHS_BROWSER_BIN")); p != "" {
 		if err := mustExecutable(p); err != nil {
@@ -41,26 +35,13 @@ func ResolveBrowserBin() (path string, source string, err error) {
 		return p, "system-chrome", nil
 	}
 
-	if allowBundledCDN() {
-		p, e := EnsureBrowser()
-		if e != nil {
-			return "", "", fmt.Errorf("bundled CDN browser (XHS_ALLOW_BUNDLED_CDN=1): %w", e)
-		}
-		return p, "bundled-cdn:one-world.ai", nil
-	}
-
 	return "", "", fmt.Errorf(
 		"no trusted browser binary found\n" +
-			"  set XHS_BROWSER_BIN to a local Chrome/Chromium (or CloakBrowser you installed yourself), e.g.\n" +
+			"  set XHS_BROWSER_BIN to a local Chrome/Chromium, e.g.\n" +
 			"    export XHS_BROWSER_BIN=\"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome\"\n" +
 			"  or install Google Chrome on this machine\n" +
-			"  (auto-download from cdn.one-world.ai is disabled by default; see browser/resolve.go)",
+			"  the browser must be installed locally before starting the service",
 	)
-}
-
-func allowBundledCDN() bool {
-	v := strings.TrimSpace(os.Getenv("XHS_ALLOW_BUNDLED_CDN"))
-	return v == "1" || strings.EqualFold(v, "true") || strings.EqualFold(v, "yes")
 }
 
 func mustExecutable(p string) error {

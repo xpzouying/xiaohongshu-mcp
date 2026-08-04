@@ -53,11 +53,11 @@ func TestMCPStatelessSinglePost(t *testing.T) {
 	assert.NotEmpty(t, result.Result.Tools, "应返回已注册的工具")
 }
 
-// TestNotificationToolsRegistered 固定通知相关工具已注册到 MCP。
+// TestReadToolsRegistered 固定裁剪后的只读工具集合已注册到 MCP。
 //
-// 三个工具的注册各是 registerTools 里一段独立代码，漏掉任何一个编译都不会报错，
-// 只有真正调用时才会发现工具不存在。
-func TestNotificationToolsRegistered(t *testing.T) {
+// 工具的注册各是 registerTools 里一段独立代码，漏掉任何一个编译都不会报错，
+// 只有真正调用时才会发现工具不存在；同时用精确集合防止写工具回流。
+func TestReadToolsRegistered(t *testing.T) {
 	router := setupRoutes(NewAppServer(NewXiaohongshuService()))
 	server := httptest.NewServer(router)
 	defer server.Close()
@@ -86,16 +86,26 @@ func TestNotificationToolsRegistered(t *testing.T) {
 		names[tool.Name] = true
 	}
 
-	for _, want := range []string{"get_unread_count", "list_notifications", "reply_notification", "like_notification"} {
+	wantTools := []string{
+		"check_login_status",
+		"get_login_qrcode",
+		"list_feeds",
+		"search_feeds",
+		"get_feed_detail",
+		"user_profile",
+		"get_my_profile",
+	}
+	assert.Len(t, names, len(wantTools))
+	for _, want := range wantTools {
 		assert.True(t, names[want], "工具 %s 应已注册", want)
 	}
 }
 
-// TestNotificationRoutesRegistered 固定通知的 HTTP 路由存在。
+// TestReadRoutesRegistered 固定裁剪后的 HTTP 路由集合。
 //
 // 读路由表而不是发请求：这些 handler 会真的起浏览器访问小红书，
 // 单测里不能碰。
-func TestNotificationRoutesRegistered(t *testing.T) {
+func TestReadRoutesRegistered(t *testing.T) {
 	router := setupRoutes(NewAppServer(NewXiaohongshuService()))
 
 	registered := make(map[string]bool)
@@ -103,14 +113,33 @@ func TestNotificationRoutesRegistered(t *testing.T) {
 		registered[r.Method+" "+r.Path] = true
 	}
 
-	// 列表接口两个参数都可选，GET 也要能进
 	for _, want := range []string{
+		"GET /api/v1/login/status",
+		"GET /api/v1/login/qrcode",
+		"GET /api/v1/feeds/list",
+		"GET /api/v1/feeds/search",
+		"POST /api/v1/feeds/search",
+		"POST /api/v1/feeds/detail",
+		"POST /api/v1/user/profile",
+		"GET /api/v1/user/me",
+	} {
+		assert.True(t, registered[want], "路由 %s 应已注册", want)
+	}
+
+	for _, removed := range []string{
+		"DELETE /api/v1/login/cookies",
+		"POST /api/v1/publish",
+		"POST /api/v1/publish_video",
+		"POST /api/v1/feeds/comment",
+		"POST /api/v1/feeds/comment/reply",
+		"POST /api/v1/feeds/like",
+		"POST /api/v1/feeds/favorite",
 		"GET /api/v1/notifications/unread",
 		"GET /api/v1/notifications/list",
 		"POST /api/v1/notifications/list",
 		"POST /api/v1/notifications/reply",
 		"POST /api/v1/notifications/like",
 	} {
-		assert.True(t, registered[want], "路由 %s 应已注册", want)
+		assert.False(t, registered[removed], "路由 %s 不应再注册", removed)
 	}
 }

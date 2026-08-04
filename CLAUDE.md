@@ -1,6 +1,6 @@
 # xiaohongshu-mcp
 
-小红书 MCP 服务：用 go-rod 驱动常驻浏览器，向 AI 助手暴露小红书的发布、搜索、浏览、互动等能力。
+小红书 MCP 服务：用 go-rod 驱动常驻浏览器，向 AI 助手暴露小红书的登录初始化、搜索、浏览和用户主页读取能力。
 
 ## 常用命令
 
@@ -21,8 +21,8 @@ MCP 端点为 `http://localhost:18060/mcp`。多数集成测试依赖真实浏�
 - `mcp_server.go`、`mcp_handlers.go` —— MCP 工具的定义与处理
 - `service.go`、`handlers_api.go` —— 业务服务层与 HTTP API
 - `browser_session.go` —— 常驻单浏览器 + 进程内串行 page lease（关 page 不关 browser；无人为限速）
-- `xiaohongshu/` —— 基于 go-rod 的各业务动作（发布 / 搜索 / 详情 / 评论 / 点赞收藏 / 登录 / 主页 / 通知）
-- `configs/`、`cookies/`、`errors/`、`pkg/`（`xhsutil` 标题、`downloader` 图片） —— 配置、登录态、错误与工具
+- `xiaohongshu/` —— 基于 go-rod 的读取动作（搜索 / 详情 / 评论读取 / 登录 / 主页）
+- `configs/`、`cookies/`、`errors/`、`pkg/` —— 配置、登录态、错误与工具
 
 ## 开发约定
 
@@ -36,7 +36,7 @@ MCP 端点为 `http://localhost:18060/mcp`。多数集成测试依赖真实浏�
 
 ## 发版规范
 
-- 发版=打语义化 tag `vX.Y.Z` 推上去（触发 Release 与 Docker 镜像），破坏性变更进 major；main 每次推送自动生成的日期 tag `vYYYY.MM.DD.HHMM-sha` 不是发版，别跟它混。
+- 发版=打语义化 tag `vX.Y.Z` 推上去（触发 Release），破坏性变更进 major；main 每次推送自动生成的日期 tag `vYYYY.MM.DD.HHMM-sha` 不是发版，别跟它混。
 
 ## PR Review 重点
 

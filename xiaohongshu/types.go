@@ -166,7 +166,7 @@ func (v *VideoDetail) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// VideoImage 视频的首帧与缩略图，只有 fileid，需自行拼 CDN 地址。
+// VideoImage 视频的首帧与缩略图，只有 fileid，需自行拼接平台图片地址。
 type VideoImage struct {
 	FirstFrameFileID string `json:"firstFrameFileid"`
 	ThumbnailFileID  string `json:"thumbnailFileid"`
