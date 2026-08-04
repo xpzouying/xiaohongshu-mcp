@@ -18,8 +18,8 @@
 - **cwd 固定为本仓根**（`cookies.json` 相对路径）
 - pid/log：默认 `~/.xiaohongshu-mcp/{pids,logs}/`（不进 git）
 - 可选 env：
-  - `XHS_BROWSER_BIN`：浏览器可执行文件（默认自动找系统 Google Chrome；**默认不下载 CDN 包**）
-  - `XHS_ALLOW_BUNDLED_CDN=1`：才允许从 `cdn.one-world.ai` 拉内置包（不推荐）
+  - `XHS_BROWSER_BIN`：浏览器可执行文件（默认自动找系统 Google Chrome；本项目不会自动下载浏览器）
+  - 浏览器默认启用 Chromium 沙箱；Linux 或自建容器请使用非 root 用户运行
   - `XHS_READ_ONLY=1`（禁写）、`XHS_RISK_STREAK_LIMIT`（墙信号熔断，默认 3，0=关）
   - `XHS_FP_SEED`、`XHS_PROXY`、`COOKIES_PATH`
 - 若你自行从 [CloakHQ/CloakBrowser Releases](https://github.com/CloakHQ/CloakBrowser/releases) 安装了二进制，用 `XHS_BROWSER_BIN` 指向其可执行文件；**本项目不会自动下载 Cloak 包**（专有 BINARY-LICENSE + 闭源补丁，不默认信任自动执行）

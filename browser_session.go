@@ -10,7 +10,6 @@ import (
 
 	"github.com/go-rod/rod"
 	"github.com/sirupsen/logrus"
-	"github.com/xpzouying/headless_browser"
 	"github.com/xpzouying/xiaohongshu-mcp/browser"
 	"github.com/xpzouying/xiaohongshu-mcp/configs"
 )
@@ -22,11 +21,11 @@ import (
 //   - 关 page 不关 browser，避免每请求冷启 Chromium
 //   - 登录扫码可长期占用 lease（锁持有直到 release），期间其它请求会阻塞等待——符合单账号单通道
 //
-// 不做：user-data-dir 持久 profile。headless_browser.Close 会 launcher.Cleanup 删除
+// 不做：user-data-dir 持久 profile。Browser.Close 会 launcher.Cleanup 删除
 // UserDataDir，挂持久目录会在停服时被抹掉；待上游支持 KeepUserDataDir 再接。
 type browserSession struct {
 	mu sync.Mutex
-	b  *headless_browser.Browser
+	b  *browser.Browser
 }
 
 var sharedBrowser = &browserSession{}
@@ -123,7 +122,7 @@ func (s *browserSession) resetLocked() {
 		return
 	}
 	logrus.Info("closing shared browser instance")
-	// headless_browser.Close 会 Cleanup 临时 user-data；常驻会话下只在失效/停服时调用。
+	// Browser.Close 会 Cleanup 临时 user-data；常驻会话下只在失效/停服时调用。
 	func() {
 		defer func() {
 			if r := recover(); r != nil {

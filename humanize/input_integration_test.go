@@ -62,7 +62,7 @@ func assertOneInputPerRune(t *testing.T, label string, counts map[string]int, te
 }
 
 func TestTypeEventSequence(t *testing.T) {
-	bin, err := browser.EnsureBrowser()
+	bin, _, err := browser.ResolveBrowserBin()
 	if err != nil {
 		t.Skipf("SKIP: 浏览器不可用: %v", err)
 	}
@@ -122,7 +122,7 @@ type clickRecord struct {
 }
 
 func TestClickTiming(t *testing.T) {
-	bin, err := browser.EnsureBrowser()
+	bin, _, err := browser.ResolveBrowserBin()
 	if err != nil {
 		t.Skipf("SKIP: 浏览器不可用: %v", err)
 	}
@@ -192,7 +192,7 @@ document.querySelectorAll('[data-n]').forEach(el =>
 </script></body>`
 
 func TestClickGuards(t *testing.T) {
-	bin, err := browser.EnsureBrowser()
+	bin, _, err := browser.ResolveBrowserBin()
 	if err != nil {
 		t.Skipf("SKIP: 浏览器不可用: %v", err)
 	}

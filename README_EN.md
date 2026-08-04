@@ -8,7 +8,6 @@
 
 [![Philanthropy](https://img.shields.io/badge/Philanthropy-CNY%201810.00-brightgreen?style=flat-square)](./DONATIONS.md)
 [![Gratitude](https://img.shields.io/badge/Gratitude-CNY%201524.64-blue?style=flat-square)](./DONATIONS.md)
-[![Docker Pulls](https://img.shields.io/docker/pulls/xpzouying/xiaohongshu-mcp?style=flat-square&logo=docker)](https://hub.docker.com/r/xpzouying/xiaohongshu-mcp)
 
 MCP for RedNote (Xiaohongshu) / xiaohongshu.com. Give your AI assistant direct access to RedNote data.
 
@@ -22,7 +21,7 @@ MCP for RedNote (Xiaohongshu) / xiaohongshu.com. Give your AI assistant direct a
 
 > [!TIP]
 > #### ✨ Option B: x-mcp Browser Extension (recommended for non-technical users / anyone who wants the simplest setup)
-> - **Don't want to deal with Docker or set up a deployment environment? Try [xpzouying/x-mcp](https://github.com/xpzouying/x-mcp).**
+> - **Don't want to deal with deployment? Try [xpzouying/x-mcp](https://github.com/xpzouying/x-mcp).**
 > - **Zero configuration**: install the extension and it just works — no code, no proxy, no complicated environment setup.
 > - **Safe and stable**: runs directly in your everyday browser (Chrome/Edge) on your local network, with no server IP risk, and it solves 90% of deployment errors.
 
@@ -33,7 +32,7 @@ MCP for RedNote (Xiaohongshu) / xiaohongshu.com. Give your AI assistant direct a
 
 ### 🛠️ Troubleshooting
 
-If you run into problems deploying the traditional Docker version, **be sure to check [Common Issues and Solutions (Issues #56)](https://github.com/xpzouying/xiaohongshu-mcp/issues/56) first**.
+If you run into deployment problems, check [Common Issues and Solutions (Issues #56)](https://github.com/xpzouying/xiaohongshu-mcp/issues/56) first.
 
 > *Tip: if troubleshooting your environment is eating up too much time, switching to the [x-mcp extension](https://github.com/xpzouying/x-mcp) is usually the more efficient choice.*
 
@@ -359,7 +358,7 @@ chmod +x xiaohongshu-mcp-darwin-arm64
 ./xiaohongshu-mcp-darwin-arm64
 ```
 
-**⚠️ Important Note**: The headless browser will be automatically downloaded on first run (about 150MB), please ensure a stable network connection. Subsequent runs will not require re-downloading.
+**⚠️ Important Note**: This project does not download a browser automatically. Install system Chrome/Chromium first, or set `XHS_BROWSER_BIN` to an executable browser path. Chromium's sandbox is enabled by default; on Linux, run the service as a non-root user and ensure the system browser's sandbox prerequisites are available. If you use your own container, configure it to run as non-root as well.
 
 **Method 2: Build from Source**
 
@@ -382,67 +381,6 @@ go env -w GOPROXY=https://mirrors.aliyun.com/goproxy/,direct
 # 3. Official
 go env -w  GOPROXY=https://goproxy.io,direct
 ```
-
-</details>
-
-**Method 3: Using Docker Container (Simplest)**
-
-<details>
-<summary>Docker Deployment Details</summary>
-
-Using Docker deployment is the simplest method, requiring no development environment installation.
-
-**1. Pull Image from Docker Hub (Recommended)**
-
-We provide pre-built Docker images that can be directly pulled from Docker Hub:
-
-```bash
-# Pull the latest image
-docker pull xpzouying/xiaohongshu-mcp
-```
-
-Docker Hub URL: [https://hub.docker.com/r/xpzouying/xiaohongshu-mcp](https://hub.docker.com/r/xpzouying/xiaohongshu-mcp)
-
-**2. Start with Docker Compose (Recommended)**
-
-We provide a pre-configured `docker-compose.yml` file that can be used directly:
-
-```bash
-# Download docker-compose.yml
-wget https://raw.githubusercontent.com/xpzouying/xiaohongshu-mcp/main/docker/docker-compose.yml
-
-# Or if you've already cloned the project, enter the docker directory
-cd docker
-
-# Start service
-docker compose up -d
-
-# View logs
-docker compose logs -f
-
-# Stop service
-docker compose stop
-```
-
-**3. Build Image Yourself (Optional)**
-
-If you need to customize or modify the code, you can build the image yourself:
-
-```bash
-# Run in project root directory
-docker build -t xpzouying/xiaohongshu-mcp .
-```
-
-**4. Configuration Notes**
-
-The Docker version automatically:
-
-- Configures the built-in browser and Chinese fonts
-- Mounts `./data` for storing cookies and runtime data directories
-- Mounts `./images` for storing publish images
-- Exposes port 18060 for MCP connection
-
-For detailed instructions, please refer to: [Docker Deployment Guide](./docker/README.md)
 
 </details>
 
@@ -972,18 +910,16 @@ If you do not specifically need OpenClaw, we strongly recommend switching to a c
 **A:**
 
 1. It is recommended to **build from source**.
-2. Or use **Docker to install xiaohongshu-mcp**, refer to:
-   - [Install xiaohongshu-mcp with Docker](https://github.com/xpzouying/xiaohongshu-mcp#:~:text=%E6%96%B9%E5%BC%8F%E4%B8%89%EF%BC%9A%E4%BD%BF%E7%94%A8%20Docker%20%E5%AE%B9%E5%99%A8%EF%BC%88%E6%9C%80%E7%AE%80%E5%8D%95%EF%BC%89)
-   - [X-MCP Project Page](https://github.com/xpzouying/x-mcp/)
+2. You can also visit the [X-MCP Project Page](https://github.com/xpzouying/x-mcp/).
 
 ---
 
 **Q:** When verifying MCP with `http://localhost:18060/mcp`, it shows connection error?
 **A:**
 
-- In a **Docker environment**, please use
-  [http://host.docker.internal:18060/mcp](http://host.docker.internal:18060/mcp)
-- In a **non-Docker environment**, please use your **local IPv4 address** to access.
+- Make sure the service is running and use the **loopback URL**:
+  [http://localhost:18060/mcp](http://localhost:18060/mcp)
+- The service listens on loopback by default; do not expose it to the LAN or all interfaces.
 
 ---
 

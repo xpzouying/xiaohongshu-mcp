@@ -27,7 +27,6 @@ func TestResolveBrowserBin_envOverride(t *testing.T) {
 	}
 	t.Setenv("XHS_BROWSER_BIN", fake)
 	t.Setenv("ROD_BROWSER_BIN", "")
-	t.Setenv("XHS_ALLOW_BUNDLED_CDN", "")
 
 	p, src, err := ResolveBrowserBin()
 	if err != nil {
@@ -38,24 +37,5 @@ func TestResolveBrowserBin_envOverride(t *testing.T) {
 	}
 	if src != "env:XHS_BROWSER_BIN" {
 		t.Fatalf("source=%s", src)
-	}
-}
-
-func TestResolveBrowserBin_noCDNByDefault(t *testing.T) {
-	// Hide env and hope system chrome exists on darwin CI/dev; if not, error must not mention only CDN.
-	t.Setenv("XHS_BROWSER_BIN", "")
-	t.Setenv("ROD_BROWSER_BIN", "")
-	t.Setenv("XHS_ALLOW_BUNDLED_CDN", "")
-
-	_, src, err := ResolveBrowserBin()
-	if err == nil {
-		if src == "bundled-cdn:one-world.ai" {
-			t.Fatal("must not use CDN without XHS_ALLOW_BUNDLED_CDN")
-		}
-		return
-	}
-	// error path: should guide to XHS_BROWSER_BIN, not silently download
-	if err.Error() == "" {
-		t.Fatal("empty error")
 	}
 }

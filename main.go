@@ -23,7 +23,7 @@ func main() {
 
 	logrus.Infof("xiaohongshu-mcp version: %s", version)
 
-	// 默认：系统 Chrome 或 XHS_BROWSER_BIN；禁止静默从 cdn.one-world.ai 下载。
+	// 默认：系统 Chrome 或 XHS_BROWSER_BIN；本项目不负责下载浏览器。
 	binPath, binSource, err := browser.ResolveBrowserBin()
 	if err != nil {
 		logrus.Fatalf("%v", err)

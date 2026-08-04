@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/sirupsen/logrus"
-	"github.com/xpzouying/headless_browser"
 	"github.com/xpzouying/xiaohongshu-mcp/cookies"
 )
 
@@ -56,7 +55,7 @@ func maskProxyCredentials(proxyURL string) string {
 	return strings.Replace(proxyURL, u.User.String()+"@", cred+"@", 1)
 }
 
-func NewBrowser(headless bool, options ...Option) *headless_browser.Browser {
+func NewBrowser(headless bool, options ...Option) *Browser {
 	cfg := &browserConfig{}
 	for _, opt := range options {
 		opt(cfg)
@@ -71,23 +70,20 @@ func NewBrowser(headless bool, options ...Option) *headless_browser.Browser {
 		}
 	}
 
-	// 必须显式传 bin，避免 go-rod 静默下载默认 Chromium。
-	opts := []headless_browser.Option{
-		headless_browser.WithHeadless(headless),
-		headless_browser.WithChromeBinPath(binPath),
-		headless_browser.WithStealthJS(false),
-		headless_browser.WithLanguage("zh-CN"),
+	engineCfg := browserEngineConfig{
+		headless:      headless,
+		chromeBinPath: binPath,
+		stealthJS:     false,
+		language:      "zh-CN",
 	}
 
 	// 指纹 flag 只对补丁 Chromium 有意义；系统 Chrome 上会静默忽略并制造「假启用」错觉。
 	stock := IsLikelyStockChrome(binPath)
 	if !stock {
-		opts = append(opts,
-			headless_browser.WithFingerprint(""), // 空 platform = 按 OS 自动
-			headless_browser.WithExtraFlags(map[string]string{"fingerprint-brand": "Chrome"}),
-		)
+		engineCfg.fingerprint = true // 空 platform = 按 OS 自动
+		engineCfg.extraFlags = map[string]string{"fingerprint-brand": "Chrome"}
 		if cfg.fingerprintSeed > 0 {
-			opts = append(opts, headless_browser.WithFingerprintSeed(cfg.fingerprintSeed))
+			engineCfg.fingerprintSeed = cfg.fingerprintSeed
 			logrus.Infof("fingerprint seed pinned: %d", cfg.fingerprintSeed)
 		}
 	} else {
@@ -95,7 +91,7 @@ func NewBrowser(headless bool, options ...Option) *headless_browser.Browser {
 	}
 
 	if cfg.proxy != "" {
-		opts = append(opts, headless_browser.WithProxy(cfg.proxy))
+		engineCfg.proxy = cfg.proxy
 		logrus.Infof("Using proxy: %s", maskProxyCredentials(cfg.proxy))
 	}
 
@@ -103,11 +99,11 @@ func NewBrowser(headless bool, options ...Option) *headless_browser.Browser {
 	cookieLoader := cookies.NewLoadCookie(cookiePath)
 
 	if data, err := cookieLoader.LoadCookies(); err == nil {
-		opts = append(opts, headless_browser.WithCookies(string(data)))
+		engineCfg.cookies = string(data)
 		logrus.Debugf("loaded cookies from file successfully")
 	} else {
 		logrus.Warnf("failed to load cookies: %v", err)
 	}
 
-	return headless_browser.New(opts...)
+	return newBrowser(engineCfg)
 }

@@ -6,7 +6,6 @@
 
 [![善款已捐](https://img.shields.io/badge/善款已捐-CNY%201810.00-brightgreen?style=flat-square)](./DONATIONS.md)
 [![爱心汇聚](https://img.shields.io/badge/爱心汇聚-CNY%201524.64-blue?style=flat-square)](./DONATIONS.md)
-[![Docker Pulls](https://img.shields.io/docker/pulls/xpzouying/xiaohongshu-mcp?style=flat-square&logo=docker)](https://hub.docker.com/r/xpzouying/xiaohongshu-mcp)
 
 MCP for 小红书 / xiaohongshu.com。让你的 AI 助手直接访问小红书数据。
 
@@ -20,7 +19,7 @@ MCP for 小红书 / xiaohongshu.com。让你的 AI 助手直接访问小红书�
 
 > [!TIP]
 > #### ✨ 方案 B：x-mcp 浏览器插件版 (推荐给非技术同学 / 追求极简的用户)
-> - **不想折腾 Docker 或部署环境？试试：[xpzouying/x-mcp](https://github.com/xpzouying/x-mcp)**
+> - **不想折腾部署环境？试试：[xpzouying/x-mcp](https://github.com/xpzouying/x-mcp)**
 > - **零配置**：安装插件即用，无需任何代码、代理或复杂的环境配置。
 > - **安全稳定**：直接在常用浏览器 (Chrome/Edge) 及本地网络运行，无服务器 IP 风险，且能解决 90% 的部署报错。
 
@@ -31,7 +30,7 @@ MCP for 小红书 / xiaohongshu.com。让你的 AI 助手直接访问小红书�
 
 ### 🛠️ 疑难杂症
 
-如果您在部署传统 Docker 版本时遇到问题，**务必先查看：[各种疑难杂症 (Issues #56)](https://github.com/xpzouying/xiaohongshu-mcp/issues/56)**。
+如果您在部署过程中遇到问题，建议先查看：[各种疑难杂症 (Issues #56)](https://github.com/xpzouying/xiaohongshu-mcp/issues/56)。
 
 > *提示：如果环境排查太耗时，切换到 [x-mcp 插件版](https://github.com/xpzouying/x-mcp) 通常是更高效的选择。*
 
@@ -357,7 +356,7 @@ chmod +x xiaohongshu-mcp-darwin-arm64
 ./xiaohongshu-mcp-darwin-arm64
 ```
 
-**⚠️ 重要提示**：首次运行时会自动下载无头浏览器（约 150MB），请确保网络连接正常。后续运行无需重复下载。
+**⚠️ 重要提示**：本项目不会自动下载浏览器。运行前请自行安装系统 Chrome/Chromium，或通过 `XHS_BROWSER_BIN` 指定浏览器可执行文件。浏览器默认启用 Chromium 沙箱；Linux 环境请使用非 root 用户运行，并确保系统 Chrome/Chromium 的沙箱依赖正常。若在自建容器中运行，也请配置为非 root 用户。
 
 **方式二：源码编译**
 
@@ -380,65 +379,6 @@ go env -w GOPROXY=https://mirrors.aliyun.com/goproxy/,direct
 # 3. 官方
 go env -w  GOPROXY=https://goproxy.io,direct
 ```
-
-</details>
-
-**方式三：使用 Docker 容器（最简单）**
-
-<details>
-<summary>Docker 部署详情</summary>
-
-使用 Docker 部署是最简单的方式，无需安装任何开发环境。
-
-**1. 从 Docker Hub 拉取镜像（推荐）**
-
-我们提供了预构建的 Docker 镜像，可以直接从 Docker Hub 拉取使用：
-
-```bash
-# 拉取最新镜像
-docker pull xpzouying/xiaohongshu-mcp
-```
-
-Docker Hub 地址：[https://hub.docker.com/r/xpzouying/xiaohongshu-mcp](https://hub.docker.com/r/xpzouying/xiaohongshu-mcp)
-
-**2. 使用 Docker Compose 启动（推荐）**
-
-我们提供了配置好的 `docker-compose.yml` 文件，可以直接使用：
-
-```bash
-# 下载 docker-compose.yml
-wget https://raw.githubusercontent.com/xpzouying/xiaohongshu-mcp/main/docker/docker-compose.yml
-
-# 或者如果已经克隆了项目，进入 docker 目录
-cd docker
-
-# 启动服务
-docker compose up -d
-
-# 查看日志
-docker compose logs -f
-
-# 停止服务
-docker compose stop
-```
-
-**3. 自己构建镜像（可选）**
-
-```bash
-# 在项目根目录运行
-docker build -t xpzouying/xiaohongshu-mcp .
-```
-
-**4. 配置说明**
-
-Docker 版本会自动：
-
-- 配置内置浏览器和中文字体
-- 挂载 `./data` 用于存储 cookies 和运行数据目录
-- 挂载 `./images` 用于存储发布的图片
-- 暴露 18060 端口供 MCP 连接
-
-详细使用说明请参考：[Docker 部署指南](./docker/README.md)
 
 </details>
 
@@ -968,18 +908,16 @@ npx mcporter list xiaohongshu-mcp
 **A:**
 
 1. 建议 **从源码安装**。
-2. 或使用 **Docker 安装 xiaohongshu-mcp**，教程参考：
-   - [使用 Docker 安装 xiaohongshu-mcp](https://github.com/xpzouying/xiaohongshu-mcp#:~:text=%E6%96%B9%E5%BC%8F%E4%B8%89%EF%BC%9A%E4%BD%BF%E7%94%A8%20Docker%20%E5%AE%B9%E5%99%A8%EF%BC%88%E6%9C%80%E7%AE%80%E5%8D%95%EF%BC%89)
-   - [X-MCP 项目页面](https://github.com/xpzouying/x-mcp/)
+2. 也可以使用 [X-MCP 项目页面](https://github.com/xpzouying/x-mcp/)。
 
 ---
 
 **Q:** 使用 `http://localhost:18060/mcp` 进行 MCP 验证时提示无法连接？
 **A:**
 
-- 在 **Docker 环境** 下，请使用
-  👉 [http://host.docker.internal:18060/mcp](http://host.docker.internal:18060/mcp)
-- 在 **非 Docker 环境** 下，请使用 **本机 IPv4 地址** 访问。
+- 请确认服务已启动，并使用 **本机回环地址**：
+  👉 [http://localhost:18060/mcp](http://localhost:18060/mcp)
+- 默认服务只监听本机回环地址，不建议改为局域网或全网卡监听。
 
 ---
 

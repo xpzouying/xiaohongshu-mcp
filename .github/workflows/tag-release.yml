@@ -151,8 +151,7 @@ jobs:
 
           ### ⚠️ 注意事项
 
-          - 首次运行时会自动下载无头浏览器（约 150MB），请确保网络连接正常
-          - 后续运行无需重复下载浏览器
+          - 运行前请自行安装系统 Chrome/Chromium，或设置 `XHS_BROWSER_BIN`
           - 登录工具生成的 cookie 保存在 `~/.xiaohongshu/cookies.json`
 
           ### 📊 构建信息
