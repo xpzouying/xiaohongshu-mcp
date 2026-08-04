@@ -37,10 +37,15 @@ func main() {
 		cookies.NewLoadCookie(cookies.GetCookiesFilePath())))
 	configs.SetProxy(configs.ProxyFromEnv())
 
+	if readOnlyMode() {
+		logrus.Info("XHS_READ_ONLY enabled: write tools rejected")
+	}
+	logrus.Infof("browser session: shared+serial lease; risk_streak_limit=%d", riskStreakLimit())
+
 	// 初始化服务
 	xiaohongshuService := NewXiaohongshuService()
 
-	// 创建并启动应用服务器
+	// 创建并启动应用服务器（常驻浏览器在首次请求时懒创建，停服时 Close）
 	appServer := NewAppServer(xiaohongshuService)
 	if err := appServer.Start(port); err != nil {
 		logrus.Fatalf("failed to run server: %v", err)

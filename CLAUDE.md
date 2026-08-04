@@ -20,8 +20,8 @@ MCP 端点为 `http://localhost:18060/mcp`。多数集成测试依赖真实浏�
 - `main.go`、`app_server.go`、`routes.go` —— 进程入口与 HTTP 服务装配
 - `mcp_server.go`、`mcp_handlers.go` —— MCP 工具的定义与处理
 - `service.go`、`handlers_api.go` —— 业务服务层与 HTTP API
-- `browser_pool.go` —— 常驻浏览器 + 有限并发 tab 池，分级超时
-- `xiaohongshu/` —— 基于 go-rod 的各业务动作（发布 / 搜索 / 详情 / 评论 / 点赞收藏 / 登录 / 主页）
+- `browser_session.go` —— 常驻单浏览器 + 进程内串行 page lease（关 page 不关 browser；无人为限速）
+- `xiaohongshu/` —— 基于 go-rod 的各业务动作（发布 / 搜索 / 详情 / 评论 / 点赞收藏 / 登录 / 主页 / 通知）
 - `configs/`、`cookies/`、`errors/`、`pkg/`（`xhsutil` 标题、`downloader` 图片） —— 配置、登录态、错误与工具
 
 ## 开发约定
