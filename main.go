@@ -23,16 +23,18 @@ func main() {
 
 	logrus.Infof("xiaohongshu-mcp version: %s", version)
 
-	// 只用内置浏览器。启动时就备好，缺它直接退出，不拖到第一个请求才失败。
-	binPath, err := browser.EnsureBrowser()
+	// 默认：系统 Chrome 或 XHS_BROWSER_BIN；禁止静默从 cdn.one-world.ai 下载。
+	binPath, binSource, err := browser.ResolveBrowserBin()
 	if err != nil {
 		logrus.Fatalf("%v", err)
 	}
-	logrus.Infof("using browser binary: %s", binPath)
+	configs.SetChromeBin(binPath)
+	logrus.Infof("using browser binary: %s (source=%s)", binPath, binSource)
 
 	configs.InitHeadless(headless)
 	// 入口层解析出 seed 和代理，经 configs 透传给浏览器工厂。
 	// seed 取值：环境变量 > 会话文件 > 新生成并写回，保证同一账号每次启动一致。
+	// 注意：系统 Chrome 下 fingerprint seed 不会启用（见 browser.NewBrowser）。
 	configs.SetFingerprintSeed(configs.ResolveFingerprintSeed(
 		cookies.NewLoadCookie(cookies.GetCookiesFilePath())))
 	configs.SetProxy(configs.ProxyFromEnv())

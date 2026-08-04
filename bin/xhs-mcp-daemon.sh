@@ -64,6 +64,8 @@ do_start() {
 		# shellcheck disable=SC2086
 		nohup env \
 			COOKIES_PATH="${COOKIES_PATH:-$XHS_MCP_DIR/cookies.json}" \
+			XHS_BROWSER_BIN="${XHS_BROWSER_BIN:-}" \
+			XHS_ALLOW_BUNDLED_CDN="${XHS_ALLOW_BUNDLED_CDN:-}" \
 			XHS_READ_ONLY="${XHS_READ_ONLY:-}" \
 			XHS_RISK_STREAK_LIMIT="${XHS_RISK_STREAK_LIMIT:-}" \
 			XHS_FP_SEED="${XHS_FP_SEED:-}" \

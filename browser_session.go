@@ -107,10 +107,14 @@ func (s *browserSession) ensureLocked() error {
 		return nil
 	}
 	logrus.Info("starting shared browser instance")
-	s.b = browser.NewBrowser(configs.IsHeadless(),
+	opts := []browser.Option{
 		browser.WithFingerprintSeed(configs.FingerprintSeed()),
 		browser.WithProxy(configs.Proxy()),
-	)
+	}
+	if bin := configs.ChromeBin(); bin != "" {
+		opts = append(opts, browser.WithBinPath(bin))
+	}
+	s.b = browser.NewBrowser(configs.IsHeadless(), opts...)
 	return nil
 }
 

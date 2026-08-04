@@ -13,6 +13,9 @@ var (
 	fingerprintSeed = 0
 
 	proxy = ""
+
+	// chromeBin 由入口 Resolve 后写入，供 browser 工厂使用。
+	chromeBin = ""
 )
 
 func InitHeadless(h bool) {
@@ -58,4 +61,14 @@ func Proxy() string {
 // ProxyFromEnv 从 XHS_PROXY 环境变量读取代理地址。env 读取集中在配置层。
 func ProxyFromEnv() string {
 	return os.Getenv("XHS_PROXY")
+}
+
+// SetChromeBin 记录已解析的浏览器路径。
+func SetChromeBin(p string) {
+	chromeBin = p
+}
+
+// ChromeBin 返回入口已解析的浏览器路径（可能为空，表示调用方未预解析）。
+func ChromeBin() string {
+	return chromeBin
 }

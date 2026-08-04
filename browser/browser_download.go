@@ -21,7 +21,10 @@ import (
 	"github.com/ulikunitz/xz"
 )
 
-// 内置浏览器的下载分发地址。
+// 内置浏览器的下载分发地址（作者自建 CDN）。
+//
+// ⚠️ 默认不使用：hash 清单与包同源，且与 CloakHQ 公开 Release 的 SHA256 对不上。
+// 仅当环境变量 XHS_ALLOW_BUNDLED_CDN=1 时，ResolveBrowserBin 才会调用 EnsureBrowser。
 const browserCDNBase = "https://cdn.one-world.ai/browsers"
 
 // browserVersion 是内置浏览器的唯一版本源。升级只改 browser_version.txt 一处，Go 与 Dockerfile 同读。

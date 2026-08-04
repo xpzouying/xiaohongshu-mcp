@@ -11,10 +11,12 @@ import (
 )
 
 type browserConfig struct {
-	// fingerprintSeed 固定指纹 seed；>0 时钉死，同账号每次同一套指纹。0 = 每次随机。
+	// fingerprintSeed 固定指纹 seed；>0 时钉死。仅对支持 --fingerprint 的补丁构建有意义。
 	fingerprintSeed int
 	// proxy 代理地址；非空时启用。
 	proxy string
+	// binPath 浏览器可执行文件；空则 ResolveBrowserBin()。
+	binPath string
 }
 
 type Option func(*browserConfig)
@@ -26,10 +28,18 @@ func WithProxy(proxy string) Option {
 	}
 }
 
-// WithFingerprintSeed 设置 seed，seed<=0 视为未设，回退每次随机。
+// WithFingerprintSeed 设置 seed，seed<=0 视为未设。
+// 仅当二进制支持 Cloak/fingerprint-chromium 类 flag 时生效；系统 Chrome 会忽略未知 flag。
 func WithFingerprintSeed(seed int) Option {
 	return func(c *browserConfig) {
 		c.fingerprintSeed = seed
+	}
+}
+
+// WithBinPath 指定浏览器二进制（通常来自 ResolveBrowserBin / 配置层）。
+func WithBinPath(path string) Option {
+	return func(c *browserConfig) {
+		c.binPath = path
 	}
 }
 
@@ -43,7 +53,6 @@ func maskProxyCredentials(proxyURL string) string {
 	if _, hasPassword := u.User.Password(); hasPassword {
 		cred = "***:***"
 	}
-	// 直接在原串替换 userinfo，避免 url.String() 把 * 编码成 %2A（日志变乱码）。
 	return strings.Replace(proxyURL, u.User.String()+"@", cred+"@", 1)
 }
 
@@ -53,46 +62,49 @@ func NewBrowser(headless bool, options ...Option) *headless_browser.Browser {
 		opt(cfg)
 	}
 
-	// 只用内置浏览器，没有别的来源。二进制必须显式传给 go-rod，
-	// 否则 rod 会自行下载一个默认 Chromium：它不是内置浏览器，也不认识下面
-	// 这些 flag（未知 flag 被静默忽略，日志照样打印 "fingerprint enabled"），
-	// 属于无声降级。宁可不启动，也不启动一个不对的浏览器。
-	binPath, err := EnsureBrowser()
-	if err != nil {
-		panic(fmt.Sprintf("内置浏览器不可用，拒绝启动: %v", err))
+	binPath := strings.TrimSpace(cfg.binPath)
+	if binPath == "" {
+		var err error
+		binPath, _, err = ResolveBrowserBin()
+		if err != nil {
+			panic(fmt.Sprintf("browser binary unavailable: %v", err))
+		}
 	}
 
+	// 必须显式传 bin，避免 go-rod 静默下载默认 Chromium。
 	opts := []headless_browser.Option{
 		headless_browser.WithHeadless(headless),
-		// 用内置浏览器的默认配置，不强制 UA。
-		headless_browser.WithFingerprint(""), // 空 = 按运行 OS 自动：Linux→windows，mac→macos
+		headless_browser.WithChromeBinPath(binPath),
 		headless_browser.WithStealthJS(false),
-		headless_browser.WithLanguage("zh-CN"), // 面向小红书
-		// 品牌报 Chrome。
-		// 注：hardware-concurrency 不设，交给 seed 派生。
-		headless_browser.WithExtraFlags(map[string]string{"fingerprint-brand": "Chrome"}),
+		headless_browser.WithLanguage("zh-CN"),
 	}
-	opts = append(opts, headless_browser.WithChromeBinPath(binPath))
 
-	// 代理（由调用方经 Option 传入，env 读取放在入口层）。
+	// 指纹 flag 只对补丁 Chromium 有意义；系统 Chrome 上会静默忽略并制造「假启用」错觉。
+	stock := IsLikelyStockChrome(binPath)
+	if !stock {
+		opts = append(opts,
+			headless_browser.WithFingerprint(""), // 空 platform = 按 OS 自动
+			headless_browser.WithExtraFlags(map[string]string{"fingerprint-brand": "Chrome"}),
+		)
+		if cfg.fingerprintSeed > 0 {
+			opts = append(opts, headless_browser.WithFingerprintSeed(cfg.fingerprintSeed))
+			logrus.Infof("fingerprint seed pinned: %d", cfg.fingerprintSeed)
+		}
+	} else {
+		logrus.Infof("using stock browser (fingerprint flags disabled): %s", binPath)
+	}
+
 	if cfg.proxy != "" {
 		opts = append(opts, headless_browser.WithProxy(cfg.proxy))
 		logrus.Infof("Using proxy: %s", maskProxyCredentials(cfg.proxy))
 	}
 
-	// 固定指纹 seed（由调用方经 Option 传入，env 读取放在入口层）。
-	if cfg.fingerprintSeed > 0 {
-		opts = append(opts, headless_browser.WithFingerprintSeed(cfg.fingerprintSeed))
-		logrus.Infof("fingerprint seed pinned: %d", cfg.fingerprintSeed)
-	}
-
-	// 加载 cookies
 	cookiePath := cookies.GetCookiesFilePath()
 	cookieLoader := cookies.NewLoadCookie(cookiePath)
 
 	if data, err := cookieLoader.LoadCookies(); err == nil {
 		opts = append(opts, headless_browser.WithCookies(string(data)))
-		logrus.Debugf("loaded cookies from filesuccessfully")
+		logrus.Debugf("loaded cookies from file successfully")
 	} else {
 		logrus.Warnf("failed to load cookies: %v", err)
 	}
