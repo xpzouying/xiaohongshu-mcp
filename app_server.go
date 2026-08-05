@@ -33,6 +33,18 @@ func NewAppServer(xiaohongshuService *XiaohongshuService) *AppServer {
 	return appServer
 }
 
+// RunStdio 使用 stdio 模式运行 MCP 服务器
+func (s *AppServer) RunStdio() error {
+	logrus.Info("使用 stdio 模式启动 MCP 服务器")
+
+	if err := s.mcpServer.Run(context.Background(), &mcp.StdioTransport{}); err != nil {
+		logrus.Errorf("MCP stdio 服务器运行失败: %v", err)
+		return err
+	}
+
+	return nil
+}
+
 // Start 启动服务器
 func (s *AppServer) Start(port string) error {
 	s.router = setupRoutes(s)
