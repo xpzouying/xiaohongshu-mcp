@@ -23,23 +23,22 @@ func main() {
 
 	logrus.Infof("xiaohongshu-mcp version: %s", version)
 
-	// 浏览器由运行环境提供：系统 Chrome/Chromium 或 XHS_BROWSER_BIN；本项目不负责下载。
-	binPath, binSource, err := browser.ResolveBrowserBin()
+	// 浏览器固定为 Camoufox：自构建、固定版本、可校验，运行时不下载。
+	binPath, binSource, err := browser.ResolveCamoufoxBin()
 	if err != nil {
 		logrus.Fatalf("%v", err)
 	}
-	configs.SetChromeBin(binPath)
-	logrus.Infof("using browser binary: %s (source=%s)", binPath, binSource)
+	configs.SetCamoufoxBin(binPath)
+	logrus.Infof("using camoufox binary: %s (source=%s, version=%s)", binPath, binSource, browser.CamoufoxVersion)
 
 	configs.InitHeadless(headless)
-	// 入口层解析出 seed 和代理，经 configs 透传给浏览器工厂。
-	// seed 取值：环境变量 > 会话文件 > 新生成并写回，保证同一账号每次启动一致。
-	// 注意：系统 Chrome 下 fingerprint seed 不会启用（见 browser.NewBrowser）。
+	// 入口层解析 seed 与代理，经 configs 透传给浏览器工厂。
+	// seed 取值：环境变量 > 会话文件 > 新生成并写回，保证同一账号每次启动指纹一致。
 	configs.SetFingerprintSeed(configs.ResolveFingerprintSeed(
 		cookies.NewLoadCookie(cookies.GetCookiesFilePath())))
 	configs.SetProxy(configs.ProxyFromEnv())
 
-	logrus.Infof("browser session: shared+serial lease; risk_streak_limit=%d", riskStreakLimit())
+	logrus.Infof("browser session: camoufox shared+serial lease; risk_streak_limit=%d", riskStreakLimit())
 
 	// 初始化服务
 	xiaohongshuService := NewXiaohongshuService()

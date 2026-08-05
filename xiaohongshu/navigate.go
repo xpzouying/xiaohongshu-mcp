@@ -2,49 +2,57 @@ package xiaohongshu
 
 import (
 	"context"
-	"time"
 
-	"github.com/go-rod/rod"
+	"github.com/playwright-community/playwright-go"
 	"github.com/xpzouying/xiaohongshu-mcp/humanize"
 )
 
 type NavigateAction struct {
-	page *rod.Page
+	page playwright.Page
 }
 
-func NewNavigate(page *rod.Page) *NavigateAction {
+func NewNavigate(page playwright.Page) *NavigateAction {
 	return &NavigateAction{page: page}
 }
 
 func (n *NavigateAction) ToExplorePage(ctx context.Context) error {
-	page := n.page.Context(ctx).Timeout(60 * time.Second) // 加超时保护，避免 MustNavigate/MustWaitStable 无限挂
-
-	page.MustNavigate("https://www.xiaohongshu.com/explore").
-		MustWaitLoad().
-		MustElement(`div#app`)
-
-	return nil
+	if _, err := n.page.Goto("https://www.xiaohongshu.com/explore", playwright.PageGotoOptions{
+		WaitUntil: playwright.WaitUntilStateLoad,
+		Timeout:   playwright.Float(60_000),
+	}); err != nil {
+		return err
+	}
+	// 等应用容器挂载
+	_, err := n.page.WaitForSelector(`div#app`, playwright.PageWaitForSelectorOptions{
+		State:   playwright.WaitForSelectorStateAttached,
+		Timeout: playwright.Float(60_000),
+	})
+	return err
 }
 
 func (n *NavigateAction) ToProfilePage(ctx context.Context) error {
-	page := n.page.Context(ctx).Timeout(60 * time.Second) // 加超时保护，避免 MustNavigate/MustWaitStable 无限挂
-
-	// First navigate to explore page
 	if err := n.ToExplorePage(ctx); err != nil {
 		return err
 	}
 
-	page.MustWaitStable()
+	// 等 SPA 稳定再点侧边栏「我」
+	if err := n.page.WaitForLoadState(playwright.PageWaitForLoadStateOptions{
+		State: playwright.LoadStateNetworkidle,
+	}); err != nil {
+		// networkidle 不一定达成，降级为继续
+		logActionError("wait networkidle on explore", err)
+	}
 
-	// Find and click the "我" channel link in sidebar
-	profileLink := page.MustElement(`div.main-container li.user.side-bar-component a.link-wrapper span.channel`)
+	profileLink, err := n.page.QuerySelector(`div.main-container li.user.side-bar-component a.link-wrapper span.channel`)
+	if err != nil || profileLink == nil {
+		return err
+	}
 	humanize.Delay(ctx, humanize.BeforeClick)
 	if err := humanize.Click(profileLink); err != nil {
 		return err
 	}
 
-	// Wait for navigation to complete
-	page.MustWaitLoad()
-
-	return nil
+	return n.page.WaitForLoadState(playwright.PageWaitForLoadStateOptions{
+		State: playwright.LoadStateLoad,
+	})
 }

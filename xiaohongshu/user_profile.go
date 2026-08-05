@@ -5,9 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"time"
 
-	"github.com/go-rod/rod"
+	"github.com/playwright-community/playwright-go"
 	"github.com/xpzouying/xiaohongshu-mcp/humanize"
 )
 
@@ -41,30 +40,35 @@ var tabLabel = map[ProfileTab]string{
 }
 
 type UserProfileAction struct {
-	page *rod.Page
+	page playwright.Page
 }
 
-func NewUserProfileAction(page *rod.Page) *UserProfileAction {
-	pp := page.Timeout(30 * time.Second)
-	return &UserProfileAction{page: pp}
+func NewUserProfileAction(page playwright.Page) *UserProfileAction {
+	return &UserProfileAction{page: page}
 }
 
 // UserProfile 获取用户基本信息及指定 tab 下的帖子
 func (u *UserProfileAction) UserProfile(ctx context.Context, userID, xsecToken string, tab ProfileTab) (*UserProfileResponse, error) {
-	page := u.page.Context(ctx).Timeout(60 * time.Second) // 重设被 .Context 清掉的 deadline
-
+	page := u.page
 	searchURL := makeUserProfileURL(userID, xsecToken, tab)
-	page.MustNavigate(searchURL)
-	page.MustWaitStable()
+	if _, err := page.Goto(searchURL, playwright.PageGotoOptions{
+		WaitUntil: playwright.WaitUntilStateDomcontentloaded,
+		Timeout:   playwright.Float(60_000),
+	}); err != nil {
+		return nil, fmt.Errorf("导航用户主页失败: %w", err)
+	}
 
 	return u.extractUserProfileData(page, tab)
 }
 
 // extractUserProfileData 从页面中提取用户资料数据的通用方法
-func (u *UserProfileAction) extractUserProfileData(page *rod.Page, tab ProfileTab) (*UserProfileResponse, error) {
-	page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
+func (u *UserProfileAction) extractUserProfileData(page playwright.Page, tab ProfileTab) (*UserProfileResponse, error) {
+	if _, err := page.WaitForFunction(`() => window.__INITIAL_STATE__ !== undefined`, nil,
+		playwright.PageWaitForFunctionOptions{Timeout: playwright.Float(60_000)}); err != nil {
+		return nil, fmt.Errorf("等待页面状态失败: %w", err)
+	}
 
-	userDataResult := page.MustEval(`() => {
+	userDataResult := evalString(page, `() => {
 		if (window.__INITIAL_STATE__ &&
 		    window.__INITIAL_STATE__.user &&
 		    window.__INITIAL_STATE__.user.userPageData) {
@@ -75,14 +79,12 @@ func (u *UserProfileAction) extractUserProfileData(page *rod.Page, tab ProfileTa
 			}
 		}
 		return "";
-	}`).String()
-
+	}`)
 	if userDataResult == "" {
 		return nil, fmt.Errorf("user.userPageData.value not found in __INITIAL_STATE__")
 	}
 
-	// 2. 获取用户帖子及当前 tab：window.__INITIAL_STATE__.user
-	notesResult := page.MustEval(`() => {
+	notesResult := evalString(page, `() => {
 		const u = window.__INITIAL_STATE__ && window.__INITIAL_STATE__.user;
 		if (!u || !u.notes) return "";
 		const unwrap = (o) => (o && o.value !== undefined) ? o.value : (o && o._value);
@@ -90,13 +92,11 @@ func (u *UserProfileAction) extractUserProfileData(page *rod.Page, tab ProfileTa
 		if (!notes) return "";
 		const active = unwrap(u.activeTab) || {};
 		return JSON.stringify({notes: notes, index: active.index || 0, query: active.query || ""});
-	}`).String()
-
+	}`)
 	if notesResult == "" {
 		return nil, fmt.Errorf("user.notes.value not found in __INITIAL_STATE__")
 	}
 
-	// 解析用户信息
 	var userPageData struct {
 		Interactions []UserInteractions `json:"interactions"`
 		BasicInfo    UserBasicInfo      `json:"basicInfo"`
@@ -123,13 +123,12 @@ func (u *UserProfileAction) extractUserProfileData(page *rod.Page, tab ProfileTa
 		return nil, fmt.Errorf("当前 tab 为 %q，与请求的 %q 不符", notesData.Query, want)
 	}
 
-	// 组装响应
 	response := &UserProfileResponse{
 		UserBasicInfo: userPageData.BasicInfo,
 		Interactions:  userPageData.Interactions,
 	}
 
-	// 每个 tab 的内容存在各自的下标里，只取当前 tab 的，避免混入其他 tab
+	// 每个 tab 的内容存在各自的下标里，只取当前 tab 的
 	if notesData.Index >= 0 && notesData.Index < len(notesData.Notes) {
 		response.Feeds = append(response.Feeds, notesData.Notes[notesData.Index]...)
 	}
@@ -146,18 +145,12 @@ func makeUserProfileURL(userID, xsecToken string, tab ProfileTab) string {
 }
 
 func (u *UserProfileAction) GetMyProfileViaSidebar(ctx context.Context, tab ProfileTab) (*UserProfileResponse, error) {
-	page := u.page.Context(ctx).Timeout(60 * time.Second) // 重设被 .Context 清掉的 deadline
+	page := u.page
 
-	// 创建导航动作
 	navigate := NewNavigate(page)
-
-	// 通过侧边栏导航到个人主页
 	if err := navigate.ToProfilePage(ctx); err != nil {
 		return nil, fmt.Errorf("failed to navigate to profile page via sidebar: %w", err)
 	}
-
-	// 等待页面加载完成并获取 __INITIAL_STATE__
-	page.MustWaitStable()
 
 	if err := u.selectTab(ctx, page, tab); err != nil {
 		return nil, err
@@ -167,19 +160,19 @@ func (u *UserProfileAction) GetMyProfileViaSidebar(ctx context.Context, tab Prof
 }
 
 // selectTab 切到目标子 tab。「笔记」是默认 tab，无需点击。
-func (u *UserProfileAction) selectTab(ctx context.Context, page *rod.Page, tab ProfileTab) error {
+func (u *UserProfileAction) selectTab(ctx context.Context, page playwright.Page, tab ProfileTab) error {
 	if tab == "" || tab == TabNotes {
 		return nil
 	}
 
 	label := tabLabel[tab]
-	elems, err := page.Elements(`.reds-tab-item.sub-tab-list`)
+	elems, err := page.QuerySelectorAll(`.reds-tab-item.sub-tab-list`)
 	if err != nil {
 		return fmt.Errorf("未找到主页子 tab: %w", err)
 	}
 
 	for _, elem := range elems {
-		text, err := elem.Text()
+		text, err := elem.InnerText()
 		if err != nil || strings.TrimSpace(text) != label {
 			continue
 		}
@@ -188,7 +181,7 @@ func (u *UserProfileAction) selectTab(ctx context.Context, page *rod.Page, tab P
 			return fmt.Errorf("切换到 %s 失败: %w", label, err)
 		}
 		humanize.Delay(ctx, humanize.AfterClick)
-		page.MustWaitStable()
+		_ = page.WaitForLoadState(playwright.PageWaitForLoadStateOptions{State: playwright.LoadStateNetworkidle})
 		return nil
 	}
 	return fmt.Errorf("未找到子 tab %q", label)

@@ -10,12 +10,16 @@ import (
 )
 
 type browserConfig struct {
-	// fingerprintSeed 固定指纹 seed；>0 时钉死。仅对支持 --fingerprint 的补丁构建有意义。
+	// fingerprintSeed 固定指纹 seed；>0 时钉死，同一账号每次启动得到同一画像。
 	fingerprintSeed int
 	// proxy 代理地址；非空时启用。
 	proxy string
-	// binPath 浏览器可执行文件；空则 ResolveBrowserBin()。
+	// binPath Camoufox 可执行文件；空则 ResolveCamoufoxBin()。
 	binPath string
+	// userDataDir Camoufox profile 目录；空则用临时目录（Close 时清理）。
+	userDataDir string
+	// width/height 视口尺寸；<=0 时用默认 1280x800。
+	width, height int
 }
 
 type Option func(*browserConfig)
@@ -27,22 +31,35 @@ func WithProxy(proxy string) Option {
 	}
 }
 
-// WithFingerprintSeed 设置 seed，seed<=0 视为未设。
-// 仅当二进制支持 Cloak/fingerprint-chromium 类 flag 时生效；系统 Chrome 会忽略未知 flag。
+// WithFingerprintSeed 设置指纹 seed，seed<=0 视为未设（随机）。
 func WithFingerprintSeed(seed int) Option {
 	return func(c *browserConfig) {
 		c.fingerprintSeed = seed
 	}
 }
 
-// WithBinPath 指定浏览器二进制（通常来自 ResolveBrowserBin / 配置层）。
+// WithBinPath 指定 Camoufox 二进制（通常来自 ResolveCamoufoxBin / 配置层）。
 func WithBinPath(path string) Option {
 	return func(c *browserConfig) {
 		c.binPath = path
 	}
 }
 
-// maskProxyCredentials masks username and password in proxy URL for safe logging.
+// WithUserDataDir 指定持久化 profile 目录；缺省用临时目录，Close 时删除。
+func WithUserDataDir(dir string) Option {
+	return func(c *browserConfig) {
+		c.userDataDir = dir
+	}
+}
+
+// WithViewport 设置视口尺寸。
+func WithViewport(width, height int) Option {
+	return func(c *browserConfig) {
+		c.width, c.height = width, height
+	}
+}
+
+// maskProxyCredentials 日志里遮蔽代理的用户名密码。
 func maskProxyCredentials(proxyURL string) string {
 	u, err := url.Parse(proxyURL)
 	if err != nil || u.User == nil {
@@ -55,7 +72,9 @@ func maskProxyCredentials(proxyURL string) string {
 	return strings.Replace(proxyURL, u.User.String()+"@", cred+"@", 1)
 }
 
-func NewBrowser(headless bool, options ...Option) *Browser {
+// NewBrowser 启动一个常驻 Camoufox 实例（持久化上下文 + Juggler 驱动）。
+// 失败返回错误，由调用方决定是否重建，不 panic。
+func NewBrowser(headless bool, options ...Option) (*Browser, error) {
 	cfg := &browserConfig{}
 	for _, opt := range options {
 		opt(cfg)
@@ -64,40 +83,32 @@ func NewBrowser(headless bool, options ...Option) *Browser {
 	binPath := strings.TrimSpace(cfg.binPath)
 	if binPath == "" {
 		var err error
-		binPath, _, err = ResolveBrowserBin()
+		binPath, _, err = ResolveCamoufoxBin()
 		if err != nil {
-			panic(fmt.Sprintf("browser binary unavailable: %v", err))
+			return nil, fmt.Errorf("camoufox binary unavailable: %w", err)
 		}
 	}
 
 	engineCfg := browserEngineConfig{
-		headless:      headless,
-		chromeBinPath: binPath,
-		stealthJS:     false,
-		language:      "zh-CN",
+		headless:        headless,
+		binPath:         binPath,
+		language:        "zh-CN",
+		fingerprintSeed: cfg.fingerprintSeed,
+		userDataDir:     cfg.userDataDir,
+		width:           cfg.width,
+		height:          cfg.height,
 	}
-
-	// 指纹 flag 只对补丁 Chromium 有意义；系统 Chrome 上会静默忽略并制造「假启用」错觉。
-	stock := IsLikelyStockChrome(binPath)
-	if !stock {
-		engineCfg.fingerprint = true // 空 platform = 按 OS 自动
-		engineCfg.extraFlags = map[string]string{"fingerprint-brand": "Chrome"}
-		if cfg.fingerprintSeed > 0 {
-			engineCfg.fingerprintSeed = cfg.fingerprintSeed
-			logrus.Infof("fingerprint seed pinned: %d", cfg.fingerprintSeed)
-		}
-	} else {
-		logrus.Infof("using stock browser (fingerprint flags disabled): %s", binPath)
+	if cfg.fingerprintSeed > 0 {
+		logrus.Infof("fingerprint seed pinned: %d", cfg.fingerprintSeed)
 	}
 
 	if cfg.proxy != "" {
 		engineCfg.proxy = cfg.proxy
-		logrus.Infof("Using proxy: %s", maskProxyCredentials(cfg.proxy))
+		logrus.Infof("using proxy: %s", maskProxyCredentials(cfg.proxy))
 	}
 
 	cookiePath := cookies.GetCookiesFilePath()
 	cookieLoader := cookies.NewLoadCookie(cookiePath)
-
 	if data, err := cookieLoader.LoadCookies(); err == nil {
 		engineCfg.cookies = string(data)
 		logrus.Debugf("loaded cookies from file successfully")

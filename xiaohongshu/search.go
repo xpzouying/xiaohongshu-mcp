@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-rod/rod"
+	"github.com/playwright-community/playwright-go"
 	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/xiaohongshu-mcp/errors"
 	"github.com/xpzouying/xiaohongshu-mcp/humanize"
@@ -31,13 +31,10 @@ type FilterOption struct {
 }
 
 // filterGroup 面板上的一个筛选组：标签是什么、对应入参的哪个字段、允许哪些取值。
-//
-// 组和选项一律按文本定位，不用序号。面板里同一个选项可能渲染成多个 div.tags
-// （数量随视口而变），首项是否重复各组也不一致，下标对不齐。
 type filterGroup struct {
-	label   string                    // 面板上这一组的标签文本
-	pick    func(FilterOption) string // 从入参里取这一组的值
-	allowed []string                  // 合法取值；在打开页面之前就能挡掉写错的值
+	label   string
+	pick    func(FilterOption) string
+	allowed []string
 }
 
 var filterGroups = []filterGroup{
@@ -55,14 +52,12 @@ var filterGroups = []filterGroup{
 
 // pendingFilter 一个待应用的筛选项。
 type pendingFilter struct {
-	group  string // 组标签
-	option string // 选项文本
+	group  string
+	option string
 }
 
 // collectFilters 把入参展开成待应用的筛选项，顺便校验取值。
-//
-// 校验放在这里是为了在打开浏览器之前就挡掉写错的值——否则要等导航、悬停、
-// 在面板里找不到之后才能报错，等于为了说一句"你写错了"先向平台发一次请求。
+// 校验放在打开浏览器之前，写错的值不该先向平台发一次请求再报错。
 func collectFilters(filters []FilterOption) ([]pendingFilter, error) {
 	var pending []pendingFilter
 
@@ -84,13 +79,11 @@ func collectFilters(filters []FilterOption) ([]pendingFilter, error) {
 }
 
 type SearchAction struct {
-	page *rod.Page
+	page playwright.Page
 }
 
-func NewSearchAction(page *rod.Page) *SearchAction {
-	pp := page.Timeout(60 * time.Second)
-
-	return &SearchAction{page: pp}
+func NewSearchAction(page playwright.Page) *SearchAction {
+	return &SearchAction{page: page}
 }
 
 func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...FilterOption) ([]Feed, error) {
@@ -100,31 +93,43 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 		return nil, err
 	}
 
-	// 注意 .Context(ctx) 会替换掉 NewSearchAction 里设的 60s deadline，必须在其后重新 Timeout，
-	// 否则搜索页不 stable 时 MustWaitStable/MustWait 会永久挂起（无 deadline 可依赖）。
-	page := s.page.Context(ctx).Timeout(60 * time.Second)
-
+	page := s.page
 	searchURL := makeSearchURL(keyword)
-	page.MustNavigate(searchURL)
-	page.MustWaitStable()
-	page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
+	if _, err := page.Goto(searchURL, playwright.PageGotoOptions{
+		WaitUntil: playwright.WaitUntilStateDomcontentloaded,
+		Timeout:   playwright.Float(60_000),
+	}); err != nil {
+		return nil, fmt.Errorf("导航搜索页失败: %w", err)
+	}
+	if _, err := page.WaitForFunction(`() => window.__INITIAL_STATE__ !== undefined`, nil,
+		playwright.PageWaitForFunctionOptions{Timeout: playwright.Float(60_000)}); err != nil {
+		return nil, fmt.Errorf("等待页面状态失败: %w", err)
+	}
 	humanize.Delay(ctx, humanize.AfterNavigate)
 
 	if len(pending) > 0 {
 		// 悬停在筛选按钮上展开面板
-		filterButton := page.MustElement(`div.filter`)
+		filterButton, err := page.QuerySelector(`div.filter`)
+		if err != nil || filterButton == nil {
+			return nil, fmt.Errorf("未找到筛选按钮: %w", err)
+		}
 		if err := humanize.Hover(filterButton); err != nil {
 			return nil, fmt.Errorf("悬停筛选按钮失败: %w", err)
 		}
 		humanize.Delay(ctx, humanize.BeforeClick)
 
 		// 等待筛选面板出现
-		page.MustWait(`() => document.querySelector('div.filter-panel') !== null`)
+		if _, err := page.WaitForSelector(`div.filter-panel`, playwright.PageWaitForSelectorOptions{
+			State:   playwright.WaitForSelectorStateAttached,
+			Timeout: playwright.Float(10_000),
+		}); err != nil {
+			return nil, fmt.Errorf("等待筛选面板失败: %w", err)
+		}
 
 		// 记下筛选前的结果，用来判断筛选后的数据什么时候到位
 		before := readFeedIDs(page)
 
-		// 用 ClickNoWait：筛选面板是 hover 浮层，rod 的 WaitInteractable 会误判被遮挡而死等；
+		// 用 ClickNoWait：筛选面板是 hover 浮层，遮挡校验会误判而死等；
 		// ClickNoWait 移进面板内选项（维持 hover、面板不关）再点。
 		for _, pf := range pending {
 			option, err := findFilterOption(page, pf)
@@ -140,7 +145,7 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 		waitFeedsChanged(page, before, 15*time.Second)
 	}
 
-	result := page.MustEval(`() => {
+	result := evalString(page, `() => {
 		if (window.__INITIAL_STATE__ &&
 		    window.__INITIAL_STATE__.search &&
 		    window.__INITIAL_STATE__.search.feeds) {
@@ -151,7 +156,7 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 			}
 		}
 		return "";
-	}`).String()
+	}`)
 
 	if result == "" {
 		return nil, errors.ErrNoFeeds
@@ -172,23 +177,14 @@ const feedIDsJS = `() => {
 	return v ? v.map(x => x.id).join(",") : "";
 }`
 
-func readFeedIDs(page *rod.Page) string {
-	res, err := page.Eval(feedIDsJS)
-	if err != nil {
-		return ""
-	}
-	return res.Value.Str()
+func readFeedIDs(page playwright.Page) string {
+	return evalString(page, feedIDsJS)
 }
 
 // waitFeedsChanged 等筛选后的数据到位。
-//
-// 点完筛选项之后不能立刻读结果：站点是先把 feeds 清空、再灌入新数据，
-// 中间这段时间读到的要么是空，要么还是筛选前那一批。原先用
-// MustWait(__INITIAL_STATE__ !== undefined) 等，而这个条件从首屏起就为真、
-// 立即返回，等于没等——多个筛选项一起用时表现为只有一部分生效。
-//
-// 超时不报错：筛选已经点上了，宁可返回可能偏旧的数据，也不要整个搜索失败。
-func waitFeedsChanged(page *rod.Page, before string, timeout time.Duration) {
+// 点完筛选项之后不能立刻读结果：站点先把 feeds 清空再灌新数据，
+// 超时不报错——筛选已点上，宁可返回偏旧数据也不要整个搜索失败。
+func waitFeedsChanged(page playwright.Page, before string, timeout time.Duration) {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		if now := readFeedIDs(page); now != "" && now != before {
@@ -200,38 +196,31 @@ func waitFeedsChanged(page *rod.Page, before string, timeout time.Duration) {
 }
 
 // findFilterOption 在筛选面板里定位一个选项：按标签找到组，再在组内按文本找选项。
-//
-// 全程不用序号。同一个选项在面板里可能渲染成多个 div.tags（数量随视口而变，
-// 且首项是否重复各组不一致），下标对不齐；早前用 div.tags:nth-child(N) 会选错项。
-// 多份重复的位置尺寸完全相同，取第一个点下去落在同一处。
-//
-// 作用域必须限定在 div.filter-panel 内且只认 div.tags：页面别处存在同文本的
-// 可见元素（顶部频道栏的「图文」「视频」、标签「综合」），放宽会点错地方。
-func findFilterOption(page *rod.Page, pf pendingFilter) (*rod.Element, error) {
-	groups, err := page.Elements("div.filter-panel div.filters")
+// 全程不用序号；作用域限定在 div.filter-panel 内且只认 div.tags，避免点错同文本元素。
+func findFilterOption(page playwright.Page, pf pendingFilter) (playwright.ElementHandle, error) {
+	groups, err := page.QuerySelectorAll("div.filter-panel div.filters")
 	if err != nil {
 		return nil, fmt.Errorf("读取筛选面板失败: %w", err)
 	}
 
 	for _, group := range groups {
-		// 组标签是 div.filters 下的直接子 span
-		label, err := group.Element(":scope > span")
-		if err != nil {
+		label, err := group.QuerySelector(":scope > span")
+		if err != nil || label == nil {
 			continue
 		}
-		text, err := label.Text()
+		text, err := label.InnerText()
 		if err != nil || strings.TrimSpace(text) != pf.group {
 			continue
 		}
 
-		options, err := group.Elements("div.tags")
+		options, err := group.QuerySelectorAll("div.tags")
 		if err != nil {
 			return nil, fmt.Errorf("读取「%s」的选项失败: %w", pf.group, err)
 		}
 
 		var available []string
 		for _, opt := range options {
-			t, err := opt.Text()
+			t, err := opt.InnerText()
 			if err != nil {
 				continue
 			}
@@ -249,12 +238,8 @@ func findFilterOption(page *rod.Page, pf pendingFilter) (*rod.Element, error) {
 }
 
 func makeSearchURL(keyword string) string {
-
 	values := url.Values{}
 	values.Set("keyword", keyword)
 	values.Set("source", "web_explore_feed")
-
-	//https://www.xiaohongshu.com/search_result?keyword=%25E7%258E%258B%25E5%25AD%2590&source=web_search_result_notes
-	//https://www.xiaohongshu.com/search_result?keyword=%25E7%258E%258B%25E5%25AD%2590&source=web_explore_feed
 	return fmt.Sprintf("https://www.xiaohongshu.com/search_result?%s", values.Encode())
 }

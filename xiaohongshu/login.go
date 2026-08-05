@@ -5,34 +5,38 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/go-rod/rod"
 	"github.com/pkg/errors"
+	"github.com/playwright-community/playwright-go"
 )
 
 type LoginAction struct {
-	page *rod.Page
+	page playwright.Page
 }
 
-func NewLogin(page *rod.Page) *LoginAction {
+func NewLogin(page playwright.Page) *LoginAction {
 	return &LoginAction{page: page}
 }
 
+// loginChannelSelector 登录后侧边栏「我」频道的标识元素。
+const loginChannelSelector = `.main-container .user .link-wrapper .channel`
+
 func (a *LoginAction) CheckLoginStatus(ctx context.Context) (bool, error) {
-	// 加超时保护：只是查登录态的快速检查，不应无限挂（登录扫码的等待在 Login/WaitForLogin 里）
-	pp := a.page.Context(ctx).Timeout(30 * time.Second)
-	pp.MustNavigate("https://www.xiaohongshu.com/explore").MustWaitLoad()
+	if _, err := a.page.Goto("https://www.xiaohongshu.com/explore", playwright.PageGotoOptions{
+		WaitUntil: playwright.WaitUntilStateLoad,
+		Timeout:   playwright.Float(30_000),
+	}); err != nil {
+		return false, errors.Wrap(err, "check login status navigate failed")
+	}
 
 	time.Sleep(1 * time.Second)
 
-	exists, _, err := pp.Has(`.main-container .user .link-wrapper .channel`)
+	el, err := a.page.QuerySelector(loginChannelSelector)
 	if err != nil {
 		return false, errors.Wrap(err, "check login status failed")
 	}
-
-	if !exists {
-		return false, errors.Wrap(err, "login status element not found")
+	if el == nil {
+		return false, errors.New("login status element not found")
 	}
-
 	return true, nil
 }
 
@@ -45,9 +49,7 @@ type CurrentUser struct {
 // CurrentUser 从当前页面的 __INITIAL_STATE__ 读取登录用户信息。
 // 需在 CheckLoginStatus 之后调用：复用已加载的 explore 页，不做额外导航。
 func (a *LoginAction) CurrentUser(ctx context.Context) (*CurrentUser, error) {
-	pp := a.page.Context(ctx).Timeout(10 * time.Second)
-
-	res, err := pp.Eval(`() => {
+	res, err := a.page.Evaluate(`() => {
 		const u = window.__INITIAL_STATE__ && window.__INITIAL_STATE__.user;
 		const info = u && u.userInfo && u.userInfo.value !== undefined ? u.userInfo.value : (u && u.userInfo);
 		if (!info || info.guest) return "";
@@ -57,7 +59,7 @@ func (a *LoginAction) CurrentUser(ctx context.Context) (*CurrentUser, error) {
 		return nil, errors.Wrap(err, "read current user state failed")
 	}
 
-	raw := res.Value.String()
+	raw, _ := res.(string)
 	if raw == "" {
 		return nil, errors.New("current user not found in page state")
 	}
@@ -66,52 +68,60 @@ func (a *LoginAction) CurrentUser(ctx context.Context) (*CurrentUser, error) {
 	if err := json.Unmarshal([]byte(raw), &user); err != nil {
 		return nil, errors.Wrap(err, "unmarshal current user failed")
 	}
-
 	return &user, nil
 }
 
 func (a *LoginAction) Login(ctx context.Context) error {
-	pp := a.page.Context(ctx)
-
-	// 导航到小红书首页，这会触发二维码弹窗
-	pp.MustNavigate("https://www.xiaohongshu.com/explore").MustWaitLoad()
+	if _, err := a.page.Goto("https://www.xiaohongshu.com/explore", playwright.PageGotoOptions{
+		WaitUntil: playwright.WaitUntilStateLoad,
+		Timeout:   playwright.Float(60_000),
+	}); err != nil {
+		return errors.Wrap(err, "navigate to explore failed")
+	}
 
 	time.Sleep(2 * time.Second)
 
-	if exists, _, _ := pp.Has(".main-container .user .link-wrapper .channel"); exists {
+	if el, _ := a.page.QuerySelector(loginChannelSelector); el != nil {
 		return nil
 	}
 
-	pp.MustElement(".main-container .user .link-wrapper .channel")
-
-	return nil
+	// 等待登录元素出现（扫码完成后）
+	_, err := a.page.WaitForSelector(loginChannelSelector, playwright.PageWaitForSelectorOptions{
+		State:   playwright.WaitForSelectorStateAttached,
+		Timeout: playwright.Float(120_000),
+	})
+	return err
 }
 
 func (a *LoginAction) FetchQrcodeImage(ctx context.Context) (string, bool, error) {
-	pp := a.page.Context(ctx)
-
-	// 导航到小红书首页，这会触发二维码弹窗
-	pp.MustNavigate("https://www.xiaohongshu.com/explore").MustWaitLoad()
+	if _, err := a.page.Goto("https://www.xiaohongshu.com/explore", playwright.PageGotoOptions{
+		WaitUntil: playwright.WaitUntilStateLoad,
+		Timeout:   playwright.Float(60_000),
+	}); err != nil {
+		return "", false, errors.Wrap(err, "navigate to explore failed")
+	}
 
 	time.Sleep(2 * time.Second)
 
-	if exists, _, _ := pp.Has(".main-container .user .link-wrapper .channel"); exists {
+	if el, _ := a.page.QuerySelector(loginChannelSelector); el != nil {
 		return "", true, nil
 	}
 
-	src, err := pp.MustElement(".login-container .qrcode-img").Attribute("src")
+	qr, err := a.page.QuerySelector(".login-container .qrcode-img")
+	if err != nil || qr == nil {
+		return "", false, errors.New("qrcode image element not found")
+	}
+	src, err := qr.GetAttribute("src")
 	if err != nil {
 		return "", false, errors.Wrap(err, "get qrcode src failed")
 	}
-	if src == nil || len(*src) == 0 {
+	if src == "" {
 		return "", false, errors.New("qrcode src is empty")
 	}
-
-	return *src, false, nil
+	return src, false, nil
 }
 
 func (a *LoginAction) WaitForLogin(ctx context.Context) bool {
-	pp := a.page.Context(ctx)
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 
@@ -120,7 +130,7 @@ func (a *LoginAction) WaitForLogin(ctx context.Context) bool {
 		case <-ctx.Done():
 			return false
 		case <-ticker.C:
-			el, err := pp.Element(".main-container .user .link-wrapper .channel")
+			el, err := a.page.QuerySelector(loginChannelSelector)
 			if err == nil && el != nil {
 				return true
 			}

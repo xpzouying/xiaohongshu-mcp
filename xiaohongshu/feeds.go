@@ -6,30 +6,34 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-rod/rod"
+	"github.com/playwright-community/playwright-go"
 	"github.com/xpzouying/xiaohongshu-mcp/errors"
 )
 
 type FeedsListAction struct {
-	page *rod.Page
+	page playwright.Page
 }
 
-func NewFeedsListAction(page *rod.Page) *FeedsListAction {
-	pp := page.Timeout(60 * time.Second)
+func NewFeedsListAction(page playwright.Page) *FeedsListAction {
+	if _, err := page.Goto("https://www.xiaohongshu.com", playwright.PageGotoOptions{
+		WaitUntil: playwright.WaitUntilStateDomcontentloaded,
+		Timeout:   playwright.Float(60_000),
+	}); err != nil {
+		logActionError("navigate to xiaohongshu home", err)
+	}
+	// 等 __INITIAL_STATE__ 注水；超时由 GetFeedsList 的轮询兜底
+	_, _ = page.WaitForFunction(`() => window.__INITIAL_STATE__ !== undefined`, nil,
+		playwright.PageWaitForFunctionOptions{Timeout: playwright.Float(15_000)})
 
-	pp.MustNavigate("https://www.xiaohongshu.com")
-	pp.MustWaitDOMStable()
-
-	return &FeedsListAction{page: pp}
+	return &FeedsListAction{page: page}
 }
 
 // GetFeedsList 获取页面的 Feed 列表数据
 func (f *FeedsListAction) GetFeedsList(ctx context.Context) ([]Feed, error) {
-	// 重设超时：.Context(ctx) 会替换掉构造函数里 Timeout(60s) 的 deadline
-	page := f.page.Context(ctx).Timeout(60 * time.Second)
+	page := f.page
 
 	readFeeds := func() string {
-		return page.MustEval(`() => {
+		res, err := page.Evaluate(`() => {
 			if (window.__INITIAL_STATE__ &&
 			    window.__INITIAL_STATE__.feed &&
 			    window.__INITIAL_STATE__.feed.feeds) {
@@ -40,13 +44,21 @@ func (f *FeedsListAction) GetFeedsList(ctx context.Context) ([]Feed, error) {
 				}
 			}
 			return "";
-		}`).String()
+		}`)
+		if err != nil {
+			return ""
+		}
+		s, _ := res.(string)
+		return s
 	}
 
 	// 轮询等 __INITIAL_STATE__.feed 注水就绪（替代固定 1s，治偶发 ErrNoFeeds）
 	var result string
 	deadline := time.Now().Add(8 * time.Second)
 	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		if result = readFeeds(); result != "" || time.Now().After(deadline) {
 			break
 		}

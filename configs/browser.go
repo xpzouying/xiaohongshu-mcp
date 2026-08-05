@@ -14,8 +14,8 @@ var (
 
 	proxy = ""
 
-	// chromeBin 由入口 Resolve 后写入，供 browser 工厂使用。
-	chromeBin = ""
+	// camoufoxBin 由入口 Resolve 后写入，供 browser 工厂使用。
+	camoufoxBin = ""
 )
 
 func InitHeadless(h bool) {
@@ -63,12 +63,12 @@ func ProxyFromEnv() string {
 	return os.Getenv("XHS_PROXY")
 }
 
-// SetChromeBin 记录已解析的浏览器路径。
-func SetChromeBin(p string) {
-	chromeBin = p
+// SetCamoufoxBin 记录已解析的 Camoufox 二进制路径。
+func SetCamoufoxBin(p string) {
+	camoufoxBin = p
 }
 
-// ChromeBin 返回入口已解析的浏览器路径（可能为空，表示调用方未预解析）。
-func ChromeBin() string {
-	return chromeBin
+// CamoufoxBin 返回入口已解析的 Camoufox 路径（可能为空，表示调用方未预解析）。
+func CamoufoxBin() string {
+	return camoufoxBin
 }

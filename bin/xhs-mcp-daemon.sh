@@ -8,7 +8,7 @@
 # stays clean. Override with XHS_MCP_STATE_HOME.
 #
 # Usage:
-#   ./bin/xhs-mcp-daemon.sh start|stop|restart|status|health|logs|cleanup-rod
+#   ./bin/xhs-mcp-daemon.sh start|stop|restart|status|health|logs|cleanup
 
 set -euo pipefail
 
@@ -63,7 +63,9 @@ do_start() {
 		# shellcheck disable=SC2086
 		nohup env \
 			COOKIES_PATH="${COOKIES_PATH:-$XHS_MCP_DIR/cookies.json}" \
-			XHS_BROWSER_BIN="${XHS_BROWSER_BIN:-}" \
+			XHS_CAMOUFOX_BIN="${XHS_CAMOUFOX_BIN:-}" \
+			PLAYWRIGHT_DRIVER_PATH="${PLAYWRIGHT_DRIVER_PATH:-}" \
+			PLAYWRIGHT_NODEJS_PATH="${PLAYWRIGHT_NODEJS_PATH:-}" \
 			XHS_RISK_STREAK_LIMIT="${XHS_RISK_STREAK_LIMIT:-}" \
 			XHS_FP_SEED="${XHS_FP_SEED:-}" \
 			XHS_PROXY="${XHS_PROXY:-}" \
@@ -100,12 +102,12 @@ do_stop() {
 		stopped=1
 	fi
 	[ "$stopped" = 1 ] && log_info "xiaohongshu-mcp stopped" || log_info "xiaohongshu-mcp was not running"
-	# 常驻浏览器退出后偶发 rod 临时 profile 残留
-	cleanup_rod || true
+	# 常驻浏览器退出后偶发 Camoufox 临时 profile 残留
+	cleanup_camoufox || true
 }
 
 do_status() {
-	local p rod
+	local p cf
 	p="$(port_pid "$PORT" || true)"
 	echo "xiaohongshu-mcp  project=$XHS_MCP_DIR  state=$STATE_HOME"
 	if [ -n "$p" ]; then
@@ -113,8 +115,8 @@ do_status() {
 	else
 		printf "  :%s  ${RED}STOPPED${NC}  start: %s start\n" "$PORT" "$0"
 	fi
-	rod="$(pgrep -f 'rod/user-data' 2>/dev/null | wc -l | tr -d ' ')"
-	echo "  rod-Chrome procs: $rod  (run cleanup-rod if orphans pile up after use)"
+	cf="$(pgrep -f 'camoufox-profile' 2>/dev/null | wc -l | tr -d ' ')"
+	echo "  camoufox procs: $cf  (run cleanup if orphans pile up after use)"
 }
 
 do_health() {
@@ -130,19 +132,19 @@ do_health() {
 	return 1
 }
 
-cleanup_rod() {
-	# rod leakless only reaps when the daemon dies; long-lived daemon leaves orphans
+cleanup_camoufox() {
+	# 常驻 Camoufox 用临时 profile（camoufox-profile-*）；进程退出后偶发残留，这里清孤儿进程
 	local n
-	n="$(pgrep -f 'rod/user-data' 2>/dev/null | wc -l | tr -d ' ')"
+	n="$(pgrep -f 'camoufox-profile' 2>/dev/null | wc -l | tr -d ' ')"
 	if [ "${n:-0}" = "0" ]; then
-		log_info "no rod/user-data Chrome processes"
+		log_info "no orphan camoufox processes"
 		return 0
 	fi
-	log_info "reaping $n rod/user-data process group(s)..."
-	pkill -f 'rod/user-data' 2>/dev/null || true
+	log_info "reaping $n camoufox process(es)..."
+	pkill -f 'camoufox-profile' 2>/dev/null || true
 	sleep 0.5
-	n="$(pgrep -f 'rod/user-data' 2>/dev/null | wc -l | tr -d ' ')"
-	log_info "remaining rod procs: $n"
+	n="$(pgrep -f 'camoufox-profile' 2>/dev/null | wc -l | tr -d ' ')"
+	log_info "remaining camoufox procs: $n"
 }
 
 case "${1:-status}" in
@@ -152,10 +154,10 @@ case "${1:-status}" in
 	status)  do_status ;;
 	health|health-check) do_health ;;
 	logs)    tail -f "$LOG_FILE" ;;
-	cleanup-rod|cleanup) cleanup_rod ;;
+	cleanup-rod|cleanup-camoufox|cleanup) cleanup_camoufox ;;
 	*)
 		cat <<EOF
-Usage: $0 {start|stop|restart|status|health|logs|cleanup-rod}
+Usage: $0 {start|stop|restart|status|health|logs|cleanup}
 
 Project cwd: $XHS_MCP_DIR  (required for cookies.json)
 Binary:      $BIN
