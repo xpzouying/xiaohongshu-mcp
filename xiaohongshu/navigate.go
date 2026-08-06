@@ -19,7 +19,7 @@ func NewNavigate(page *rod.Page) *NavigateAction {
 func (n *NavigateAction) ToExplorePage(ctx context.Context) error {
 	page := n.page.Context(ctx).Timeout(60 * time.Second) // 加超时保护，避免 MustNavigate/MustWaitStable 无限挂
 
-	page.MustNavigate("https://www.xiaohongshu.com/explore").
+	page.MustNavigate(Site().Home).
 		MustWaitLoad().
 		MustElement(`div#app`)
 

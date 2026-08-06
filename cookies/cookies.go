@@ -2,6 +2,7 @@ package cookies
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -145,4 +146,15 @@ func GetCookiesFilePath() string {
 	}
 
 	return localCookiesPath
+}
+
+// GetCookiesFilePathForSite 按站点返回 cookies 文件路径。
+// 默认站点(xiaohongshu)沿用 GetCookiesFilePath 的兼容逻辑;
+// 其他站点(如 rednote)在同目录使用 cookies-<site>.json,登录态彼此隔离。
+func GetCookiesFilePathForSite(site string) string {
+	base := GetCookiesFilePath()
+	if site == "" || site == "xiaohongshu" {
+		return base
+	}
+	return filepath.Join(filepath.Dir(base), fmt.Sprintf("cookies-%s.json", site))
 }

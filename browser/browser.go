@@ -11,6 +11,7 @@ import (
 )
 
 type browserConfig struct {
+	site string // 站点标识,决定加载哪份 cookies(空值为默认站点)
 	// fingerprintSeed 固定指纹 seed；>0 时钉死，同账号每次同一套指纹。0 = 每次随机。
 	fingerprintSeed int
 	// proxy 代理地址；非空时启用。
@@ -30,6 +31,13 @@ func WithProxy(proxy string) Option {
 func WithFingerprintSeed(seed int) Option {
 	return func(c *browserConfig) {
 		c.fingerprintSeed = seed
+	}
+}
+
+// WithSite 指定站点(xiaohongshu / rednote),不同站点的 cookies 相互隔离。
+func WithSite(site string) Option {
+	return func(c *browserConfig) {
+		c.site = site
 	}
 }
 
@@ -86,8 +94,8 @@ func NewBrowser(headless bool, options ...Option) *headless_browser.Browser {
 		logrus.Infof("fingerprint seed pinned: %d", cfg.fingerprintSeed)
 	}
 
-	// 加载 cookies
-	cookiePath := cookies.GetCookiesFilePath()
+	// 加载 cookies(按站点隔离)
+	cookiePath := cookies.GetCookiesFilePathForSite(cfg.site)
 	cookieLoader := cookies.NewLoadCookie(cookiePath)
 
 	if data, err := cookieLoader.LoadCookies(); err == nil {
