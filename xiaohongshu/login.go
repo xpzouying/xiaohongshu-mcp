@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-rod/rod"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 )
 
 type LoginAction struct {
@@ -20,21 +21,22 @@ func NewLogin(page *rod.Page) *LoginAction {
 func (a *LoginAction) CheckLoginStatus(ctx context.Context) (bool, error) {
 	// 加超时保护：只是查登录态的快速检查，不应无限挂（登录扫码的等待在 Login/WaitForLogin 里）
 	pp := a.page.Context(ctx).Timeout(30 * time.Second)
-	pp.MustNavigate("https://www.xiaohongshu.com/explore").MustWaitLoad()
+	applySiteLocale(pp)
+	pp.MustNavigate(Site().Home).MustWaitLoad()
 
 	time.Sleep(1 * time.Second)
 
-	exists, _, err := pp.Has(`.main-container .user .link-wrapper .channel`)
+	exists, _, err := pp.Has(Site().LoggedInSel)
 	if err != nil {
 		return false, errors.Wrap(err, "check login status failed")
 	}
 
-	if !exists {
-		return false, errors.Wrap(err, "login status element not found")
-	}
-
-	return true, nil
+	return exists, nil
 }
+
+// Login 打开站点首页,等待用户在窗口中完成登录(扫码/手机验证码均可)。
+// 轮询已登录标志,最长等待 loginWaitTimeout;比旧版的单次 MustElement 更鲁棒。
+const loginWaitTimeout = 10 * time.Minute
 
 // CurrentUser 当前登录用户的基础信息。
 type CurrentUser struct {
@@ -72,33 +74,52 @@ func (a *LoginAction) CurrentUser(ctx context.Context) (*CurrentUser, error) {
 
 func (a *LoginAction) Login(ctx context.Context) error {
 	pp := a.page.Context(ctx)
-
-	// 导航到小红书首页，这会触发二维码弹窗
-	pp.MustNavigate("https://www.xiaohongshu.com/explore").MustWaitLoad()
+	applySiteLocale(pp)
+	pp.MustNavigate(Site().Home).MustWaitLoad()
 
 	time.Sleep(2 * time.Second)
 
-	if exists, _, _ := pp.Has(".main-container .user .link-wrapper .channel"); exists {
+	if exists, _, _ := pp.Has(Site().LoggedInSel); exists {
 		return nil
 	}
 
-	pp.MustElement(".main-container .user .link-wrapper .channel")
+	logrus.Infof("请在浏览器窗口中完成 %s 登录(扫码或手机验证码),最长等待 %v...", Site().Name, loginWaitTimeout)
 
-	return nil
+	deadline := time.NewTimer(loginWaitTimeout)
+	defer deadline.Stop()
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-deadline.C:
+			return errors.Errorf("等待登录超时(%v)", loginWaitTimeout)
+		case <-ticker.C:
+			if exists, _, _ := pp.Has(Site().LoggedInSel); exists {
+				logrus.Info("检测到登录成功")
+				// 稍等让会话 cookie 全部落定
+				time.Sleep(2 * time.Second)
+				return nil
+			}
+		}
+	}
 }
 
 func (a *LoginAction) FetchQrcodeImage(ctx context.Context) (string, bool, error) {
 	pp := a.page.Context(ctx)
+	applySiteLocale(pp)
 
-	// 导航到小红书首页，这会触发二维码弹窗
-	pp.MustNavigate("https://www.xiaohongshu.com/explore").MustWaitLoad()
+	pp.MustNavigate(Site().Home).MustWaitLoad()
 
 	time.Sleep(2 * time.Second)
 
-	if exists, _, _ := pp.Has(".main-container .user .link-wrapper .channel"); exists {
+	if exists, _, _ := pp.Has(Site().LoggedInSel); exists {
 		return "", true, nil
 	}
 
+	// 获取二维码图片(海外站可能无扫码入口,此时返回错误,请改用窗口手动登录)
 	src, err := pp.MustElement(".login-container .qrcode-img").Attribute("src")
 	if err != nil {
 		return "", false, errors.Wrap(err, "get qrcode src failed")
@@ -120,7 +141,7 @@ func (a *LoginAction) WaitForLogin(ctx context.Context) bool {
 		case <-ctx.Done():
 			return false
 		case <-ticker.C:
-			el, err := pp.Element(".main-container .user .link-wrapper .channel")
+			el, err := pp.Element(Site().LoggedInSel)
 			if err == nil && el != nil {
 				return true
 			}

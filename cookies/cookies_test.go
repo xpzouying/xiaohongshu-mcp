@@ -172,3 +172,17 @@ func TestSaveCookies_CreatesParentDir(t *testing.T) {
 	assert.NoError(t, json.Unmarshal(got, &cks))
 	assert.Equal(t, "a", cks[0]["name"])
 }
+
+// TestGetCookiesFilePathForSite 校验站点隔离：默认站点沿用原路径，其他站点用 cookies-<site>.json。
+func TestGetCookiesFilePathForSite(t *testing.T) {
+	t.Setenv("COOKIES_PATH", "/data/cookies.json")
+
+	t.Run("默认站点与空站点沿用原路径", func(t *testing.T) {
+		assert.Equal(t, "/data/cookies.json", GetCookiesFilePathForSite("xiaohongshu"))
+		assert.Equal(t, "/data/cookies.json", GetCookiesFilePathForSite(""))
+	})
+
+	t.Run("其他站点在同目录使用带站点后缀的文件", func(t *testing.T) {
+		assert.Equal(t, "/data/cookies-rednote.json", GetCookiesFilePathForSite("rednote"))
+	})
+}

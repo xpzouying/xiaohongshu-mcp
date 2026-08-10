@@ -46,6 +46,8 @@ type UserProfileAction struct {
 
 func NewUserProfileAction(page *rod.Page) *UserProfileAction {
 	pp := page.Timeout(60 * time.Second)
+	// selectTab 按中文 tab 文本定位;海外站(rednote)须强制中文渲染,与 login/publish 入口一致
+	applySiteLocale(pp)
 	return &UserProfileAction{page: pp}
 }
 
@@ -138,7 +140,7 @@ func (u *UserProfileAction) extractUserProfileData(page *rod.Page, tab ProfileTa
 }
 
 func makeUserProfileURL(userID, xsecToken string, tab ProfileTab) string {
-	url := fmt.Sprintf("https://www.xiaohongshu.com/user/profile/%s?xsec_token=%s&xsec_source=pc_note", userID, xsecToken)
+	url := fmt.Sprintf("%s/user/profile/%s?xsec_token=%s&xsec_source=pc_note", Site().Base, userID, xsecToken)
 	if tab != "" && tab != TabNotes {
 		url += fmt.Sprintf("&tab=%s&subTab=note", tab)
 	}

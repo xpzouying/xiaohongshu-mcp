@@ -14,15 +14,22 @@ import (
 )
 
 func main() {
+	var site string // 站点: xiaohongshu | rednote
+	flag.StringVar(&site, "site", xiaohongshu.SiteXiaohongshu, "站点: xiaohongshu | rednote")
 	flag.Parse()
 
+	if err := xiaohongshu.SetSite(site); err != nil {
+		logrus.Fatalf("站点配置错误: %v", err)
+	}
+
 	// 登录的时候，需要界面，所以不能无头模式。
-	// 登录与后续运行共用同一个 seed：首次登录生成并写入会话文件，之后一直复用。
-	store := cookies.NewLoadCookie(cookies.GetCookiesFilePath())
+	// 登录与后续运行共用同一个 seed：首次登录生成并写入会话文件，之后一直复用(会话文件按站点隔离)。
+	store := cookies.NewLoadCookie(cookies.GetCookiesFilePathForSite(site))
 
 	b := browser.NewBrowser(false,
 		browser.WithFingerprintSeed(configs.ResolveFingerprintSeed(store)),
 		browser.WithProxy(configs.ProxyFromEnv()),
+		browser.WithSite(site),
 	)
 	defer b.Close()
 
@@ -77,6 +84,6 @@ func saveCookies(page *rod.Page) error {
 		return err
 	}
 
-	cookieLoader := cookies.NewLoadCookie(cookies.GetCookiesFilePath())
+	cookieLoader := cookies.NewLoadCookie(cookies.GetCookiesFilePathForSite(xiaohongshu.Site().Name))
 	return cookieLoader.SaveCookies(data)
 }
