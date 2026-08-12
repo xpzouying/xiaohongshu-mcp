@@ -499,6 +499,22 @@ XHS_PROXY=http://proxy:port go run .
 
 支持 HTTP/HTTPS/SOCKS5 代理，日志中会自动隐藏代理的认证信息。
 
+**访问鉴权（可选）**：
+
+默认关闭鉴权。生产环境建议使用 `AUTH_TOKEN` 环境变量配置；启动参数优先于环境变量。
+
+```bash
+# 环境变量
+AUTH_TOKEN=your-secret-token ./xiaohongshu-mcp-darwin-arm64
+AUTH_TOKEN=your-secret-token go run .
+
+# 启动参数（优先于环境变量）
+./xiaohongshu-mcp-darwin-arm64 -token=your-secret-token
+go run . -token=your-secret-token
+```
+
+启用鉴权后，所有 MCP 客户端都必须配置自定义请求头 `Authorization: Bearer <token>`。命令行参数可能被进程列表看到，部署环境优先使用 `AUTH_TOKEN`。
+
 ## 1.4. 验证 MCP
 
 ```bash
@@ -557,6 +573,7 @@ go run . -headless=false
 # 测试 MCP 连接
 curl -X POST http://localhost:18060/mcp \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your-secret-token" \
   -d '{"jsonrpc":"2.0","method":"initialize","params":{},"id":1}'
 ```
 
