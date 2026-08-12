@@ -126,6 +126,7 @@ func TestProtectedRoutesRequireBearerToken(t *testing.T) {
 	}{
 		{name: "health remains public", method: http.MethodGet, path: "/health", wantStatus: http.StatusOK},
 		{name: "MCP requires token", method: http.MethodPost, path: "/mcp", wantStatus: http.StatusUnauthorized},
+		{name: "MCP child path requires token", method: http.MethodPost, path: "/mcp/child", wantStatus: http.StatusUnauthorized},
 		{name: "HTTP API requires token", method: http.MethodGet, path: "/api/v1/notifications/unread", wantStatus: http.StatusUnauthorized},
 		{name: "CORS preflight remains public", method: http.MethodOptions, path: "/mcp", wantStatus: http.StatusNoContent},
 	}

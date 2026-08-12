@@ -45,8 +45,12 @@ func TestAuthMiddlewareRejectsInvalidCredentials(t *testing.T) {
 	}{
 		{name: "missing header"},
 		{name: "wrong scheme", authorization: "Basic secret-token"},
+		{name: "lowercase bearer scheme", authorization: "bearer secret-token"},
 		{name: "missing token", authorization: "Bearer "},
 		{name: "wrong token", authorization: "Bearer wrong-token"},
+		{name: "extra whitespace after scheme", authorization: "Bearer  secret-token"},
+		{name: "leading whitespace", authorization: " Bearer secret-token"},
+		{name: "trailing whitespace", authorization: "Bearer secret-token "},
 	}
 
 	for _, tt := range tests {
