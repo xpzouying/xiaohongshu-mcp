@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"os"
 
 	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/xiaohongshu-mcp/browser"
@@ -16,9 +17,11 @@ func main() {
 	var (
 		headless bool
 		port     string
+		token    string
 	)
 	flag.BoolVar(&headless, "headless", true, "是否无头模式")
 	flag.StringVar(&port, "port", ":18060", "端口")
+	flag.StringVar(&token, "token", os.Getenv("AUTH_TOKEN"), "鉴权 Token，留空则关闭鉴权")
 	flag.Parse()
 
 	logrus.Infof("xiaohongshu-mcp version: %s", version)
@@ -41,7 +44,7 @@ func main() {
 	xiaohongshuService := NewXiaohongshuService()
 
 	// 创建并启动应用服务器
-	appServer := NewAppServer(xiaohongshuService)
+	appServer := NewAppServer(xiaohongshuService, token)
 	if err := appServer.Start(port); err != nil {
 		logrus.Fatalf("failed to run server: %v", err)
 	}
