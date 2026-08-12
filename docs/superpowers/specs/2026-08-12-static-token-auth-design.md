@@ -7,8 +7,8 @@
 ## 配置
 
 - 新增启动参数 `-token`。
-- 新增环境变量 `XHS_TOKEN`。
-- `-token` 的默认值取自 `XHS_TOKEN`，因此显式启动参数优先。
+- 新增环境变量 `AUTH_TOKEN`。
+- `-token` 的默认值取自 `AUTH_TOKEN`，因此显式启动参数优先。
 - 最终 Token 为空时关闭鉴权，保证向后兼容。
 - 日志和错误响应均不输出 Token。
 
@@ -41,10 +41,10 @@ Authorization: Bearer <token>
 
 ## Docker 支持
 
-- Dockerfile 声明 `XHS_TOKEN` 的空默认值，不在镜像中写入真实密钥。
-- `docker/docker-compose.yml` 使用 `${XHS_TOKEN:-}` 从宿主环境透传。
+- Dockerfile 声明 `AUTH_TOKEN` 的空默认值，不在镜像中写入真实密钥。
+- `docker/docker-compose.yml` 使用 `${AUTH_TOKEN:-}` 从宿主环境透传。
 - 未设置宿主环境变量时，容器继续以无鉴权模式运行。
-- Docker 文档说明如何通过 `docker run -e XHS_TOKEN=...` 和 Compose 配置 Token。
+- Docker 文档说明如何通过 `docker run -e AUTH_TOKEN=...` 和 Compose 配置 Token。
 
 ## 文档
 
