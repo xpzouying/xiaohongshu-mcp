@@ -501,19 +501,32 @@ XHS_PROXY=http://proxy:port go run .
 
 **访问鉴权（可选）**：
 
-默认关闭鉴权。生产环境建议使用 `AUTH_TOKEN` 环境变量配置；启动参数优先于环境变量。
+默认关闭鉴权。生产环境建议使用 `AUTH_TOKEN` 环境变量配置；非空的启动参数优先于环境变量，留空则读取 `AUTH_TOKEN`。
 
 ```bash
 # 环境变量
 AUTH_TOKEN=your-secret-token ./xiaohongshu-mcp-darwin-arm64
 AUTH_TOKEN=your-secret-token go run .
 
-# 启动参数（优先于环境变量）
+# 非空启动参数（优先于环境变量）
 ./xiaohongshu-mcp-darwin-arm64 -token=your-secret-token
 go run . -token=your-secret-token
 ```
 
 启用鉴权后，所有 MCP 客户端都必须配置自定义请求头 `Authorization: Bearer <token>`。命令行参数可能被进程列表看到，部署环境优先使用 `AUTH_TOKEN`。
+
+例如，支持自定义请求头的 MCP 客户端可使用以下配置：
+
+```json
+{
+  "mcpServers": {
+    "xiaohongshu-mcp": {
+      "url": "http://localhost:18060/mcp",
+      "headers": { "Authorization": "Bearer your-secret-token" }
+    }
+  }
+}
+```
 
 ## 1.4. 验证 MCP
 

@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/subtle"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
@@ -10,7 +11,7 @@ import (
 
 // authMiddleware 静态 Bearer Token 鉴权中间件，Token 为空时关闭鉴权。
 func authMiddleware(token string) gin.HandlerFunc {
-	expectedAuthorization := []byte("Bearer " + token)
+	expectedToken := []byte(token)
 
 	return func(c *gin.Context) {
 		if token == "" {
@@ -18,8 +19,10 @@ func authMiddleware(token string) gin.HandlerFunc {
 			return
 		}
 
-		authorization := []byte(c.GetHeader("Authorization"))
-		if subtle.ConstantTimeCompare(authorization, expectedAuthorization) != 1 {
+		scheme, credentials, found := strings.Cut(c.GetHeader("Authorization"), " ")
+		credentials = strings.TrimLeft(credentials, " ")
+		if !found || !strings.EqualFold(scheme, "Bearer") ||
+			subtle.ConstantTimeCompare([]byte(credentials), expectedToken) != 1 {
 			c.Header("WWW-Authenticate", "Bearer")
 			respondError(c, http.StatusUnauthorized, "UNAUTHORIZED", "未授权", nil)
 			c.Abort()

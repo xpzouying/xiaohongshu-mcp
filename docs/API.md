@@ -8,6 +8,21 @@
 
 **注意**: 以下响应示例仅展示主要字段结构，完整的字段信息请通过实际API调用查看。
 
+## 访问鉴权（可选）
+
+鉴权默认关闭。设置环境变量 `AUTH_TOKEN` 或启动参数 `-token` 后，所有 `/api/v1/*` 和 `/mcp` 接口都需要携带 Bearer Token；`/health` 健康检查和 CORS `OPTIONS` 预检请求保持公开。非空的 `-token` 优先于 `AUTH_TOKEN`，留空则读取 `AUTH_TOKEN`。
+
+```bash
+# 启用鉴权
+AUTH_TOKEN=your-secret-token ./xiaohongshu-mcp
+
+# 调用 HTTP API
+curl http://localhost:18060/api/v1/login/status \
+  -H "Authorization: Bearer your-secret-token"
+```
+
+Token 缺失或无效时，接口返回 HTTP `401 Unauthorized`。命令行参数可能被进程列表看到，部署环境优先使用 `AUTH_TOKEN`。
+
 ## 通用响应格式
 
 所有 API 响应都使用统一的 JSON 格式：
