@@ -1,6 +1,7 @@
 {
   "files": [
-    "README.md"
+    "README.md",
+    "README_EN.md"
   ],
   "imageSize": 100,
   "commit": false,
@@ -185,7 +186,7 @@
       ]
     },
     {
-      "login": "triepod-ai",
+      "login": "bryankthompson",
       "name": "Bryan Thompson",
       "avatar_url": "https://avatars.githubusercontent.com/u/199543909?v=4",
       "profile": "https://triepod.ai",
@@ -266,6 +267,15 @@
       "name": "qiuxsgit",
       "avatar_url": "https://avatars.githubusercontent.com/u/15036686?v=4",
       "profile": "https://github.com/qiuxsgit",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "ZhuYichuan",
+      "name": "openlts",
+      "avatar_url": "https://avatars.githubusercontent.com/u/7954801?v=4",
+      "profile": "https://github.com/ZhuYichuan",
       "contributions": [
         "code"
       ]
