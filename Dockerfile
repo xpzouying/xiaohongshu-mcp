@@ -110,7 +110,6 @@ COPY --from=builder /out/app .
 
 ENV HOME=/app/data/home
 ENV XDG_CONFIG_HOME=/app/data/config
-ENV AUTH_TOKEN=""
 
 EXPOSE 18060
 
