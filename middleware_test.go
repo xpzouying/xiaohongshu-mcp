@@ -60,6 +60,8 @@ func TestAuthMiddlewareRejectsInvalidCredentials(t *testing.T) {
 		{name: "wrong scheme", authorization: "Basic secret-token"},
 		{name: "missing token", authorization: "Bearer "},
 		{name: "wrong token", authorization: "Bearer wrong-token"},
+		// 下面两个头部两侧带空格的用例只在内存态成立：真实请求经 net/textproto
+		// 解析时两侧 OWS 已被剥掉，客户端多打空格实际会放行，不会被拒。
 		{name: "leading whitespace", authorization: " Bearer secret-token"},
 		{name: "trailing whitespace", authorization: "Bearer secret-token "},
 	}
