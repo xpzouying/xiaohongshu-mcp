@@ -66,3 +66,8 @@ jobs:
           crpi-hocnvtkomt7w9v8t.cn-beijing.personal.cr.aliyuncs.com/xpzouying/xiaohongshu-mcp:latest
         cache-from: type=gha
         cache-to: type=gha,mode=max
+        # BuildKit v0.32 起默认附加 provenance / sbom 证明，其空配置描述符用
+        # application/vnd.oci.empty.v1+json，阿里云个人版 ACR 不认这个媒体类型，
+        # 会在推送时 denied。项目没用到这些证明，直接关掉。
+        provenance: false
+        sbom: false
