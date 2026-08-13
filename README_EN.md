@@ -503,6 +503,35 @@ XHS_PROXY=http://proxy:port go run .
 
 HTTP/HTTPS/SOCKS5 proxies are supported, and proxy credentials are automatically masked in the logs.
 
+**Optional authentication**:
+
+Authentication is disabled by default. In production, configure it with the `AUTH_TOKEN` environment variable; a non-empty startup flag takes precedence, while an empty value falls back to `AUTH_TOKEN`.
+
+```bash
+# Environment variable
+AUTH_TOKEN=your-secret-token ./xiaohongshu-mcp-darwin-arm64
+AUTH_TOKEN=your-secret-token go run .
+
+# Non-empty startup flag (takes precedence over the environment variable)
+./xiaohongshu-mcp-darwin-arm64 -token=your-secret-token
+go run . -token=your-secret-token
+```
+
+When authentication is enabled, every MCP client must configure the custom request header `Authorization: Bearer <token>`. Command-line arguments may be visible in process listings, so prefer `AUTH_TOKEN` in deployment environments.
+
+For example, MCP clients that support custom request headers can use the following configuration:
+
+```json
+{
+  "mcpServers": {
+    "xiaohongshu-mcp": {
+      "url": "http://localhost:18060/mcp",
+      "headers": { "Authorization": "Bearer your-secret-token" }
+    }
+  }
+}
+```
+
 ## 1.4. Verify MCP
 
 ```bash
@@ -561,6 +590,7 @@ Service will run at: `http://localhost:18060/mcp`
 # Test MCP connection
 curl -X POST http://localhost:18060/mcp \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your-secret-token" \
   -d '{"jsonrpc":"2.0","method":"initialize","params":{},"id":1}'
 ```
 

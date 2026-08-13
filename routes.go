@@ -36,11 +36,14 @@ func setupRoutes(appServer *AppServer) *gin.Engine {
 			Stateless: true,
 		},
 	)
-	router.Any("/mcp", gin.WrapH(mcpHandler))
-	router.Any("/mcp/*path", gin.WrapH(mcpHandler))
+	protected := router.Group("")
+	protected.Use(authMiddleware(appServer.authToken))
+
+	protected.Any("/mcp", gin.WrapH(mcpHandler))
+	protected.Any("/mcp/*path", gin.WrapH(mcpHandler))
 
 	// API 路由组
-	api := router.Group("/api/v1")
+	api := protected.Group("/api/v1")
 	{
 		api.GET("/login/status", appServer.checkLoginStatusHandler)
 		api.GET("/login/qrcode", appServer.getLoginQrcodeHandler)
