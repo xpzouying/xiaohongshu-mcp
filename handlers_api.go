@@ -19,7 +19,13 @@ func respondError(c *gin.Context, statusCode int, code, message string, details 
 		Details: details,
 	}
 
-	logrus.Errorf("%s %s %d", c.Request.Method, c.Request.URL.Path, statusCode)
+	// 4xx 是调用方传错，5xx 才是服务端故障，用日志级别区分开。
+	// 否则鉴权开启后被扫描器打，401 会把 ERROR 刷满。
+	if statusCode < http.StatusInternalServerError {
+		logrus.Warnf("%s %s %d", c.Request.Method, c.Request.URL.Path, statusCode)
+	} else {
+		logrus.Errorf("%s %s %d", c.Request.Method, c.Request.URL.Path, statusCode)
+	}
 
 	c.JSON(statusCode, response)
 }
