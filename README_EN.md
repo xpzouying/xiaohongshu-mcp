@@ -1038,9 +1038,9 @@ If you do not specifically need OpenClaw, we strongly recommend switching to a c
 
 > These are Chinese-language community groups — discussion in the groups is in Chinese.
 
-|                                                 WeChat Group 24                                     |                                                 WeChat Group 25                                      |
+|                                                 WeChat Group 25                                     |                                                 WeChat Group 26                                      |
 | :------------------------------------------------------------------------------------------------: | :------------------------------------------------------------------------------------------------: |
-| <img src="https://github.com/user-attachments/assets/918a48d5-1d3c-40ce-b225-4af0d77078db" alt="WechatIMG119" width="300"> | <img src="https://github.com/user-attachments/assets/c49ad483-0f27-46f3-a6a7-31b3ba31540f" alt="WechatIMG119" width="300">|
+| <img src="https://github.com/user-attachments/assets/c4c0f7a0-fc7c-453a-8bb9-890e53a907d4" alt="WechatIMG119" width="300"> | <img src="https://github.com/user-attachments/assets/e9569332-cac5-4e9e-92d8-c1498ef8699b" alt="WechatIMG119" width="300">|
 
 ### Feishu (Lark) Groups
 
