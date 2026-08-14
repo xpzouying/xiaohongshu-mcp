@@ -109,7 +109,7 @@ func (f *FeedDetailAction) GetFeedDetailWithConfig(ctx context.Context, feedID, 
 	err := retry.Do(
 		func() error {
 			page.MustNavigate(url)
-			page.MustWaitDOMStable()
+			waitFeedPageReady(page)
 			return nil
 		},
 		retry.Attempts(3),

@@ -30,7 +30,7 @@ func (f *CommentFeedAction) PostComment(ctx context.Context, feedID, xsecToken, 
 
 	// 导航到详情页
 	page.MustNavigate(url)
-	page.MustWaitDOMStable()
+	waitFeedPageReady(page)
 	humanize.Delay(ctx, humanize.AfterNavigate)
 
 	// 检测页面是否可访问
@@ -120,7 +120,7 @@ func (f *CommentFeedAction) ReplyToComment(ctx context.Context, feedID, xsecToke
 
 	// 导航到详情页
 	page.MustNavigate(url)
-	page.MustWaitDOMStable()
+	waitFeedPageReady(page)
 	humanize.Delay(ctx, humanize.AfterNavigate)
 
 	// 检测页面是否可访问
