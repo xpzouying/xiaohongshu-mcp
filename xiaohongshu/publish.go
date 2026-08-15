@@ -761,8 +761,7 @@ func inputTag(ctx context.Context, contentElem *rod.Element, tag string) error {
 	slog.Info("成功点击标签联想选项", "tag", tag)
 
 	waitForTagMenuClose(ctx, page, tagMenuCloseTimeout)
-	time.Sleep(time.Duration(1500+rand.Intn(1501)) * time.Millisecond)
-	return nil
+	return waitWithContext(ctx, time.Duration(1500+rand.Intn(1501))*time.Millisecond)
 }
 
 func findMatchingTagSuggestion(ctx context.Context, page *rod.Page, tag string) (*rod.Element, error) {
@@ -878,6 +877,18 @@ func restoreTextAfterFailedTag(
 		}
 	}
 	return errors.New("清理无联想标签后正文未恢复")
+}
+
+func waitWithContext(ctx context.Context, delay time.Duration) error {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+
+	select {
+	case <-timer.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 func waitForTagMenuClose(ctx context.Context, page *rod.Page, timeout time.Duration) {

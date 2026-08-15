@@ -157,3 +157,14 @@ func TestRestoreTextAfterFailedTagRefusesToEraseChangedBody(t *testing.T) {
 	assert.ErrorContains(t, err, "避免误删")
 	assert.Zero(t, backspaces)
 }
+
+func TestWaitWithContextHonorsCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	started := time.Now()
+	err := waitWithContext(ctx, time.Hour)
+
+	assert.ErrorIs(t, err, context.Canceled)
+	assert.Less(t, time.Since(started), time.Second)
+}
