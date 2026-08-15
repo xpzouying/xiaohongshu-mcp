@@ -38,6 +38,11 @@ const (
 
 	// contentElemTimeout 查找正文输入框的轮询窗口
 	contentElemTimeout = 10 * time.Second
+
+	// 标签联想是可选能力，不能耗尽整个发布流程的 300 秒超时。
+	tagSuggestionTimeout      = 6 * time.Second
+	tagSuggestionPollInterval = 200 * time.Millisecond
+	tagMenuCloseTimeout       = 2 * time.Second
 )
 
 func NewPublishImageAction(page *rod.Page) (*PublishAction, error) {
@@ -732,27 +737,116 @@ func inputTag(ctx context.Context, contentElem *rod.Element, tag string) error {
 		return errors.Wrap(err, "输入标签内容失败")
 	}
 
-	time.Sleep(1 * time.Second) // 技术等待：等联想结果刷新
-
 	page := contentElem.Page()
-	topicContainer, err := page.Element("#creator-editor-topic-container")
-	if err != nil || topicContainer == nil {
-		slog.Warn("未找到标签联想下拉框，直接输入空格", "tag", tag)
-		return humanize.Type(ctx, contentElem, " ")
+	lookup := func(tagCtx context.Context) (*rod.Element, error) {
+		has, item, err := page.Context(tagCtx).Has("#creator-editor-topic-container .item")
+		if err != nil {
+			return nil, errors.Wrap(err, "查找标签联想选项失败")
+		}
+		if !has || item == nil || !isElementVisible(item) {
+			return nil, nil
+		}
+		return item, nil
 	}
 
-	firstItem, err := topicContainer.Element(".item")
-	if err != nil || firstItem == nil {
-		slog.Warn("未找到标签联想选项，直接输入空格", "tag", tag)
-		return humanize.Type(ctx, contentElem, " ")
+	selected, err := selectTagSuggestion(ctx, tagSuggestionTimeout, lookup, func(item *rod.Element) error {
+		return humanize.Click(item)
+	})
+	if err != nil {
+		return err
+	}
+	if !selected {
+		slog.Warn("未找到标签联想选项，跳过该标签", "tag", tag)
+		return removeTypedTag(ctx, contentElem, tag)
 	}
 
-	if err := humanize.Click(firstItem); err != nil {
-		return errors.Wrap(err, "点击标签联想选项失败")
-	}
 	slog.Info("成功点击标签联想选项", "tag", tag)
-	time.Sleep(500 * time.Millisecond) // 技术等待：等标签处理完成
+
+	waitForTagMenuClose(ctx, page, tagMenuCloseTimeout)
+	time.Sleep(time.Duration(1500+rand.Intn(1501)) * time.Millisecond)
 	return nil
+}
+
+func selectTagSuggestion(
+	ctx context.Context,
+	timeout time.Duration,
+	lookup func(context.Context) (*rod.Element, error),
+	click func(*rod.Element) error,
+) (bool, error) {
+	tagCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	ticker := time.NewTicker(tagSuggestionPollInterval)
+	defer ticker.Stop()
+
+	for {
+		item, err := lookup(tagCtx)
+		if err != nil {
+			if tagCtx.Err() != nil {
+				if parentErr := ctx.Err(); parentErr != nil {
+					return false, parentErr
+				}
+				return false, nil
+			}
+			return false, err
+		}
+		if item != nil {
+			if err := click(item.Context(tagCtx)); err == nil {
+				return true, nil
+			} else {
+				slog.Debug("标签联想选项已失效，重新查找", "error", err)
+			}
+		}
+
+		select {
+		case <-ctx.Done():
+			return false, ctx.Err()
+		case <-tagCtx.Done():
+			if err := ctx.Err(); err != nil {
+				return false, err
+			}
+			return false, nil
+		case <-ticker.C:
+		}
+	}
+}
+
+func removeTypedTag(ctx context.Context, contentElem *rod.Element, tag string) error {
+	ka, err := contentElem.Context(ctx).KeyActions()
+	if err != nil {
+		return errors.Wrap(err, "创建标签清理键盘操作失败")
+	}
+	for range "#" + tag {
+		ka.Type(input.Backspace)
+	}
+	if err := ka.Do(); err != nil {
+		return errors.Wrap(err, "清理无联想标签失败")
+	}
+	return nil
+}
+
+func waitForTagMenuClose(ctx context.Context, page *rod.Page, timeout time.Duration) {
+	menuCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	ticker := time.NewTicker(tagSuggestionPollInterval)
+	defer ticker.Stop()
+
+	for {
+		has, item, err := page.Context(menuCtx).Has("#creator-editor-topic-container .item")
+		if err != nil || !has || item == nil || !isElementVisible(item) {
+			return
+		}
+
+		select {
+		case <-menuCtx.Done():
+			if ctx.Err() == nil {
+				slog.Warn("标签联想下拉框未及时关闭")
+			}
+			return
+		case <-ticker.C:
+		}
+	}
 }
 
 func findTextboxByPlaceholder(page *rod.Page) (*rod.Element, error) {
