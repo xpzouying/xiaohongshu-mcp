@@ -727,6 +727,11 @@ func inputTags(ctx context.Context, contentElem *rod.Element, tags []string) err
 }
 
 func inputTag(ctx context.Context, contentElem *rod.Element, tag string) error {
+	beforeText, err := contentElem.Text()
+	if err != nil {
+		return errors.Wrap(err, "记录标签输入前正文失败")
+	}
+
 	// 输入 # 触发话题联想
 	if err := humanize.Type(ctx, contentElem, "#"); err != nil {
 		return errors.Wrap(err, "输入#失败")
@@ -739,14 +744,7 @@ func inputTag(ctx context.Context, contentElem *rod.Element, tag string) error {
 
 	page := contentElem.Page()
 	lookup := func(tagCtx context.Context) (*rod.Element, error) {
-		has, item, err := page.Context(tagCtx).Has("#creator-editor-topic-container .item")
-		if err != nil {
-			return nil, errors.Wrap(err, "查找标签联想选项失败")
-		}
-		if !has || item == nil || !isElementVisible(item) {
-			return nil, nil
-		}
-		return item, nil
+		return findMatchingTagSuggestion(tagCtx, page, tag)
 	}
 
 	selected, err := selectTagSuggestion(ctx, tagSuggestionTimeout, lookup, func(item *rod.Element) error {
@@ -757,7 +755,7 @@ func inputTag(ctx context.Context, contentElem *rod.Element, tag string) error {
 	}
 	if !selected {
 		slog.Warn("未找到标签联想选项，跳过该标签", "tag", tag)
-		return removeTypedTag(ctx, contentElem, tag)
+		return removeTypedTag(ctx, contentElem, beforeText, tag)
 	}
 
 	slog.Info("成功点击标签联想选项", "tag", tag)
@@ -765,6 +763,31 @@ func inputTag(ctx context.Context, contentElem *rod.Element, tag string) error {
 	waitForTagMenuClose(ctx, page, tagMenuCloseTimeout)
 	time.Sleep(time.Duration(1500+rand.Intn(1501)) * time.Millisecond)
 	return nil
+}
+
+func findMatchingTagSuggestion(ctx context.Context, page *rod.Page, tag string) (*rod.Element, error) {
+	names, err := page.Context(ctx).Elements("#creator-editor-topic-container .item .name")
+	if err != nil {
+		return nil, errors.Wrap(err, "查找标签联想选项失败")
+	}
+
+	for _, name := range names {
+		text, err := name.Context(ctx).Text()
+		if err != nil || !tagSuggestionNameMatches(text, tag) {
+			continue
+		}
+		item, err := name.Context(ctx).Parent()
+		if err != nil || item == nil || !isElementVisible(item) {
+			continue
+		}
+		return item, nil
+	}
+	return nil, nil
+}
+
+func tagSuggestionNameMatches(name, tag string) bool {
+	name = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(name), "#"))
+	return strings.EqualFold(name, strings.TrimSpace(strings.TrimLeft(tag, "#")))
 }
 
 func selectTagSuggestion(
@@ -811,18 +834,50 @@ func selectTagSuggestion(
 	}
 }
 
-func removeTypedTag(ctx context.Context, contentElem *rod.Element, tag string) error {
-	ka, err := contentElem.Context(ctx).KeyActions()
-	if err != nil {
-		return errors.Wrap(err, "创建标签清理键盘操作失败")
+func removeTypedTag(ctx context.Context, contentElem *rod.Element, beforeText, tag string) error {
+	return restoreTextAfterFailedTag(
+		ctx,
+		beforeText,
+		len("#"+tag)+1,
+		func() (string, error) {
+			return contentElem.Context(ctx).Text()
+		},
+		func() error {
+			return contentElem.Context(ctx).Type(input.Backspace)
+		},
+	)
+}
+
+func restoreTextAfterFailedTag(
+	ctx context.Context,
+	beforeText string,
+	maxBackspaces int,
+	currentText func() (string, error),
+	backspace func() error,
+) error {
+	for attempts := 0; attempts <= maxBackspaces; attempts++ {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+
+		current, err := currentText()
+		if err != nil {
+			return errors.Wrap(err, "读取标签清理后的正文失败")
+		}
+		if current == beforeText {
+			return nil
+		}
+		if !strings.HasPrefix(current, beforeText) {
+			return errors.New("标签输入改变了已有正文，已停止清理以避免误删")
+		}
+		if attempts == maxBackspaces {
+			break
+		}
+		if err := backspace(); err != nil {
+			return errors.Wrap(err, "清理无联想标签失败")
+		}
 	}
-	for range "#" + tag {
-		ka.Type(input.Backspace)
-	}
-	if err := ka.Do(); err != nil {
-		return errors.Wrap(err, "清理无联想标签失败")
-	}
-	return nil
+	return errors.New("清理无联想标签后正文未恢复")
 }
 
 func waitForTagMenuClose(ctx context.Context, page *rod.Page, timeout time.Duration) {

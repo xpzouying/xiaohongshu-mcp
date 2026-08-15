@@ -102,3 +102,58 @@ func TestSelectTagSuggestionHonorsContext(t *testing.T) {
 	assert.False(t, got)
 	assert.ErrorIs(t, err, context.Canceled)
 }
+
+func TestTagSuggestionNameMatchesCompleteTag(t *testing.T) {
+	assert.True(t, tagSuggestionNameMatches("#人工智能", "人工智能"))
+	assert.True(t, tagSuggestionNameMatches("#AI", "ai"))
+	assert.False(t, tagSuggestionNameMatches("#人工智能大会", "人工智能"))
+	assert.False(t, tagSuggestionNameMatches("#A", "AI"))
+}
+
+func TestRestoreTextAfterFailedTagStopsAtRecordedText(t *testing.T) {
+	before := "原有正文"
+	current := before + "#家庭👨‍👩‍👧‍👦"
+	backspaces := 0
+
+	err := restoreTextAfterFailedTag(
+		context.Background(),
+		before,
+		20,
+		func() (string, error) { return current, nil },
+		func() error {
+			backspaces++
+			switch backspaces {
+			case 1:
+				current = before + "#家庭"
+			case 2:
+				current = before + "#家"
+			case 3:
+				current = before + "#"
+			case 4:
+				current = before
+			}
+			return nil
+		},
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, 4, backspaces)
+	assert.Equal(t, before, current)
+}
+
+func TestRestoreTextAfterFailedTagRefusesToEraseChangedBody(t *testing.T) {
+	backspaces := 0
+	err := restoreTextAfterFailedTag(
+		context.Background(),
+		"原有正文",
+		10,
+		func() (string, error) { return "正文已被其他操作改写", nil },
+		func() error {
+			backspaces++
+			return nil
+		},
+	)
+
+	assert.ErrorContains(t, err, "避免误删")
+	assert.Zero(t, backspaces)
+}
