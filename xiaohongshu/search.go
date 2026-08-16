@@ -60,12 +60,12 @@ type pendingFilter struct {
 	option string // 选项文本
 }
 
-// collectFilters 把入参展开成待应用的筛选项，顺便校验取值。
+// collectFilters 把入参整理成待应用的筛选项，同一组以最后一个非空值为准。
 //
 // 校验放在这里是为了在打开浏览器之前就挡掉写错的值——否则要等导航、悬停、
 // 在面板里找不到之后才能报错，等于为了说一句"你写错了"先向平台发一次请求。
 func collectFilters(filters []FilterOption) ([]pendingFilter, error) {
-	var pending []pendingFilter
+	selected := make(map[string]string, len(filterGroups))
 
 	for _, f := range filters {
 		for _, g := range filterGroups {
@@ -77,11 +77,17 @@ func collectFilters(filters []FilterOption) ([]pendingFilter, error) {
 				return nil, fmt.Errorf("%s 不支持 %q，可选：%s",
 					g.label, value, strings.Join(g.allowed, "、"))
 			}
-			if value == g.defaultValue {
-				continue
-			}
-			pending = append(pending, pendingFilter{group: g.label, option: value})
+			selected[g.label] = value
 		}
+	}
+
+	var pending []pendingFilter
+	for _, g := range filterGroups {
+		value, ok := selected[g.label]
+		if !ok || value == g.defaultValue {
+			continue
+		}
+		pending = append(pending, pendingFilter{group: g.label, option: value})
 	}
 
 	return pending, nil

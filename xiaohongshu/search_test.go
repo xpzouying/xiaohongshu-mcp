@@ -64,6 +64,26 @@ func TestCollectFilters(t *testing.T) {
 		}, pending)
 	})
 
+	t.Run("同组最后一个默认值会清除前面的筛选", func(t *testing.T) {
+		pending, err := collectFilters([]FilterOption{
+			{NoteType: "图文"},
+			{NoteType: "不限"},
+		})
+		require.NoError(t, err)
+		require.Empty(t, pending)
+	})
+
+	t.Run("同组最后一个非默认值生效", func(t *testing.T) {
+		pending, err := collectFilters([]FilterOption{
+			{NoteType: "图文"},
+			{NoteType: "视频"},
+		})
+		require.NoError(t, err)
+		require.Equal(t, []pendingFilter{
+			{group: "笔记类型", option: "视频"},
+		}, pending)
+	})
+
 	t.Run("全空则无待应用项", func(t *testing.T) {
 		pending, err := collectFilters([]FilterOption{{}})
 		require.NoError(t, err)
