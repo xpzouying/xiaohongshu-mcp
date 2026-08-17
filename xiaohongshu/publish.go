@@ -38,6 +38,9 @@ const (
 
 	// contentElemTimeout 查找正文输入框的轮询窗口
 	contentElemTimeout = 10 * time.Second
+	// 上传一张图片后，页面会短暂重建 file input。下一张图必须等待新节点出现。
+	imageUploadInputTimeout      = 10 * time.Second
+	imageUploadInputPollInterval = 200 * time.Millisecond
 
 	// 标签联想是可选能力，不能耗尽整个发布流程的 300 秒超时。
 	tagSuggestionTimeout      = 6 * time.Second
@@ -254,11 +257,13 @@ func uploadImages(page *rod.Page, imagesPaths []string) error {
 
 	// 逐张上传：每张上传后等待预览出现，再上传下一张
 	for i, path := range validPaths {
-		uploadInput, err := findImageUploadInput(page, i == 0)
+		err := retryImageUploadInput(
+			page.GetContext(),
+			imageUploadInputTimeout,
+			func() (*rod.Element, error) { return findImageUploadInput(page, i == 0) },
+			func(input *rod.Element) error { return input.SetFiles([]string{path}) },
+		)
 		if err != nil {
-			return errors.Wrapf(err, "查找上传输入框失败(第%d张)", i+1)
-		}
-		if err := uploadInput.SetFiles([]string{path}); err != nil {
 			return errors.Wrapf(err, "上传第%d张图片失败", i+1)
 		}
 
@@ -277,7 +282,11 @@ func uploadImages(page *rod.Page, imagesPaths []string) error {
 // findImageUploadInput 查找图片上传的输入框
 func findImageUploadInput(page *rod.Page, first bool) (*rod.Element, error) {
 	if first {
-		return page.Element(".upload-input")
+		inputs, err := page.Elements(".upload-input")
+		if err != nil || len(inputs) == 0 {
+			return nil, err
+		}
+		return inputs[0], nil
 	}
 
 	inputs, err := page.Elements(`input[type="file"]`)
@@ -285,7 +294,7 @@ func findImageUploadInput(page *rod.Page, first bool) (*rod.Element, error) {
 		return nil, err
 	}
 	if len(inputs) == 0 {
-		return nil, errors.New("页面没有文件上传输入框")
+		return nil, nil
 	}
 
 	for _, input := range inputs {
@@ -299,6 +308,44 @@ func findImageUploadInput(page *rod.Page, first bool) (*rod.Element, error) {
 	}
 
 	return inputs[0], nil
+}
+
+func retryImageUploadInput(
+	ctx context.Context,
+	timeout time.Duration,
+	lookup func() (*rod.Element, error),
+	setFile func(*rod.Element) error,
+) error {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	var lastErr error
+	for {
+		input, err := lookup()
+		if err != nil {
+			lastErr = err
+		} else if input != nil {
+			if err := setFile(input); err == nil {
+				return nil
+			} else {
+				lastErr = err
+			}
+		}
+
+		timer := time.NewTimer(imageUploadInputPollInterval)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			if errors.Is(ctx.Err(), context.Canceled) {
+				return ctx.Err()
+			}
+			if lastErr != nil {
+				return errors.Wrap(lastErr, "等待图片上传输入框超时")
+			}
+			return errors.New("等待图片上传输入框超时")
+		case <-timer.C:
+		}
+	}
 }
 
 // acceptsImage 判断 accept 属性是否接受图片
