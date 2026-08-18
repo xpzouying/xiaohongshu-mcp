@@ -106,8 +106,10 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 
 	searchURL := makeSearchURL(keyword)
 	page.MustNavigate(searchURL)
-	page.MustWaitStable()
+	// 不用 MustWaitStable：搜索页图片和卡片持续补位，经常永远等不到 stable，会把上面
+	// 那 60s 预算烧光，然后在下一行以「超时」的名义 panic。
 	page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
+	waitFeedsLoaded(page, 15*time.Second)
 	humanize.Delay(ctx, humanize.AfterNavigate)
 
 	if len(pending) > 0 {
@@ -178,6 +180,21 @@ func readFeedIDs(page *rod.Page) string {
 		return ""
 	}
 	return res.Value.Str()
+}
+
+// waitFeedsLoaded 等首屏结果填充完。
+//
+// 等不到就照常往下走：搜索结果确实为空时不该白等满预算，让后面的读取逻辑
+// 返回 ErrNoFeeds 即可。
+func waitFeedsLoaded(page *rod.Page, timeout time.Duration) {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if readFeedIDs(page) != "" {
+			return
+		}
+		time.Sleep(300 * time.Millisecond)
+	}
+	logrus.Warnf("等待搜索结果填充超时（%s），可能确实没有结果", timeout)
 }
 
 // waitFeedsChanged 等筛选后的数据到位。
