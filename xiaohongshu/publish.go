@@ -82,6 +82,12 @@ func (p *PublishAction) Publish(ctx context.Context, content PublishImageContent
 		return errors.Wrap(err, "小红书上传图片失败")
 	}
 
+	// 创作平台登录态失效时，上传会触发重定向把发布页整个换掉，后面找不到任何表单元素。
+	// 与其让选择器空转到 300 秒超时，不如在这里直接报清楚。
+	if err := ensureStillOnPublishPage(page); err != nil {
+		return err
+	}
+
 	tags := content.Tags
 	if len(tags) >= 10 {
 		logrus.Warnf("标签数量超过10，截取前10个标签")
@@ -95,6 +101,24 @@ func (p *PublishAction) Publish(ctx context.Context, content PublishImageContent
 	}
 
 	return nil
+}
+
+// ensureStillOnPublishPage 确认页面没被踢出发布页。
+func ensureStillOnPublishPage(page *rod.Page) error {
+	info, err := page.Info()
+	if err != nil {
+		logrus.Warnf("读取当前页面 URL 失败: %v，跳过检查", err)
+		return nil
+	}
+
+	slog.Info("图片上传完成", "url", info.URL)
+	if strings.Contains(info.URL, "/publish/publish") {
+		return nil
+	}
+
+	return errors.Errorf("上传图片后页面被重定向到 %s，发布页已丢失。"+
+		"通常是创作平台登录态失效——cookies.json 里缺少 creator.xiaohongshu.com 域下的 cookie，"+
+		"重新运行登录工具即可", info.URL)
 }
 
 // hasPopCover 当前页面是否还有挡人的浮层。
