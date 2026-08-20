@@ -35,21 +35,22 @@ type FilterOption struct {
 // 组和选项一律按文本定位，不用序号。面板里同一个选项可能渲染成多个 div.tags
 // （数量随视口而变），首项是否重复各组也不一致，下标对不齐。
 type filterGroup struct {
-	label   string                    // 面板上这一组的标签文本
-	pick    func(FilterOption) string // 从入参里取这一组的值
-	allowed []string                  // 合法取值；在打开页面之前就能挡掉写错的值
+	label        string                    // 面板上这一组的标签文本
+	defaultValue string                    // 页面初始选中的值，不需要重复点击
+	pick         func(FilterOption) string // 从入参里取这一组的值
+	allowed      []string                  // 合法取值；在打开页面之前就能挡掉写错的值
 }
 
 var filterGroups = []filterGroup{
-	{"排序依据", func(f FilterOption) string { return f.SortBy },
+	{"排序依据", "综合", func(f FilterOption) string { return f.SortBy },
 		[]string{"综合", "最新", "最多点赞", "最多评论", "最多收藏"}},
-	{"笔记类型", func(f FilterOption) string { return f.NoteType },
+	{"笔记类型", "不限", func(f FilterOption) string { return f.NoteType },
 		[]string{"不限", "视频", "图文"}},
-	{"发布时间", func(f FilterOption) string { return f.PublishTime },
+	{"发布时间", "不限", func(f FilterOption) string { return f.PublishTime },
 		[]string{"不限", "一天内", "一周内", "半年内"}},
-	{"搜索范围", func(f FilterOption) string { return f.SearchScope },
+	{"搜索范围", "不限", func(f FilterOption) string { return f.SearchScope },
 		[]string{"不限", "已看过", "未看过", "已关注"}},
-	{"位置距离", func(f FilterOption) string { return f.Location },
+	{"位置距离", "不限", func(f FilterOption) string { return f.Location },
 		[]string{"不限", "同城", "附近"}},
 }
 
@@ -59,12 +60,12 @@ type pendingFilter struct {
 	option string // 选项文本
 }
 
-// collectFilters 把入参展开成待应用的筛选项，顺便校验取值。
+// collectFilters 把入参整理成待应用的筛选项，同一组以最后一个非空值为准。
 //
 // 校验放在这里是为了在打开浏览器之前就挡掉写错的值——否则要等导航、悬停、
 // 在面板里找不到之后才能报错，等于为了说一句"你写错了"先向平台发一次请求。
 func collectFilters(filters []FilterOption) ([]pendingFilter, error) {
-	var pending []pendingFilter
+	selected := make(map[string]string, len(filterGroups))
 
 	for _, f := range filters {
 		for _, g := range filterGroups {
@@ -76,8 +77,17 @@ func collectFilters(filters []FilterOption) ([]pendingFilter, error) {
 				return nil, fmt.Errorf("%s 不支持 %q，可选：%s",
 					g.label, value, strings.Join(g.allowed, "、"))
 			}
-			pending = append(pending, pendingFilter{group: g.label, option: value})
+			selected[g.label] = value
 		}
+	}
+
+	var pending []pendingFilter
+	for _, g := range filterGroups {
+		value, ok := selected[g.label]
+		if !ok || value == g.defaultValue {
+			continue
+		}
+		pending = append(pending, pendingFilter{group: g.label, option: value})
 	}
 
 	return pending, nil
@@ -203,7 +213,7 @@ func waitFeedsChanged(page *rod.Page, before string, timeout time.Duration) {
 //
 // 全程不用序号。同一个选项在面板里可能渲染成多个 div.tags（数量随视口而变，
 // 且首项是否重复各组不一致），下标对不齐；早前用 div.tags:nth-child(N) 会选错项。
-// 多份重复的位置尺寸完全相同，取第一个点下去落在同一处。
+// 同文本节点中可能混有隐藏副本，必须选择有可点击区域的那个。
 //
 // 作用域必须限定在 div.filter-panel 内且只认 div.tags：页面别处存在同文本的
 // 可见元素（顶部频道栏的「图文」「视频」、标签「综合」），放宽会点错地方。
@@ -230,16 +240,26 @@ func findFilterOption(page *rod.Page, pf pendingFilter) (*rod.Element, error) {
 		}
 
 		var available []string
+		matched := false
 		for _, opt := range options {
 			t, err := opt.Text()
 			if err != nil {
 				continue
 			}
 			t = strings.TrimSpace(t)
-			if t == pf.option {
+			available = append(available, t)
+			if t != pf.option {
+				continue
+			}
+
+			matched = true
+			shape, err := opt.Shape()
+			if err == nil && len(shape.Quads) > 0 {
 				return opt, nil
 			}
-			available = append(available, t)
+		}
+		if matched {
+			return nil, fmt.Errorf("「%s」里的选项「%s」没有可点击区域", pf.group, pf.option)
 		}
 		return nil, fmt.Errorf("「%s」里没有选项「%s」，页面上是：%s",
 			pf.group, pf.option, strings.Join(available, "、"))
