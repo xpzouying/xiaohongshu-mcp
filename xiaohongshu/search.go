@@ -87,22 +87,37 @@ type SearchAction struct {
 	page *rod.Page
 }
 
+const (
+	maxSearchResults      = 50
+	maxSearchScrollRounds = 12
+	maxSearchIdleRounds   = 3
+	searchScrollWait      = 3 * time.Second
+	searchScrollPoll      = 300 * time.Millisecond
+)
+
 func NewSearchAction(page *rod.Page) *SearchAction {
-	pp := page.Timeout(60 * time.Second)
+	pp := page.Timeout(90 * time.Second)
 
 	return &SearchAction{page: pp}
 }
 
 func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...FilterOption) ([]Feed, error) {
+	return s.SearchWithLimit(ctx, keyword, 0, filters...)
+}
+
+// SearchWithLimit searches notes and, when maxResults is positive, scrolls the
+// result page to collect additional lazy-loaded batches. A zero limit preserves
+// the historical Search behavior and returns the first batch only.
+func (s *SearchAction) SearchWithLimit(ctx context.Context, keyword string, maxResults int, filters ...FilterOption) ([]Feed, error) {
 	// 先校验筛选取值，必须在导航之前——写错的值不该先向平台发一次请求再报错。
 	pending, err := collectFilters(filters)
 	if err != nil {
 		return nil, err
 	}
 
-	// 注意 .Context(ctx) 会替换掉 NewSearchAction 里设的 60s deadline，必须在其后重新 Timeout，
+	// 注意 .Context(ctx) 会替换掉 NewSearchAction 里设的 deadline，必须在其后重新 Timeout，
 	// 否则搜索页不 stable 时 MustWaitStable/MustWait 会永久挂起（无 deadline 可依赖）。
-	page := s.page.Context(ctx).Timeout(60 * time.Second)
+	page := s.page.Context(ctx).Timeout(90 * time.Second)
 
 	searchURL := makeSearchURL(keyword)
 	page.MustNavigate(searchURL)
@@ -140,7 +155,50 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 		waitFeedsChanged(page, before, 15*time.Second)
 	}
 
-	result := page.MustEval(`() => {
+	feeds, err := readSearchFeeds(page)
+	if err != nil {
+		return nil, err
+	}
+	if maxResults <= 0 {
+		return onlyNotes(feeds), nil
+	}
+	if maxResults > maxSearchResults {
+		maxResults = maxSearchResults
+	}
+
+	collected := make([]Feed, 0, maxResults)
+	seen := make(map[string]struct{}, maxResults)
+	collected = appendUniqueNotes(collected, seen, feeds, maxResults)
+	idleRounds := 0
+	for round := 0; round < maxSearchScrollRounds && len(collected) < maxResults && idleRounds < maxSearchIdleRounds; round++ {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if _, err := page.Eval(`() => {
+			const root = document.scrollingElement || document.documentElement;
+			window.scrollTo(0, root.scrollHeight);
+			return root.scrollHeight;
+		}`); err != nil {
+			logrus.Warnf("搜索结果滚动失败，返回已收集的 %d 条笔记: %v", len(collected), err)
+			break
+		}
+
+		added, err := waitForMoreSearchFeeds(ctx, page, &collected, seen, maxResults, searchScrollWait)
+		if err != nil {
+			return nil, err
+		}
+		if added {
+			idleRounds = 0
+		} else {
+			idleRounds++
+		}
+	}
+
+	return collected, nil
+}
+
+func readSearchFeeds(page *rod.Page) ([]Feed, error) {
+	value, err := page.Eval(`() => {
 		if (window.__INITIAL_STATE__ &&
 		    window.__INITIAL_STATE__.search &&
 		    window.__INITIAL_STATE__.search.feeds) {
@@ -151,7 +209,11 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 			}
 		}
 		return "";
-	}`).String()
+	}`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read search feeds: %w", err)
+	}
+	result := value.Value.Str()
 
 	if result == "" {
 		return nil, errors.ErrNoFeeds
@@ -162,7 +224,57 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 		return nil, fmt.Errorf("failed to unmarshal feeds: %w", err)
 	}
 
-	return onlyNotes(feeds), nil
+	return feeds, nil
+}
+
+func appendUniqueNotes(dst []Feed, seen map[string]struct{}, feeds []Feed, limit int) []Feed {
+	for _, feed := range onlyNotes(feeds) {
+		key := feed.ID
+		if key == "" {
+			key = feed.XsecToken
+		}
+		if key != "" {
+			if _, exists := seen[key]; exists {
+				continue
+			}
+			seen[key] = struct{}{}
+		}
+		dst = append(dst, feed)
+		if len(dst) >= limit {
+			return dst
+		}
+	}
+	return dst
+}
+
+func waitForMoreSearchFeeds(
+	ctx context.Context,
+	page *rod.Page,
+	collected *[]Feed,
+	seen map[string]struct{},
+	limit int,
+	timeout time.Duration,
+) (bool, error) {
+	before := len(*collected)
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		feeds, err := readSearchFeeds(page)
+		if err == nil {
+			*collected = appendUniqueNotes(*collected, seen, feeds, limit)
+			if len(*collected) >= limit {
+				return true, nil
+			}
+		}
+
+		timer := time.NewTimer(searchScrollPoll)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return false, ctx.Err()
+		case <-timer.C:
+		}
+	}
+	return len(*collected) > before, nil
 }
 
 // feedIDsJS 读当前结果集的 id 列表，用来判断数据有没有换一批。
