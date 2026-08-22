@@ -3,8 +3,25 @@ package xiaohongshu
 import (
 	"testing"
 
+	logrustest "github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestLogFeedDetailNavigationRedactsToken(t *testing.T) {
+	hook := logrustest.NewGlobal()
+	defer hook.Reset()
+
+	feedID := "64f123456789abcdef012345"
+	xsecToken := "secret-token-value"
+	logFeedDetailNavigation(feedID)
+
+	require.Len(t, hook.Entries, 1)
+	message := hook.LastEntry().Message
+	assert.Contains(t, message, feedID)
+	assert.NotContains(t, message, xsecToken)
+	assert.NotContains(t, message, makeFeedDetailURL(feedID, xsecToken))
+}
 
 // TestIsExpandRepliesButton 两种文案都要认：带数字的，以及点开一次后不带数字的。
 func TestIsExpandRepliesButton(t *testing.T) {

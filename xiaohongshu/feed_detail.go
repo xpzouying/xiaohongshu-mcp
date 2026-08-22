@@ -101,7 +101,7 @@ func (f *FeedDetailAction) GetFeedDetailWithConfig(ctx context.Context, feedID, 
 	page := f.page.Context(ctx).Timeout(10 * time.Minute)
 	url := makeFeedDetailURL(feedID, xsecToken)
 
-	logrus.Infof("打开 feed 详情页: %s", url)
+	logFeedDetailNavigation(feedID)
 	logrus.Infof("配置: 点击更多=%v, 回复阈值=%d, 最大评论数=%d, 滚动速度=%s",
 		config.ClickMoreReplies, config.MaxRepliesThreshold, config.MaxCommentItems, config.ScrollSpeed)
 
@@ -1002,4 +1002,8 @@ func (f *FeedDetailAction) extractFeedDetail(page *rod.Page, feedID string) (*Fe
 
 func makeFeedDetailURL(feedID, xsecToken string) string {
 	return fmt.Sprintf("https://www.xiaohongshu.com/explore/%s?xsec_token=%s&xsec_source=pc_feed", feedID, xsecToken)
+}
+
+func logFeedDetailNavigation(feedID string) {
+	logrus.Infof("打开 feed 详情页: feed_id=%s", feedID)
 }
