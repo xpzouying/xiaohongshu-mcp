@@ -124,6 +124,11 @@ type ReplyNotificationArgs struct {
 	Content   string `json:"content" jsonschema:"回复内容"`
 }
 
+// ResolveShortLinkArgs 解析短链接参数
+type ResolveShortLinkArgs struct {
+	URL string `json:"url" jsonschema:"小红书分享短链接，如 https://xhslink.com/o/xxx 或 xhslink.com/xxx"`
+}
+
 // InitMCPServer 初始化 MCP Server
 func InitMCPServer(appServer *AppServer) *mcp.Server {
 	// 创建 MCP Server
@@ -548,7 +553,23 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	logrus.Infof("Registered %d MCP tools", 18)
+	// 工具 19: 解析短链接
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "resolve_shortlink",
+			Description: "解析小红书分享短链接（如 xhslink.com/xxx），提取 feed_id 和 xsec_token，可直接用于获取笔记详情",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Resolve Short Link",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("resolve_shortlink", func(ctx context.Context, req *mcp.CallToolRequest, args ResolveShortLinkArgs) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleResolveShortLink(ctx, args)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	logrus.Infof("Registered %d MCP tools", 19)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式
