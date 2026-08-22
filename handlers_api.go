@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/xpzouying/xiaohongshu-mcp/cookies"
 	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
@@ -18,8 +19,13 @@ func respondError(c *gin.Context, statusCode int, code, message string, details 
 		Details: details,
 	}
 
-	logrus.Errorf("%s %s %s %d", c.Request.Method, c.Request.URL.Path,
-		c.GetString("account"), statusCode)
+	// 4xx 是调用方传错，5xx 才是服务端故障，用日志级别区分开。
+	// 否则鉴权开启后被扫描器打，401 会把 ERROR 刷满。
+	if statusCode < http.StatusInternalServerError {
+		logrus.Warnf("%s %s %d", c.Request.Method, c.Request.URL.Path, statusCode)
+	} else {
+		logrus.Errorf("%s %s %d", c.Request.Method, c.Request.URL.Path, statusCode)
+	}
 
 	c.JSON(statusCode, response)
 }
@@ -32,8 +38,7 @@ func respondSuccess(c *gin.Context, data any, message string) {
 		Message: message,
 	}
 
-	logrus.Infof("%s %s %s %d", c.Request.Method, c.Request.URL.Path,
-		c.GetString("account"), http.StatusOK)
+	logrus.Infof("%s %s %d", c.Request.Method, c.Request.URL.Path, http.StatusOK)
 
 	c.JSON(http.StatusOK, response)
 }
@@ -47,11 +52,10 @@ func (s *AppServer) checkLoginStatusHandler(c *gin.Context) {
 		return
 	}
 
-	c.Set("account", "ai-report")
 	respondSuccess(c, status, "检查登录状态成功")
 }
 
-// getLoginQrcodeHandler 处理 [GET /api/login/qrcode] 请求。
+// getLoginQrcodeHandler 处理 [GET /api/v1/login/qrcode] 请求。
 // 用于生成并返回登录二维码（Base64 图片 + 超时时间），供前端展示给用户扫码登录。
 func (s *AppServer) getLoginQrcodeHandler(c *gin.Context) {
 	result, err := s.xiaohongshuService.GetLoginQrcode(c.Request.Context())
@@ -89,7 +93,6 @@ func (s *AppServer) publishHandler(c *gin.Context) {
 		return
 	}
 
-	// 执行发布
 	result, err := s.xiaohongshuService.PublishContent(c.Request.Context(), &req)
 	if err != nil {
 		respondError(c, http.StatusInternalServerError, "PUBLISH_FAILED",
@@ -109,7 +112,6 @@ func (s *AppServer) publishVideoHandler(c *gin.Context) {
 		return
 	}
 
-	// 执行视频发布
 	result, err := s.xiaohongshuService.PublishVideo(c.Request.Context(), &req)
 	if err != nil {
 		respondError(c, http.StatusInternalServerError, "PUBLISH_VIDEO_FAILED",
@@ -122,7 +124,6 @@ func (s *AppServer) publishVideoHandler(c *gin.Context) {
 
 // listFeedsHandler 获取Feeds列表
 func (s *AppServer) listFeedsHandler(c *gin.Context) {
-	// 获取 Feeds 列表
 	result, err := s.xiaohongshuService.ListFeeds(c.Request.Context())
 	if err != nil {
 		respondError(c, http.StatusInternalServerError, "LIST_FEEDS_FAILED",
@@ -130,7 +131,6 @@ func (s *AppServer) listFeedsHandler(c *gin.Context) {
 		return
 	}
 
-	c.Set("account", "ai-report")
 	respondSuccess(c, result, "获取Feeds列表成功")
 }
 
@@ -160,7 +160,6 @@ func (s *AppServer) searchFeedsHandler(c *gin.Context) {
 		return
 	}
 
-	// 搜索 Feeds
 	result, err := s.xiaohongshuService.SearchFeeds(c.Request.Context(), keyword, filters)
 	if err != nil {
 		respondError(c, http.StatusInternalServerError, "SEARCH_FEEDS_FAILED",
@@ -168,7 +167,6 @@ func (s *AppServer) searchFeedsHandler(c *gin.Context) {
 		return
 	}
 
-	c.Set("account", "ai-report")
 	respondSuccess(c, result, "搜索Feeds成功")
 }
 
@@ -185,7 +183,6 @@ func (s *AppServer) getFeedDetailHandler(c *gin.Context) {
 	var err error
 
 	if req.CommentConfig != nil {
-		// 使用配置参数
 		config := xiaohongshu.CommentLoadConfig{
 			ClickMoreReplies:    req.CommentConfig.ClickMoreReplies,
 			MaxRepliesThreshold: req.CommentConfig.MaxRepliesThreshold,
@@ -194,7 +191,6 @@ func (s *AppServer) getFeedDetailHandler(c *gin.Context) {
 		}
 		result, err = s.xiaohongshuService.GetFeedDetailWithConfig(c.Request.Context(), req.FeedID, req.XsecToken, req.LoadAllComments, config)
 	} else {
-		// 使用默认配置
 		result, err = s.xiaohongshuService.GetFeedDetail(c.Request.Context(), req.FeedID, req.XsecToken, req.LoadAllComments)
 	}
 
@@ -204,7 +200,6 @@ func (s *AppServer) getFeedDetailHandler(c *gin.Context) {
 		return
 	}
 
-	c.Set("account", "ai-report")
 	respondSuccess(c, result, "获取Feed详情成功")
 }
 
@@ -217,15 +212,13 @@ func (s *AppServer) userProfileHandler(c *gin.Context) {
 		return
 	}
 
-	// 获取用户信息
-	result, err := s.xiaohongshuService.UserProfile(c.Request.Context(), req.UserID, req.XsecToken)
+	result, err := s.xiaohongshuService.UserProfile(c.Request.Context(), req.UserID, req.XsecToken, req.Tab)
 	if err != nil {
 		respondError(c, http.StatusInternalServerError, "GET_USER_PROFILE_FAILED",
 			"获取用户主页失败", err.Error())
 		return
 	}
 
-	c.Set("account", "ai-report")
 	respondSuccess(c, map[string]any{"data": result}, "result.Message")
 }
 
@@ -246,7 +239,6 @@ func (s *AppServer) postCommentHandler(c *gin.Context) {
 		return
 	}
 
-	c.Set("account", "ai-report")
 	respondSuccess(c, result, result.Message)
 }
 
@@ -266,7 +258,56 @@ func (s *AppServer) replyCommentHandler(c *gin.Context) {
 		return
 	}
 
-	c.Set("account", "ai-report")
+	respondSuccess(c, result, result.Message)
+}
+
+// likeFeedHandler 点赞/取消点赞
+func (s *AppServer) likeFeedHandler(c *gin.Context) {
+	var req LikeFeedRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
+			"请求参数错误", err.Error())
+		return
+	}
+
+	var result *ActionResult
+	var err error
+	if req.Unlike {
+		result, err = s.xiaohongshuService.UnlikeFeed(c.Request.Context(), req.FeedID, req.XsecToken)
+	} else {
+		result, err = s.xiaohongshuService.LikeFeed(c.Request.Context(), req.FeedID, req.XsecToken)
+	}
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "LIKE_FEED_FAILED",
+			"点赞操作失败", err.Error())
+		return
+	}
+
+	respondSuccess(c, result, result.Message)
+}
+
+// favoriteFeedHandler 收藏/取消收藏
+func (s *AppServer) favoriteFeedHandler(c *gin.Context) {
+	var req FavoriteFeedRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
+			"请求参数错误", err.Error())
+		return
+	}
+
+	var result *ActionResult
+	var err error
+	if req.Unfavorite {
+		result, err = s.xiaohongshuService.UnfavoriteFeed(c.Request.Context(), req.FeedID, req.XsecToken)
+	} else {
+		result, err = s.xiaohongshuService.FavoriteFeed(c.Request.Context(), req.FeedID, req.XsecToken)
+	}
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "FAVORITE_FEED_FAILED",
+			"收藏操作失败", err.Error())
+		return
+	}
+
 	respondSuccess(c, result, result.Message)
 }
 
@@ -275,7 +316,8 @@ func healthHandler(c *gin.Context) {
 	respondSuccess(c, map[string]any{
 		"status":    "healthy",
 		"service":   "xiaohongshu-mcp",
-		"account":   "ai-report",
+		"version":   version,
+		"account":   "github.com/xpzouying/xiaohongshu-mcp",
 		"timestamp": "now",
 	}, "服务正常")
 }
@@ -283,13 +325,89 @@ func healthHandler(c *gin.Context) {
 // myProfileHandler 我的信息
 func (s *AppServer) myProfileHandler(c *gin.Context) {
 	// 获取当前登录用户信息
-	result, err := s.xiaohongshuService.GetMyProfile(c.Request.Context())
+	result, err := s.xiaohongshuService.GetMyProfile(c.Request.Context(), c.Query("tab"))
 	if err != nil {
 		respondError(c, http.StatusInternalServerError, "GET_MY_PROFILE_FAILED",
 			"获取我的主页失败", err.Error())
 		return
 	}
 
-	c.Set("account", "ai-report")
 	respondSuccess(c, map[string]any{"data": result}, "获取我的主页成功")
+}
+
+// getUnreadCountHandler 获取通知未读数
+func (s *AppServer) getUnreadCountHandler(c *gin.Context) {
+	result, err := s.xiaohongshuService.GetUnreadCount(c.Request.Context())
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "GET_UNREAD_COUNT_FAILED",
+			"获取未读数失败", err.Error())
+		return
+	}
+
+	respondSuccess(c, map[string]any{"data": result}, "获取未读数成功")
+}
+
+// listNotificationsHandler 获取通知列表。两个参数都可选，因此 GET 走 query、POST 走 JSON。
+func (s *AppServer) listNotificationsHandler(c *gin.Context) {
+	var req ListNotificationsRequest
+
+	if c.Request.Method == http.MethodPost {
+		if err := c.ShouldBindJSON(&req); err != nil {
+			respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
+				"请求参数错误", err.Error())
+			return
+		}
+	} else {
+		req.Tab = c.Query("tab")
+		if limit, err := strconv.Atoi(c.Query("limit")); err == nil {
+			req.Limit = limit
+		}
+	}
+
+	result, err := s.xiaohongshuService.ListNotifications(c.Request.Context(), req.Tab, req.Limit)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "LIST_NOTIFICATIONS_FAILED",
+			"获取通知列表失败", err.Error())
+		return
+	}
+
+	respondSuccess(c, map[string]any{"data": result}, "获取通知列表成功")
+}
+
+// replyNotificationHandler 回复通知里的评论
+func (s *AppServer) replyNotificationHandler(c *gin.Context) {
+	var req ReplyNotificationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
+			"请求参数错误", err.Error())
+		return
+	}
+
+	result, err := s.xiaohongshuService.ReplyNotification(c.Request.Context(), req.CommentID, req.Content)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "REPLY_NOTIFICATION_FAILED",
+			"回复通知失败", err.Error())
+		return
+	}
+
+	respondSuccess(c, map[string]any{"data": result}, "回复成功")
+}
+
+// likeNotificationHandler 给通知里的评论点赞/取消点赞
+func (s *AppServer) likeNotificationHandler(c *gin.Context) {
+	var req LikeNotificationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
+			"请求参数错误", err.Error())
+		return
+	}
+
+	result, err := s.xiaohongshuService.LikeNotification(c.Request.Context(), req.CommentID, req.Unlike)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "LIKE_NOTIFICATION_FAILED",
+			"点赞失败", err.Error())
+		return
+	}
+
+	respondSuccess(c, map[string]any{"data": result}, "操作成功")
 }

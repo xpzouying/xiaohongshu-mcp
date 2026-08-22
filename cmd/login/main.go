@@ -8,19 +8,22 @@ import (
 	"github.com/go-rod/rod"
 	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/xiaohongshu-mcp/browser"
+	"github.com/xpzouying/xiaohongshu-mcp/configs"
 	"github.com/xpzouying/xiaohongshu-mcp/cookies"
 	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
 )
 
 func main() {
-	var (
-		binPath string // 浏览器二进制文件路径
-	)
-	flag.StringVar(&binPath, "bin", "", "浏览器二进制文件路径")
 	flag.Parse()
 
-	// 登录的时候，需要界面，所以不能无头模式
-	b := browser.NewBrowser(false, browser.WithBinPath(binPath))
+	// 登录的时候，需要界面，所以不能无头模式。
+	// 登录与后续运行共用同一个 seed：首次登录生成并写入会话文件，之后一直复用。
+	store := cookies.NewLoadCookie(cookies.GetCookiesFilePath())
+
+	b := browser.NewBrowser(false,
+		browser.WithFingerprintSeed(configs.ResolveFingerprintSeed(store)),
+		browser.WithProxy(configs.ProxyFromEnv()),
+	)
 	defer b.Close()
 
 	page := b.NewPage()
