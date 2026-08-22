@@ -1,28 +1,49 @@
 # xiaohongshu-mcp
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-
-[![All Contributors](https://img.shields.io/badge/all_contributors-22-orange.svg?style=flat-square)](#contributors-)
-
+[![All Contributors](https://img.shields.io/badge/all_contributors-29-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
-[![Philanthropy](https://img.shields.io/badge/Philanthropy-CNY%201610.00-brightgreen?style=flat-square)](./DONATIONS.md)
-[![Gratitude](https://img.shields.io/badge/Gratitude-CNY%201365.88-blue?style=flat-square)](./DONATIONS.md)
+[![Philanthropy](https://img.shields.io/badge/Philanthropy-CNY%201810.00-brightgreen?style=flat-square)](./DONATIONS.md)
+[![Gratitude](https://img.shields.io/badge/Gratitude-CNY%201524.64-blue?style=flat-square)](./DONATIONS.md)
 [![Docker Pulls](https://img.shields.io/docker/pulls/xpzouying/xiaohongshu-mcp?style=flat-square&logo=docker)](https://hub.docker.com/r/xpzouying/xiaohongshu-mcp)
 
-MCP for RedNote (Xiaohongshu) platform.
+MCP for RedNote (Xiaohongshu) / xiaohongshu.com. Give your AI assistant direct access to RedNote data.
 
-- My blog article: [haha.ai/xiaohongshu-mcp](https://www.haha.ai/xiaohongshu-mcp)
+### 🚀 Quick Start: Pick the Version That Fits You
 
-> **📌 Please read before submitting a PR: [Contributing Guide](./CONTRIBUTING.md)**
+> [!IMPORTANT]
+> #### 🔥 Option A: Deep Openclaw Integration (recommended for developers)
+> - **Openclaw is on fire 🔥🔥🔥 — Openclaw support has been added in two flavors, pick whichever suits you:**
+> - [xiaohongshu-mcp-skills](https://github.com/autoclaw-cc/xiaohongshu-mcp-skills) (for users who already have this project deployed)
+> - [xiaohongshu-skills](https://github.com/autoclaw-cc/xiaohongshu-skills) (ready to use out of the box)
 
-**If you encounter any issues, be sure to check [Common Issues and Solutions](https://github.com/xpzouying/xiaohongshu-mcp/issues/56) first.**
+> [!TIP]
+> #### ✨ Option B: x-mcp Browser Extension (recommended for non-technical users / anyone who wants the simplest setup)
+> - **Don't want to deal with Docker or set up a deployment environment? Try [xpzouying/x-mcp](https://github.com/xpzouying/x-mcp).**
+> - **Zero configuration**: install the extension and it just works — no code, no proxy, no complicated environment setup.
+> - **Safe and stable**: runs directly in your everyday browser (Chrome/Edge) on your local network, with no server IP risk, and it solves 90% of deployment errors.
 
-After checking the **Common Issues** list, if you still can't resolve your deployment problems, we strongly recommend using another tool I've created: [xpzouying/x-mcp](https://github.com/xpzouying/x-mcp). This tool doesn't require deployment - you only need a browser extension to drive your MCP, making it more user-friendly for non-technical users.
+### 📖 Related Resources
+
+- **My blog article**: [haha.ai/xiaohongshu-mcp](https://www.haha.ai/xiaohongshu-mcp)
+- **Contributing Guide**: [Contributing Guide](./CONTRIBUTING.md)
+
+### 🛠️ Troubleshooting
+
+If you run into problems deploying the traditional Docker version, **be sure to check [Common Issues and Solutions (Issues #56)](https://github.com/xpzouying/xiaohongshu-mcp/issues/56) first**.
+
+> *Tip: if troubleshooting your environment is eating up too much time, switching to the [x-mcp extension](https://github.com/xpzouying/x-mcp) is usually the more efficient choice.*
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=xpzouying/xiaohongshu-mcp&type=Timeline)](https://www.star-history.com/#xpzouying/xiaohongshu-mcp&Timeline)
+<!-- Chart generated weekly onto the star-history data branch by .github/workflows/star-history.yml (star-history.com hosted chart broke due to GitHub API restrictions) -->
+<a href="https://www.star-history.com/#xpzouying/xiaohongshu-mcp&Timeline">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/xpzouying/xiaohongshu-mcp/star-history/assets/star-history-dark.svg" />
+    <img alt="Star History Chart" src="https://raw.githubusercontent.com/xpzouying/xiaohongshu-mcp/star-history/assets/star-history.svg" />
+  </picture>
+</a>
 
 ## Appreciation and Support
 
@@ -278,11 +299,15 @@ Favorite a note or unfavorite it, with smart detection of current status to avoi
 - Tags: Now supported. Adding appropriate tags can bring more traffic.
 - According to my practical experience, RedNote should allow **50 posts** per day.
 - **(Very Important) RedNote does not allow the same account to login on multiple web platforms**. If you login to the current xiaohongshu-mcp, don't login to that account on other web platforms, otherwise it will "kick out" the current MCP account login. You can use the mobile app to check current account information.
+- If your reach is low, first check whether your content contains banned words — there are plenty of free third-party tools you can search for.
+- Never do traffic diversion or pure content scraping/reposting — these are exactly what the platform cracks down on.
 
 **Risk Explanation**
 
 1. This project is open-sourced based on another project of mine. The original project has been running stably for over a year without any account bans, only occasional cookie expiration requiring re-login.
 2. I used Claude Code CLI integration and verified stable automated operation for several weeks before open-sourcing.
+3. If an account has not completed real-name verification, especially a new account, it will usually trigger a **real-name verification** prompt (see the screenshot below). ⚠️ This is not an account ban — you would be asked to verify even without using the MCP. Once verified, the account works normally. It is recommended to complete verification before using this project.
+   <img width="508" height="306" alt="image" src="https://github.com/user-attachments/assets/34383e1b-f666-409f-9870-002655507dc1" />
 
 This project is for learning purposes only. All illegal activities are prohibited.
 
@@ -309,16 +334,16 @@ Download pre-compiled binaries for your platform directly from [GitHub Releases]
 **Main Program (MCP Service):**
 
 - **macOS Apple Silicon**: `xiaohongshu-mcp-darwin-arm64`
-- **macOS Intel**: `xiaohongshu-mcp-darwin-amd64`
 - **Windows x64**: `xiaohongshu-mcp-windows-amd64.exe`
 - **Linux x64**: `xiaohongshu-mcp-linux-amd64`
 
 **Login Tool:**
 
 - **macOS Apple Silicon**: `xiaohongshu-login-darwin-arm64`
-- **macOS Intel**: `xiaohongshu-login-darwin-amd64`
 - **Windows x64**: `xiaohongshu-login-windows-amd64.exe`
 - **Linux x64**: `xiaohongshu-login-linux-amd64`
+
+> Only the three platforms above are supported. macOS Intel and Linux ARM64 are not supported.
 
 Usage Steps:
 
@@ -410,8 +435,8 @@ docker build -t xpzouying/xiaohongshu-mcp .
 
 The Docker version automatically:
 
-- Configures Chrome browser and Chinese fonts
-- Mounts `./data` for storing cookies
+- Configures the built-in browser and Chinese fonts
+- Mounts `./data` for storing cookies and runtime data directories
 - Mounts `./images` for storing publish images
 - Exposes port 18060 for MCP connection
 
@@ -460,6 +485,49 @@ go run .
 
 # Non-headless mode, with browser interface
 go run . -headless=false
+```
+
+**Configure a proxy (optional)**:
+
+If you need to go through a proxy, set the `XHS_PROXY` environment variable:
+
+```bash
+# Start with a proxy configured
+XHS_PROXY=http://user:pass@proxy:port ./xiaohongshu-mcp-darwin-arm64
+
+# Or from source
+XHS_PROXY=http://proxy:port go run .
+```
+
+HTTP/HTTPS/SOCKS5 proxies are supported, and proxy credentials are automatically masked in the logs.
+
+**Optional authentication**:
+
+Authentication is disabled by default. In production, configure it with the `AUTH_TOKEN` environment variable; a non-empty startup flag takes precedence, while an empty value falls back to `AUTH_TOKEN`.
+
+```bash
+# Environment variable
+AUTH_TOKEN=your-secret-token ./xiaohongshu-mcp-darwin-arm64
+AUTH_TOKEN=your-secret-token go run .
+
+# Non-empty startup flag (takes precedence over the environment variable)
+./xiaohongshu-mcp-darwin-arm64 -token=your-secret-token
+go run . -token=your-secret-token
+```
+
+When authentication is enabled, every MCP client must configure the custom request header `Authorization: Bearer <token>`. Command-line arguments may be visible in process listings, so prefer `AUTH_TOKEN` in deployment environments.
+
+For example, MCP clients that support custom request headers can use the following configuration:
+
+```json
+{
+  "mcpServers": {
+    "xiaohongshu-mcp": {
+      "url": "http://localhost:18060/mcp",
+      "headers": { "Authorization": "Bearer your-secret-token" }
+    }
+  }
+}
 ```
 
 ## 1.4. Verify MCP
@@ -520,6 +588,7 @@ Service will run at: `http://localhost:18060/mcp`
 # Test MCP connection
 curl -X POST http://localhost:18060/mcp \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your-secret-token" \
   -d '{"jsonrpc":"2.0","method":"initialize","params":{},"id":1}'
 ```
 
@@ -546,6 +615,51 @@ claude mcp add --transport http xiaohongshu-mcp http://localhost:18060/mcp
 
 # Check if MCP was added successfully (ensure MCP is already started before running this command)
 claude mcp list
+```
+
+</details>
+
+<details>
+<summary><b>Open Code CLI</b></summary>
+
+Add the MCP server with the interactive command:
+
+```bash
+opencode mcp add
+```
+
+Using `xiaohongshu-mcp` as an example:
+
+```
+┌  Add MCP server
+│
+◇  Enter MCP server name
+│  xiaohongshu-mcp
+│
+◇  Select MCP server type
+│  Remote
+│
+◇  Enter MCP server URL
+│  http://localhost:18060/mcp
+│
+◇  Does this server require OAuth authentication?
+│  No
+│
+◆  MCP server "xiaohongshu-mcp" added to C:\Users\admin\.config\opencode\opencode.json
+│
+└  MCP server added successfully
+```
+
+Verify that it was added successfully (make sure the MCP service is running):
+
+```bash
+opencode mcp list
+```
+
+```
+┌  MCP Servers
+│
+●  ✓ xiaohongshu-mcp connected
 ```
 
 </details>
@@ -728,7 +842,28 @@ Search for content about "food" on RedNote
 ```
 
 </details>
+<details>
+<summary><b>OpenClaw (via MCPorter)</b></summary>
 
+> Make sure xiaohongshu-mcp is already deployed locally before you start. Handing the GitHub link to OpenClaw and letting it deploy the project for you is **not recommended**.
+
+Since OpenClaw does not natively support MCP yet, the officially recommended way to call MCP services is through **MCPorter**.
+
+> 💡 **Tip:** MCPorter is not the ideal way to call MCP — you may run into compatibility issues along the way, so please be aware.
+
+#### Installation and Setup
+
+Just hand the following three commands to OpenClaw in one go (via the Control UI, Telegram, Feishu, etc.), and OpenClaw will set up MCPorter for you.
+
+```
+npm i -g mcporter
+npx mcporter config add xiaohongshu-mcp http://localhost:18060/mcp
+npx mcporter list xiaohongshu-mcp
+```
+
+Once that is done, you can use every xiaohongshu-mcp feature from OpenClaw through natural language.
+
+</details>
 <details>
 <summary><b>Other HTTP MCP Supporting Clients</b></summary>
 
@@ -758,20 +893,22 @@ After successful connection, you can use the following MCP tools:
   - `tags`: Topic tags list (optional), e.g. `["food", "travel", "lifestyle"]`
   - `schedule_at`: Scheduled publish time (optional), ISO8601 format, supports 1 hour to 14 days ahead
   - `is_original`: Declare as original content (optional), default is not declared
-  - `visibility`: Visibility scope (optional), supports `public` (default), `self-only`, `friends-only`
+  - `visibility`: Visibility scope (optional), supports `公开可见` / public (default), `仅自己可见` / self-only, `仅互关好友可见` / mutual-followers-only
+  - `products`: Product keyword list (optional), used to attach products for social commerce. Provide a product name or product ID; the system searches automatically and picks the first match. Requires the product feature to be enabled on your account. Example: [面膜, 防晒霜SPF50]
 - `publish_with_video` - Publish video content to RedNote (required: title, content, video)
   - `video`: Local video file absolute path (single file only)
   - `tags`: Topic tags list (optional), e.g. `["food", "travel", "lifestyle"]`
   - `schedule_at`: Scheduled publish time (optional), ISO8601 format, supports 1 hour to 14 days ahead
-  - `visibility`: Visibility scope (optional), supports `public` (default), `self-only`, `friends-only`
+  - `visibility`: Visibility scope (optional), supports `公开可见` / public (default), `仅自己可见` / self-only, `仅互关好友可见` / mutual-followers-only
+  - `products`: Product keyword list (optional), used to attach products for social commerce. Provide a product name or product ID; the system searches automatically and picks the first match. Requires the product feature to be enabled on your account. Example: [面膜, 防晒霜SPF50]
 - `list_feeds` - Get RedNote homepage recommendation list (no parameters)
 - `search_feeds` - Search RedNote content (required: keyword)
-  - `filters`: Filter options (optional)
-    - `sort_by`: Sort by - `comprehensive` (default) | `latest` | `most liked` | `most comments` | `most saved`
-    - `note_type`: Note type - `unlimited` (default) | `video` | `image-text`
-    - `publish_time`: Publish time - `unlimited` (default) | `last day` | `last week` | `last 6 months`
-    - `search_scope`: Search scope - `unlimited` (default) | `viewed` | `not viewed` | `followed`
-    - `location`: Location - `unlimited` (default) | `same city` | `nearby`
+  - `filters`: Filter options (optional). Values must be passed exactly as the Chinese strings below — they match the labels on the RedNote filter panel.
+    - `sort_by`: Sort by - `综合` / comprehensive (default) | `最新` / latest | `最多点赞` / most liked | `最多评论` / most comments | `最多收藏` / most saved
+    - `note_type`: Note type - `不限` / any (default) | `视频` / video | `图文` / image-text
+    - `publish_time`: Publish time - `不限` / any (default) | `一天内` / last day | `一周内` / last week | `半年内` / last 6 months
+    - `search_scope`: Search scope - `不限` / any (default) | `已看过` / viewed | `未看过` / not viewed | `已关注` / followed
+    - `location`: Location - `不限` / any (default) | `同城` / same city | `附近` / nearby
 - `get_feed_detail` - Get post details including interaction data and comments (required: feed_id, xsec_token)
   - `load_all_comments`: Whether to load all comments (optional), default false returns only first 10 top-level comments
   - `limit`: Limit number of top-level comments to load (optional), only effective when load_all_comments=true, default 20
@@ -827,7 +964,18 @@ Use xiaohongshu-mcp's video publishing feature.
 
 <img src="./assets/publish_result.jpeg" alt="xiaohongshu-mcp publishing result" width="300">
 
-### 2.5. MCP FAQ
+### 2.5. 💬 MCP FAQ
+
+---
+
+> ⚠️ The following are known risks when using OpenClaw + MCPorter. Please read them carefully before you start:
+
+- OpenClaw's automated AI deployment behavior is outside the scope of this project's maintenance, and its results cannot be guaranteed
+- As an intermediate layer, MCPorter may introduce additional compatibility issues that have nothing to do with xiaohongshu-mcp itself
+- If you hit connection failures or abnormal tool calls, please check MCPorter's own configuration first instead of filing an Issue
+- Before asking in the community or the groups, please confirm whether the problem also reproduces **without OpenClaw**
+
+If you do not specifically need OpenClaw, we strongly recommend switching to a client with native HTTP MCP support such as [Claude Code CLI](#claude-code-cli), [Cursor](#cursor) or [Cline](#cline) — the experience is much more stable.
 
 ---
 
@@ -888,15 +1036,17 @@ Use xiaohongshu-mcp's video publishing feature.
 
 ### WeChat Group
 
-|                                                 WeChat Group 17                                    |                                                 WeChat Group 18                                    |
+> These are Chinese-language community groups — discussion in the groups is in Chinese.
+
+|                                                 WeChat Group 25                                     |                                                 WeChat Group 26                                      |
 | :------------------------------------------------------------------------------------------------: | :------------------------------------------------------------------------------------------------: |
-| <img src="https://github.com/user-attachments/assets/2317229c-311e-4339-b659-2a2467aa8c17" alt="WechatIMG119" width="300"> | <img src="https://github.com/user-attachments/assets/78f8c7a2-98ab-477b-bbb2-7b08551ffc99" alt="WechatIMG119" width="300"> |
+| <img src="https://github.com/user-attachments/assets/c4c0f7a0-fc7c-453a-8bb9-890e53a907d4" alt="WechatIMG119" width="300"> | <img src="https://github.com/user-attachments/assets/e9569332-cac5-4e9e-92d8-c1498ef8699b" alt="WechatIMG119" width="300">|
 
 ### Feishu (Lark) Groups
 
-|                                                      Feishu Group 1                                                       |                                                      Feishu Group 2                                                       |                                                      Feishu Group 3                                                       |                                                      Feishu Group 4                                                       |
+|                                                         Feishu Group 2                                                    |                                                         Feishu Group 3                                                    |                                                         Feishu Group 4                                                    |                                                         Feishu Group 5                                                    |
 | :-----------------------------------------------------------------------------------------------------------------------: | :-----------------------------------------------------------------------------------------------------------------------: | :-----------------------------------------------------------------------------------------------------------------------: | :-----------------------------------------------------------------------------------------------------------------------: |
-| <img src="https://github.com/user-attachments/assets/65579771-3543-4661-9b48-def48eed609b" alt="qr-feishu01" width="260"> | <img src="https://github.com/user-attachments/assets/4983ea42-ce5b-4e26-a8c0-33889093b579" alt="qr-feishu02" width="260"> | <img src="https://github.com/user-attachments/assets/c77b45da-6028-4d3a-b421-ccc6c7210695" alt="qr-feishu03" width="260"> | <img src="https://github.com/user-attachments/assets/c42f5595-71cd-4d9b-b7f8-0c333bd25e2b" alt="qr-feishu04" width="260"> |
+| <img src="https://github.com/user-attachments/assets/4983ea42-ce5b-4e26-a8c0-33889093b579" alt="qr-feishu02" width="260"> | <img src="https://github.com/user-attachments/assets/c77b45da-6028-4d3a-b421-ccc6c7210695" alt="qr-feishu03" width="260"> | <img src="https://github.com/user-attachments/assets/c42f5595-71cd-4d9b-b7f8-0c333bd25e2b" alt="qr-feishu04" width="260"> | <img src="https://github.com/user-attachments/assets/c032801c-bf02-4e8e-81ad-fb8471b3d765" alt="qr-feishu05" width="260"> |
 
 > **Note:**
 >
@@ -936,11 +1086,20 @@ Thanks to all friends who have contributed to this project! (In no particular or
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/ctrlz526"><img src="https://avatars.githubusercontent.com/u/143257420?v=4?s=100" width="100px;" alt="Ctrlz"/><br /><sub><b>Ctrlz</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=ctrlz526" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/flippancy"><img src="https://avatars.githubusercontent.com/u/6467703?v=4?s=100" width="100px;" alt="flippancy"/><br /><sub><b>flippancy</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=flippancy" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/Infinityay"><img src="https://avatars.githubusercontent.com/u/103165980?v=4?s=100" width="100px;" alt="Yuhang Lu"/><br /><sub><b>Yuhang Lu</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=Infinityay" title="Code">💻</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://triepod.ai"><img src="https://avatars.githubusercontent.com/u/199543909?v=4?s=100" width="100px;" alt="Bryan Thompson"/><br /><sub><b>Bryan Thompson</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=triepod-ai" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://triepod.ai"><img src="https://avatars.githubusercontent.com/u/199543909?v=4?s=100" width="100px;" alt="Bryan Thompson"/><br /><sub><b>Bryan Thompson</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=bryankthompson" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="http://www.megvii.com"><img src="https://avatars.githubusercontent.com/u/7806992?v=4?s=100" width="100px;" alt="tan jun"/><br /><sub><b>tan jun</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=tanxxjun321" title="Code">💻</a></td>
     </tr>
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/coldmountein"><img src="https://avatars.githubusercontent.com/u/95873096?v=4?s=100" width="100px;" alt="coldmountain"/><br /><sub><b>coldmountain</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=coldmountein" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://blog.litpp.com/"><img src="https://avatars.githubusercontent.com/u/44826388?v=4?s=100" width="100px;" alt="mamage"/><br /><sub><b>mamage</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=yqdaddy" title="Code">💻</a> <a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=yqdaddy" title="Documentation">📖</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://runyang.vercel.app/"><img src="https://avatars.githubusercontent.com/u/54588936?v=4?s=100" width="100px;" alt="Runyang YOU"/><br /><sub><b>Runyang YOU</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=YRYangang" title="Code">💻</a> <a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=YRYangang" title="Documentation">📖</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://www.hnfnu.edu.cn/"><img src="https://avatars.githubusercontent.com/u/134906805?v=4?s=100" width="100px;" alt="e0_7"/><br /><sub><b>e0_7</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=Daily-AC" title="Code">💻</a> <a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=Daily-AC" title="Documentation">📖</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/prehisle"><img src="https://avatars.githubusercontent.com/u/2081344?v=4?s=100" width="100px;" alt="prehisle"/><br /><sub><b>prehisle</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=prehisle" title="Code">💻</a> <a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=prehisle" title="Documentation">📖</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/blablabiu"><img src="https://avatars.githubusercontent.com/u/123888078?v=4?s=100" width="100px;" alt="Xinhao Chen"/><br /><sub><b>Xinhao Chen</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=blablabiu" title="Code">💻</a> <a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=blablabiu" title="Documentation">📖</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/qiuxsgit"><img src="https://avatars.githubusercontent.com/u/15036686?v=4?s=100" width="100px;" alt="qiuxsgit"/><br /><sub><b>qiuxsgit</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=qiuxsgit" title="Code">💻</a></td>
+    </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/ZhuYichuan"><img src="https://avatars.githubusercontent.com/u/7954801?v=4?s=100" width="100px;" alt="openlts"/><br /><sub><b>openlts</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=ZhuYichuan" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>
@@ -963,3 +1122,11 @@ Thanks to all friends who have contributed to this project! (In no particular or
 </table>
 
 This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind welcome!
+
+## 📄 License
+
+This project is open source under the [Apache License 2.0](LICENSE).
+
+You are free to use, modify and distribute this project, including for commercial purposes, as long as you keep the original copyright notice and license file. The [LICENSE](LICENSE) file is the authoritative source for the full terms.
+
+Contributions submitted to this project are licensed under the same license by default.

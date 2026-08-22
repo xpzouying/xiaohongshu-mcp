@@ -68,6 +68,12 @@ type FeedDetailArgs struct {
 type UserProfileArgs struct {
 	UserID    string `json:"user_id" jsonschema:"小红书用户ID，从Feed列表获取"`
 	XsecToken string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
+	Tab       string `json:"tab,omitempty" jsonschema:"主页 tab: note(笔记,默认)|fav(收藏)|liked(点赞)。收藏和点赞可能被对方设为不公开"`
+}
+
+// MyProfileArgs 我的主页参数
+type MyProfileArgs struct {
+	Tab string `json:"tab,omitempty" jsonschema:"主页 tab: note(笔记,默认)|fav(收藏)|liked(点赞)"`
 }
 
 // PostCommentArgs 发表评论的参数
@@ -98,6 +104,24 @@ type FavoriteFeedArgs struct {
 	FeedID     string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
 	XsecToken  string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
 	Unfavorite bool   `json:"unfavorite,omitempty" jsonschema:"是否取消收藏，true为取消收藏，false或未设置则为收藏"`
+}
+
+// ListNotificationsArgs 通知列表参数
+type ListNotificationsArgs struct {
+	Tab   string `json:"tab,omitempty" jsonschema:"通知分区: mentions(评论和@,默认)|likes(赞和收藏)|connections(新增关注)"`
+	Limit int    `json:"limit,omitempty" jsonschema:"返回条数上限，默认20"`
+}
+
+// LikeNotificationArgs 通知点赞参数
+type LikeNotificationArgs struct {
+	CommentID string `json:"comment_id" jsonschema:"目标评论ID，从 list_notifications 的 comment_id 字段获取"`
+	Unlike    bool   `json:"unlike,omitempty" jsonschema:"是否取消点赞，true为取消点赞，false或未设置则为点赞"`
+}
+
+// ReplyNotificationArgs 通知回复参数
+type ReplyNotificationArgs struct {
+	CommentID string `json:"comment_id" jsonschema:"目标评论ID，从 list_notifications 的 comment_id 字段获取"`
+	Content   string `json:"content" jsonschema:"回复内容"`
 }
 
 // ResolveShortLinkArgs 解析短链接参数
@@ -269,7 +293,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "get_feed_detail",
-			Description: "获取小红书笔记详情，返回笔记内容、图片、作者信息、互动数据（点赞/收藏/分享数）及评论列表。默认返回前10条一级评论，如需更多评论请设置load_all_comments=true",
+			Description: "获取小红书笔记详情，返回笔记内容、图片、作者信息、互动数据（点赞/收藏/分享数）及评论列表。视频笔记额外返回 video 字段，含各编码档位的视频直链与字幕地址（均带签名、有时效）。默认返回前10条一级评论，如需更多评论请设置load_all_comments=true",
 			Annotations: &mcp.ToolAnnotations{
 				Title:        "Get Feed Detail",
 				ReadOnlyHint: true,
@@ -314,7 +338,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "user_profile",
-			Description: "获取指定的小红书用户主页，返回用户基本信息，关注、粉丝、获赞量及其笔记内容",
+			Description: "获取指定的小红书用户主页，返回用户基本信息，关注、粉丝、获赞量，以及指定 tab 下的内容。tab 可选 note(笔记,默认)、fav(收藏)、liked(点赞)，后两者可能被对方设为不公开",
 			Annotations: &mcp.ToolAnnotations{
 				Title:        "User Profile",
 				ReadOnlyHint: true,
@@ -324,6 +348,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 			argsMap := map[string]interface{}{
 				"user_id":    args.UserID,
 				"xsec_token": args.XsecToken,
+				"tab":        args.Tab,
 			}
 			result := appServer.handleUserProfile(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
@@ -361,7 +386,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				DestructiveHint: boolPtr(true),
 			},
 		},
-		func(ctx context.Context, req *mcp.CallToolRequest, args ReplyCommentArgs) (*mcp.CallToolResult, any, error) {
+		withPanicRecovery("reply_comment_in_feed", func(ctx context.Context, req *mcp.CallToolRequest, args ReplyCommentArgs) (*mcp.CallToolResult, any, error) {
 			if args.CommentID == "" && args.UserID == "" {
 				return &mcp.CallToolResult{
 					IsError: true,
@@ -378,7 +403,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 			}
 			result := appServer.handleReplyComment(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
-		},
+		}),
 	)
 
 	// 工具 11: 发布视频（仅本地文件）
@@ -448,7 +473,87 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	// 工具 14: 解析短链接
+	// 工具 14: 获取我的主页
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "get_my_profile",
+			Description: "获取当前登录用户的主页，返回用户基本信息，关注、粉丝、获赞量，以及指定 tab 下的内容。tab 可选 note(自己发的笔记,默认)、fav(自己收藏的)、liked(自己点赞的)",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Get My Profile",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("get_my_profile", func(ctx context.Context, req *mcp.CallToolRequest, args MyProfileArgs) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleGetMyProfile(ctx, args.Tab)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	// 工具 15: 通知未读数
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "get_unread_count",
+			Description: "获取通知未读数，返回「评论和@」「赞和收藏」「新增关注」三个分区各自的未读条数。不会清除未读标记。查看具体内容用 list_notifications。",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Get Unread Count",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("get_unread_count", func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleGetUnreadCount(ctx)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	// 工具 16: 通知列表
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "list_notifications",
+			Description: "获取通知列表。返回评论内容、评论者、以及对应笔记的 feed_id 和 xsec_token（可用于 get_feed_detail 读原帖）。已删除或不可见的条目会被过滤，过滤数量见 filtered 字段。注意：会清除该分区的未读标记，只需要未读数时用 get_unread_count。",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "List Notifications",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("list_notifications", func(ctx context.Context, req *mcp.CallToolRequest, args ListNotificationsArgs) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleListNotifications(ctx, args.Tab, args.Limit)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	// 工具 17: 回复通知里的评论
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "reply_notification",
+			Description: "回复「评论和@」里的一条评论。comment_id 从 list_notifications 获取。适合处理收到的评论，无需先定位笔记。",
+			Annotations: &mcp.ToolAnnotations{
+				Title:           "Reply Notification",
+				DestructiveHint: boolPtr(true),
+			},
+		},
+		withPanicRecovery("reply_notification", func(ctx context.Context, req *mcp.CallToolRequest, args ReplyNotificationArgs) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleReplyNotification(ctx, args.CommentID, args.Content)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	// 工具 18: 给通知里的评论点赞
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "like_notification",
+			Description: "给「评论和@」里的一条评论点赞或取消点赞。comment_id 从 list_notifications 获取（其 liked 字段是当前状态）。已是目标状态时跳过。",
+			Annotations: &mcp.ToolAnnotations{
+				Title:           "Like Notification",
+				DestructiveHint: boolPtr(true),
+			},
+		},
+		withPanicRecovery("like_notification", func(ctx context.Context, req *mcp.CallToolRequest, args LikeNotificationArgs) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleLikeNotification(ctx, args.CommentID, args.Unlike)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	// 工具 19: 解析短链接
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "resolve_shortlink",
@@ -464,7 +569,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	logrus.Infof("Registered %d MCP tools", 14)
+	logrus.Infof("Registered %d MCP tools", 19)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式
