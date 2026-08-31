@@ -557,6 +557,142 @@ func (s *AppServer) handleLikeFeed(ctx context.Context, args map[string]interfac
 	return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: fmt.Sprintf("%s成功 - Feed ID: %s", action, res.FeedID)}}}
 }
 
+// handleListBoards 处理获取专辑列表
+func (s *AppServer) handleListBoards(ctx context.Context, args map[string]interface{}) *MCPToolResult {
+	userID, _ := args["user_id"].(string)
+	logrus.Infof("MCP: 获取专辑列表 - user_id=%s", userID)
+
+	result, err := s.xiaohongshuService.ListBoards(ctx, userID)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "获取专辑列表失败: " + err.Error()}},
+			IsError: true,
+		}
+	}
+
+	jsonData, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: fmt.Sprintf("获取专辑列表成功，但序列化失败: %v", err)}},
+			IsError: true,
+		}
+	}
+
+	return &MCPToolResult{
+		Content: []MCPContent{{Type: "text", Text: string(jsonData)}},
+	}
+}
+
+// handleMoveNoteToBoard 处理移动笔记到专辑
+func (s *AppServer) handleMoveNoteToBoard(ctx context.Context, args map[string]interface{}) *MCPToolResult {
+	noteID, ok := args["note_id"].(string)
+	if !ok || noteID == "" {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "移动失败: 缺少 note_id 参数"}},
+			IsError: true,
+		}
+	}
+	targetBoardID, ok := args["target_board_id"].(string)
+	if !ok || targetBoardID == "" {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "移动失败: 缺少 target_board_id 参数"}},
+			IsError: true,
+		}
+	}
+
+	sourceBoardID, _ := args["source_board_id"].(string)
+
+	logrus.Infof("MCP: 移动笔记到专辑 - note_id=%s target_board_id=%s source_board_id=%s", noteID, targetBoardID, sourceBoardID)
+
+	result, err := s.xiaohongshuService.MoveNoteToBoard(ctx, noteID, targetBoardID, sourceBoardID)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "移动笔记失败: " + err.Error()}},
+			IsError: true,
+		}
+	}
+
+	return &MCPToolResult{
+		Content: []MCPContent{{Type: "text", Text: fmt.Sprintf("%s - Note ID: %s -> Board ID: %s", result.Message, result.NoteID, result.TargetBoardID)}},
+	}
+}
+
+// handleCreateBoard 处理新建专辑
+func (s *AppServer) handleCreateBoard(ctx context.Context, args map[string]interface{}) *MCPToolResult {
+	name, ok := args["name"].(string)
+	if !ok || name == "" {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "创建失败: 缺少 name 参数"}},
+			IsError: true,
+		}
+	}
+	private, _ := args["private"].(bool)
+
+	logrus.Infof("MCP: 新建专辑 - name=%s private=%v", name, private)
+
+	board, err := s.xiaohongshuService.CreateBoard(ctx, name, private)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "创建专辑失败: " + err.Error()}},
+			IsError: true,
+		}
+	}
+
+	return &MCPToolResult{
+		Content: []MCPContent{{Type: "text", Text: fmt.Sprintf("创建专辑成功 - Board ID: %s, Name: %s", board.ID, board.Name)}},
+	}
+}
+
+// handleDeleteBoard 处理删除专辑
+func (s *AppServer) handleDeleteBoard(ctx context.Context, args map[string]interface{}) *MCPToolResult {
+	boardID, ok := args["board_id"].(string)
+	if !ok || boardID == "" {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "删除失败: 缺少 board_id 参数"}},
+			IsError: true,
+		}
+	}
+
+	logrus.Infof("MCP: 删除专辑 - board_id=%s", boardID)
+
+	if err := s.xiaohongshuService.DeleteBoard(ctx, boardID); err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "删除专辑失败: " + err.Error()}},
+			IsError: true,
+		}
+	}
+
+	return &MCPToolResult{
+		Content: []MCPContent{{Type: "text", Text: "删除专辑成功（专辑内笔记仍保留收藏）- Board ID: " + boardID}},
+	}
+}
+
+// handleRemoveNoteFromBoard 处理将笔记移出专辑
+func (s *AppServer) handleRemoveNoteFromBoard(ctx context.Context, args map[string]interface{}) *MCPToolResult {
+	noteID, ok := args["note_id"].(string)
+	if !ok || noteID == "" {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "移出失败: 缺少 note_id 参数"}},
+			IsError: true,
+		}
+	}
+	sourceBoardID, _ := args["source_board_id"].(string)
+
+	logrus.Infof("MCP: 将笔记移出专辑 - note_id=%s source_board_id=%s", noteID, sourceBoardID)
+
+	result, err := s.xiaohongshuService.RemoveNoteFromBoard(ctx, noteID, sourceBoardID)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "将笔记移出专辑失败: " + err.Error()}},
+			IsError: true,
+		}
+	}
+
+	return &MCPToolResult{
+		Content: []MCPContent{{Type: "text", Text: fmt.Sprintf("%s - Note ID: %s", result.Message, result.NoteID)}},
+	}
+}
+
 // handleFavoriteFeed 处理收藏/取消收藏
 func (s *AppServer) handleFavoriteFeed(ctx context.Context, args map[string]interface{}) *MCPToolResult {
 	feedID, ok := args["feed_id"].(string)

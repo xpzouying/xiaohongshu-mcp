@@ -124,6 +124,35 @@ type ReplyNotificationArgs struct {
 	Content   string `json:"content" jsonschema:"回复内容"`
 }
 
+// ListBoardsArgs 获取专辑列表参数
+type ListBoardsArgs struct {
+	UserID string `json:"user_id,omitempty" jsonschema:"小红书用户ID（可选）。不填则默认使用当前登录用户"`
+}
+
+// CreateBoardArgs 新建专辑参数
+type CreateBoardArgs struct {
+	Name    string `json:"name" jsonschema:"专辑名称，不超过12个字符"`
+	Private bool   `json:"private,omitempty" jsonschema:"是否为私密专辑，默认公开"`
+}
+
+// DeleteBoardArgs 删除专辑参数
+type DeleteBoardArgs struct {
+	BoardID string `json:"board_id" jsonschema:"要删除的专辑ID"`
+}
+
+// RemoveNoteFromBoardArgs 将笔记移出专辑参数
+type RemoveNoteFromBoardArgs struct {
+	NoteID        string `json:"note_id" jsonschema:"笔记ID"`
+	SourceBoardID string `json:"source_board_id,omitempty" jsonschema:"笔记当前所在专辑ID，留空则自动查找"`
+}
+
+// MoveNoteToBoardArgs 移动笔记到专辑参数
+type MoveNoteToBoardArgs struct {
+	NoteID        string `json:"note_id" jsonschema:"小红书笔记ID（已收藏的笔记）"`
+	TargetBoardID string `json:"target_board_id" jsonschema:"目标专辑ID，可通过 list_boards 获取"`
+	SourceBoardID string `json:"source_board_id,omitempty" jsonschema:"笔记当前所在专辑ID（可选）。已知时传入可跳过查找，明显更快"`
+}
+
 // InitMCPServer 初始化 MCP Server
 func InitMCPServer(appServer *AppServer) *mcp.Server {
 	// 创建 MCP Server
@@ -548,7 +577,103 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	logrus.Infof("Registered %d MCP tools", 18)
+	// 工具 19: 获取收藏专辑列表
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "list_boards",
+			Description: "获取小红书用户的收藏专辑（board）列表。user_id 为空时默认使用当前登录用户",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "List Boards",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("list_boards", func(ctx context.Context, req *mcp.CallToolRequest, args ListBoardsArgs) (*mcp.CallToolResult, any, error) {
+			argsMap := map[string]interface{}{
+				"user_id": args.UserID,
+			}
+			result := appServer.handleListBoards(ctx, argsMap)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	// 工具 20: 将已收藏笔记移动到指定专辑
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "move_feed_to_board",
+			Description: "将已收藏的笔记移动到指定的收藏专辑（board）。未归类和已归入其它专辑的笔记都支持，收藏时间不会被重置",
+			Annotations: &mcp.ToolAnnotations{
+				Title:           "Move Feed To Board",
+				DestructiveHint: boolPtr(true),
+			},
+		},
+		withPanicRecovery("move_feed_to_board", func(ctx context.Context, req *mcp.CallToolRequest, args MoveNoteToBoardArgs) (*mcp.CallToolResult, any, error) {
+			argsMap := map[string]interface{}{
+				"note_id":         args.NoteID,
+				"target_board_id": args.TargetBoardID,
+				"source_board_id": args.SourceBoardID,
+			}
+			result := appServer.handleMoveNoteToBoard(ctx, argsMap)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	// 工具 21: 将笔记移出专辑（仍保留收藏）
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "remove_feed_from_board",
+			Description: "将已收藏的笔记移出所在的收藏专辑（board），笔记仍然保留在收藏里，收藏时间不变。source_board_id 可留空，会自动查找笔记当前所在的专辑",
+			Annotations: &mcp.ToolAnnotations{
+				Title:           "Remove Feed From Board",
+				DestructiveHint: boolPtr(true),
+			},
+		},
+		withPanicRecovery("remove_feed_from_board", func(ctx context.Context, req *mcp.CallToolRequest, args RemoveNoteFromBoardArgs) (*mcp.CallToolResult, any, error) {
+			argsMap := map[string]interface{}{
+				"note_id":         args.NoteID,
+				"source_board_id": args.SourceBoardID,
+			}
+			result := appServer.handleRemoveNoteFromBoard(ctx, argsMap)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	// 工具 22: 新建空专辑
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "create_board",
+			Description: "新建一个空的收藏专辑（board）。名称不超过 12 个字符，private 为 true 时创建私密专辑",
+			Annotations: &mcp.ToolAnnotations{
+				Title: "Create Board",
+			},
+		},
+		withPanicRecovery("create_board", func(ctx context.Context, req *mcp.CallToolRequest, args CreateBoardArgs) (*mcp.CallToolResult, any, error) {
+			argsMap := map[string]interface{}{
+				"name":    args.Name,
+				"private": args.Private,
+			}
+			result := appServer.handleCreateBoard(ctx, argsMap)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	// 工具 23: 删除专辑
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "delete_board",
+			Description: "删除一个收藏专辑（board）。专辑里的笔记不会被取消收藏，只会回到未归类状态，收藏时间也不变",
+			Annotations: &mcp.ToolAnnotations{
+				Title:           "Delete Board",
+				DestructiveHint: boolPtr(true),
+			},
+		},
+		withPanicRecovery("delete_board", func(ctx context.Context, req *mcp.CallToolRequest, args DeleteBoardArgs) (*mcp.CallToolResult, any, error) {
+			argsMap := map[string]interface{}{"board_id": args.BoardID}
+			result := appServer.handleDeleteBoard(ctx, argsMap)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	logrus.Infof("Registered %d MCP tools", 23)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式
