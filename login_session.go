@@ -40,3 +40,15 @@ func (l *loginSessions) finish(seq uint64) {
 		l.cancel = nil
 	}
 }
+
+// preempt 取消当前待扫码会话（若有），让其释放浏览器锁，避免死锁。
+// 在启用 user-data-dir 时，GetLoginQrcode 必须先 preempt 再 acquireBrowser。
+func (l *loginSessions) preempt() {
+	l.mu.Lock()
+	prev := l.cancel
+	l.cancel = nil
+	l.mu.Unlock()
+	if prev != nil {
+		prev()
+	}
+}
