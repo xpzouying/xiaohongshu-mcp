@@ -120,9 +120,7 @@ func submitPublishVideo(ctx context.Context, page *rod.Page, title, content stri
 	if err := humanize.Type(ctx, contentElem, content); err != nil {
 		return errors.Wrap(err, "输入正文失败")
 	}
-	if err := waitAndClickTitleInput(titleElem); err != nil {
-		return err
-	}
+	waitAndClickTitleInput(page)
 	if err := inputTags(ctx, contentElem, tags); err != nil {
 		return err
 	}
