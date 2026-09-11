@@ -585,13 +585,39 @@ func clickPublishWidget(page *rod.Page, widget *rod.Element) error {
 }
 
 // waitAndClickTitleInput 在填写正文后等待 1 秒并回点标题输入框，增强后续交互稳定性
+//
+// PATCHED by dongyang 2026-09-10：原版使用 humanize.Click，其首步 elem.WaitInteractable()
+// 会无限轮询元素可交互状态。当正文填完后页面被正文长度撑高、富文本编辑器弹出的智能联想
+// 或话题联想浮层遮挡标题框时，WaitInteractable 一直判定不可交互直至 context 5 分钟超时，
+// 表现为「回点标题输入框失败: context deadline exceeded」。修复策略：
+//   1. 先 ScrollIntoView 把标题框滚到视口中央，消除滚动出视口造成的「看不见」误判。
+//   2. 跳过 WaitInteractable，改用 ClickNoWait 直接拿到元素形状后点击（这是上游
+//      humanize 包为「遮挡误判而死等」场景预留的逃生口，注释见 input.go）。
+//   3. 即使 ClickNoWait 失败，最后再尝试一次 Focus（光标回到标题框），够用即可。
 func waitAndClickTitleInput(titleElem *rod.Element) error {
 	slog.Info("正文填写完成，准备等待后回点标题输入框")
 	time.Sleep(1 * time.Second)
-	if err := humanize.Click(titleElem); err != nil {
-		return errors.Wrap(err, "回点标题输入框失败")
+
+	// 1) 滚动到视口中央
+	if err := titleElem.ScrollIntoView(); err != nil {
+		slog.Warn("标题输入框 ScrollIntoView 失败，将继续尝试点击", "err", err)
 	}
-	slog.Info("已回点标题输入框，继续后续发布流程")
+	// 滚动可能引发 layout，再给一点时间稳定
+	time.Sleep(200 * time.Millisecond)
+
+	// 2) 优先用 ClickNoWait（不受浮层遮挡误判影响）
+	if err := humanize.ClickNoWait(titleElem); err == nil {
+		slog.Info("已回点标题输入框（ClickNoWait 路径）")
+		return nil
+	} else {
+		slog.Warn("ClickNoWait 失败，尝试 Focus 兜底", "err", err)
+	}
+
+	// 3) 兜底：直接 Focus 到标题框（光标回到标题位置即可，对后续 tag/发布流程够用）
+	if err := titleElem.Focus(); err != nil {
+		return errors.Wrap(err, "回点标题输入框失败（ClickNoWait 与 Focus 均失败）")
+	}
+	slog.Info("已通过 Focus 兜底回到标题输入框")
 	return nil
 }
 
