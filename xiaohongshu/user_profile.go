@@ -55,14 +55,20 @@ func (u *UserProfileAction) UserProfile(ctx context.Context, userID, xsecToken s
 
 	searchURL := makeUserProfileURL(userID, xsecToken, tab)
 	page.MustNavigate(searchURL)
-	page.MustWaitStable()
+	softWaitStable(page, "用户主页")
 
 	return u.extractUserProfileData(page, tab)
 }
 
 // extractUserProfileData 从页面中提取用户资料数据的通用方法
 func (u *UserProfileAction) extractUserProfileData(page *rod.Page, tab ProfileTab) (*UserProfileResponse, error) {
-	page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
+	// 不能只等 __INITIAL_STATE__ 这个壳：壳在页面初始化时就有，userPageData 要等接口
+	// 回来才填。下面的提取是一次性的，拿到空值就直接报错，故这里等到真实数据落地。
+	softWaitData(page, `() => {
+		const u = window.__INITIAL_STATE__ && window.__INITIAL_STATE__.user;
+		const d = u && u.userPageData;
+		return !!(d ? (d.value !== undefined ? d.value : d._value) : null);
+	}`, 15*time.Second, "用户主页数据")
 
 	userDataResult := page.MustEval(`() => {
 		if (window.__INITIAL_STATE__ &&
@@ -157,7 +163,7 @@ func (u *UserProfileAction) GetMyProfileViaSidebar(ctx context.Context, tab Prof
 	}
 
 	// 等待页面加载完成并获取 __INITIAL_STATE__
-	page.MustWaitStable()
+	softWaitStable(page, "用户主页")
 
 	if err := u.selectTab(ctx, page, tab); err != nil {
 		return nil, err
@@ -188,7 +194,7 @@ func (u *UserProfileAction) selectTab(ctx context.Context, page *rod.Page, tab P
 			return fmt.Errorf("切换到 %s 失败: %w", label, err)
 		}
 		humanize.Delay(ctx, humanize.AfterClick)
-		page.MustWaitStable()
+		softWaitStable(page, "用户主页-切换标签页")
 		return nil
 	}
 	return fmt.Errorf("未找到子 tab %q", label)

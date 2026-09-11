@@ -49,7 +49,7 @@ func (a *interactAction) preparePage(ctx context.Context, actionType interactAct
 	logrus.Infof("Opening feed detail page for %s: %s", actionType, url)
 
 	page.MustNavigate(url)
-	page.MustWaitDOMStable()
+	softWaitDOMStable(page, "点赞/收藏-详情页")
 	humanize.Delay(ctx, humanize.AfterNavigate)
 
 	return page

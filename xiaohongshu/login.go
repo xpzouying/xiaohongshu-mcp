@@ -20,7 +20,12 @@ func NewLogin(page *rod.Page) *LoginAction {
 func (a *LoginAction) CheckLoginStatus(ctx context.Context) (bool, error) {
 	// 加超时保护：只是查登录态的快速检查，不应无限挂（登录扫码的等待在 Login/WaitForLogin 里）
 	pp := a.page.Context(ctx).Timeout(30 * time.Second)
-	pp.MustNavigate("https://www.xiaohongshu.com/explore").MustWaitLoad()
+	pp.MustNavigate("https://www.xiaohongshu.com/explore")
+
+	// explore 页图片/视频资源多，load 事件常迟迟不触发，MustWaitLoad 会耗尽 30s deadline 并 panic
+	// （容器日志三天内 13 次 check_login_status context deadline exceeded）。
+	// 登录态只由下面的 .channel 元素判定，不需要整页 load 完成，故 load 等待设软超时。
+	_ = pp.Timeout(8 * time.Second).WaitLoad()
 
 	time.Sleep(1 * time.Second)
 
@@ -74,7 +79,9 @@ func (a *LoginAction) Login(ctx context.Context) error {
 	pp := a.page.Context(ctx)
 
 	// 导航到小红书首页，这会触发二维码弹窗
-	pp.MustNavigate("https://www.xiaohongshu.com/explore").MustWaitLoad()
+	pp.MustNavigate("https://www.xiaohongshu.com/explore")
+	// 注意 pp 只做了 Context(ctx) 没设 Timeout，裸 MustWaitLoad 在此处没有任何上限。
+	softWaitLoad(pp, "登录-explore 页")
 
 	time.Sleep(2 * time.Second)
 
@@ -91,7 +98,9 @@ func (a *LoginAction) FetchQrcodeImage(ctx context.Context) (string, bool, error
 	pp := a.page.Context(ctx)
 
 	// 导航到小红书首页，这会触发二维码弹窗
-	pp.MustNavigate("https://www.xiaohongshu.com/explore").MustWaitLoad()
+	pp.MustNavigate("https://www.xiaohongshu.com/explore")
+	// 注意 pp 只做了 Context(ctx) 没设 Timeout，裸 MustWaitLoad 在此处没有任何上限。
+	softWaitLoad(pp, "登录-explore 页")
 
 	time.Sleep(2 * time.Second)
 

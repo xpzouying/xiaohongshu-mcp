@@ -18,7 +18,7 @@ func NewFeedsListAction(page *rod.Page) *FeedsListAction {
 	pp := page.Timeout(60 * time.Second)
 
 	pp.MustNavigate("https://www.xiaohongshu.com")
-	pp.MustWaitDOMStable()
+	softWaitDOMStable(pp, "首页笔记列表")
 
 	return &FeedsListAction{page: pp}
 }

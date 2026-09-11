@@ -108,8 +108,26 @@ func (f *FeedDetailAction) GetFeedDetailWithConfig(ctx context.Context, feedID, 
 	// 使用retry-go处理页面导航和DOM稳定等待
 	err := retry.Do(
 		func() error {
-			page.MustNavigate(url)
-			page.MustWaitDOMStable()
+			// 用 Navigate 而不是 MustNavigate：后者失败是 panic，外面这层 retry.Do
+			// 只认 error，捕获不到——于是 retry.Attempts(3) 一直是死代码。线上 8 次
+			// net::ERR_NAME_NOT_RESOLVED（容器 DNS 偶发）一次都没被重试过。
+			if e := page.Navigate(url); e != nil {
+				return e
+			}
+			// 等的是数据就绪，不是页面静止。
+			//
+			// 原先这里是 MustWaitDOMStable：视频笔记播放时 DOM 持续变动，永远等不到静止，
+			// 一路耗到本函数 10 分钟的 page deadline，表现为客户端"卡死"。001 补丁给它加了
+			// 15 秒上限止住了血，但没追问这个等待本身该不该存在——实测那 15 秒每次都白等满
+			// （日志里必现 "DOM 未在 15s 内稳定"），而详情数据全部取自 __INITIAL_STATE__，
+			// 跟 DOM 静不静止毫无关系。改成直接等 noteDetailMap 落地，图文和视频都不再空耗。
+			if e := page.Timeout(15 * time.Second).Wait(rod.Eval(`() => {
+				const s = window.__INITIAL_STATE__;
+				const m = s && s.note && s.note.noteDetailMap;
+				return !!m && Object.keys(m).length > 0;
+			}`)); e != nil {
+				logrus.Warnf("__INITIAL_STATE__ 未在 15s 内就绪，仍尝试解析: %v", e)
+			}
 			return nil
 		},
 		retry.Attempts(3),

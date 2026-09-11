@@ -30,7 +30,9 @@ func (f *CommentFeedAction) PostComment(ctx context.Context, feedID, xsecToken, 
 
 	// 导航到详情页
 	page.MustNavigate(url)
-	page.MustWaitDOMStable()
+	// 真正的就绪条件是下面那句评论输入框的查找，不是整页 DOM 静止。
+	// 视频笔记的 DOM 永远静不下来，原先会在这里吃满 60s 再 panic，评论一条都发不出去。
+	softWaitDOMStable(page, "发布评论-详情页")
 	humanize.Delay(ctx, humanize.AfterNavigate)
 
 	// 检测页面是否可访问
@@ -120,7 +122,9 @@ func (f *CommentFeedAction) ReplyToComment(ctx context.Context, feedID, xsecToke
 
 	// 导航到详情页
 	page.MustNavigate(url)
-	page.MustWaitDOMStable()
+	// 同上：后面的 findCommentElement 才是就绪条件。
+	// 这里的 page deadline 是 5 分钟，原先视频笔记会实打实卡满 5 分钟。
+	softWaitDOMStable(page, "回复评论-详情页")
 	humanize.Delay(ctx, humanize.AfterNavigate)
 
 	// 检测页面是否可访问

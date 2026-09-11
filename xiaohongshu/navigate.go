@@ -19,9 +19,10 @@ func NewNavigate(page *rod.Page) *NavigateAction {
 func (n *NavigateAction) ToExplorePage(ctx context.Context) error {
 	page := n.page.Context(ctx).Timeout(60 * time.Second) // 加超时保护，避免 MustNavigate/MustWaitStable 无限挂
 
-	page.MustNavigate("https://www.xiaohongshu.com/explore").
-		MustWaitLoad().
-		MustElement(`div#app`)
+	page.MustNavigate("https://www.xiaohongshu.com/explore")
+	// explore 页资源多，load 事件常迟迟不触发；div#app 出现才是 SPA 真正就绪的标志。
+	softWaitLoad(page, "explore 页")
+	page.MustElement(`div#app`)
 
 	return nil
 }
@@ -34,7 +35,7 @@ func (n *NavigateAction) ToProfilePage(ctx context.Context) error {
 		return err
 	}
 
-	page.MustWaitStable()
+	softWaitStable(page, "个人页-侧边栏")
 
 	// Find and click the "我" channel link in sidebar
 	profileLink := page.MustElement(`div.main-container li.user.side-bar-component a.link-wrapper span.channel`)
@@ -44,7 +45,7 @@ func (n *NavigateAction) ToProfilePage(ctx context.Context) error {
 	}
 
 	// Wait for navigation to complete
-	page.MustWaitLoad()
+	softWaitLoad(page, "个人页-点击跳转后")
 
 	return nil
 }

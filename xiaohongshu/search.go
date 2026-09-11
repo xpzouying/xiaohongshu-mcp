@@ -106,8 +106,24 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 
 	searchURL := makeSearchURL(keyword)
 	page.MustNavigate(searchURL)
-	page.MustWaitStable()
-	page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
+	// 等的是搜索结果本身落地。
+	//
+	// 原先是 MustWaitStable：要求「DOM 零变化 + 网络空闲 + load 完成」三者同时成立，
+	// 而搜索页有懒加载图片、视频预览和无限滚动占位，这个条件实测无法达成，只会一路耗到
+	// 60s deadline 后 panic（容器日志三天内 32 次 search_feeds context deadline exceeded）。
+	//
+	// 但也不能只等 __INITIAL_STATE__ 这个壳：壳在页面初始化时就有了，feeds 要等接口回来
+	// 才填。只检查壳会在慢网络下提前放行，而下面的提取是一次性的、没有重试，拿到空值就直接
+	// 报 ErrNoFeeds——表现为"没搜到结果"，比 panic 更难排查。故这里等到 feeds 真正有值。
+	//
+	// .value / ._value 两种形态都要认，与下面的提取逻辑和 feedIDsJS 保持一致。
+	// 搜索确实无结果时也会等满超时，交给下面的提取按 ErrNoFeeds 正常处理。
+	softWaitData(page, `() => {
+		const f = window.__INITIAL_STATE__ && window.__INITIAL_STATE__.search
+			&& window.__INITIAL_STATE__.search.feeds;
+		const v = f ? (f.value !== undefined ? f.value : f._value) : null;
+		return Array.isArray(v) && v.length > 0;
+	}`, 20*time.Second, "搜索结果")
 	humanize.Delay(ctx, humanize.AfterNavigate)
 
 	if len(pending) > 0 {
