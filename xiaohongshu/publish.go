@@ -38,6 +38,14 @@ const (
 
 	// contentElemTimeout 查找正文输入框的轮询窗口
 	contentElemTimeout = 10 * time.Second
+	// 上传一张图片后，页面会短暂重建 file input。下一张图必须等待新节点出现。
+	imageUploadInputTimeout      = 10 * time.Second
+	imageUploadInputPollInterval = 200 * time.Millisecond
+
+	// 标签联想是可选能力，不能耗尽整个发布流程的 300 秒超时。
+	tagSuggestionTimeout      = 6 * time.Second
+	tagSuggestionPollInterval = 200 * time.Millisecond
+	tagMenuCloseTimeout       = 2 * time.Second
 )
 
 func NewPublishImageAction(page *rod.Page) (*PublishAction, error) {
@@ -249,11 +257,13 @@ func uploadImages(page *rod.Page, imagesPaths []string) error {
 
 	// 逐张上传：每张上传后等待预览出现，再上传下一张
 	for i, path := range validPaths {
-		uploadInput, err := findImageUploadInput(page, i == 0)
+		err := retryImageUploadInput(
+			page.GetContext(),
+			imageUploadInputTimeout,
+			func() (*rod.Element, error) { return findImageUploadInput(page, i == 0) },
+			func(input *rod.Element) error { return input.SetFiles([]string{path}) },
+		)
 		if err != nil {
-			return errors.Wrapf(err, "查找上传输入框失败(第%d张)", i+1)
-		}
-		if err := uploadInput.SetFiles([]string{path}); err != nil {
 			return errors.Wrapf(err, "上传第%d张图片失败", i+1)
 		}
 
@@ -272,7 +282,11 @@ func uploadImages(page *rod.Page, imagesPaths []string) error {
 // findImageUploadInput 查找图片上传的输入框
 func findImageUploadInput(page *rod.Page, first bool) (*rod.Element, error) {
 	if first {
-		return page.Element(".upload-input")
+		inputs, err := page.Elements(".upload-input")
+		if err != nil || len(inputs) == 0 {
+			return nil, err
+		}
+		return inputs[0], nil
 	}
 
 	inputs, err := page.Elements(`input[type="file"]`)
@@ -280,7 +294,7 @@ func findImageUploadInput(page *rod.Page, first bool) (*rod.Element, error) {
 		return nil, err
 	}
 	if len(inputs) == 0 {
-		return nil, errors.New("页面没有文件上传输入框")
+		return nil, nil
 	}
 
 	for _, input := range inputs {
@@ -294,6 +308,44 @@ func findImageUploadInput(page *rod.Page, first bool) (*rod.Element, error) {
 	}
 
 	return inputs[0], nil
+}
+
+func retryImageUploadInput(
+	ctx context.Context,
+	timeout time.Duration,
+	lookup func() (*rod.Element, error),
+	setFile func(*rod.Element) error,
+) error {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	var lastErr error
+	for {
+		input, err := lookup()
+		if err != nil {
+			lastErr = err
+		} else if input != nil {
+			if err := setFile(input); err == nil {
+				return nil
+			} else {
+				lastErr = err
+			}
+		}
+
+		timer := time.NewTimer(imageUploadInputPollInterval)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			if errors.Is(ctx.Err(), context.Canceled) {
+				return ctx.Err()
+			}
+			if lastErr != nil {
+				return errors.Wrap(lastErr, "等待图片上传输入框超时")
+			}
+			return errors.New("等待图片上传输入框超时")
+		case <-timer.C:
+		}
+	}
 }
 
 // acceptsImage 判断 accept 属性是否接受图片
@@ -722,6 +774,11 @@ func inputTags(ctx context.Context, contentElem *rod.Element, tags []string) err
 }
 
 func inputTag(ctx context.Context, contentElem *rod.Element, tag string) error {
+	beforeText, err := contentElem.Text()
+	if err != nil {
+		return errors.Wrap(err, "记录标签输入前正文失败")
+	}
+
 	// 输入 # 触发话题联想
 	if err := humanize.Type(ctx, contentElem, "#"); err != nil {
 		return errors.Wrap(err, "输入#失败")
@@ -732,27 +789,177 @@ func inputTag(ctx context.Context, contentElem *rod.Element, tag string) error {
 		return errors.Wrap(err, "输入标签内容失败")
 	}
 
-	time.Sleep(1 * time.Second) // 技术等待：等联想结果刷新
-
 	page := contentElem.Page()
-	topicContainer, err := page.Element("#creator-editor-topic-container")
-	if err != nil || topicContainer == nil {
-		slog.Warn("未找到标签联想下拉框，直接输入空格", "tag", tag)
-		return humanize.Type(ctx, contentElem, " ")
+	lookup := func(tagCtx context.Context) (*rod.Element, error) {
+		return findMatchingTagSuggestion(tagCtx, page, tag)
 	}
 
-	firstItem, err := topicContainer.Element(".item")
-	if err != nil || firstItem == nil {
-		slog.Warn("未找到标签联想选项，直接输入空格", "tag", tag)
-		return humanize.Type(ctx, contentElem, " ")
+	selected, err := selectTagSuggestion(ctx, tagSuggestionTimeout, lookup, func(item *rod.Element) error {
+		return humanize.Click(item)
+	})
+	if err != nil {
+		return err
+	}
+	if !selected {
+		slog.Warn("未找到标签联想选项，跳过该标签", "tag", tag)
+		return removeTypedTag(ctx, contentElem, beforeText, tag)
 	}
 
-	if err := humanize.Click(firstItem); err != nil {
-		return errors.Wrap(err, "点击标签联想选项失败")
-	}
 	slog.Info("成功点击标签联想选项", "tag", tag)
-	time.Sleep(500 * time.Millisecond) // 技术等待：等标签处理完成
-	return nil
+
+	waitForTagMenuClose(ctx, page, tagMenuCloseTimeout)
+	return waitWithContext(ctx, time.Duration(1500+rand.Intn(1501))*time.Millisecond)
+}
+
+func findMatchingTagSuggestion(ctx context.Context, page *rod.Page, tag string) (*rod.Element, error) {
+	names, err := page.Context(ctx).Elements("#creator-editor-topic-container .item .name")
+	if err != nil {
+		return nil, errors.Wrap(err, "查找标签联想选项失败")
+	}
+
+	for _, name := range names {
+		text, err := name.Context(ctx).Text()
+		if err != nil || !tagSuggestionNameMatches(text, tag) {
+			continue
+		}
+		item, err := name.Context(ctx).Parent()
+		if err != nil || item == nil || !isElementVisible(item) {
+			continue
+		}
+		return item, nil
+	}
+	return nil, nil
+}
+
+func tagSuggestionNameMatches(name, tag string) bool {
+	name = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(name), "#"))
+	return strings.EqualFold(name, strings.TrimSpace(strings.TrimLeft(tag, "#")))
+}
+
+func selectTagSuggestion(
+	ctx context.Context,
+	timeout time.Duration,
+	lookup func(context.Context) (*rod.Element, error),
+	click func(*rod.Element) error,
+) (bool, error) {
+	tagCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	ticker := time.NewTicker(tagSuggestionPollInterval)
+	defer ticker.Stop()
+
+	for {
+		item, err := lookup(tagCtx)
+		if err != nil {
+			if tagCtx.Err() != nil {
+				if parentErr := ctx.Err(); parentErr != nil {
+					return false, parentErr
+				}
+				return false, nil
+			}
+			return false, err
+		}
+		if item != nil {
+			if err := click(item.Context(tagCtx)); err == nil {
+				return true, nil
+			} else {
+				slog.Debug("标签联想选项已失效，重新查找", "error", err)
+			}
+		}
+
+		select {
+		case <-ctx.Done():
+			return false, ctx.Err()
+		case <-tagCtx.Done():
+			if err := ctx.Err(); err != nil {
+				return false, err
+			}
+			return false, nil
+		case <-ticker.C:
+		}
+	}
+}
+
+func removeTypedTag(ctx context.Context, contentElem *rod.Element, beforeText, tag string) error {
+	return restoreTextAfterFailedTag(
+		ctx,
+		beforeText,
+		len("#"+tag)+1,
+		func() (string, error) {
+			return contentElem.Context(ctx).Text()
+		},
+		func() error {
+			return contentElem.Context(ctx).Type(input.Backspace)
+		},
+	)
+}
+
+func restoreTextAfterFailedTag(
+	ctx context.Context,
+	beforeText string,
+	maxBackspaces int,
+	currentText func() (string, error),
+	backspace func() error,
+) error {
+	for attempts := 0; attempts <= maxBackspaces; attempts++ {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+
+		current, err := currentText()
+		if err != nil {
+			return errors.Wrap(err, "读取标签清理后的正文失败")
+		}
+		if current == beforeText {
+			return nil
+		}
+		if !strings.HasPrefix(current, beforeText) {
+			return errors.New("标签输入改变了已有正文，已停止清理以避免误删")
+		}
+		if attempts == maxBackspaces {
+			break
+		}
+		if err := backspace(); err != nil {
+			return errors.Wrap(err, "清理无联想标签失败")
+		}
+	}
+	return errors.New("清理无联想标签后正文未恢复")
+}
+
+func waitWithContext(ctx context.Context, delay time.Duration) error {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+
+	select {
+	case <-timer.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func waitForTagMenuClose(ctx context.Context, page *rod.Page, timeout time.Duration) {
+	menuCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	ticker := time.NewTicker(tagSuggestionPollInterval)
+	defer ticker.Stop()
+
+	for {
+		has, item, err := page.Context(menuCtx).Has("#creator-editor-topic-container .item")
+		if err != nil || !has || item == nil || !isElementVisible(item) {
+			return
+		}
+
+		select {
+		case <-menuCtx.Done():
+			if ctx.Err() == nil {
+				slog.Warn("标签联想下拉框未及时关闭")
+			}
+			return
+		case <-ticker.C:
+		}
+	}
 }
 
 func findTextboxByPlaceholder(page *rod.Page) (*rod.Element, error) {
