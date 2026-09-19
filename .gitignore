@@ -49,3 +49,4 @@ docker/docker-compose.override.yml
 # 本地分析/调试产物，不进仓库
 debug/
 .worktrees/
+xiaohongshu-mcp-patched-darwin-arm64
