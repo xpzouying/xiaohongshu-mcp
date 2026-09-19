@@ -168,6 +168,29 @@ func fetchExpectedSHA(asset string) (string, error) {
 }
 
 func findBinary(dir, binName string) string {
+	// 快速路径：已知平台的确定性路径，O(1) stat
+	if runtime.GOOS == "darwin" && binName == "Chromium" {
+		directPath := filepath.Join(dir, "Chromium.app", "Contents", "MacOS", "Chromium")
+		if _, err := os.Stat(directPath); err == nil {
+			_ = os.Chmod(directPath, 0o755)
+			return directPath
+		}
+	}
+	if runtime.GOOS == "linux" && binName == "chrome" {
+		directPath := filepath.Join(dir, "chrome")
+		if _, err := os.Stat(directPath); err == nil {
+			_ = os.Chmod(directPath, 0o755)
+			return directPath
+		}
+	}
+	if runtime.GOOS == "windows" && binName == "chrome.exe" {
+		directPath := filepath.Join(dir, "chrome.exe")
+		if _, err := os.Stat(directPath); err == nil {
+			return directPath
+		}
+	}
+
+	// 兜底遍历（解压后目录结构异常时）
 	var found string
 	_ = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {
@@ -175,7 +198,7 @@ func findBinary(dir, binName string) string {
 		}
 		if filepath.Base(path) == binName {
 			found = path
-			return io.EOF // 提前结束
+			return io.EOF
 		}
 		return nil
 	})
