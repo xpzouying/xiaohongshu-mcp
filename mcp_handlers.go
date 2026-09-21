@@ -476,16 +476,7 @@ func (s *AppServer) handleUserProfile(ctx context.Context, args map[string]any) 
 		}
 	}
 
-	xsecToken, ok := args["xsec_token"].(string)
-	if !ok || xsecToken == "" {
-		return &MCPToolResult{
-			Content: []MCPContent{{
-				Type: "text",
-				Text: "获取用户主页失败: 缺少xsec_token参数",
-			}},
-			IsError: true,
-		}
-	}
+	xsecToken, _ := args["xsec_token"].(string)
 
 	logrus.Infof("MCP: 获取用户主页 - User ID: %s", userID)
 
