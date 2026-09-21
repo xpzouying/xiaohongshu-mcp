@@ -56,6 +56,8 @@ jobs:
         context: .
         file: ./Dockerfile
         push: true
+        provenance: mode=max
+        sbom: true
         platforms: linux/amd64
         build-args: |
           VERSION=${{ steps.version.outputs.version }}
