@@ -365,6 +365,7 @@ func submitPublish(ctx context.Context, page *rod.Page, title, content string, t
 	if err := humanize.Type(ctx, contentElem, content); err != nil {
 		return errors.Wrap(err, "输入正文失败")
 	}
+	closeFeatureGuide(page)
 	if err := waitAndClickTitleInput(titleElem); err != nil {
 		return err
 	}
@@ -582,6 +583,25 @@ func clickPublishWidget(page *rod.Page, widget *rod.Element) error {
 		return errors.Wrap(err, "点击新版发布按钮失败")
 	}
 	return nil
+}
+
+// closeFeatureGuide 页面有功能引导卡时点「我知道了」关闭
+func closeFeatureGuide(page *rod.Page) {
+	has, btn, err := page.Has(".feature-guide__btn")
+	if err != nil || !has {
+		return
+	}
+	if visible, err := btn.Visible(); err != nil || !visible {
+		return
+	}
+
+	btn = btn.Timeout(5 * time.Second)
+	defer btn.CancelTimeout()
+	if err := humanize.Click(btn); err != nil {
+		slog.Warn("关闭功能引导卡失败", "error", err)
+		return
+	}
+	slog.Info("已关闭功能引导卡")
 }
 
 // waitAndClickTitleInput 在填写正文后等待 1 秒并回点标题输入框，增强后续交互稳定性
