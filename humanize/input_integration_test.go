@@ -182,6 +182,9 @@ const guardHTML = `<body style="margin:0;width:800px;height:600px">
 <div data-n="display"     style="display:none">x</div>
 <div data-n="visibility"  style="position:absolute;left:100px;top:200px;width:96px;height:40px;visibility:hidden">x</div>
 <div data-n="opacity0"    style="position:absolute;left:100px;top:260px;width:96px;height:40px;opacity:0">x</div>
+<div data-n="opacitylow"  style="position:absolute;left:100px;top:320px;width:96px;height:40px;opacity:0.001">x</div>
+<div data-n="opacitydim"  style="position:absolute;left:100px;top:380px;width:96px;height:40px;opacity:0.6">x</div>
+<div data-n="ancestordim" style="position:absolute;left:100px;top:440px;opacity:0.001"><div data-n="inancestor" style="width:96px;height:40px;opacity:1">x</div></div>
 <div data-n="offleft"     style="position:absolute;left:-9999px;top:100px;width:96px;height:40px">x</div>
 <div data-n="belowfold"   style="position:absolute;left:100px;top:5000px;width:96px;height:40px">x</div>
 <div data-n="pointernone" style="position:absolute;left:300px;top:100px;width:96px;height:40px;pointer-events:none">x</div>
@@ -213,7 +216,10 @@ func TestClickGuards(t *testing.T) {
 		{"normal", false, "正常元素"},
 		{"display", true, "拿不到可点区域"},
 		{"visibility", true, "不可命中"},
-		{"opacity0", false, "仍可命中，须放行"},
+		{"opacity0", true, "不可见"},
+		{"opacitylow", true, "低于可见下限"},
+		{"opacitydim", false, "肉眼可见，须放行"},
+		{"inancestor", true, "祖先透明"},
 		{"offleft", true, "落点在视口之外"},
 		{"belowfold", true, "落点在视口之外"},
 		{"pointernone", false, "可穿透但仍应放行"},
