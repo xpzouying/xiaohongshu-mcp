@@ -115,7 +115,12 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 	page := s.page.Context(ctx).Timeout(60 * time.Second)
 
 	searchURL := makeSearchURL(keyword)
-	page.MustNavigate(searchURL)
+	// 导航单独限时：站点偶尔会把 search_result 的 HTML 拖住几十秒不返回，
+	// MustNavigate 会一直等到整个 60 秒 deadline 才 panic。正常导航不到 1 秒，
+	// 这里 12 秒超时、原地重试一次（第二次通常很快），再不行才报错让调用方处理。
+	if err := navigateWithRetry(page, searchURL, 12*time.Second); err != nil {
+		return nil, fmt.Errorf("打开搜索页失败: %w", err)
+	}
 	page.MustWaitStable()
 	page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
 	humanize.Delay(ctx, humanize.AfterNavigate)
@@ -306,4 +311,16 @@ func makeSearchURL(keyword string) string {
 	//https://www.xiaohongshu.com/search_result?keyword=%25E7%258E%258B%25E5%25AD%2590&source=web_search_result_notes
 	//https://www.xiaohongshu.com/search_result?keyword=%25E7%258E%258B%25E5%25AD%2590&source=web_explore_feed
 	return fmt.Sprintf("https://www.xiaohongshu.com/search_result?%s", values.Encode())
+}
+
+// navigateWithRetry 带上限的导航，超时立即重试一次。
+func navigateWithRetry(page *rod.Page, url string, timeout time.Duration) error {
+	var err error
+	for attempt := 1; attempt <= 2; attempt++ {
+		if err = page.Timeout(timeout).Navigate(url); err == nil {
+			return nil
+		}
+		logrus.Warnf("导航 %s 超时（第 %d 次，%s）: %v", url, attempt, timeout, err)
+	}
+	return err
 }
