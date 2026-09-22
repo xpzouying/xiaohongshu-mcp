@@ -13,6 +13,9 @@ var (
 	fingerprintSeed = 0
 
 	proxy = ""
+
+	// userDataDir 持久 Chrome profile 目录；空字符串表示不启用（保持原有每次新建浏览器行为）
+	userDataDir = ""
 )
 
 func InitHeadless(h bool) {
@@ -58,4 +61,19 @@ func Proxy() string {
 // ProxyFromEnv 从 XHS_PROXY 环境变量读取代理地址。env 读取集中在配置层。
 func ProxyFromEnv() string {
 	return os.Getenv("XHS_PROXY")
+}
+
+// SetUserDataDir 设置持久 Chrome profile 目录
+func SetUserDataDir(dir string) {
+	userDataDir = dir
+}
+
+// UserDataDir 获取持久 Chrome profile 目录
+func UserDataDir() string {
+	return userDataDir
+}
+
+// UserDataDirFromEnv 从环境变量 XHS_USER_DATA_DIR 读取持久 profile 路径
+func UserDataDirFromEnv() string {
+	return os.Getenv("XHS_USER_DATA_DIR")
 }

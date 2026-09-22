@@ -96,6 +96,8 @@ type UserProfileResponse struct {
 
 // DeleteCookies 删除 cookies 文件，用于登录重置
 func (s *XiaohongshuService) DeleteCookies(ctx context.Context) error {
+	// 如果使用共享浏览器，需要重置以清除内存中的 cookies
+	resetSharedBrowser()
 	cookiePath := cookies.GetCookiesFilePath()
 	cookieLoader := cookies.NewLoadCookie(cookiePath)
 	return cookieLoader.DeleteCookies()
@@ -103,8 +105,8 @@ func (s *XiaohongshuService) DeleteCookies(ctx context.Context) error {
 
 // CheckLoginStatus 检查登录状态
 func (s *XiaohongshuService) CheckLoginStatus(ctx context.Context) (*LoginStatusResponse, error) {
-	b := newBrowser()
-	defer b.Close()
+	b := acquireBrowser()
+	defer releaseBrowser(b)
 
 	page := b.NewPage()
 	defer page.Close()
@@ -135,12 +137,15 @@ func (s *XiaohongshuService) CheckLoginStatus(ctx context.Context) (*LoginStatus
 
 // GetLoginQrcode 获取登录的扫码二维码
 func (s *XiaohongshuService) GetLoginQrcode(ctx context.Context) (*LoginQrcodeResponse, error) {
-	b := newBrowser()
+	// 先取消上一轮扫码等待，释放浏览器锁，避免死锁
+	s.logins.preempt()
+
+	b := acquireBrowser()
 	page := b.NewPage()
 
 	deferFunc := func() {
 		_ = page.Close()
-		b.Close()
+		releaseBrowser(b)
 	}
 
 	loginAction := xiaohongshu.NewLogin(page)
@@ -272,8 +277,8 @@ func (s *XiaohongshuService) processImages(images []string) ([]string, error) {
 
 // publishContent 执行内容发布
 func (s *XiaohongshuService) publishContent(ctx context.Context, content xiaohongshu.PublishImageContent) error {
-	b := newBrowser()
-	defer b.Close()
+	b := acquireBrowser()
+	defer releaseBrowser(b)
 
 	page := b.NewPage()
 	defer page.Close()
@@ -351,8 +356,8 @@ func (s *XiaohongshuService) PublishVideo(ctx context.Context, req *PublishVideo
 
 // publishVideo 执行视频发布
 func (s *XiaohongshuService) publishVideo(ctx context.Context, content xiaohongshu.PublishVideoContent) error {
-	b := newBrowser()
-	defer b.Close()
+	b := acquireBrowser()
+	defer releaseBrowser(b)
 
 	page := b.NewPage()
 	defer page.Close()
@@ -367,8 +372,8 @@ func (s *XiaohongshuService) publishVideo(ctx context.Context, content xiaohongs
 
 // ListFeeds 获取Feeds列表
 func (s *XiaohongshuService) ListFeeds(ctx context.Context) (*FeedsListResponse, error) {
-	b := newBrowser()
-	defer b.Close()
+	b := acquireBrowser()
+	defer releaseBrowser(b)
 
 	page := b.NewPage()
 	defer page.Close()
@@ -390,8 +395,8 @@ func (s *XiaohongshuService) ListFeeds(ctx context.Context) (*FeedsListResponse,
 }
 
 func (s *XiaohongshuService) SearchFeeds(ctx context.Context, keyword string, filters ...xiaohongshu.FilterOption) (*FeedsListResponse, error) {
-	b := newBrowser()
-	defer b.Close()
+	b := acquireBrowser()
+	defer releaseBrowser(b)
 
 	page := b.NewPage()
 	defer page.Close()
@@ -418,8 +423,8 @@ func (s *XiaohongshuService) GetFeedDetail(ctx context.Context, feedID, xsecToke
 
 // GetFeedDetailWithConfig 使用配置获取Feed详情
 func (s *XiaohongshuService) GetFeedDetailWithConfig(ctx context.Context, feedID, xsecToken string, loadAllComments bool, config xiaohongshu.CommentLoadConfig) (*FeedDetailResponse, error) {
-	b := newBrowser()
-	defer b.Close()
+	b := acquireBrowser()
+	defer releaseBrowser(b)
 
 	page := b.NewPage()
 	defer page.Close()
@@ -446,8 +451,8 @@ func (s *XiaohongshuService) UserProfile(ctx context.Context, userID, xsecToken,
 		return nil, err
 	}
 
-	b := newBrowser()
-	defer b.Close()
+	b := acquireBrowser()
+	defer releaseBrowser(b)
 
 	page := b.NewPage()
 	defer page.Close()
@@ -470,8 +475,8 @@ func (s *XiaohongshuService) UserProfile(ctx context.Context, userID, xsecToken,
 
 // PostCommentToFeed 发表评论到Feed
 func (s *XiaohongshuService) PostCommentToFeed(ctx context.Context, feedID, xsecToken, content string) (*PostCommentResponse, error) {
-	b := newBrowser()
-	defer b.Close()
+	b := acquireBrowser()
+	defer releaseBrowser(b)
 
 	page := b.NewPage()
 	defer page.Close()
@@ -487,8 +492,8 @@ func (s *XiaohongshuService) PostCommentToFeed(ctx context.Context, feedID, xsec
 
 // LikeFeed 点赞笔记
 func (s *XiaohongshuService) LikeFeed(ctx context.Context, feedID, xsecToken string) (*ActionResult, error) {
-	b := newBrowser()
-	defer b.Close()
+	b := acquireBrowser()
+	defer releaseBrowser(b)
 
 	page := b.NewPage()
 	defer page.Close()
@@ -502,8 +507,8 @@ func (s *XiaohongshuService) LikeFeed(ctx context.Context, feedID, xsecToken str
 
 // UnlikeFeed 取消点赞笔记
 func (s *XiaohongshuService) UnlikeFeed(ctx context.Context, feedID, xsecToken string) (*ActionResult, error) {
-	b := newBrowser()
-	defer b.Close()
+	b := acquireBrowser()
+	defer releaseBrowser(b)
 
 	page := b.NewPage()
 	defer page.Close()
@@ -517,8 +522,8 @@ func (s *XiaohongshuService) UnlikeFeed(ctx context.Context, feedID, xsecToken s
 
 // FavoriteFeed 收藏笔记
 func (s *XiaohongshuService) FavoriteFeed(ctx context.Context, feedID, xsecToken string) (*ActionResult, error) {
-	b := newBrowser()
-	defer b.Close()
+	b := acquireBrowser()
+	defer releaseBrowser(b)
 
 	page := b.NewPage()
 	defer page.Close()
@@ -532,8 +537,8 @@ func (s *XiaohongshuService) FavoriteFeed(ctx context.Context, feedID, xsecToken
 
 // UnfavoriteFeed 取消收藏笔记
 func (s *XiaohongshuService) UnfavoriteFeed(ctx context.Context, feedID, xsecToken string) (*ActionResult, error) {
-	b := newBrowser()
-	defer b.Close()
+	b := acquireBrowser()
+	defer releaseBrowser(b)
 
 	page := b.NewPage()
 	defer page.Close()
@@ -547,8 +552,8 @@ func (s *XiaohongshuService) UnfavoriteFeed(ctx context.Context, feedID, xsecTok
 
 // ReplyCommentToFeed 回复指定评论
 func (s *XiaohongshuService) ReplyCommentToFeed(ctx context.Context, feedID, xsecToken, commentID, userID, content string) (*ReplyCommentResponse, error) {
-	b := newBrowser()
-	defer b.Close()
+	b := acquireBrowser()
+	defer releaseBrowser(b)
 
 	page := b.NewPage()
 	defer page.Close()
@@ -570,8 +575,8 @@ func (s *XiaohongshuService) ReplyCommentToFeed(ctx context.Context, feedID, xse
 
 // GetUnreadCount 获取通知未读数
 func (s *XiaohongshuService) GetUnreadCount(ctx context.Context) (*xiaohongshu.NotificationCount, error) {
-	b := newBrowser()
-	defer b.Close()
+	b := acquireBrowser()
+	defer releaseBrowser(b)
 
 	page := b.NewPage()
 	defer page.Close()
@@ -586,8 +591,8 @@ func (s *XiaohongshuService) ListNotifications(ctx context.Context, tab string, 
 		return nil, err
 	}
 
-	b := newBrowser()
-	defer b.Close()
+	b := acquireBrowser()
+	defer releaseBrowser(b)
 
 	page := b.NewPage()
 	defer page.Close()
@@ -597,8 +602,8 @@ func (s *XiaohongshuService) ListNotifications(ctx context.Context, tab string, 
 
 // LikeNotification 给通知里的评论点赞或取消点赞
 func (s *XiaohongshuService) LikeNotification(ctx context.Context, commentID string, unlike bool) (*xiaohongshu.NotificationLikeResult, error) {
-	b := newBrowser()
-	defer b.Close()
+	b := acquireBrowser()
+	defer releaseBrowser(b)
 
 	page := b.NewPage()
 	defer page.Close()
@@ -608,8 +613,8 @@ func (s *XiaohongshuService) LikeNotification(ctx context.Context, commentID str
 
 // ReplyNotification 在通知页就地回复评论
 func (s *XiaohongshuService) ReplyNotification(ctx context.Context, commentID, content string) (*xiaohongshu.NotificationReplyResult, error) {
-	b := newBrowser()
-	defer b.Close()
+	b := acquireBrowser()
+	defer releaseBrowser(b)
 
 	page := b.NewPage()
 	defer page.Close()
@@ -621,6 +626,7 @@ func newBrowser() *headless_browser.Browser {
 	return browser.NewBrowser(configs.IsHeadless(),
 		browser.WithFingerprintSeed(configs.FingerprintSeed()),
 		browser.WithProxy(configs.Proxy()),
+		browser.WithUserDataDir(configs.UserDataDir()),
 	)
 }
 
@@ -641,8 +647,8 @@ func saveCookies(page *rod.Page) error {
 
 // withBrowserPage 执行需要浏览器页面的操作的通用函数
 func withBrowserPage(fn func(*rod.Page) error) error {
-	b := newBrowser()
-	defer b.Close()
+	b := acquireBrowser()
+	defer releaseBrowser(b)
 
 	page := b.NewPage()
 	defer page.Close()
