@@ -213,7 +213,7 @@ func waitFeedsChanged(page *rod.Page, before string, timeout time.Duration) {
 //
 // 全程不用序号。同一个选项在面板里可能渲染成多个 div.tags（数量随视口而变，
 // 且首项是否重复各组不一致），下标对不齐；早前用 div.tags:nth-child(N) 会选错项。
-// 同文本节点中可能混有隐藏副本，必须选择有可点击区域的那个。
+// 同一个文本可能对应多个节点，只取其中可见的那个。
 //
 // 作用域必须限定在 div.filter-panel 内且只认 div.tags：页面别处存在同文本的
 // 可见元素（顶部频道栏的「图文」「视频」、标签「综合」），放宽会点错地方。
@@ -253,13 +253,12 @@ func findFilterOption(page *rod.Page, pf pendingFilter) (*rod.Element, error) {
 			}
 
 			matched = true
-			shape, err := opt.Shape()
-			if err == nil && len(shape.Quads) > 0 {
+			if humanize.Visible(opt) {
 				return opt, nil
 			}
 		}
 		if matched {
-			return nil, fmt.Errorf("「%s」里的选项「%s」没有可点击区域", pf.group, pf.option)
+			return nil, fmt.Errorf("「%s」里的选项「%s」当前不可见", pf.group, pf.option)
 		}
 		return nil, fmt.Errorf("「%s」里没有选项「%s」，页面上是：%s",
 			pf.group, pf.option, strings.Join(available, "、"))

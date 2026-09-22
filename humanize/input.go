@@ -60,17 +60,45 @@ func ensurePointInViewport(page *rod.Page, pt proto.Point) error {
 	return nil
 }
 
+// minOpacity 不透明度低于此值的元素不作为点击目标。
+const minOpacity = 0.1
+
+// effectiveOpacityJS 算元素自身连同各级祖先的不透明度乘积；
+// 链上任意一级 display:none 或 visibility:hidden 都直接算 0。
+//
+// 只看元素自身的 opacity 不够：祖先透明时子元素仍报 1。
+const effectiveOpacityJS = `() => {
+	let v = 1;
+	for (let n = this; n && n.nodeType === 1; n = n.parentElement) {
+		const s = getComputedStyle(n);
+		if (s.display === 'none' || s.visibility === 'hidden') {
+			return 0;
+		}
+		const o = parseFloat(s.opacity);
+		if (!isNaN(o)) {
+			v *= o;
+		}
+	}
+	return v;
+}`
+
+// Visible 判断元素是否可见到足以作为点击目标。取不到样式时按可见处理，
+// 宁可放过也不要挡掉正常元素。
+func Visible(elem *rod.Element) bool {
+	res, err := elem.Eval(effectiveOpacityJS)
+	if err != nil {
+		return true
+	}
+	return res.Value.Num() >= minOpacity
+}
+
 // 不用 document.elementFromPoint：结果不稳定
 func ensureClickable(elem *rod.Element, pt proto.Point) error {
 	if err := ensurePointInViewport(elem.Page(), pt); err != nil {
 		return err
 	}
 
-	res, err := elem.Eval(`() => getComputedStyle(this).visibility`)
-	if err != nil {
-		return nil
-	}
-	if res.Value.Str() == "hidden" {
+	if !Visible(elem) {
 		return errors.New("元素当前不可命中")
 	}
 	return nil

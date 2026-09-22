@@ -67,7 +67,47 @@ func TestSearchWithFilters(t *testing.T) {
 	}
 }
 
-func TestFindFilterOptionSkipsHiddenDuplicate(t *testing.T) {
+// 同文本多节点时，只应取可见的那个。
+func TestFindFilterOptionPicksVisibleOption(t *testing.T) {
+	b := browser.NewBrowser(true)
+	defer b.Close()
+
+	page := b.NewPage()
+	defer func() {
+		_ = page.Close()
+	}()
+
+	cases := []struct {
+		name  string
+		style string
+	}{
+		{"display", `display: none`},
+		{"visibility", `visibility: hidden`},
+		{"opacity", `opacity: 0.001`},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			page.MustSetDocumentContent(fmt.Sprintf(`<div class="filter-panel">
+				<div class="filters">
+					<span>笔记类型</span>
+					<div id="skip" class="tags" style="width: 80px; height: 24px; %s">图文</div>
+					<div id="want" class="tags" style="width: 80px; height: 24px">图文</div>
+				</div>
+			</div>`, c.style))
+
+			option, err := findFilterOption(page, pendingFilter{group: "笔记类型", option: "图文"})
+			require.NoError(t, err)
+			id, err := option.Attribute("id")
+			require.NoError(t, err)
+			require.NotNil(t, id)
+			require.Equal(t, "want", *id)
+		})
+	}
+}
+
+// 祖先透明时，子节点自报的 opacity 不作数。
+func TestFindFilterOptionChecksAncestorOpacity(t *testing.T) {
 	b := browser.NewBrowser(true)
 	defer b.Close()
 
@@ -79,8 +119,10 @@ func TestFindFilterOptionSkipsHiddenDuplicate(t *testing.T) {
 	page.MustSetDocumentContent(`<div class="filter-panel">
 		<div class="filters">
 			<span>笔记类型</span>
-			<div id="hidden" class="tags" style="display: none">图文</div>
-			<div id="visible" class="tags" style="width: 80px; height: 24px">图文</div>
+			<div style="opacity: 0.001">
+				<div id="skip" class="tags" style="width: 80px; height: 24px; opacity: 1">图文</div>
+			</div>
+			<div id="want" class="tags" style="width: 80px; height: 24px">图文</div>
 		</div>
 	</div>`)
 
@@ -89,5 +131,27 @@ func TestFindFilterOptionSkipsHiddenDuplicate(t *testing.T) {
 	id, err := option.Attribute("id")
 	require.NoError(t, err)
 	require.NotNil(t, id)
-	require.Equal(t, "visible", *id)
+	require.Equal(t, "want", *id)
+}
+
+// 同文本节点全都不可见时要报错，不能退而求其次点一个。
+func TestFindFilterOptionRejectsAllInvisible(t *testing.T) {
+	b := browser.NewBrowser(true)
+	defer b.Close()
+
+	page := b.NewPage()
+	defer func() {
+		_ = page.Close()
+	}()
+
+	page.MustSetDocumentContent(`<div class="filter-panel">
+		<div class="filters">
+			<span>笔记类型</span>
+			<div class="tags" style="opacity: 0.001">图文</div>
+			<div class="tags" style="display: none">图文</div>
+		</div>
+	</div>`)
+
+	_, err := findFilterOption(page, pendingFilter{group: "笔记类型", option: "图文"})
+	require.ErrorContains(t, err, "当前不可见")
 }
