@@ -759,8 +759,8 @@ func inputTag(ctx context.Context, contentElem *rod.Element, tag string) error {
 	time.Sleep(1 * time.Second) // 技术等待：等联想结果刷新
 
 	page := contentElem.Page()
-	topicContainer, err := page.Element("#creator-editor-topic-container")
-	if err != nil || topicContainer == nil {
+	hasTopicContainer, topicContainer, err := page.Has("#creator-editor-topic-container")
+	if err != nil || !hasTopicContainer || topicContainer == nil {
 		slog.Warn("未找到标签联想下拉框，直接输入空格", "tag", tag)
 		return humanize.Type(ctx, contentElem, " ")
 	}
