@@ -9,7 +9,36 @@ import (
 	"github.com/go-rod/rod/lib/proto"
 )
 
+// Rect 一个矩形区域，用来限制指针的移动范围。
+type Rect struct {
+	Left, Top, Right, Bottom float64
+}
+
+// clamp 把点收进矩形内。
+func (r Rect) clamp(p proto.Point) proto.Point {
+	return proto.Point{
+		X: math.Min(math.Max(p.X, r.Left), r.Right),
+		Y: math.Min(math.Max(p.Y, r.Top), r.Bottom),
+	}
+}
+
+// Inset 把四边各向内收 d；边长不够收就保持原样。
+func (r Rect) Inset(d float64) Rect {
+	if r.Right-r.Left > 2*d {
+		r.Left, r.Right = r.Left+d, r.Right-d
+	}
+	if r.Bottom-r.Top > 2*d {
+		r.Top, r.Bottom = r.Top+d, r.Bottom-d
+	}
+	return r
+}
+
 func moveMouseCurved(mouse *rod.Mouse, target proto.Point) error {
+	return moveMouseCurvedWithin(mouse, target, nil)
+}
+
+// moveMouseCurvedWithin 与 moveMouseCurved 相同；bounds 非空时，途经的点收进该矩形。
+func moveMouseCurvedWithin(mouse *rod.Mouse, target proto.Point, bounds *Rect) error {
 	start := mouse.Position()
 	dx, dy := target.X-start.X, target.Y-start.Y
 	dist := math.Hypot(dx, dy)
@@ -36,6 +65,9 @@ func moveMouseCurved(mouse *rod.Mouse, target proto.Point) error {
 			return target, true
 		}
 		p := cubicBezier(start, c1, c2, target, easeInOut(float64(i)/float64(steps)))
+		if bounds != nil {
+			p = bounds.clamp(p)
+		}
 		time.Sleep(perStep)
 		return p, false
 	})

@@ -134,15 +134,28 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 		// 记下筛选前的结果，用来判断筛选后的数据什么时候到位
 		before := readFeedIDs(page)
 
-		// 用 ClickNoWait：筛选面板是 hover 浮层，rod 的 WaitInteractable 会误判被遮挡而死等；
-		// ClickNoWait 移进面板内选项（维持 hover、面板不关）再点。
+		// 指针先进面板，之后的移动都限制在面板内。
+		// 从按钮直接拉到选项的话，路径会有一段既不在按钮上、也还没进面板。
+		bounds, err := panelBounds(page)
+		if err != nil {
+			return nil, err
+		}
+		if err := humanize.MoveInto(page, bounds); err != nil {
+			return nil, fmt.Errorf("移入筛选面板失败: %w", err)
+		}
+
+		// 用 ClickNoWait：筛选面板是 hover 浮层，rod 的 WaitInteractable 会误判被遮挡而死等。
 		for _, pf := range pending {
 			option, err := findFilterOption(page, pf)
 			if err != nil {
 				return nil, err
 			}
+			// 每轮重取：点完一项后面板可能重排。
+			if b, err := panelBounds(page); err == nil {
+				bounds = b
+			}
 			humanize.Delay(ctx, humanize.BeforeClick)
-			if err := humanize.ClickNoWait(option); err != nil {
+			if err := humanize.ClickNoWaitInside(option, bounds); err != nil {
 				return nil, fmt.Errorf("点击筛选选项「%s」失败: %w", pf.option, err)
 			}
 		}
@@ -207,6 +220,23 @@ func waitFeedsChanged(page *rod.Page, before string, timeout time.Duration) {
 		time.Sleep(300 * time.Millisecond)
 	}
 	logrus.Warnf("筛选后等待结果刷新超时（%s），返回的可能是筛选前的数据", timeout)
+}
+
+// panelBounds 取筛选面板当前占据的矩形。
+func panelBounds(page *rod.Page) (humanize.Rect, error) {
+	panel, err := page.Element("div.filter-panel")
+	if err != nil {
+		return humanize.Rect{}, fmt.Errorf("读取筛选面板失败: %w", err)
+	}
+	shape, err := panel.Shape()
+	if err != nil {
+		return humanize.Rect{}, fmt.Errorf("读取筛选面板失败: %w", err)
+	}
+	if len(shape.Quads) == 0 {
+		return humanize.Rect{}, fmt.Errorf("筛选面板没有可用区域")
+	}
+	q := shape.Quads[0]
+	return humanize.Rect{Left: q[0], Top: q[1], Right: q[4], Bottom: q[5]}, nil
 }
 
 // findFilterOption 在筛选面板里定位一个选项：按标签找到组，再在组内按文本找选项。
