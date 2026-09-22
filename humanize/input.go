@@ -125,12 +125,65 @@ func Click(elem *rod.Element) error {
 	if err := elem.WaitEnabled(); err != nil {
 		return err
 	}
+	if err := stillOn(elem, target); err != nil {
+		return err
+	}
 
 	return pressAndRelease(mouse)
 }
 
+// quadRect 取 quad 的外接矩形。
+func quadRect(q proto.DOMQuad) Rect {
+	return Rect{Left: q[0], Top: q[1], Right: q[4], Bottom: q[5]}
+}
+
+// stillOn 按下之前复核落点仍在元素上且元素仍可见。
+// 移动要花几十毫秒，这期间页面可能已经变了，按下之前不能只信移动之前取的那份坐标。
+func stillOn(elem *rod.Element, pt proto.Point) error {
+	shape, err := elem.Shape()
+	if err != nil {
+		return err
+	}
+	if len(shape.Quads) == 0 {
+		return errors.New("元素无可点击区域")
+	}
+
+	const tolerance = 1.0
+	r := quadRect(shape.Quads[0])
+	if pt.X < r.Left-tolerance || pt.X > r.Right+tolerance ||
+		pt.Y < r.Top-tolerance || pt.Y > r.Bottom+tolerance {
+		return errors.New("落点已不在元素上")
+	}
+
+	if !Visible(elem) {
+		return errors.New("元素当前不可命中")
+	}
+	return nil
+}
+
+// MoveInto 把指针移进 bounds：取矩形内离当前位置最近的一点。
+func MoveInto(page *rod.Page, bounds Rect) error {
+	const margin = 12
+	inner := bounds.Inset(margin)
+	target := inner.clamp(page.Mouse.Position())
+	target = proto.Point{
+		X: target.X + jitterOffset(margin),
+		Y: target.Y + jitterOffset(margin),
+	}
+	return moveMouseCurved(page.Mouse, inner.clamp(target))
+}
+
 // ClickNoWait 跳过 WaitInteractable 的遮挡重试，用于它会误判而死等的场景。
 func ClickNoWait(elem *rod.Element) error {
+	return clickNoWait(elem, nil)
+}
+
+// ClickNoWaitInside 与 ClickNoWait 相同，但移动途中把指针限制在 bounds 内。
+func ClickNoWaitInside(elem *rod.Element, bounds Rect) error {
+	return clickNoWait(elem, &bounds)
+}
+
+func clickNoWait(elem *rod.Element, bounds *Rect) error {
 	shape, err := elem.Shape()
 	if err != nil {
 		return err
@@ -148,7 +201,10 @@ func ClickNoWait(elem *rod.Element) error {
 	}
 
 	mouse := elem.Page().Mouse
-	if err := moveMouseCurved(mouse, target); err != nil {
+	if err := moveMouseCurvedWithin(mouse, target, bounds); err != nil {
+		return err
+	}
+	if err := stillOn(elem, target); err != nil {
 		return err
 	}
 	return pressAndRelease(mouse)

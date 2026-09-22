@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
+	"github.com/go-rod/rod/lib/proto"
 	"github.com/xpzouying/xiaohongshu-mcp/browser"
 )
 
@@ -241,5 +242,86 @@ func TestClickGuards(t *testing.T) {
 				t.Errorf("%s（%s）不应被拦下，实际报错: %v", c.name, c.reason, err)
 			}
 		})
+	}
+}
+
+// 移动途中目标被挪走：应当放弃点击，而不是打在移动前算好的坐标上。
+const movingTargetHTML = `<body style="margin:0;width:800px;height:600px">
+<div id="target" style="position:absolute;left:600px;top:400px;width:96px;height:40px">x</div>
+<div id="behind" style="position:absolute;left:600px;top:400px;width:96px;height:40px"></div>
+<script>
+window.HIT = [];
+document.addEventListener('click', e => window.HIT.push(e.target.id), true);
+let n = 0;
+document.addEventListener('mousemove', () => {
+  if (++n === 3) { document.getElementById('target').style.left = '40px'; }
+}, true);
+</script></body>`
+
+func TestClickAbortsWhenTargetMoves(t *testing.T) {
+	bin, err := browser.EnsureBrowser()
+	if err != nil {
+		t.Skipf("SKIP: 浏览器不可用: %v", err)
+	}
+
+	u := launcher.New().Bin(bin).Headless(true).MustLaunch()
+	b := rod.New().ControlURL(u).MustConnect()
+	defer b.MustClose()
+
+	page := b.MustPage("about:blank")
+	page.MustWaitLoad()
+	page.MustSetDocumentContent(movingTargetHTML)
+
+	err = ClickNoWait(page.MustElement("#target"))
+	if err == nil {
+		t.Fatal("目标已挪走，点击不应当发出")
+	}
+
+	hit := page.MustEval(`() => JSON.stringify(window.HIT)`).Str()
+	if hit != "[]" {
+		t.Errorf("不该有任何点击落地，实际: %s", hit)
+	}
+}
+
+// 限制范围后，移动途中的落点不应超出该矩形。
+func TestMoveStaysInsideBounds(t *testing.T) {
+	bin, err := browser.EnsureBrowser()
+	if err != nil {
+		t.Skipf("SKIP: 浏览器不可用: %v", err)
+	}
+
+	u := launcher.New().Bin(bin).Headless(true).MustLaunch()
+	b := rod.New().ControlURL(u).MustConnect()
+	defer b.MustClose()
+
+	page := b.MustPage("about:blank")
+	page.MustWaitLoad()
+	page.MustSetDocumentContent(`<body style="margin:0;width:800px;height:600px">
+	<script>
+	window.PTS = [];
+	document.addEventListener('mousemove', e => window.PTS.push([e.clientX, e.clientY]), true);
+	</script></body>`)
+
+	bounds := Rect{Left: 100, Top: 100, Right: 700, Bottom: 300}
+	if err := page.Mouse.MoveTo(proto.Point{X: 650, Y: 280}); err != nil {
+		t.Fatal(err)
+	}
+	page.MustEval(`() => { window.PTS = [] }`)
+
+	if err := moveMouseCurvedWithin(page.Mouse, proto.Point{X: 150, Y: 120}, &bounds); err != nil {
+		t.Fatal(err)
+	}
+
+	var pts [][]float64
+	if err := json.Unmarshal([]byte(page.MustEval(`() => JSON.stringify(window.PTS)`).Str()), &pts); err != nil {
+		t.Fatal(err)
+	}
+	if len(pts) < 5 {
+		t.Fatalf("采样点太少: %d", len(pts))
+	}
+	for _, p := range pts {
+		if p[0] < bounds.Left || p[0] > bounds.Right || p[1] < bounds.Top || p[1] > bounds.Bottom {
+			t.Errorf("落点 (%.0f,%.0f) 超出限制范围", p[0], p[1])
+		}
 	}
 }
