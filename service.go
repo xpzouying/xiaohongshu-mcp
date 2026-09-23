@@ -617,6 +617,11 @@ func (s *XiaohongshuService) ReplyNotification(ctx context.Context, commentID, c
 	return xiaohongshu.NewNotificationAction(page).Reply(ctx, commentID, content)
 }
 
+// ResolveShortLink 解析小红书短链接，提取 feed_id 和 xsec_token
+func (s *XiaohongshuService) ResolveShortLink(ctx context.Context, shortURL string) (*xiaohongshu.ShortLinkResult, error) {
+	return xiaohongshu.ResolveShortLink(ctx, shortURL)
+}
+
 func newBrowser() *headless_browser.Browser {
 	return browser.NewBrowser(configs.IsHeadless(),
 		browser.WithFingerprintSeed(configs.FingerprintSeed()),
