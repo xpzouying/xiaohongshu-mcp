@@ -111,13 +111,13 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 	}
 
 	// 注意 .Context(ctx) 会替换掉 NewSearchAction 里设的 60s deadline，必须在其后重新 Timeout，
-	// 否则搜索页不 stable 时 MustWaitStable/MustWait 会永久挂起（无 deadline 可依赖）。
+	// 否则页面等待没有 deadline 可依赖，异常时会永久挂起。
 	page := s.page.Context(ctx).Timeout(60 * time.Second)
 
 	searchURL := makeSearchURL(keyword)
 	page.MustNavigate(searchURL)
-	page.MustWaitStable()
-	page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
+	page.MustWaitLoad()
+	waitFeedsLoaded(page, 20*time.Second)
 	humanize.Delay(ctx, humanize.AfterNavigate)
 
 	if len(pending) > 0 {
@@ -201,6 +201,26 @@ func readFeedIDs(page *rod.Page) string {
 		return ""
 	}
 	return res.Value.Str()
+}
+
+// waitFeedsLoaded 等首屏搜索结果注水进 __INITIAL_STATE__.search.feeds。
+//
+// 不能用 MustWaitStable：搜索页有信息流和图片懒加载，DOM 一直在变、等不到静止，
+// 60s deadline 会整个耗在这一步。
+//
+// 也不能只判断 __INITIAL_STATE__ !== undefined：导航刚发起时它还是上一页的对象，
+// 条件立刻为真，于是读到上一页的 feeds——和下面 waitFeedsChanged 记的是同一个坑。
+//
+// 超时不报错：把判定交给后面统一的 ErrNoFeeds，与 feeds.go 里等注水的做法一致。
+func waitFeedsLoaded(page *rod.Page, timeout time.Duration) {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if readFeedIDs(page) != "" {
+			return
+		}
+		time.Sleep(300 * time.Millisecond)
+	}
+	logrus.Warnf("等待搜索结果加载超时（%s）", timeout)
 }
 
 // waitFeedsChanged 等筛选后的数据到位。
