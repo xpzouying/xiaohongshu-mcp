@@ -315,7 +315,17 @@ func (s *AppServer) handleSearchFeeds(ctx context.Context, args SearchFeedsArgs)
 		Location:    args.Filters.Location,
 	}
 
-	result, err := s.xiaohongshuService.SearchFeeds(ctx, args.Keyword, filter)
+	if args.MaxResults < 0 || args.MaxResults > 50 {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "搜索Feeds失败: max_results 必须是 1 到 50 的整数",
+			}},
+			IsError: true,
+		}
+	}
+
+	result, err := s.xiaohongshuService.SearchFeedsWithLimit(ctx, args.Keyword, args.MaxResults, filter)
 	if err != nil {
 		return &MCPToolResult{
 			Content: []MCPContent{{

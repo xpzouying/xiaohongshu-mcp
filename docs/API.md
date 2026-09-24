@@ -353,11 +353,12 @@ GET /api/v1/feeds/list
 
 **请求方式一：GET**
 ```
-GET /api/v1/feeds/search?keyword=搜索关键词
+GET /api/v1/feeds/search?keyword=搜索关键词&max_results=30
 ```
 
 **查询参数:**
 - `keyword` (string, required): 搜索关键词
+- `max_results` (integer, optional): 最多返回多少条笔记，范围 `1-50`；设置后会滚动加载更多结果，不传时保持首批结果行为
 
 **请求方式二：POST（支持高级筛选）**
 ```
@@ -369,6 +370,7 @@ Content-Type: application/json
 ```json
 {
   "keyword": "搜索关键词",
+  "max_results": 30,
   "filters": {
     "sort_by": "综合",
     "note_type": "不限",
@@ -380,6 +382,7 @@ Content-Type: application/json
 ```
 
 **筛选参数说明:**
+- `max_results` (integer, optional): 最多返回多少条笔记，范围 `1-50`；设置后会滚动加载更多结果
 - `sort_by` (string, optional): 排序依据，可选值：`综合`(默认) | `最新` | `最多点赞` | `最多评论` | `最多收藏`
 - `note_type` (string, optional): 笔记类型，可选值：`不限`(默认) | `视频` | `图文`
 - `publish_time` (string, optional): 发布时间，可选值：`不限`(默认) | `一天内` | `一周内` | `半年内`
