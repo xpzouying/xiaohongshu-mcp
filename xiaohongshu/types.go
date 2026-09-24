@@ -135,6 +135,14 @@ type VideoDetail struct {
 	Media VideoMedia      `json:"media"`
 	// Subtitles 字幕，从 mediaV2 里解出来（见 UnmarshalJSON）。key 为语言，另有 source 表示原始语种。
 	Subtitles map[string][]VideoSubtitle `json:"subtitles,omitempty"`
+
+	// SubtitleText 字幕正文，已去掉序号与时间轴。
+	// 视频画面调用方（大模型）读不了，这段文字才是视频笔记真正可读的内容；
+	// 而 Subtitles 里只有带签名和时效的 .srt 链接，客户端拿到也取不动，
+	// 所以在服务端下载好一并交出去。见 subtitle.go。
+	SubtitleText string `json:"subtitleText,omitempty"`
+	// SubtitleLang SubtitleText 对应的语言。
+	SubtitleLang string `json:"subtitleLang,omitempty"`
 }
 
 // UnmarshalJSON 额外解开 mediaV2。
