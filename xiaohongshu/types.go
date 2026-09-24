@@ -115,12 +115,15 @@ type FeedDetailResponse struct {
 
 // FeedDetail 表示详情页的笔记内容
 type FeedDetail struct {
-	NoteID       string            `json:"noteId"`
-	XsecToken    string            `json:"xsecToken"`
-	Title        string            `json:"title"`
-	Desc         string            `json:"desc"`
-	Type         string            `json:"type"`
-	Time         int64             `json:"time"`
+	NoteID    string `json:"noteId"`
+	XsecToken string `json:"xsecToken"`
+	Title     string `json:"title"`
+	Desc      string `json:"desc"`
+	Type      string `json:"type"`
+	Time      int64  `json:"time"`
+	// TimeText 是 Time 的可读形式（东八区），站点原始数据里没有，由服务端回填。
+	// 裸时间戳交给大模型自己换算，常见的错法是漏掉毫秒或忽略时区。
+	TimeText     string            `json:"timeText,omitempty"`
 	IPLocation   string            `json:"ipLocation"`
 	User         User              `json:"user"`
 	InteractInfo InteractInfo      `json:"interactInfo"`
@@ -255,11 +258,13 @@ type CommentList struct {
 
 // Comment 表示单条评论
 type Comment struct {
-	ID              string    `json:"id"`
-	NoteID          string    `json:"noteId"`
-	Content         string    `json:"content"`
-	LikeCount       string    `json:"likeCount"`
-	CreateTime      int64     `json:"createTime"`
+	ID         string `json:"id"`
+	NoteID     string `json:"noteId"`
+	Content    string `json:"content"`
+	LikeCount  string `json:"likeCount"`
+	CreateTime int64  `json:"createTime"`
+	// CreateTimeText 是 CreateTime 的可读形式（东八区），由服务端回填，子评论同样有。
+	CreateTimeText  string    `json:"createTimeText,omitempty"`
 	IPLocation      string    `json:"ipLocation"`
 	Liked           bool      `json:"liked"`
 	UserInfo        User      `json:"userInfo"`

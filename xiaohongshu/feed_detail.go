@@ -994,10 +994,16 @@ func (f *FeedDetailAction) extractFeedDetail(page *rod.Page, feedID string) (*Fe
 		return nil, fmt.Errorf("feed %s not found in noteDetailMap", feedID)
 	}
 
-	return &FeedDetailResponse{
+	detail := &FeedDetailResponse{
 		Note:     noteDetail.Note,
 		Comments: noteDetail.Comments,
-	}, nil
+	}
+
+	// 站点只给裸时间戳，可读形式在这里补上，见 timefmt.go
+	detail.Note.TimeText = timestampText(detail.Note.Time)
+	fillCommentTimeText(detail.Comments.List)
+
+	return detail, nil
 }
 
 func makeFeedDetailURL(feedID, xsecToken string) string {
