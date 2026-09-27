@@ -273,9 +273,13 @@ func findCommentElement(ctx context.Context, page *rod.Page, commentID, userID s
 // lookupComment 在当前已渲染的评论里查找目标，找不到返回 nil。
 func lookupComment(page *rod.Page, commentID, userID string) *rod.Element {
 	if commentID != "" {
+		// 已指定评论ID时只按ID精确查找，不做 userID 兜底：同一用户在楼里常有多条
+		// 评论（楼主+子评论），兜底会点到错误评论的回复框，导致回复挂错目标。
+		// 找不到返回 nil，由上层 findCommentElement 的滚动+展开循环继续重查。
 		if el, err := page.Timeout(2 * time.Second).Element(fmt.Sprintf("#comment-%s", commentID)); err == nil && el != nil {
 			return el
 		}
+		return nil
 	}
 
 	if userID == "" {
