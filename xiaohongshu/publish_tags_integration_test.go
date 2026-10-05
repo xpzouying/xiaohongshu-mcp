@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-rod/rod"
 	"github.com/xpzouying/xiaohongshu-mcp/browser"
 	"github.com/xpzouying/xiaohongshu-mcp/humanize"
 
@@ -27,6 +28,9 @@ import (
 // 旧实现固定 sleep 1s 后直接点第一个 .item。编辑器是 ProseMirror，联想列表随输入防抖
 // 重渲染，取到的节点在按下鼠标前就可能被替换（Shape 取不到 quad），点击报
 // 「元素无可点击区域」，整单发布失败。
+//
+// 一次会话里连续插多个标签：既拿到多个样本（旧实现是概率性失败，单个标签一次通过说明
+// 不了什么），也覆盖「上一个标签的联想结果还没刷掉、点到它」这个点错话题的场景。
 func TestInputTagsCreatesTopic(t *testing.T) {
 	image := os.Getenv("XHS_TEST_IMAGE")
 	if image == "" {
@@ -36,7 +40,7 @@ func TestInputTagsCreatesTopic(t *testing.T) {
 		t.Skipf("SKIP: 测试图片不可用: %v", err)
 	}
 
-	const tag = "gpt订阅"
+	tags := []string{"gpt订阅", "ChatGPT", "人工智能", "程序员", "效率工具"}
 
 	ctx := context.Background()
 
@@ -70,23 +74,42 @@ func TestInputTagsCreatesTopic(t *testing.T) {
 
 	closeFeatureGuide(action.page)
 	require.NoError(t, waitAndClickTitleInput(titleElem))
-	require.NoError(t, inputTags(ctx, contentElem, []string{tag}))
-
-	// 话题会渲染成 <a class="tiptap-topic" data-topic='{"name":"..."}'>
-	topicElem, err := contentElem.Timeout(3 * time.Second).Element("a.tiptap-topic")
-	require.NoError(t, err, "标签没有成为话题节点，可能退化成了纯文本")
-
-	raw, err := topicElem.Attribute("data-topic")
-	require.NoError(t, err)
-	require.NotNil(t, raw, "话题节点缺少 data-topic")
-	assert.Contains(t, *raw, tag)
-
-	text, err := topicElem.Text()
-	require.NoError(t, err)
-	assert.Contains(t, text, tag)
+	require.NoError(t, inputTags(ctx, contentElem, tags))
 
 	if shot := os.Getenv("XHS_TEST_SHOT"); shot != "" {
 		action.page.MustScreenshot(shot)
 		t.Logf("截图已保存: %s", shot)
+	}
+
+	// 话题会渲染成 <a class="tiptap-topic" data-topic='{"name":"..."}'>
+	topicElems := waitTopicElems(t, contentElem, len(tags))
+	require.Len(t, topicElems, len(tags), "话题节点数少于标签数，有标签退化成纯文本或没插进去")
+
+	// 顺序也要对得上：第 i 个话题节点必须就是第 i 个标签，否则说明点到了残留的联想项。
+	for i, elem := range topicElems {
+		raw, err := elem.Attribute("data-topic")
+		require.NoError(t, err)
+		require.NotNil(t, raw, "第 %d 个话题节点缺少 data-topic", i+1)
+		assert.Contains(t, *raw, tags[i], "第 %d 个话题与请求的标签不符（可能点到了残留的联想项）", i+1)
+
+		text, err := elem.Text()
+		require.NoError(t, err)
+		assert.Contains(t, text, tags[i])
+	}
+}
+
+// waitTopicElems 等话题节点渲染到 want 个。Element.Elements 是单次查询、不重试，
+// 而 ProseMirror 插入话题后会重渲染，所以这里自己轮询。
+func waitTopicElems(t *testing.T, contentElem *rod.Element, want int) []*rod.Element {
+	t.Helper()
+
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		elems, err := contentElem.Elements("a.tiptap-topic")
+		require.NoError(t, err)
+		if len(elems) >= want || time.Now().After(deadline) {
+			return elems
+		}
+		time.Sleep(200 * time.Millisecond)
 	}
 }
