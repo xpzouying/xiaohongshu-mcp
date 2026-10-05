@@ -38,6 +38,11 @@ const (
 
 	// contentElemTimeout 查找正文输入框的轮询窗口
 	contentElemTimeout = 10 * time.Second
+
+	// 话题联想列表：等联想项出现的窗口、轮询间隔、点击重试次数
+	topicItemTimeout      = 5 * time.Second
+	topicItemPollInterval = 200 * time.Millisecond
+	topicClickAttempts    = 3
 )
 
 func NewPublishImageAction(page *rod.Page) (*PublishAction, error) {
@@ -756,27 +761,88 @@ func inputTag(ctx context.Context, contentElem *rod.Element, tag string) error {
 		return errors.Wrap(err, "输入标签内容失败")
 	}
 
-	time.Sleep(1 * time.Second) // 技术等待：等联想结果刷新
-
 	page := contentElem.Page()
-	topicContainer, err := page.Element("#creator-editor-topic-container")
-	if err != nil || topicContainer == nil {
-		slog.Warn("未找到标签联想下拉框，直接输入空格", "tag", tag)
+
+	// 等文本命中 tag 的联想项出现。原来是固定 sleep 1s 后直接点第一个 .item：
+	// 联想结果随输入防抖刷新，取到节点、移动鼠标、按下之间列表可能已经换过一批，
+	// 旧节点随即脱离文档（Shape 取不到 quad），点击报「元素无可点击区域」而整单发布失败；
+	// 而且「第一个」还可能是上一条标签的联想项，点错话题。
+	item, err := waitTopicItem(ctx, page, tag)
+	if err != nil {
+		// 平台没有这个词的话题时联想列表为空，退化成纯文本（保持原有行为）
+		slog.Warn("未找到标签联想选项，退化为纯文本", "tag", tag)
 		return humanize.Type(ctx, contentElem, " ")
 	}
 
-	firstItem, err := topicContainer.Element(".item")
-	if err != nil || firstItem == nil {
-		slog.Warn("未找到标签联想选项，直接输入空格", "tag", tag)
-		return humanize.Type(ctx, contentElem, " ")
+	// 点击前重新解析节点：失败几乎都是节点在按下前被替换，重取一次即可。
+	var lastErr error
+	for attempt := 0; attempt < topicClickAttempts; attempt++ {
+		if attempt > 0 {
+			next, err := waitTopicItem(ctx, page, tag)
+			if err != nil {
+				return errors.Wrap(err, "话题联想项在点击前消失")
+			}
+			item = next
+		}
+		if lastErr = humanize.Click(item); lastErr == nil {
+			slog.Info("成功点击标签联想选项", "tag", tag)
+			time.Sleep(500 * time.Millisecond) // 技术等待：等标签处理完成
+			return nil
+		}
+	}
+	return errors.Wrap(lastErr, "点击标签联想选项失败")
+}
+
+// waitTopicItem 轮询等待可见、且文本命中 tag 的话题联想项。
+//
+// 不用 page.Element：它只在元素出现时重试，既拿不到「还没有联想结果」这个状态，
+// 也等不到列表刷新成当前 tag 的结果。这里用 Has/Elements 单次查询自己做轮询。
+func waitTopicItem(ctx context.Context, page *rod.Page, tag string) (*rod.Element, error) {
+	deadline := time.Now().Add(topicItemTimeout)
+
+	for {
+		if item := findTopicItem(page, tag); item != nil {
+			return item, nil
+		}
+
+		if time.Now().After(deadline) {
+			return nil, errors.Errorf("等待话题联想项超时: #%s", tag)
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(topicItemPollInterval):
+		}
+	}
+}
+
+// findTopicItem 在联想列表里找可见、且文本命中 tag 的项。
+func findTopicItem(page *rod.Page, tag string) *rod.Element {
+	has, container, err := page.Has("#creator-editor-topic-container")
+	if err != nil || !has || container == nil {
+		return nil
 	}
 
-	if err := humanize.Click(firstItem); err != nil {
-		return errors.Wrap(err, "点击标签联想选项失败")
+	items, err := container.Elements(".item")
+	if err != nil {
+		return nil
 	}
-	slog.Info("成功点击标签联想选项", "tag", tag)
-	time.Sleep(500 * time.Millisecond) // 技术等待：等标签处理完成
+
+	for _, item := range items {
+		if visible, err := item.Visible(); err != nil || !visible {
+			continue
+		}
+		if text, err := item.Text(); err == nil && topicTextMatches(text, tag) {
+			return item
+		}
+	}
 	return nil
+}
+
+// topicTextMatches 联想项文本是否命中 tag。联想项一般带 # 前缀，可能还有浏览数后缀。
+func topicTextMatches(text, tag string) bool {
+	return strings.Contains(strings.ToLower(text), strings.ToLower(tag))
 }
 
 func findTextboxByPlaceholder(page *rod.Page) (*rod.Element, error) {
