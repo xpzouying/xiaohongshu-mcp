@@ -1,13 +1,18 @@
 //go:build integration
 
-// 集成测试：只需要内置浏览器，不需要登录态、不需要网络。
+// 集成测试：需要内置浏览器；成功路径那条还需要登录态（要走创作中心发布页）。
 // 默认 go test 不编译不运行。手动跑：
 //
 //	go test -tags integration ./xiaohongshu/ -run TestUploadImagesFailsFast -v
+//
+//	XHS_TEST_IMAGE=/path/to.jpg XHS_TEST_SHOT=/tmp/shot.png \
+//	  go test -tags integration ./xiaohongshu/ -run TestUploadImagesAcceptsValidImage -v -timeout 10m
 package xiaohongshu
 
 import (
+	"os"
 	"testing"
+	"time"
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
@@ -43,4 +48,39 @@ func TestUploadImagesFailsFastOnMissingImage(t *testing.T) {
 	require.Error(t, err, "图片缺失时不应返回成功")
 	assert.Contains(t, err.Error(), missing)
 	assert.NotContains(t, err.Error(), "上传输入框", "校验必须在查找上传输入框之前")
+}
+
+// TestUploadImagesAcceptsValidImage 回归：有效图片必须真的上传出预览。
+//
+// 与上一条互为对照——上一条保证「缺图片不静默跳过」，这一条保证「改成先整体校验之后，
+// 有效图片仍然照常上传」。只填到发布页，不点「发布」。
+func TestUploadImagesAcceptsValidImage(t *testing.T) {
+	image := os.Getenv("XHS_TEST_IMAGE")
+	if image == "" {
+		t.Skip("SKIP: 需要 XHS_TEST_IMAGE 指定一张本地图片")
+	}
+	if _, err := os.Stat(image); err != nil {
+		t.Skipf("SKIP: 测试图片不可用: %v", err)
+	}
+
+	b := browser.NewBrowser(false)
+	defer b.Close()
+
+	// 给整条流程一个上限：登录态失效时 MustElement 会一直重试到 ctx 结束。
+	page := b.NewPage().Timeout(4 * time.Minute)
+	defer page.Close()
+
+	action, err := NewPublishImageAction(page)
+	require.NoError(t, err)
+
+	require.NoError(t, uploadImages(action.page, []string{image}))
+
+	previews, err := action.page.Elements(".img-preview-area .pr")
+	require.NoError(t, err)
+	assert.Len(t, previews, 1, "有效图片应上传出 1 张预览")
+
+	if shot := os.Getenv("XHS_TEST_SHOT"); shot != "" {
+		action.page.MustScreenshot(shot)
+		t.Logf("截图已保存: %s", shot)
+	}
 }
