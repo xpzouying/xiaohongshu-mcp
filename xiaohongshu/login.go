@@ -30,7 +30,20 @@ func (a *LoginAction) CheckLoginStatus(ctx context.Context) (bool, error) {
 	}
 
 	if !exists {
-		return false, errors.Wrap(err, "login status element not found")
+		if isRedNote() {
+			stateLogin, stateErr := pp.Eval(`() => {
+				const user = window.__INITIAL_STATE__ && window.__INITIAL_STATE__.user;
+				const flag = user && user.loggedIn;
+				const loggedIn = flag && typeof flag === 'object' && 'value' in flag ? flag.value : flag;
+				const info = user && user.userInfo;
+				const value = info && info.value !== undefined ? info.value : info;
+				return !!loggedIn || !!(value && !value.guest && (value.userId || value.user_id));
+			}`)
+			if stateErr == nil && stateLogin.Value.Bool() {
+				return true, nil
+			}
+		}
+		return false, errors.New("login status element not found")
 	}
 
 	return true, nil
