@@ -97,6 +97,68 @@ func (p *PublishAction) Publish(ctx context.Context, content PublishImageContent
 	return nil
 }
 
+// SaveDraft fills the image post form and clicks only an explicit save-draft control.
+func (p *PublishAction) SaveDraft(ctx context.Context, content PublishImageContent) error {
+	if len(content.ImagePaths) == 0 {
+		return errors.New("图片不能为空")
+	}
+	page := p.page.Context(ctx).Timeout(300 * time.Second)
+	if err := uploadImages(page, content.ImagePaths); err != nil {
+		return errors.Wrap(err, "上传草稿图片失败")
+	}
+	tags := content.Tags
+	if len(tags) > 10 {
+		tags = tags[:10]
+	}
+	if err := fillPublishContent(ctx, page, content.Title, content.Content, tags); err != nil {
+		return err
+	}
+	if err := clickSaveDraftButton(page); err != nil {
+		return err
+	}
+	return waitDraftSaved(page, 15*time.Second)
+}
+
+func clickSaveDraftButton(page *rod.Page) error {
+	for _, selector := range []string{"button", "[role=button]"} {
+		elems, err := page.Elements(selector)
+		if err != nil {
+			continue
+		}
+		for _, elem := range elems {
+			text, err := elem.Text()
+			if err != nil {
+				continue
+			}
+			label := strings.ToLower(strings.TrimSpace(text))
+			if label == "保存草稿" || label == "save draft" {
+				if err := humanize.Click(elem); err != nil {
+					return errors.Wrap(err, "点击保存草稿失败")
+				}
+				return nil
+			}
+		}
+	}
+	return errors.New("页面上没有找到明确的“保存草稿/Save draft”按钮；为避免误发布，已停止操作")
+}
+
+func waitDraftSaved(page *rod.Page, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		for _, selector := range []string{"[role=alert]", ".d-toast", ".toast"} {
+			if elems, err := page.Elements(selector); err == nil {
+				for _, elem := range elems {
+					if text, err := elem.Text(); err == nil && (strings.Contains(text, "草稿") || strings.Contains(strings.ToLower(text), "draft")) {
+						return nil
+					}
+				}
+			}
+		}
+		time.Sleep(300 * time.Millisecond)
+	}
+	return errors.New("已点击保存草稿，但页面未显示可确认的草稿保存提示")
+}
+
 // hasPopCover 当前页面是否还有挡人的浮层。
 func hasPopCover(page *rod.Page) bool {
 	has, _, err := page.Has("div.d-popover")
@@ -342,6 +404,36 @@ func waitForUploadComplete(page *rod.Page, expectedCount int) error {
 }
 
 func submitPublish(ctx context.Context, page *rod.Page, title, content string, tags []string, scheduleTime *time.Time, isOriginal bool, visibility string, products []string) error {
+	if err := fillPublishContent(ctx, page, title, content, tags); err != nil {
+		return err
+	}
+
+	if scheduleTime != nil {
+		if err := setSchedulePublish(ctx, page, *scheduleTime); err != nil {
+			return errors.Wrap(err, "设置定时发布失败")
+		}
+		slog.Info("定时发布设置完成", "schedule_time", scheduleTime.Format("2006-01-02 15:04"))
+	}
+
+	if err := setVisibility(page, visibility); err != nil {
+		return errors.Wrap(err, "设置可见范围失败")
+	}
+	if isOriginal {
+		if err := setOriginal(page); err != nil {
+			return errors.Wrap(err, "设置原创声明失败（已请求原创，中止发布）")
+		}
+		slog.Info("已声明原创")
+	}
+	if err := bindProducts(ctx, page, products); err != nil {
+		return errors.Wrap(err, "绑定商品失败")
+	}
+	if err := clickPublishButton(page); err != nil {
+		return err
+	}
+	return waitPublishSuccess(page, 15*time.Second)
+}
+
+func fillPublishContent(ctx context.Context, page *rod.Page, title, content string, tags []string) error {
 	titleElem, err := page.Element("div.d-input input")
 	if err != nil {
 		return errors.Wrap(err, "查找标题输入框失败")
@@ -380,36 +472,7 @@ func submitPublish(ctx context.Context, page *rod.Page, title, content string, t
 	}
 	slog.Info("检查正文长度：通过")
 
-	if scheduleTime != nil {
-		if err := setSchedulePublish(ctx, page, *scheduleTime); err != nil {
-			return errors.Wrap(err, "设置定时发布失败")
-		}
-		slog.Info("定时发布设置完成", "schedule_time", scheduleTime.Format("2006-01-02 15:04"))
-	}
-
-	if err := setVisibility(page, visibility); err != nil {
-		return errors.Wrap(err, "设置可见范围失败")
-	}
-
-	// 处理原创声明：显式请求了原创但设置失败 → 报错中止，不静默发成非原创（避免"以为原创其实不是"）
-	if isOriginal {
-		if err := setOriginal(page); err != nil {
-			return errors.Wrap(err, "设置原创声明失败（已请求原创，中止发布）")
-		}
-		slog.Info("已声明原创")
-	}
-
-	if err := bindProducts(ctx, page, products); err != nil {
-		return errors.Wrap(err, "绑定商品失败")
-	}
-
-	if err := clickPublishButton(page); err != nil {
-		return err
-	}
-
-	// 校验发布真的成功：成功后创作平台会跳转离开发布页；未跳转则判定失败，
-	// 消除"点了发布按钮就算成功"的假阳性。
-	return waitPublishSuccess(page, 15*time.Second)
+	return nil
 }
 
 // waitPublishSuccess 轮询等待发布成功的信号：小红书发布成功后会跳转离开发布表单页
