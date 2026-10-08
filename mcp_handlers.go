@@ -188,6 +188,17 @@ func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]in
 	}
 }
 
+func (s *AppServer) handleSaveDraft(ctx context.Context, args SaveDraftArgs) *MCPToolResult {
+	if len(args.Images) == 0 {
+		return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: "保存草稿失败: 至少需要一张图片"}}, IsError: true}
+	}
+	result, err := s.xiaohongshuService.SaveDraft(ctx, &PublishRequest{Title: args.Title, Content: args.Content, Images: args.Images, Tags: args.Tags})
+	if err != nil {
+		return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: "保存草稿失败: " + err.Error()}}, IsError: true}
+	}
+	return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: fmt.Sprintf("草稿已保存: %s", result.Title)}}}
+}
+
 // handlePublishVideo 处理发布视频内容（仅本地单个视频文件）
 func (s *AppServer) handlePublishVideo(ctx context.Context, args map[string]interface{}) *MCPToolResult {
 	logrus.Info("MCP: 发布视频内容（本地）")

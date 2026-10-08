@@ -499,6 +499,16 @@ XHS_PROXY=http://proxy:port go run .
 
 支持 HTTP/HTTPS/SOCKS5 代理，日志中会自动隐藏代理的认证信息。
 
+**选择站点（可选）**：
+
+默认使用小红书国内站。RedNote 账号可在启动时设置 `XHS_SITE=rednote`，登录和创作者中心会使用 RedNote 对应域名：
+
+```bash
+XHS_SITE=rednote ./xiaohongshu-mcp-darwin-arm64
+# 或源码运行
+XHS_SITE=rednote go run .
+```
+
 **访问鉴权（可选）**：
 
 默认关闭鉴权。生产环境建议使用 `AUTH_TOKEN` 环境变量配置；非空的启动参数优先于环境变量，留空则读取 `AUTH_TOKEN`。
@@ -893,6 +903,7 @@ npx mcporter list xiaohongshu-mcp
   - `is_original`: 是否声明原创（可选），默认不声明
   - `visibility`: 可见范围（可选），支持 `公开可见`（默认）、`仅自己可见`、`仅互关好友可见`
   - `products`: 商品关键词列表（可选），用于绑定带货商品。填写商品名称或商品ID，系统会自动搜索并选择第一个匹配结果。需账号已开通商品功能。示例: [面膜, 防晒霜SPF50]
+- `save_draft` - 保存图文草稿，不会发布（必需：title, content, images；可选：tags）
 - `publish_with_video` - 发布视频内容到小红书（必需：title, content, video）
   - `video`: 本地视频文件绝对路径（仅支持单个视频文件）
   - `tags`: 话题标签列表（可选），如 `["美食", "旅行", "生活"]`
