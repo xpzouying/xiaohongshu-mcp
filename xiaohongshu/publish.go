@@ -33,12 +33,8 @@ type PublishAction struct {
 	page *rod.Page
 }
 
-const (
-	urlOfPublic = `https://creator.xiaohongshu.com/publish/publish?source=official`
-
-	// contentElemTimeout 查找正文输入框的轮询窗口
-	contentElemTimeout = 10 * time.Second
-)
+// contentElemTimeout 查找正文输入框的轮询窗口
+const contentElemTimeout = 10 * time.Second
 
 func NewPublishImageAction(page *rod.Page) (*PublishAction, error) {
 
@@ -48,7 +44,7 @@ func NewPublishImageAction(page *rod.Page) (*PublishAction, error) {
 		return nil, err
 	}
 
-	if err := pp.Navigate(urlOfPublic); err != nil {
+	if err := pp.Navigate(creatorURL("/publish/publish?source=official")); err != nil {
 		return nil, errors.Wrap(err, "导航到发布页面失败")
 	}
 

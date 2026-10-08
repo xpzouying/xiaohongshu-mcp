@@ -30,7 +30,7 @@ func (n *NotificationAction) Reply(ctx context.Context, commentID, content strin
 
 	page := n.page.Timeout(3 * time.Minute)
 
-	page.MustNavigate("https://www.xiaohongshu.com/notification").MustWaitLoad()
+	page.MustNavigate(webURL("/notification")).MustWaitLoad()
 	humanize.Delay(ctx, humanize.AfterNavigate)
 
 	target, index, err := n.locate(ctx, page, commentID)

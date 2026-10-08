@@ -499,6 +499,16 @@ XHS_PROXY=http://proxy:port go run .
 
 支持 HTTP/HTTPS/SOCKS5 代理，日志中会自动隐藏代理的认证信息。
 
+**选择站点（可选）**：
+
+默认使用小红书国内站。RedNote 账号可在启动时设置 `XHS_SITE=rednote`，登录和创作者中心会使用 RedNote 对应域名：
+
+```bash
+XHS_SITE=rednote ./xiaohongshu-mcp-darwin-arm64
+# 或源码运行
+XHS_SITE=rednote go run .
+```
+
 **访问鉴权（可选）**：
 
 默认关闭鉴权。生产环境建议使用 `AUTH_TOKEN` 环境变量配置；非空的启动参数优先于环境变量，留空则读取 `AUTH_TOKEN`。

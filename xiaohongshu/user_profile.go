@@ -138,7 +138,7 @@ func (u *UserProfileAction) extractUserProfileData(page *rod.Page, tab ProfileTa
 }
 
 func makeUserProfileURL(userID, xsecToken string, tab ProfileTab) string {
-	url := fmt.Sprintf("https://www.xiaohongshu.com/user/profile/%s?xsec_token=%s&xsec_source=pc_note", userID, xsecToken)
+	url := webURL(fmt.Sprintf("/user/profile/%s?xsec_token=%s&xsec_source=pc_note", userID, xsecToken))
 	if tab != "" && tab != TabNotes {
 		url += fmt.Sprintf("&tab=%s&subTab=note", tab)
 	}

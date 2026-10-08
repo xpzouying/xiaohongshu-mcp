@@ -501,6 +501,16 @@ XHS_PROXY=http://proxy:port go run .
 
 HTTP/HTTPS/SOCKS5 proxies are supported, and proxy credentials are automatically masked in the logs.
 
+**Select the site (optional):**
+
+The default is the domestic Xiaohongshu site. For a RedNote account, set `XHS_SITE=rednote` when starting the server. Login and Creator Center navigation will use the RedNote domains:
+
+```bash
+XHS_SITE=rednote ./xiaohongshu-mcp-darwin-arm64
+# Or run from source
+XHS_SITE=rednote go run .
+```
+
 **Optional authentication**:
 
 Authentication is disabled by default. In production, configure it with the `AUTH_TOKEN` environment variable; a non-empty startup flag takes precedence, while an empty value falls back to `AUTH_TOKEN`.

@@ -9,8 +9,6 @@ import (
 )
 
 const (
-	urlOfCreatorHome = `https://creator.xiaohongshu.com/?source=official`
-
 	creatorSessionCookie  = "galaxy_creator_session_id"
 	creatorSessionTimeout = 15 * time.Second
 )
@@ -21,7 +19,7 @@ func ensureCreatorSession(page *rod.Page) error {
 		return nil
 	}
 
-	if err := page.Navigate(urlOfCreatorHome); err != nil {
+	if err := page.Navigate(creatorLoginURL()); err != nil {
 		return errors.Wrap(err, "打开创作者中心失败")
 	}
 
