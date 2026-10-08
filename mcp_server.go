@@ -260,7 +260,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 	)
 
 	mcp.AddTool(server,
-		&mcp.Tool{Name: "save_draft", Description: "保存小红书图文草稿，不会发布内容。仅在页面明确提供保存草稿按钮时操作。", Annotations: &mcp.ToolAnnotations{Title: "Save Draft"}},
+		&mcp.Tool{Name: "save_draft", Description: "保存图文到网页创作者中心草稿，不会发布内容。RedNote 网页草稿可能不会同步到手机端；仅在页面明确提供保存草稿按钮时操作。", Annotations: &mcp.ToolAnnotations{Title: "Save Draft"}},
 		withPanicRecovery("save_draft", func(ctx context.Context, req *mcp.CallToolRequest, args SaveDraftArgs) (*mcp.CallToolResult, any, error) {
 			result := appServer.handleSaveDraft(ctx, args)
 			return convertToMCPResult(result), nil, nil

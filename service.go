@@ -287,7 +287,7 @@ func (s *XiaohongshuService) SaveDraft(ctx context.Context, req *PublishRequest)
 	if err != nil {
 		return nil, err
 	}
-	return &PublishResponse{Title: req.Title, Content: req.Content, Images: len(imagePaths), Status: "草稿已保存"}, nil
+	return &PublishResponse{Title: req.Title, Content: req.Content, Images: len(imagePaths), Status: "网页创作者中心草稿已保存；手机端可能不同步"}, nil
 }
 
 // processImages 处理图片列表，支持URL下载和本地路径
