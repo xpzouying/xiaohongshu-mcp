@@ -3,10 +3,12 @@ package xiaohongshu
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/go-rod/rod"
 	"github.com/pkg/errors"
+	"github.com/xpzouying/xiaohongshu-mcp/humanize"
 )
 
 type LoginAction struct {
@@ -101,18 +103,33 @@ func (a *LoginAction) Login(ctx context.Context) error {
 }
 
 func (a *LoginAction) FetchQrcodeImage(ctx context.Context) (string, bool, error) {
-	pp := a.page.Context(ctx)
+	pp := a.page.Context(ctx).Timeout(30 * time.Second)
 
-	// 导航到小红书首页，这会触发二维码弹窗
-	pp.MustNavigate(webURL("/explore")).MustWaitLoad()
+	if err := pp.Navigate(webURL("/explore")); err != nil {
+		return "", false, errors.Wrap(err, "navigate to explore page failed")
+	}
+	if err := pp.WaitLoad(); err != nil {
+		return "", false, errors.Wrap(err, "wait for explore page failed")
+	}
 
-	time.Sleep(2 * time.Second)
-
-	if exists, _, _ := pp.Has(".main-container .user .link-wrapper .channel"); exists {
+	if loginPageShowsSignedInUser(pp) {
 		return "", true, nil
 	}
 
-	src, err := pp.MustElement(".login-container .qrcode-img").Attribute("src")
+	qrSelector := ".login-container .qrcode-img"
+	qr, err := pp.Timeout(2 * time.Second).Element(qrSelector)
+	if err != nil {
+		// RedNote does not open the login modal automatically. Open it before waiting for its QR.
+		if err := clickLoginControl(pp); err != nil {
+			return "", false, errors.Wrap(err, "login modal did not open")
+		}
+		qr, err = pp.Timeout(10 * time.Second).Element(qrSelector)
+		if err != nil {
+			return "", false, errors.Wrap(err, "login QR did not appear after opening login modal")
+		}
+	}
+
+	src, err := qr.Attribute("src")
 	if err != nil {
 		return "", false, errors.Wrap(err, "get qrcode src failed")
 	}
@@ -121,6 +138,42 @@ func (a *LoginAction) FetchQrcodeImage(ctx context.Context) (string, bool, error
 	}
 
 	return *src, false, nil
+}
+
+func loginPageShowsSignedInUser(page *rod.Page) bool {
+	if exists, _, err := page.Timeout(time.Second).Has(".main-container .user .link-wrapper .channel"); err == nil && exists {
+		return true
+	}
+	if !isRedNote() {
+		return false
+	}
+	res, err := page.Eval(`() => {
+		const user = window.__INITIAL_STATE__ && window.__INITIAL_STATE__.user;
+		const flag = user && user.loggedIn;
+		const loggedIn = flag && typeof flag === 'object' && 'value' in flag ? flag.value : flag;
+		const info = user && user.userInfo;
+		const value = info && info.value !== undefined ? info.value : info;
+		return !!loggedIn || !!(value && !value.guest && (value.userId || value.user_id));
+	}`)
+	return err == nil && res.Value.Bool()
+}
+
+func clickLoginControl(page *rod.Page) error {
+	elems, err := page.Timeout(5 * time.Second).Elements("button, [role=button]")
+	if err != nil {
+		return err
+	}
+	for _, elem := range elems {
+		text, err := elem.Text()
+		if err != nil {
+			continue
+		}
+		label := strings.ToLower(strings.TrimSpace(text))
+		if label == "登录" || label == "登录/注册" || label == "log in" || label == "sign in" {
+			return humanize.Click(elem)
+		}
+	}
+	return errors.New("login control not found")
 }
 
 func (a *LoginAction) WaitForLogin(ctx context.Context) bool {
@@ -133,8 +186,7 @@ func (a *LoginAction) WaitForLogin(ctx context.Context) bool {
 		case <-ctx.Done():
 			return false
 		case <-ticker.C:
-			el, err := pp.Element(".main-container .user .link-wrapper .channel")
-			if err == nil && el != nil {
+			if loginPageShowsSignedInUser(pp) {
 				return true
 			}
 		}
