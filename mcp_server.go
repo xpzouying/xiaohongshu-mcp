@@ -67,7 +67,7 @@ type FeedDetailArgs struct {
 // UserProfileArgs 获取用户主页的参数
 type UserProfileArgs struct {
 	UserID    string `json:"user_id" jsonschema:"小红书用户ID，从Feed列表获取"`
-	XsecToken string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
+	XsecToken string `json:"xsec_token,omitempty" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
 	Tab       string `json:"tab,omitempty" jsonschema:"主页 tab: note(笔记,默认)|fav(收藏)|liked(点赞)。收藏和点赞可能被对方设为不公开"`
 }
 
