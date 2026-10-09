@@ -140,7 +140,16 @@ func (f *FeedDetailAction) GetFeedDetailWithConfig(ctx context.Context, feedID, 
 		return nil, err
 	}
 
-	return f.extractFeedDetail(page, feedID)
+	resp, err := f.extractFeedDetail(page, feedID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 视频画面调用方读不了，字幕才是视频笔记可读的内容。
+	// 页面里只有带签名的 .srt 链接，正文得另外下一次，失败不影响详情本身。
+	fillSubtitleText(ctx, resp.Note.Video)
+
+	return resp, nil
 }
 
 // ========== 评论加载器 ==========
