@@ -903,6 +903,7 @@ After successful connection, you can use the following MCP tools:
   - `products`: Product keyword list (optional), used to attach products for social commerce. Provide a product name or product ID; the system searches automatically and picks the first match. Requires the product feature to be enabled on your account. Example: [面膜, 防晒霜SPF50]
 - `list_feeds` - Get RedNote homepage recommendation list (no parameters)
 - `search_feeds` - Search RedNote content (required: keyword)
+  - `max_results`: Maximum number of notes to return (optional, 1-50); scrolls to load more results when set
   - `filters`: Filter options (optional). Values must be passed exactly as the Chinese strings below — they match the labels on the RedNote filter panel.
     - `sort_by`: Sort by - `综合` / comprehensive (default) | `最新` / latest | `最多点赞` / most liked | `最多评论` / most comments | `最多收藏` / most saved
     - `note_type`: Note type - `不限` / any (default) | `视频` / video | `图文` / image-text

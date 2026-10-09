@@ -40,8 +40,9 @@ type PublishVideoArgs struct {
 
 // SearchFeedsArgs 搜索内容的参数
 type SearchFeedsArgs struct {
-	Keyword string       `json:"keyword" jsonschema:"搜索关键词"`
-	Filters FilterOption `json:"filters,omitempty" jsonschema:"筛选选项"`
+	Keyword    string       `json:"keyword" jsonschema:"搜索关键词"`
+	MaxResults int          `json:"max_results,omitempty" jsonschema:"最多返回多少条笔记，范围 1-50；不填时只返回首批结果"`
+	Filters    FilterOption `json:"filters,omitempty" jsonschema:"筛选选项"`
 }
 
 // FilterOption 筛选选项结构体
