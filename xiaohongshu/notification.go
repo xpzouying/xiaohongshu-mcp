@@ -99,7 +99,8 @@ func NewNotificationAction(page *rod.Page) *NotificationAction {
 func (n *NotificationAction) UnreadCount(ctx context.Context) (*NotificationCount, error) {
 	page := n.page.Timeout(60 * time.Second)
 
-	page.MustNavigate("https://www.xiaohongshu.com/explore").MustWaitLoad()
+	page.MustNavigate("https://www.xiaohongshu.com/explore")
+	waitLoadTolerant(page, 10*time.Second)
 	humanize.Delay(ctx, humanize.AfterNavigate)
 
 	if err := page.WaitStable(time.Second); err != nil {
@@ -148,7 +149,8 @@ func (n *NotificationAction) List(ctx context.Context, tab NotificationTab, limi
 
 	page := n.page.Timeout(3 * time.Minute)
 
-	page.MustNavigate("https://www.xiaohongshu.com/notification").MustWaitLoad()
+	page.MustNavigate("https://www.xiaohongshu.com/notification")
+	waitLoadTolerant(page, 15*time.Second)
 	humanize.Delay(ctx, humanize.AfterNavigate)
 
 	if err := n.switchTab(ctx, page, tab); err != nil {
