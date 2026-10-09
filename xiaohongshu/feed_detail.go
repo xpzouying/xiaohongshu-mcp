@@ -108,9 +108,13 @@ func (f *FeedDetailAction) GetFeedDetailWithConfig(ctx context.Context, feedID, 
 	// 使用retry-go处理页面导航和DOM稳定等待
 	err := retry.Do(
 		func() error {
-			page.MustNavigate(url)
-			waitFeedPageReady(page)
-			return nil
+			// 导航限 12 秒：站点偶尔会把页面 HTML 拖住几十秒，MustNavigate 会一直等到整页
+			// 10 分钟的 deadline；这里超时返回 error 交给 retry.Do 重试。
+			// 这里不调 waitFeedPageReady：它等的 load 事件在图片多的笔记上来得很晚，
+			// 而下面等的 noteDetailMap 注水比"关键容器出现"更严格——容器是挂载时就有的，
+			// 数据还没到；取数据用的 __INITIAL_STATE__ 到位了，容器必然已经在了。
+			// 其余详情页入口（评论、点赞收藏）没有 feedID 可查，仍然走 waitFeedPageReady。
+			return page.Timeout(12 * time.Second).Navigate(url)
 		},
 		retry.Attempts(3),
 		retry.Delay(500*time.Millisecond),
@@ -123,10 +127,16 @@ func (f *FeedDetailAction) GetFeedDetailWithConfig(ctx context.Context, feedID, 
 		logrus.Errorf("页面导航失败: %v", err)
 		return nil, err
 	}
+	// 等这篇笔记的数据注水进 __INITIAL_STATE__.note.noteDetailMap，而不是等 DOM 静止：
+	// 详情页评论区和图片懒加载让 DOM 迟迟不静止，rod 的 WaitDOMStable 至少白等 1 秒、常常 2–3 秒。
+	loaded := waitNoteDetailLoaded(page, feedID, 15*time.Second)
 	humanize.Delay(ctx, humanize.AfterNavigate)
 
-	if err := checkPageAccessible(page); err != nil {
-		return nil, err
+	// 数据到了就不用再花 500ms+ 找错误提示容器；没到才去看是不是被删 / 私密 / 需登录。
+	if !loaded {
+		if err := checkPageAccessible(page); err != nil {
+			return nil, err
+		}
 	}
 
 	if loadAllComments {
@@ -1002,4 +1012,36 @@ func (f *FeedDetailAction) extractFeedDetail(page *rod.Page, feedID string) (*Fe
 
 func makeFeedDetailURL(feedID, xsecToken string) string {
 	return fmt.Sprintf("https://www.xiaohongshu.com/explore/%s?xsec_token=%s&xsec_source=pc_feed", feedID, xsecToken)
+}
+
+// waitNoteDetailLoaded 轮询直到 noteDetailMap[feedID].note 出现（首屏笔记数据），
+// 然后再给首屏评论最多 4 秒到位（评论是挂载后异步请求的；没有评论的笔记不等）。
+// 超时不报错：交给后面的 checkPageAccessible / extractFeedDetail 给出具体原因。
+func waitNoteDetailLoaded(page *rod.Page, feedID string, timeout time.Duration) bool {
+	const noteJS = `(id) => {
+		const m = window.__INITIAL_STATE__ && window.__INITIAL_STATE__.note && window.__INITIAL_STATE__.note.noteDetailMap;
+		return !!(m && m[id] && m[id].note && m[id].note.noteId);
+	}`
+	const commentsJS = `(id) => {
+		const d = window.__INITIAL_STATE__.note.noteDetailMap[id];
+		const list = d.comments && d.comments.list;
+		const count = String((d.note.interactInfo && d.note.interactInfo.commentCount) || "0");
+		return (list && list.length > 0) || count === "0" || count === "";
+	}`
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if res, err := page.Eval(noteJS, feedID); err == nil && res.Value.Bool() {
+			commentDeadline := time.Now().Add(4 * time.Second)
+			for time.Now().Before(commentDeadline) {
+				if r2, err := page.Eval(commentsJS, feedID); err == nil && r2.Value.Bool() {
+					return true
+				}
+				time.Sleep(200 * time.Millisecond)
+			}
+			return true
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	logrus.Warnf("等待笔记 %s 数据加载超时（%s）", feedID, timeout)
+	return false
 }
