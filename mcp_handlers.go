@@ -834,3 +834,25 @@ func (s *AppServer) handleLikeNotification(ctx context.Context, commentID string
 
 	return marshalMCPResult(result, "点赞")
 }
+
+// handleResolveShortLink 解析小红书分享短链接
+func (s *AppServer) handleResolveShortLink(ctx context.Context, args ResolveShortLinkArgs) *MCPToolResult {
+	logrus.Info("MCP: 解析短链接")
+
+	if args.URL == "" {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "解析失败: 缺少短链接URL参数"}},
+			IsError: true,
+		}
+	}
+
+	result, err := s.xiaohongshuService.ResolveShortLink(ctx, args.URL)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "解析短链接失败: " + err.Error()}},
+			IsError: true,
+		}
+	}
+
+	return marshalMCPResult(result, "解析短链接")
+}
