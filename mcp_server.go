@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"runtime/debug"
 
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/sirupsen/logrus"
 )
@@ -226,10 +227,19 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 	)
 
 	// 工具 4: 发布内容
+	publishContentSchema, err := jsonschema.For[PublishContentArgs](nil)
+	if err != nil {
+		panic(fmt.Sprintf("publish_content 参数 schema 生成失败: %v", err))
+	}
+	imagesSchema := publishContentSchema.Properties["images"]
+	imagesSchema.Type = "array"
+	imagesSchema.Types = nil
+	imagesSchema.MinItems = jsonschema.Ptr(1)
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "publish_content",
 			Description: "发布小红书图文内容",
+			InputSchema: publishContentSchema,
 			Annotations: &mcp.ToolAnnotations{
 				Title:           "Publish Content",
 				DestructiveHint: boolPtr(true),
