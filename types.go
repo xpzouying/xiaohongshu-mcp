@@ -142,3 +142,46 @@ type LikeNotificationRequest struct {
 	CommentID string `json:"comment_id" binding:"required"`
 	Unlike    bool   `json:"unlike,omitempty"`
 }
+
+// ListBoardsRequest 获取专辑列表请求（user_id 可选，留空则使用当前登录用户）
+type ListBoardsRequest struct {
+	UserID string `json:"user_id,omitempty"`
+}
+
+// BoardListResponse 专辑列表响应
+type BoardListResponse struct {
+	Boards []xiaohongshu.Board `json:"boards"`
+	Count  int                 `json:"count"`
+}
+
+// MoveNoteToBoardRequest 移动笔记到专辑请求
+type MoveNoteToBoardRequest struct {
+	NoteID        string `json:"note_id" binding:"required"`
+	TargetBoardID string `json:"target_board_id" binding:"required"`
+	SourceBoardID string `json:"source_board_id,omitempty"`
+}
+
+// MoveNoteResult 移动笔记结果
+type MoveNoteResult struct {
+	NoteID        string `json:"note_id"`
+	TargetBoardID string `json:"target_board_id,omitempty"`
+	Success       bool   `json:"success"`
+	Message       string `json:"message"`
+}
+
+// CreateBoardRequest 新建专辑请求（private 默认 false，即公开专辑）
+type CreateBoardRequest struct {
+	Name    string `json:"name" binding:"required"`
+	Private bool   `json:"private,omitempty"`
+}
+
+// DeleteBoardRequest 删除专辑请求
+type DeleteBoardRequest struct {
+	BoardID string `json:"board_id" binding:"required"`
+}
+
+// RemoveNoteFromBoardRequest 将笔记移出专辑请求（source_board_id 可选，留空自动查找）
+type RemoveNoteFromBoardRequest struct {
+	NoteID        string `json:"note_id" binding:"required"`
+	SourceBoardID string `json:"source_board_id,omitempty"`
+}

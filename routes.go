@@ -65,6 +65,13 @@ func setupRoutes(appServer *AppServer) *gin.Engine {
 		api.POST("/notifications/list", appServer.listNotificationsHandler)
 		api.POST("/notifications/reply", appServer.replyNotificationHandler)
 		api.POST("/notifications/like", appServer.likeNotificationHandler)
+
+		// 专辑（board）相关
+		api.GET("/boards", appServer.listBoardsHandler)
+		api.POST("/feeds/move_to_board", appServer.moveNoteToBoardHandler)
+		api.POST("/feeds/remove_from_board", appServer.removeNoteFromBoardHandler)
+		api.POST("/boards", appServer.createBoardHandler)
+		api.DELETE("/boards", appServer.deleteBoardHandler)
 	}
 
 	return router
