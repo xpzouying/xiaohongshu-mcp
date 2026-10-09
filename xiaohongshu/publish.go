@@ -241,18 +241,15 @@ func isElementBlocked(elem *rod.Element) (bool, error) {
 }
 
 func uploadImages(page *rod.Page, imagesPaths []string) error {
-	validPaths := make([]string, 0, len(imagesPaths))
-	for _, path := range imagesPaths {
-		if _, err := os.Stat(path); os.IsNotExist(err) {
-			logrus.Warnf("图片文件不存在: %s", path)
-			continue
-		}
-		validPaths = append(validPaths, path)
-		logrus.Infof("获取有效图片：%s", path)
+	// 先整体校验再上传：图片缺一个就报错。原先只 warn 后跳过，调用方以为图片都发出去了，
+	// 而 service 的响应又按请求张数回，结果是「少发图但报发布完成」。
+	// 校验放在上传之前，也不会留下「传了一半才发现」的半成品状态。
+	if err := checkImagePaths(imagesPaths); err != nil {
+		return err
 	}
 
 	// 逐张上传：每张上传后等待预览出现，再上传下一张
-	for i, path := range validPaths {
+	for i, path := range imagesPaths {
 		uploadInput, err := findImageUploadInput(page, i == 0)
 		if err != nil {
 			return errors.Wrapf(err, "查找上传输入框失败(第%d张)", i+1)
@@ -270,6 +267,20 @@ func uploadImages(page *rod.Page, imagesPaths []string) error {
 		time.Sleep(1 * time.Second)
 	}
 
+	return nil
+}
+
+// checkImagePaths 校验图片文件都存在且可读；缺文件时一次性列出，便于调用方修参数。
+func checkImagePaths(paths []string) error {
+	var bad []string
+	for _, path := range paths {
+		if _, err := os.Stat(path); err != nil {
+			bad = append(bad, path)
+		}
+	}
+	if len(bad) > 0 {
+		return errors.Errorf("图片文件不存在或不可读: %s", strings.Join(bad, ", "))
+	}
 	return nil
 }
 
