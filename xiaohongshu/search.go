@@ -116,8 +116,15 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 
 	searchURL := makeSearchURL(keyword)
 	page.MustNavigate(searchURL)
-	page.MustWaitStable()
-	page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
+	// 搜索页会持续发起后台请求，等待整个页面 stable 可能在首批结果已经到达后仍耗尽60秒。
+	// 这里只等待当前只读操作真正依赖的搜索状态，或页面明确展示无结果。
+	page.MustWait(`() => {
+		const feeds = window.__INITIAL_STATE__?.search?.feeds;
+		const value = feeds ? (feeds.value !== undefined ? feeds.value : feeds._value) : null;
+		if (Array.isArray(value) && value.length > 0) return true;
+		const text = document.body?.innerText || "";
+		return text.includes("暂无相关笔记") || text.includes("没有找到相关结果");
+	}`)
 	humanize.Delay(ctx, humanize.AfterNavigate)
 
 	if len(pending) > 0 {
