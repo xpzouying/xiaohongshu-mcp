@@ -114,6 +114,9 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 	// 否则搜索页不 stable 时 MustWaitStable/MustWait 会永久挂起（无 deadline 可依赖）。
 	page := s.page.Context(ctx).Timeout(60 * time.Second)
 
+	// 搜索结果同样来自 __INITIAL_STATE__，封面图不必真的下载解码。
+	defer blockHeavyResources(page)()
+
 	searchURL := makeSearchURL(keyword)
 	page.MustNavigate(searchURL)
 	page.MustWaitStable()

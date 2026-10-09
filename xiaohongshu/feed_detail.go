@@ -101,6 +101,10 @@ func (f *FeedDetailAction) GetFeedDetailWithConfig(ctx context.Context, feedID, 
 	page := f.page.Context(ctx).Timeout(10 * time.Minute)
 	url := makeFeedDetailURL(feedID, xsecToken)
 
+	// 详情数据全部取自 __INITIAL_STATE__，图片和视频只是渲染出来给人看的，
+	// 对调用方无用却很吃内存；视频一播 DOM 还会永远静不下来。拦掉两头都赚。
+	defer blockHeavyResources(page)()
+
 	logrus.Infof("打开 feed 详情页: %s", url)
 	logrus.Infof("配置: 点击更多=%v, 回复阈值=%d, 最大评论数=%d, 滚动速度=%s",
 		config.ClickMoreReplies, config.MaxRepliesThreshold, config.MaxCommentItems, config.ScrollSpeed)
