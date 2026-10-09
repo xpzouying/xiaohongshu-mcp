@@ -18,6 +18,9 @@ Usage:
     # Fill and auto-publish in one step
     python publish_pipeline.py --title "标题" --content "正文" --image-urls URL1 --auto-publish
 
+    # No-image image-text mode - use Xiaohongshu official text-cover feature
+    python publish_pipeline.py --title "标题" --content "正文"
+
     # Use local image files instead of URLs
     python publish_pipeline.py --title "标题" --content "正文" --images img1.jpg img2.jpg
 
@@ -77,7 +80,7 @@ def main():
         help="Publish mode: 'image-text' (default) or 'long-article'",
     )
 
-    # Images (required for image-text, optional for long-article)
+    # Images (optional for image-text; official text-cover is used when omitted)
     img_group = parser.add_mutually_exclusive_group(required=False)
     img_group.add_argument(
         "--image-urls", nargs="+", help="Image URLs to download"
@@ -190,8 +193,7 @@ def main():
                 sys.exit(2)
         print(f"[pipeline] Step 3: Using {len(image_paths)} local image(s).")
     elif args.mode == "image-text":
-        print("Error: Images are required for image-text mode. Use --image-urls or --images.", file=sys.stderr)
-        sys.exit(2)
+        print("[pipeline] Step 3: No images provided. Using Xiaohongshu official text-cover feature.")
     else:
         print("[pipeline] Step 3: No images (optional for long-article mode).")
 

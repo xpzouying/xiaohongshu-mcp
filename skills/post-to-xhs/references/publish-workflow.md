@@ -12,7 +12,7 @@
 
 **上传图文模式**:
 ```
-生成文案 → 用户确认 → 启动 Chrome → 检查登录 → 导航发布页 → 上传图片 → 填写标题 → 填写正文 → 用户确认发布
+生成文案 → 用户确认 → 启动 Chrome → 检查登录 → 导航发布页 → 上传图片/官方文字配图 → 填写标题 → 填写正文 → 用户确认发布
 ```
 
 **写长文模式**:
@@ -53,15 +53,17 @@
 - 目标 URL: `https://creator.xiaohongshu.com/publish/publish`
 - 等待页面完全加载
 
-### 4. 上传图片
+### 4. 上传图片或使用官方文字配图
 
-脚本: `scripts/cdp_publish.py` → `_upload_images()`
+脚本: `scripts/cdp_publish.py` → `_upload_images()` / `_create_official_text_cover()`
 
-- 通过 CDP `DOM.querySelector` 定位 `input[type="file"]` 元素
+- 有图片时，通过 CDP `DOM.querySelector` 定位 `input[type="file"]` 元素
 - 使用 CDP `DOM.setFileInputFiles` 命令设置文件路径
-- 等待图片上传和处理完成
+- 无图片时，点击小红书发布页官方“文字配图”入口，并用标题填写文字配图内容
+- 文字配图生成后，从官方卡片列表中随机选择一个卡片并点击“下一步”
+- 等待图片上传、文字配图生成和编辑器出现
 
-**图片来源**: 如果图片是 URL，先用 `scripts/image_downloader.py` 下载到临时目录，发布后自动清理。
+**图片来源**: 如果图片是 URL，先用 `scripts/image_downloader.py` 下载到临时目录，发布后自动清理。没有图片时不创建本地图片文件，直接使用小红书官方文字配图功能。
 
 ### 5. 填写标题
 
@@ -149,6 +151,10 @@
 | 元素 | 主选择器 | 备选选择器 | 说明 |
 |---|---|---|---|
 | 图片上传 | `input.upload-input` | `input[type="file"]` | 隐藏的文件输入，通过 CDP 直接操作 |
+| 官方文字配图入口 | 文本匹配"文字配图" | - | 无图片时点击官方文字配图功能 |
+| 官方文字配图输入 | `textarea, input[type="text"], div[contenteditable="true"]` | - | 用标题填写文字配图内容 |
+| 官方文字配图卡片 | `.cover-item` | - | 生成后随机选择一个卡片 |
+| 官方文字配图下一步 | `.overview-footer button` | 文本匹配"下一步" | 选卡后进入发布页 |
 | 标题输入（图文） | `input[placeholder*="填写标题"]` | `input.d-text` | 图文模式标题输入框 |
 | 标题输入（长文） | `textarea.d-text[placeholder="输入标题"]` | - | 长文模式 textarea 标题 |
 | 正文编辑 | `div.tiptap.ProseMirror` | `div.ProseMirror[contenteditable="true"]` | TipTap/ProseMirror 富文本编辑器 |
@@ -180,6 +186,7 @@
 | 未登录 | cookie 过期或首次使用 | 在 Chrome 窗口中扫码登录 |
 | 选择器失效 | 小红书页面更新 | 按上述维护指南更新选择器 |
 | 图片上传失败 | 文件路径错误或格式不支持 | 检查图片路径，确保格式为 jpg/png/webp |
+| 文字配图失败 | 页面文案或弹窗结构变化 | 重新抓取“文字配图”入口、输入框和确认按钮选择器 |
 | 发布按钮找不到 | 页面未完全加载 | 增加等待时间或手动点击发布 |
 
 ## CLI 用法
@@ -200,6 +207,9 @@ python publish_pipeline.py --title "标题" --content "正文" --image-urls URL1
 
 # 使用本地图片文件
 python publish_pipeline.py --headless --title "标题" --content "正文" --images img1.jpg img2.jpg
+
+# 没有图片时，使用小红书官方文字配图
+python publish_pipeline.py --headless --title "标题" --content "正文"
 
 # 填写并自动发布
 python publish_pipeline.py --headless --title "标题" --content "正文" --image-urls URL1 --auto-publish
@@ -222,9 +232,9 @@ python chrome_launcher.py --headless
 python cdp_publish.py check-login
 python cdp_publish.py --headless check-login
 
-# 3. 填写表单
+# 3. 填写表单（不传 --images 时使用官方文字配图）
 python cdp_publish.py fill --title "标题" --content-file body.txt --images img1.jpg
-python cdp_publish.py --headless fill --title "标题" --content-file body.txt --images img1.jpg
+python cdp_publish.py --headless fill --title "标题" --content-file body.txt
 
 # 4. 用户确认后点击发布
 python cdp_publish.py click-publish
