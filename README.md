@@ -1033,7 +1033,7 @@ npx mcporter list xiaohongshu-mcp
 **重要：在群里问问题之前，请一定要先仔细看完 README 文档以及查看 Issues。**
 
 ### 微信群
-|                                                 微信群 25 群                                        |                                                 微信群 26 群                                         |
+|                                                 微信群 26 群                                        |                                                 微信群 27 群                                         |
 | :------------------------------------------------------------------------------------------------: | :------------------------------------------------------------------------------------------------: |
 | <img src="https://raw.githubusercontent.com/ltzteam/images/refs/heads/main/2.JPG" alt="WechatIMG119" width="300"> | <img src="https://raw.githubusercontent.com/ltzteam/images/refs/heads/main/3.JPG" alt="WechatIMG119" width="300"> |
 
