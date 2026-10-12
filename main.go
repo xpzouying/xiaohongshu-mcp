@@ -15,16 +15,21 @@ var version = "dev"
 
 func main() {
 	var (
-		headless bool
-		port     string
-		token    string
+		headless    bool
+		port        string
+		token       string
+		userDataDir string
 	)
 	flag.BoolVar(&headless, "headless", true, "是否无头模式")
 	flag.StringVar(&port, "port", ":18060", "端口")
 	flag.StringVar(&token, "token", "", "鉴权 Token，留空则读取 AUTH_TOKEN")
+	flag.StringVar(&userDataDir, "user-data-dir", "", "Chrome 持久 profile 目录；空则读 XHS_USER_DATA_DIR，仍空则每次新建临时浏览器")
 	flag.Parse()
 	if token == "" {
 		token = os.Getenv("AUTH_TOKEN")
+	}
+	if userDataDir == "" {
+		userDataDir = configs.UserDataDirFromEnv()
 	}
 
 	logrus.Infof("xiaohongshu-mcp version: %s", version)
@@ -42,6 +47,15 @@ func main() {
 	configs.SetFingerprintSeed(configs.ResolveFingerprintSeed(
 		cookies.NewLoadCookie(cookies.GetCookiesFilePath())))
 	configs.SetProxy(configs.ProxyFromEnv())
+
+	// 可选的持久 Chrome profile 目录
+	if userDataDir != "" {
+		if err := os.MkdirAll(userDataDir, 0o755); err != nil {
+			logrus.Fatalf("failed to create user-data-dir: %v", err)
+		}
+		configs.SetUserDataDir(userDataDir)
+		logrus.Infof("user-data-dir enabled: %s (browser will be shared across requests)", userDataDir)
+	}
 
 	// 初始化服务
 	xiaohongshuService := NewXiaohongshuService()

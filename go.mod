@@ -56,3 +56,7 @@ require (
 	google.golang.org/protobuf v1.34.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+// 依赖 headless_browser#12 (WithUserDataDir)，在其合并前临时指向 fork 的 cursor/persistent-user-data-dir-3088 分支
+// 对应 commit: 42b6ad7db97ca6760df3c275b91947f41df78ea6
+replace github.com/xpzouying/headless_browser => github.com/candybox-ai/headless_browser v0.0.0-20260910062357-42b6ad7db97c
