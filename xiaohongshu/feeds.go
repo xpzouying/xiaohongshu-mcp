@@ -54,6 +54,11 @@ func (f *FeedsListAction) GetFeedsList(ctx context.Context) ([]Feed, error) {
 	}
 
 	if result == "" {
+		// 首页同样会被重定向到安全验证页。先判定再报错，
+		// 否则"没有捕获到 feeds 数据"会掩盖真正的原因。
+		if err := CheckPageBlocked(page); err != nil {
+			return nil, err
+		}
 		return nil, errors.ErrNoFeeds
 	}
 
