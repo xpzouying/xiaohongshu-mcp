@@ -116,6 +116,14 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 
 	searchURL := makeSearchURL(keyword)
 	page.MustNavigate(searchURL)
+
+	// 会话被风控判定可疑时，导航会立刻被重定向到安全验证页，而这个页面上
+	// 不会出现 __INITIAL_STATE__。先判定一次：命中就直接返回可据以行动的错误，
+	// 不必白等一整个 deadline 后再报一句没有信息量的超时。
+	if err := CheckPageBlocked(page); err != nil {
+		return nil, err
+	}
+
 	page.MustWaitStable()
 	page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
 	humanize.Delay(ctx, humanize.AfterNavigate)
@@ -177,6 +185,11 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 	}`).String()
 
 	if result == "" {
+		// 读不到结果时，先确认是不是被风控拦截了——那样的话 ErrNoFeeds
+		// 会把"需要验证"说成"没数据"，误导排查方向。
+		if err := CheckPageBlocked(page); err != nil {
+			return nil, err
+		}
 		return nil, errors.ErrNoFeeds
 	}
 
