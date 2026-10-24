@@ -416,8 +416,8 @@ func (s *XiaohongshuService) GetFeedDetail(ctx context.Context, feedID, xsecToke
 	return s.GetFeedDetailWithConfig(ctx, feedID, xsecToken, loadAllComments, xiaohongshu.DefaultCommentLoadConfig())
 }
 
-// GetFeedDetailWithConfig 使用配置获取Feed详情
-func (s *XiaohongshuService) GetFeedDetailWithConfig(ctx context.Context, feedID, xsecToken string, loadAllComments bool, config xiaohongshu.CommentLoadConfig) (*FeedDetailResponse, error) {
+// GetFeedDetailWithConfig 使用配置获取Feed详情，可选参数启用图片 OCR，默认关闭。
+func (s *XiaohongshuService) GetFeedDetailWithConfig(ctx context.Context, feedID, xsecToken string, loadAllComments bool, config xiaohongshu.CommentLoadConfig, includeImageText ...bool) (*FeedDetailResponse, error) {
 	b := newBrowser()
 	defer b.Close()
 
@@ -435,6 +435,7 @@ func (s *XiaohongshuService) GetFeedDetailWithConfig(ctx context.Context, feedID
 		FeedID: feedID,
 		Data:   result,
 	}
+	enrichFeedText(ctx, response, len(includeImageText) > 0 && includeImageText[0], runLocalOCR)
 
 	return response, nil
 }
