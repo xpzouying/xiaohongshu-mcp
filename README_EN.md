@@ -503,13 +503,19 @@ HTTP/HTTPS/SOCKS5 proxies are supported, and proxy credentials are automatically
 
 **Select the site (optional):**
 
-The default is the domestic Xiaohongshu site. For a RedNote account, set `XHS_SITE=rednote` when starting the server. Login and Creator Center navigation will use the RedNote domains:
+This fork defaults to RedNote (`www.rednote.com` and `creator.rednote.com`). Set `XHS_SITE=xiaohongshu` explicitly for a domestic Xiaohongshu account. Use the same site for the login tool and server; other nonempty values are rejected at startup.
 
 ```bash
 XHS_SITE=rednote ./xiaohongshu-mcp-darwin-arm64
 # Or run from source
 XHS_SITE=rednote go run .
+
+# 国内小红书 / domestic Xiaohongshu
+XHS_SITE=xiaohongshu go run ./cmd/login
+XHS_SITE=xiaohongshu go run .
 ```
+
+See [RedNote validation](docs/rednote-validation.md) for Creator Center login, draft saving, test commands, and live verification limits.
 
 **Optional authentication**:
 

@@ -501,13 +501,19 @@ XHS_PROXY=http://proxy:port go run .
 
 **选择站点（可选）**：
 
-默认使用小红书国内站。RedNote 账号可在启动时设置 `XHS_SITE=rednote`，登录和创作者中心会使用 RedNote 对应域名：
+本 fork 默认使用 RedNote（`www.rednote.com` 和 `creator.rednote.com`）。国内小红书账号请显式设置 `XHS_SITE=xiaohongshu`。登录工具和服务器必须使用同一个站点；其他非空值会在启动时报错。
 
 ```bash
 XHS_SITE=rednote ./xiaohongshu-mcp-darwin-arm64
 # 或源码运行
 XHS_SITE=rednote go run .
+
+# 国内小红书 / domestic Xiaohongshu
+XHS_SITE=xiaohongshu go run ./cmd/login
+XHS_SITE=xiaohongshu go run .
 ```
+
+创作者中心登录、草稿保存、测试命令和验证边界见 [RedNote 验证说明](docs/rednote-validation.md)。
 
 **访问鉴权（可选）**：
 

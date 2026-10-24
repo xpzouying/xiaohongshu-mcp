@@ -1,55 +1,54 @@
 package xiaohongshu
 
 import (
+	"net/url"
 	"time"
 
 	"github.com/go-rod/rod"
 	"github.com/pkg/errors"
-	"github.com/xpzouying/xiaohongshu-mcp/humanize"
 )
 
-const (
-	creatorSessionCookie  = "galaxy_creator_session_id"
-	creatorSessionTimeout = 60 * time.Second
-)
+const creatorSessionTimeout = 60 * time.Second
 
-// ensureCreatorSession 浏览器里没有创作者中心会话时，先打开创作者中心首页，等会话建立
+// ensureCreatorSession 只在目标站点的发布表单可用后继续。
 func ensureCreatorSession(page *rod.Page) error {
+	page = page.Timeout(creatorSessionTimeout)
 	if hasCreatorSession(page) {
 		return nil
 	}
-
-	if err := page.Navigate(creatorLoginURL()); err != nil {
+	if err := page.Navigate(creatorURL("/publish/publish?source=official")); err != nil {
 		return errors.Wrap(err, "打开创作者中心失败")
 	}
-
-	deadline := time.Now().Add(creatorSessionTimeout)
-	for time.Now().Before(deadline) {
-		time.Sleep(500 * time.Millisecond)
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+	for {
 		if hasCreatorSession(page) {
-			humanize.Delay(page.GetContext(), humanize.AfterNavigate)
 			return nil
 		}
+		select {
+		case <-page.GetContext().Done():
+			return errors.Wrap(page.GetContext().Err(), "创作者中心登录未完成；请在所选站点完成登录后重试")
+		case <-ticker.C:
+		}
 	}
-	if isRedNote() {
-		return errors.New("RedNote 登录态已存在，但创作者中心没有完成 SSO；请先在 MCP 浏览器中打开创作者中心并完成登录")
+}
+
+// isCreatorPage 同时校验协议、域名和路径，不能把登录重定向当成成功。
+func isCreatorPage(rawURL, path string) bool {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return false
 	}
-	return errors.New("创作者中心登录失效，请重新扫码登录")
+	base, _ := url.Parse(creatorURL(""))
+	return u.Scheme == "https" && u.Host == base.Host && u.Path == path
 }
 
 func hasCreatorSession(page *rod.Page) bool {
-	cks, err := page.Browser().GetCookies()
-	if err == nil {
-		for _, c := range cks {
-			if c.Name == creatorSessionCookie {
-				return true
-			}
-		}
+	info, err := page.Info()
+	if err != nil || !isCreatorPage(info.URL, "/publish/publish") {
+		return false
 	}
-	// RedNote 的创作者中心可能完成 SSO 跳转，但不会向 MCP 暴露这个 Cookie。
-	if isRedNote() {
-		result, err := page.Eval(`() => location.hostname === "creator.rednote.com" && location.pathname.startsWith("/publish/")`)
-		return err == nil && result.Value.Bool()
-	}
-	return false
+	// Cookie 可能过期或属于另一个站点，必须看到实际的上传控件。
+	has, _, err := page.Has(`input[type="file"]`)
+	return err == nil && has
 }

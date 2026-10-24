@@ -97,7 +97,7 @@ func (p *PublishAction) Publish(ctx context.Context, content PublishImageContent
 	return nil
 }
 
-// SaveDraft fills the image post form and clicks only an explicit save-draft control.
+// SaveDraft 填写图文表单，只点击明确的保存草稿控件。
 func (p *PublishAction) SaveDraft(ctx context.Context, content PublishImageContent) error {
 	if len(content.ImagePaths) == 0 {
 		return errors.New("图片不能为空")
@@ -131,7 +131,7 @@ func clickSaveDraftButton(page *rod.Page) error {
 				continue
 			}
 			label := strings.ToLower(strings.TrimSpace(text))
-			if label == "保存草稿" || label == "save draft" {
+			if (label == "保存草稿" || label == "暂存离开" || label == "save draft") && humanize.Visible(elem) {
 				if err := humanize.Click(elem); err != nil {
 					return errors.Wrap(err, "点击保存草稿失败")
 				}
@@ -139,24 +139,42 @@ func clickSaveDraftButton(page *rod.Page) error {
 			}
 		}
 	}
-	return errors.New("页面上没有找到明确的“保存草稿/Save draft”按钮；为避免误发布，已停止操作")
+	return errors.New("页面上没有找到明确的“保存草稿/暂存离开/Save draft”按钮；为避免误发布，已停止操作")
 }
 
 func waitDraftSaved(page *rod.Page, timeout time.Duration) error {
+	page = page.Timeout(timeout)
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		for _, selector := range []string{"[role=alert]", ".d-toast", ".toast"} {
 			if elems, err := page.Elements(selector); err == nil {
 				for _, elem := range elems {
-					if text, err := elem.Text(); err == nil && (strings.Contains(text, "草稿") || strings.Contains(strings.ToLower(text), "draft")) {
+					if text, err := elem.Text(); err == nil && humanize.Visible(elem) && draftSaveSucceeded(text) {
 						return nil
 					}
 				}
 			}
 		}
-		time.Sleep(300 * time.Millisecond)
+		select {
+		case <-page.GetContext().Done():
+			return page.GetContext().Err()
+		case <-time.After(300 * time.Millisecond):
+		}
 	}
 	return errors.New("已点击保存草稿，但页面未显示可确认的草稿保存提示")
+}
+
+func draftSaveSucceeded(text string) bool {
+	text = strings.ToLower(strings.TrimSpace(text))
+	if strings.Contains(text, "失败") || strings.Contains(text, "fail") || strings.Contains(text, "error") {
+		return false
+	}
+	for _, signal := range []string{"草稿已保存", "保存成功", "暂存成功", "已存入草稿箱", "draft saved", "saved to drafts"} {
+		if strings.Contains(text, signal) {
+			return true
+		}
+	}
+	return false
 }
 
 // hasPopCover 当前页面是否还有挡人的浮层。
@@ -475,19 +493,23 @@ func fillPublishContent(ctx context.Context, page *rod.Page, title, content stri
 	return nil
 }
 
-// waitPublishSuccess 轮询等待发布成功的信号：小红书发布成功后会跳转离开发布表单页
-// （URL 不再含 /publish/publish）。超时仍未跳转 → 判定发布失败。
+// waitPublishSuccess 只有所选站点的成功页才能确认发布，登录页不算成功。
 func waitPublishSuccess(page *rod.Page, timeout time.Duration) error {
+	page = page.Timeout(timeout)
 	deadline := time.Now().Add(timeout)
 	for {
-		if info, err := page.Info(); err == nil && !strings.Contains(info.URL, "/publish/publish") {
-			slog.Info("发布成功，已跳转离开发布页", "url", info.URL)
+		if info, err := page.Info(); err == nil && isCreatorPage(info.URL, "/publish/success") {
+			slog.Info("发布成功，已进入成功页", "url", info.URL)
 			return nil
 		}
 		if time.Now().After(deadline) {
-			return errors.New("发布未确认成功：点击发布后未跳转离开发布页（可能校验未过或被拦截）")
+			return errors.New("发布未确认成功：点击发布后未进入成功页（可能登录失效、校验未过或被拦截）")
 		}
-		time.Sleep(500 * time.Millisecond)
+		select {
+		case <-page.GetContext().Done():
+			return errors.Wrap(page.GetContext().Err(), "发布未确认成功")
+		case <-time.After(500 * time.Millisecond):
+		}
 	}
 }
 

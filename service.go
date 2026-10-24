@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/go-rod/rod"
@@ -264,13 +265,16 @@ func (s *XiaohongshuService) PublishContent(ctx context.Context, req *PublishReq
 	return response, nil
 }
 
-// SaveDraft saves an image post as a draft without invoking any publish action.
+// SaveDraft 保存图文草稿，不调用发布操作。
 func (s *XiaohongshuService) SaveDraft(ctx context.Context, req *PublishRequest) (*PublishResponse, error) {
-	if req.Title == "" || req.Content == "" {
+	if strings.TrimSpace(req.Title) == "" || strings.TrimSpace(req.Content) == "" {
 		return nil, fmt.Errorf("标题和正文不能为空")
 	}
 	if xhsutil.CalcTitleLength(req.Title) > 20 {
 		return nil, fmt.Errorf("标题长度超过限制")
+	}
+	if len(req.Images) == 0 {
+		return nil, fmt.Errorf("至少需要一张图片")
 	}
 	imagePaths, err := s.processImages(req.Images)
 	if err != nil {

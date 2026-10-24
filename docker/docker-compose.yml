@@ -15,5 +15,6 @@ services:
       - HOME=/app/data/home
       - XDG_CONFIG_HOME=/app/data/config
       - AUTH_TOKEN=${AUTH_TOKEN:-}
+      - XHS_SITE=${XHS_SITE:-rednote}
     ports:
       - "18060:18060"
