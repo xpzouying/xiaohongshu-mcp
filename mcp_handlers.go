@@ -431,7 +431,11 @@ func (s *AppServer) handleGetFeedDetail(ctx context.Context, args map[string]any
 
 	logrus.Infof("MCP: 获取Feed详情 - Feed ID: %s, loadAllComments=%v, config=%+v", feedID, loadAll, config)
 
-	result, err := s.xiaohongshuService.GetFeedDetailWithConfig(ctx, feedID, xsecToken, loadAll, config)
+	includeImageText := false
+	if enabled, ok := args["include_image_text"].(bool); ok {
+		includeImageText = enabled
+	}
+	result, err := s.xiaohongshuService.GetFeedDetailWithConfig(ctx, feedID, xsecToken, loadAll, config, includeImageText)
 	if err != nil {
 		return &MCPToolResult{
 			Content: []MCPContent{{

@@ -182,17 +182,16 @@ func (s *AppServer) getFeedDetailHandler(c *gin.Context) {
 	var result *FeedDetailResponse
 	var err error
 
+	config := xiaohongshu.DefaultCommentLoadConfig()
 	if req.CommentConfig != nil {
-		config := xiaohongshu.CommentLoadConfig{
+		config = xiaohongshu.CommentLoadConfig{
 			ClickMoreReplies:    req.CommentConfig.ClickMoreReplies,
 			MaxRepliesThreshold: req.CommentConfig.MaxRepliesThreshold,
 			MaxCommentItems:     req.CommentConfig.MaxCommentItems,
 			ScrollSpeed:         req.CommentConfig.ScrollSpeed,
 		}
-		result, err = s.xiaohongshuService.GetFeedDetailWithConfig(c.Request.Context(), req.FeedID, req.XsecToken, req.LoadAllComments, config)
-	} else {
-		result, err = s.xiaohongshuService.GetFeedDetail(c.Request.Context(), req.FeedID, req.XsecToken, req.LoadAllComments)
 	}
+	result, err = s.xiaohongshuService.GetFeedDetailWithConfig(c.Request.Context(), req.FeedID, req.XsecToken, req.LoadAllComments, config, req.IncludeImageText)
 
 	if err != nil {
 		respondError(c, http.StatusInternalServerError, "GET_FEED_DETAIL_FAILED",

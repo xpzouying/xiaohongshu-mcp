@@ -62,6 +62,8 @@ MCP for 小红书 / xiaohongshu.com。让你的 AI 助手直接访问小红书�
 
 ## 项目简介
 
+**可选图片 OCR：** `get_feed_detail` / HTTP 详情接口支持 `include_image_text=true`，使用本地 CPU 识别图中文字，保留顺序、置信度和失败信息。默认关闭；安装和使用见 [OCR.md](OCR.md)。
+
 **主要功能**
 
 > 💡 **提示：** 点击下方功能标题可展开查看视频演示

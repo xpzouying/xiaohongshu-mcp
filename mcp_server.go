@@ -57,6 +57,7 @@ type FilterOption struct {
 type FeedDetailArgs struct {
 	FeedID           string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
 	XsecToken        string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
+	IncludeImageText bool   `json:"include_image_text,omitempty" jsonschema:"是否识别图片文字，默认false；需要配置本地OCR。返回text_content（正文与各张图片文字）和image_texts（按原图顺序含识别错误及置信度）。false仅返回正文和原始详情。"`
 	LoadAllComments  bool   `json:"load_all_comments,omitempty" jsonschema:"是否加载全部评论。false仅返回前10条一级评论（默认），true滚动加载更多评论"`
 	Limit            int    `json:"limit,omitempty" jsonschema:"【仅当load_all_comments为true时生效】限制加载的一级评论数量。例如20表示最多加载20条，默认20"`
 	ClickMoreReplies bool   `json:"click_more_replies,omitempty" jsonschema:"【仅当load_all_comments为true时生效】是否展开二级回复。true展开子评论，false不展开（默认）"`
@@ -288,7 +289,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "get_feed_detail",
-			Description: "获取小红书笔记详情，返回笔记内容、图片、作者信息、互动数据（点赞/收藏/分享数）及评论列表。视频笔记额外返回 video 字段，含各编码档位的视频直链与字幕地址（均带签名、有时效）。默认返回前10条一级评论，如需更多评论请设置load_all_comments=true",
+			Description: "获取小红书笔记详情，返回笔记内容、图片、作者信息、互动数据（点赞/收藏/分享数）及评论列表。视频笔记额外返回 video 字段，含各编码档位的视频直链与字幕地址（均带签名、有时效）。默认返回前10条一级评论，如需更多评论请设置load_all_comments=true。include_image_text=true可启用本地OCR，text_content合并正文和按图片顺序排列的文字，image_texts保留逐图置信度及错误；默认关闭，不需要Python。",
 			Annotations: &mcp.ToolAnnotations{
 				Title:        "Get Feed Detail",
 				ReadOnlyHint: true,
@@ -296,9 +297,10 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		},
 		withPanicRecovery("get_feed_detail", func(ctx context.Context, req *mcp.CallToolRequest, args FeedDetailArgs) (*mcp.CallToolResult, any, error) {
 			argsMap := map[string]interface{}{
-				"feed_id":           args.FeedID,
-				"xsec_token":        args.XsecToken,
-				"load_all_comments": args.LoadAllComments,
+				"feed_id":            args.FeedID,
+				"xsec_token":         args.XsecToken,
+				"load_all_comments":  args.LoadAllComments,
+				"include_image_text": args.IncludeImageText,
 			}
 
 			// 只有当 load_all_comments=true 时，才处理其他参数
