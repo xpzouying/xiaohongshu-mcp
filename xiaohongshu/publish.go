@@ -818,7 +818,10 @@ func inputTags(ctx context.Context, contentElem *rod.Element, tags []string) err
 	time.Sleep(1 * time.Second)
 
 	for _, tag := range tags {
-		tag = strings.TrimLeft(tag, "#")
+		tag = normalizeTopicName(tag)
+		if tag == "" {
+			return errors.New("话题名称不能为空")
+		}
 		if err := inputTag(ctx, contentElem, tag); err != nil {
 			return errors.Wrapf(err, "输入标签[%s]失败", tag)
 		}
@@ -827,37 +830,43 @@ func inputTags(ctx context.Context, contentElem *rod.Element, tags []string) err
 }
 
 func inputTag(ctx context.Context, contentElem *rod.Element, tag string) error {
-	// 输入 # 触发话题联想
-	if err := humanize.Type(ctx, contentElem, "#"); err != nil {
-		return errors.Wrap(err, "输入#失败")
+	contentElem = contentElem.Context(ctx).Timeout(15 * time.Second)
+	// 必须确认结构化话题插入成功，普通 #文字 不能算成功。
+	before, err := editorTopicCount(contentElem, tag)
+	if err != nil {
+		return err
 	}
-	time.Sleep(200 * time.Millisecond) // 技术等待：等联想下拉框弹出
-
-	if err := humanize.Type(ctx, contentElem, tag); err != nil {
-		return errors.Wrap(err, "输入标签内容失败")
-	}
-
-	time.Sleep(1 * time.Second) // 技术等待：等联想结果刷新
-
-	page := contentElem.Page()
-	topicContainer, err := page.Element("#creator-editor-topic-container")
-	if err != nil || topicContainer == nil {
-		slog.Warn("未找到标签联想下拉框，直接输入空格", "tag", tag)
-		return humanize.Type(ctx, contentElem, " ")
+	if err := humanize.Type(ctx, contentElem, "#"+tag); err != nil {
+		return errors.Wrap(err, "输入话题失败")
 	}
 
-	firstItem, err := topicContainer.Element(".item")
-	if err != nil || firstItem == nil {
-		slog.Warn("未找到标签联想选项，直接输入空格", "tag", tag)
-		return humanize.Type(ctx, contentElem, " ")
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		items, err := contentElem.Page().Elements("#creator-editor-topic-container .item")
+		if err != nil {
+			return errors.Wrap(err, "查找话题候选失败")
+		}
+		for _, item := range items {
+			if !isElementVisible(item) {
+				continue
+			}
+			label, err := item.Text()
+			if err != nil || !matchesTopicCandidate(label, tag) {
+				continue
+			}
+			if err := humanize.Click(item); err != nil {
+				return errors.Wrap(err, "点击话题候选失败")
+			}
+			return waitEditorTopic(ctx, contentElem, tag, before)
+		}
+		if err := waitTopicPoll(ctx); err != nil {
+			return err
+		}
 	}
-
-	if err := humanize.Click(firstItem); err != nil {
-		return errors.Wrap(err, "点击标签联想选项失败")
-	}
-	slog.Info("成功点击标签联想选项", "tag", tag)
-	time.Sleep(500 * time.Millisecond) // 技术等待：等标签处理完成
-	return nil
+	return errors.Errorf("话题[%s]没有出现精确匹配的候选，已停止发布；不会降级为普通井号文本", tag)
 }
 
 func findTextboxByPlaceholder(page *rod.Page) (*rod.Element, error) {

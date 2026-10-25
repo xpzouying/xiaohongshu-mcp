@@ -21,6 +21,15 @@ when a visible positive save message appears; an unrecognized confirmation
 returns an error rather than claiming success. Web drafts may not sync to the
 mobile app. Long-form article creation is not implemented by this MCP tool.
 
+Pass topic names through the `tags` array. Plain `#name` text in `content` is
+not converted into a topic automatically. The topic picker must provide an
+exact name match, and the editor must gain a matching structured topic node
+after selection. A missing candidate or unconfirmed insertion stops the
+operation before publishing; it no longer silently falls back to plain text.
+Confirmation currently requires an explicit `data-type="topic"` marker. Ordinary
+links, CSS classes, and generic read-only nodes are rejected. Editors with another
+markup format fail closed; these selectors still require live-editor verification.
+
 ## Automated checks
 
 ```sh
@@ -29,7 +38,7 @@ go vet ./...
 go build ./...
 go test -tags integration -run '^$' ./...
 go test -tags integration ./xiaohongshu \
-  -run 'Test(RedNoteLoginStateFixtures|DraftButtonAndConfirmationFixtures|CreatorSessionAndPublishResultFixtures)$' \
+  -run 'Test(RedNoteLoginStateFixtures|DraftButtonAndConfirmationFixtures|CreatorSessionAndPublishResultFixtures|TopicNodeFixtures|TopicSelectionFixtures)$' \
   -count=1 -timeout=90s
 ```
 
