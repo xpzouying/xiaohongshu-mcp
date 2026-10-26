@@ -370,7 +370,7 @@ func submitPublish(ctx context.Context, page *rod.Page, title, content string, t
 		return errors.Wrap(err, "输入正文失败")
 	}
 	closeFeatureGuide(page)
-	if err := waitAndClickTitleInput(titleElem); err != nil {
+	if err := waitAndClickTitleInput(page); err != nil {
 		return err
 	}
 	if err := inputTags(ctx, contentElem, tags); err != nil {
@@ -608,12 +608,21 @@ func closeFeatureGuide(page *rod.Page) {
 	slog.Info("已关闭功能引导卡")
 }
 
-// waitAndClickTitleInput 在填写正文后等待 1 秒并回点标题输入框，增强后续交互稳定性
-func waitAndClickTitleInput(titleElem *rod.Element) error {
+// waitAndClickTitleInput 在填写正文后等待 1 秒并回点标题输入框，增强后续交互稳定性。
+// 注意：titleElem 在正文输入之前获取，正文输入可能引发页面重排导致原句柄失效/被遮挡，
+// 因此这里重新按选择器定位最新句柄（5s 超时，避免 rod 默认 30s 长阻塞）；
+// 回点失败仅影响交互稳定性，降级为非致命（warn 后继续）。
+func waitAndClickTitleInput(page *rod.Page) error {
 	slog.Info("正文填写完成，准备等待后回点标题输入框")
 	time.Sleep(1 * time.Second)
+	titleElem, err := page.Timeout(5 * time.Second).Element("div.d-input input")
+	if err != nil {
+		slog.Warn("回点标题输入框失败：未找到标题输入框，跳过该稳定性步骤", "err", err)
+		return nil
+	}
 	if err := humanize.Click(titleElem); err != nil {
-		return errors.Wrap(err, "回点标题输入框失败")
+		slog.Warn("回点标题输入框失败，跳过该稳定性步骤", "err", err)
+		return nil
 	}
 	slog.Info("已回点标题输入框，继续后续发布流程")
 	return nil
