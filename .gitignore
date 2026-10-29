@@ -53,3 +53,8 @@ docker/docker-compose.override.yml
 # 本地分析/调试产物，不进仓库
 debug/
 .worktrees/
+
+# Local binary/cookie backups kept for rollback, not for the repo
+xiaohongshu-mcp.bak*
+xiaohongshu-mcp.old*
+cookies.json.bak*

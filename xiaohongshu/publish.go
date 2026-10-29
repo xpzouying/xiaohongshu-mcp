@@ -748,33 +748,43 @@ func inputTags(ctx context.Context, contentElem *rod.Element, tags []string) err
 func inputTag(ctx context.Context, contentElem *rod.Element, tag string) error {
 	// 输入 # 触发话题联想
 	if err := humanize.Type(ctx, contentElem, "#"); err != nil {
-		return errors.Wrap(err, "输入#失败")
+		slog.Warn("输入#失败，跳过该标签（不阻塞发布）", "tag", tag, "err", err)
+		return nil
 	}
 	time.Sleep(200 * time.Millisecond) // 技术等待：等联想下拉框弹出
 
 	if err := humanize.Type(ctx, contentElem, tag); err != nil {
-		return errors.Wrap(err, "输入标签内容失败")
+		slog.Warn("输入标签内容失败，跳过该标签（不阻塞发布）", "tag", tag, "err", err)
+		return nil
 	}
 
-	time.Sleep(1 * time.Second) // 技术等待：等联想结果刷新
+	time.Sleep(800 * time.Millisecond) // 技术等待：等联想结果刷新
 
 	page := contentElem.Page()
-	topicContainer, err := page.Element("#creator-editor-topic-container")
-	if err != nil || topicContainer == nil {
-		slog.Warn("未找到标签联想下拉框，直接输入空格", "tag", tag)
-		return humanize.Type(ctx, contentElem, " ")
+
+	// 优先点击联想项（命中时最准）
+	if topicContainer, err := page.Element("#creator-editor-topic-container"); err == nil && topicContainer != nil {
+		if firstItem, err := topicContainer.Element(".item"); err == nil && firstItem != nil {
+			if err := humanize.Click(firstItem); err == nil {
+				slog.Info("成功点击标签联想选项", "tag", tag)
+				time.Sleep(500 * time.Millisecond) // 技术等待：等标签处理完成
+				return nil
+			}
+			slog.Warn("点击标签联想选项失败，改用键盘提交", "tag", tag, "err", err)
+		}
 	}
 
-	firstItem, err := topicContainer.Element(".item")
-	if err != nil || firstItem == nil {
-		slog.Warn("未找到标签联想选项，直接输入空格", "tag", tag)
-		return humanize.Type(ctx, contentElem, " ")
+	// 兜底：用空格提交话题。键盘提交不依赖联想项的点击区域/挂载状态，
+	// 可规避「元素无可点击区域 / Node is detached」两类不稳定交互。
+	ka, err := contentElem.KeyActions()
+	if err != nil {
+		slog.Warn("创建键盘操作失败，跳过该标签（不阻塞发布）", "tag", tag, "err", err)
+		return nil
 	}
-
-	if err := humanize.Click(firstItem); err != nil {
-		return errors.Wrap(err, "点击标签联想选项失败")
+	if err := ka.Type(input.Space).Do(); err != nil {
+		slog.Warn("键盘提交话题失败，跳过该标签（不阻塞发布）", "tag", tag, "err", err)
+		return nil
 	}
-	slog.Info("成功点击标签联想选项", "tag", tag)
 	time.Sleep(500 * time.Millisecond) // 技术等待：等标签处理完成
 	return nil
 }

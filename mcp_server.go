@@ -27,6 +27,12 @@ type PublishContentArgs struct {
 	Products   []string `json:"products,omitempty" jsonschema:"商品关键词列表（可选），用于绑定带货商品。填写商品名称或商品ID，系统会自动搜索并选择第一个匹配结果。需账号已开通商品功能。示例: [面膜, 防晒霜SPF50]"`
 }
 
+// DebugPublishDomArgs 发布页 DOM 抓取参数（诊断用）
+type DebugPublishDomArgs struct {
+	Keyword string `json:"keyword,omitempty" jsonschema:"要查找的关键字，默认“合集”"`
+	Limit   int    `json:"limit,omitempty" jsonschema:"最多返回几条 DOM 片段，默认 8，上限 20"`
+}
+
 // PublishVideoArgs 发布视频的参数（仅支持本地单个视频文件）
 type PublishVideoArgs struct {
 	Title      string   `json:"title" jsonschema:"内容标题（小红书限制：最多20个中文字或英文单词）"`
@@ -248,6 +254,26 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				"products":    convertStringsToInterfaces(args.Products),
 			}
 			result := appServer.handlePublishContent(ctx, argsMap)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	// 工具 4.5: 发布页 DOM 抓取（诊断用，只读）
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "debug_publish_dom",
+			Description: "诊断用：打开创作中心发布页并抓取包含指定关键字的 DOM 片段（只读，不发布）。用于定位「合集」等控件的真实结构。",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Debug Publish DOM",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("debug_publish_dom", func(ctx context.Context, req *mcp.CallToolRequest, args DebugPublishDomArgs) (*mcp.CallToolResult, any, error) {
+			argsMap := map[string]interface{}{
+				"keyword": args.Keyword,
+				"limit":   args.Limit,
+			}
+			result := appServer.handleDebugPublishDom(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil
 		}),
 	)

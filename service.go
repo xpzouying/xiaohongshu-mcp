@@ -286,6 +286,29 @@ func (s *XiaohongshuService) publishContent(ctx context.Context, content xiaohon
 	return action.Publish(ctx, content)
 }
 
+// DebugPublishDom 诊断用：打开创作中心发布页（已登录态），抓取含关键字的 DOM 片段。
+// 只读取页面，不上传、不填写、不发布。
+func (s *XiaohongshuService) DebugPublishDom(keyword string, limit int) (string, error) {
+	if keyword == "" {
+		keyword = "合集"
+	}
+	if limit <= 0 || limit > 20 {
+		limit = 8
+	}
+
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	if _, err := xiaohongshu.NewPublishImageAction(page); err != nil {
+		return "", err
+	}
+
+	return xiaohongshu.DumpPublishDOM(page, keyword, limit)
+}
+
 // PublishVideo 发布视频（本地文件）
 func (s *XiaohongshuService) PublishVideo(ctx context.Context, req *PublishVideoRequest) (*PublishVideoResponse, error) {
 	// 标题长度校验（小红书限制：最大20个字）
