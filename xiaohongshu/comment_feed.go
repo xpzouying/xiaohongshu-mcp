@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/go-rod/rod"
+	"github.com/go-rod/rod/lib/proto"
 	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/xiaohongshu-mcp/humanize"
 )
@@ -23,7 +24,8 @@ func NewCommentFeedAction(page *rod.Page) *CommentFeedAction {
 // PostComment 发表评论到 Feed
 func (f *CommentFeedAction) PostComment(ctx context.Context, feedID, xsecToken, content string) error {
 	// 不使用 Context(ctx)，避免继承外部 context 的超时
-	page := f.page.Timeout(60 * time.Second)
+	// 120s：重帖（评论数 100+）页面加载慢 + 长评论逐字输入耗时，60s 会饿死最后的提交按钮查找
+	page := f.page.Timeout(120 * time.Second)
 
 	url := makeFeedDetailURL(feedID, xsecToken)
 	logrus.Infof("打开 feed 详情页: %s", url)
@@ -63,6 +65,26 @@ func (f *CommentFeedAction) PostComment(ctx context.Context, feedID, xsecToken, 
 
 	humanize.Delay(ctx, humanize.AfterType)
 
+	// 发前校验：确认输入真的进入编辑器、提交按钮非禁用（防「假输入→无效点击」静默失败）
+	if state, err := page.Eval(`() => {
+		const box = document.querySelector('div.input-box div.content-edit');
+		const btn = document.querySelector('div.bottom button.submit');
+		return {
+			textLen: box ? box.innerText.trim().length : -1,
+			btnExists: !!btn,
+			btnDisabled: btn ? (btn.disabled || (btn.className||'').includes('disable')) : null
+		};
+	}`); err != nil {
+		logrus.Warnf("发前校验读取失败: %v", err)
+	} else {
+		st := state.Value
+		logrus.Infof("发前校验: textLen=%d btnExists=%v btnDisabled=%v",
+			st.Get("textLen").Int(), st.Get("btnExists").Bool(), st.Get("btnDisabled").Bool())
+		if st.Get("textLen").Int() <= 0 {
+			return fmt.Errorf("输入未生效：编辑器内容为空，放弃提交（防无效点击）")
+		}
+	}
+
 	submitButton, err := page.Element("div.bottom button.submit")
 	if err != nil {
 		logrus.Warnf("Failed to find submit button: %v", err)
@@ -70,14 +92,21 @@ func (f *CommentFeedAction) PostComment(ctx context.Context, feedID, xsecToken, 
 	}
 
 	if err := humanize.Click(submitButton); err != nil {
-		logrus.Warnf("Failed to click submit button: %v", err)
-		return fmt.Errorf("无法点击提交按钮: %w", err)
+		// 重帖（评论数 100+）上 ensureClickable 可能因视口/遮挡检查超时，降级兜底：rod 点击 → JS click
+		logrus.Warnf("拟人点击提交按钮失败，尝试兜底点击: %v", err)
+		if err := submitButton.Click(proto.InputMouseButtonLeft, 1); err != nil {
+			logrus.Warnf("兜底 rod 点击失败，尝试 JS click: %v", err)
+			if _, err2 := submitButton.Eval("this.click()"); err2 != nil {
+				return fmt.Errorf("无法点击提交按钮: %w", err)
+			}
+		}
 	}
 
 	humanize.Delay(ctx, humanize.AfterClick)
 
 	// 就地校验：提交后评论应在评论区渲染出现；未出现则判定失败，避免假成功。
-	if !waitCommentRendered(page, content, 4*time.Second) {
+	// 15s：4s 实测偏短——6ac391ca 上提交后 4s 未渲染但实际已发出（假阴性），放长到 15s。
+	if !waitCommentRendered(page, content, 15*time.Second) {
 		logrus.Warnf("评论提交后未在评论区渲染，判定未成功: feed=%s", feedID)
 		return fmt.Errorf("评论未确认成功：提交后未在评论区出现（可能账号被限制或发送失败），feed: %s", feedID)
 	}
