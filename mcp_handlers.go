@@ -119,6 +119,37 @@ func (s *AppServer) handleDeleteCookies(ctx context.Context) *MCPToolResult {
 	}
 }
 
+// handleDebugPublishDom 处理发布页 DOM 抓取（诊断用，只读）
+func (s *AppServer) handleDebugPublishDom(ctx context.Context, args map[string]interface{}) *MCPToolResult {
+	logrus.Info("MCP: 抓取发布页 DOM（诊断）")
+
+	keyword, _ := args["keyword"].(string)
+	var limit int
+	switch v := args["limit"].(type) {
+	case float64:
+		limit = int(v)
+	case int:
+		limit = v
+	case string:
+		if n, err := strconv.Atoi(v); err == nil {
+			limit = n
+		}
+	}
+
+	dump, err := s.xiaohongshuService.DebugPublishDom(keyword, limit)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "抓取发布页 DOM 失败: " + err.Error()}},
+			IsError: true,
+		}
+	}
+	if dump == "" {
+		dump = fmt.Sprintf("（发布页未找到包含 %q 的元素）", keyword)
+	}
+
+	return &MCPToolResult{Content: []MCPContent{{Type: "text", Text: dump}}}
+}
+
 // handlePublishContent 处理发布内容
 func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]interface{}) *MCPToolResult {
 	logrus.Info("MCP: 发布内容")
