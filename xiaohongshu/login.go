@@ -1,3 +1,6 @@
+// Modified 2026-10-30 by Marvelooous: wait for login UI instead of full-page load; handle wrapped user state.
+// SPDX-License-Identifier: Apache-2.0
+
 package xiaohongshu
 
 import (
@@ -18,11 +21,11 @@ func NewLogin(page *rod.Page) *LoginAction {
 }
 
 func (a *LoginAction) CheckLoginStatus(ctx context.Context) (bool, error) {
-	// 加超时保护：只是查登录态的快速检查，不应无限挂（登录扫码的等待在 Login/WaitForLogin 里）
-	pp := a.page.Context(ctx).Timeout(30 * time.Second)
-	pp.MustNavigate("https://www.xiaohongshu.com/explore").MustWaitLoad()
-
-	time.Sleep(1 * time.Second)
+	pp := a.page.Context(ctx).Timeout(pageReadyTimeout)
+	if err := navigateToElement(pp, "https://www.xiaohongshu.com/explore",
+		`.main-container .user .link-wrapper .channel, .login-container .qrcode-img[src]:not([src=""])`); err != nil {
+		return false, errors.Wrap(err, "load login state")
+	}
 
 	exists, _, err := pp.Has(`.main-container .user .link-wrapper .channel`)
 	if err != nil {
@@ -49,7 +52,8 @@ func (a *LoginAction) CurrentUser(ctx context.Context) (*CurrentUser, error) {
 
 	res, err := pp.Eval(`() => {
 		const u = window.__INITIAL_STATE__ && window.__INITIAL_STATE__.user;
-		const info = u && u.userInfo && u.userInfo.value !== undefined ? u.userInfo.value : (u && u.userInfo);
+		const raw = u && u.userInfo;
+		const info = raw && raw.value !== undefined ? raw.value : (raw && raw._value !== undefined ? raw._value : raw);
 		if (!info || info.guest) return "";
 		return JSON.stringify({nickname: info.nickname, userId: info.userId || info.user_id});
 	}`)
@@ -71,29 +75,17 @@ func (a *LoginAction) CurrentUser(ctx context.Context) (*CurrentUser, error) {
 }
 
 func (a *LoginAction) Login(ctx context.Context) error {
-	pp := a.page.Context(ctx)
-
-	// 导航到小红书首页，这会触发二维码弹窗
-	pp.MustNavigate("https://www.xiaohongshu.com/explore").MustWaitLoad()
-
-	time.Sleep(2 * time.Second)
-
-	if exists, _, _ := pp.Has(".main-container .user .link-wrapper .channel"); exists {
-		return nil
-	}
-
-	pp.MustElement(".main-container .user .link-wrapper .channel")
-
-	return nil
+	pp := a.page.Context(ctx).Timeout(pageReadyTimeout)
+	return navigateToElement(pp, "https://www.xiaohongshu.com/explore",
+		".main-container .user .link-wrapper .channel")
 }
 
 func (a *LoginAction) FetchQrcodeImage(ctx context.Context) (string, bool, error) {
-	pp := a.page.Context(ctx)
-
-	// 导航到小红书首页，这会触发二维码弹窗
-	pp.MustNavigate("https://www.xiaohongshu.com/explore").MustWaitLoad()
-
-	time.Sleep(2 * time.Second)
+	pp := a.page.Context(ctx).Timeout(pageReadyTimeout)
+	if err := navigateToElement(pp, "https://www.xiaohongshu.com/explore",
+		`.main-container .user .link-wrapper .channel, .login-container .qrcode-img[src]:not([src=""])`); err != nil {
+		return "", false, errors.Wrap(err, "load login page")
+	}
 
 	if exists, _, _ := pp.Has(".main-container .user .link-wrapper .channel"); exists {
 		return "", true, nil

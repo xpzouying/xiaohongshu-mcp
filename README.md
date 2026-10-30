@@ -1,4 +1,14 @@
+<!-- Modified 2026-10-30 by Marvelooous: document this fork and terminal login. -->
 # xiaohongshu-mcp
+
+> 本仓库为 **Marvelooous 维护的非官方修改版**，基于
+> [xpzouying/xiaohongshu-mcp v2.5.5](https://github.com/xpzouying/xiaohongshu-mcp/tree/v2.5.5)，
+> 沿用 [Apache-2.0](LICENSE) 许可证并保留上游声明。
+> 主要修改：登录检查与个人主页导航等待关键 UI/数据就绪，避免被整页资源加载拖住；
+> 新增 Linux 终端扫码和验证码输入助手。
+>
+> 终端助手使用方法、依赖和限制见 [终端登录说明](scripts/TERMINAL_LOGIN.md)。
+> 其余下文保留上游使用说明；上游链接、捐赠与支持渠道属于原项目。
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
 [![All Contributors](https://img.shields.io/badge/all_contributors-31-orange.svg?style=flat-square)](#contributors-)

@@ -1,3 +1,4 @@
+# Modified 2026-10-30 by Marvelooous: exclude local sessions and login artifacts.
 # If you prefer the allow list template instead of the deny list, see community template:
 # https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
 #
@@ -53,3 +54,16 @@ docker/docker-compose.override.yml
 # 本地分析/调试产物，不进仓库
 debug/
 .worktrees/
+
+# Local login/session artifacts (source and documentation only belong in Git)
+cache/
+**/cookies*.json
+**/*-qrcode.png
+**/*-qr.png
+**/*-qr-large.png
+**/*-qr-response.json
+**/login-status.json
+**/current-qr.json
+**/server.log
+*.log
+xiaohongshu-mcp.*

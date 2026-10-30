@@ -1,25 +1,40 @@
+// Modified 2026-10-30 by Marvelooous: add bounded navigation that waits for the required UI element.
+// SPDX-License-Identifier: Apache-2.0
+
 package xiaohongshu
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/go-rod/rod"
 	"github.com/sirupsen/logrus"
 )
 
-// feedReadyTimeout 等待详情页关键容器的上限，超时不算失败。
+const pageReadyTimeout = 90 * time.Second
+
+// navigateToElement waits for the UI needed by the action, rather than the
+// window load event, which can be held open by unrelated images and frames.
+// The caller supplies a page with a bounded context.
+func navigateToElement(page *rod.Page, url, selector string) error {
+	if err := page.Navigate(url); err != nil {
+		return fmt.Errorf("navigate to page: %w", err)
+	}
+	if _, err := page.Element(selector); err != nil {
+		return fmt.Errorf("wait for page UI %q: %w", selector, err)
+	}
+	return nil
+}
+
+// Existing feed-detail behavior is preserved by the login/navigation fix.
 const feedReadyTimeout = 8 * time.Second
 
-// feedReadySelectors 详情页已出结果的判据：正常笔记容器，或 checkPageAccessible 认的错误容器。
 const feedReadySelectors = ".interact-container, .note-scroller, " +
 	".access-wrapper, .error-wrapper, .not-found-wrapper, .blocked-wrapper"
 
-// waitFeedPageReady 等待 feed 详情页可用：load 事件 + 关键容器出现，不要求整页 DOM 静止。
 func waitFeedPageReady(page *rod.Page) {
 	page.MustWaitLoad()
-
 	if _, err := page.Timeout(feedReadyTimeout).Element(feedReadySelectors); err != nil {
-		// 没等到也继续，后续 Element 各自带轮询
 		logrus.Warnf("详情页关键容器未在 %s 内出现，继续尝试: %v", feedReadyTimeout, err)
 	}
 }

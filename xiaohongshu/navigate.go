@@ -1,8 +1,10 @@
+// Modified 2026-10-30 by Marvelooous: wait for navigation targets instead of unrelated page resources.
+// SPDX-License-Identifier: Apache-2.0
+
 package xiaohongshu
 
 import (
 	"context"
-	"time"
 
 	"github.com/go-rod/rod"
 	"github.com/xpzouying/xiaohongshu-mcp/humanize"
@@ -17,34 +19,30 @@ func NewNavigate(page *rod.Page) *NavigateAction {
 }
 
 func (n *NavigateAction) ToExplorePage(ctx context.Context) error {
-	page := n.page.Context(ctx).Timeout(60 * time.Second) // 加超时保护，避免 MustNavigate/MustWaitStable 无限挂
-
-	page.MustNavigate("https://www.xiaohongshu.com/explore").
-		MustWaitLoad().
-		MustElement(`div#app`)
-
-	return nil
+	page := n.page.Context(ctx).Timeout(pageReadyTimeout)
+	return navigateToElement(page, "https://www.xiaohongshu.com/explore", `div#app .main-container`)
 }
 
 func (n *NavigateAction) ToProfilePage(ctx context.Context) error {
-	page := n.page.Context(ctx).Timeout(60 * time.Second) // 加超时保护，避免 MustNavigate/MustWaitStable 无限挂
+	ctx, cancel := context.WithTimeout(ctx, 2*pageReadyTimeout)
+	defer cancel()
+	page := n.page.Context(ctx)
 
 	// First navigate to explore page
 	if err := n.ToExplorePage(ctx); err != nil {
 		return err
 	}
 
-	page.MustWaitStable()
-
 	// Find and click the "我" channel link in sidebar
-	profileLink := page.MustElement(`div.main-container li.user.side-bar-component a.link-wrapper span.channel`)
+	profileLink, err := page.Element(`.main-container .user a.link-wrapper`)
+	if err != nil {
+		return err
+	}
 	humanize.Delay(ctx, humanize.BeforeClick)
 	if err := humanize.Click(profileLink); err != nil {
 		return err
 	}
 
-	// Wait for navigation to complete
-	page.MustWaitLoad()
-
-	return nil
+	// The profile is a SPA route; unrelated resources need not finish loading.
+	return page.Wait(rod.Eval(`() => location.pathname.startsWith('/user/profile/')`))
 }

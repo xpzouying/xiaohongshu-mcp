@@ -1,3 +1,6 @@
+// Modified 2026-10-30 by Marvelooous: wait for profile data instead of full-page stability.
+// SPDX-License-Identifier: Apache-2.0
+
 package xiaohongshu
 
 import (
@@ -62,7 +65,14 @@ func (u *UserProfileAction) UserProfile(ctx context.Context, userID, xsecToken s
 
 // extractUserProfileData 从页面中提取用户资料数据的通用方法
 func (u *UserProfileAction) extractUserProfileData(page *rod.Page, tab ProfileTab) (*UserProfileResponse, error) {
-	page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
+	if err := page.Wait(rod.Eval(`() => {
+		const u = window.__INITIAL_STATE__ && window.__INITIAL_STATE__.user;
+		const unwrap = o => o && o.value !== undefined ? o.value : (o && o._value !== undefined ? o._value : o);
+		const data = u && unwrap(u.userPageData);
+		return !!(data && data.basicInfo && unwrap(u.notes));
+	}`)); err != nil {
+		return nil, fmt.Errorf("wait for profile data: %w", err)
+	}
 
 	userDataResult := page.MustEval(`() => {
 		if (window.__INITIAL_STATE__ &&
@@ -146,7 +156,9 @@ func makeUserProfileURL(userID, xsecToken string, tab ProfileTab) string {
 }
 
 func (u *UserProfileAction) GetMyProfileViaSidebar(ctx context.Context, tab ProfileTab) (*UserProfileResponse, error) {
-	page := u.page.Context(ctx).Timeout(60 * time.Second) // 重设被 .Context 清掉的 deadline
+	ctx, cancel := context.WithTimeout(ctx, 2*pageReadyTimeout)
+	defer cancel()
+	page := u.page.Context(ctx)
 
 	// 创建导航动作
 	navigate := NewNavigate(page)
@@ -155,9 +167,6 @@ func (u *UserProfileAction) GetMyProfileViaSidebar(ctx context.Context, tab Prof
 	if err := navigate.ToProfilePage(ctx); err != nil {
 		return nil, fmt.Errorf("failed to navigate to profile page via sidebar: %w", err)
 	}
-
-	// 等待页面加载完成并获取 __INITIAL_STATE__
-	page.MustWaitStable()
 
 	if err := u.selectTab(ctx, page, tab); err != nil {
 		return nil, err
