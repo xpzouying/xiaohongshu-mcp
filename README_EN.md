@@ -383,66 +383,32 @@ go env -w  GOPROXY=https://goproxy.io,direct
 
 </details>
 
-**Method 3: Using Docker Container (Simplest)**
+**Method 3: Using Docker**
 
-<details>
-<summary>Docker Deployment Details</summary>
+Use the headless image for everyday automation. Choose the optional GUI image when you need to view the browser or briefly assist it.
 
-Using Docker deployment is the simplest method, requiring no development environment installation.
+| Deployment | Use case | Image tags |
+| --- | --- | --- |
+| Headless (default) | Everyday MCP automation with a smaller image | `latest`, `vX.Y.Z` |
+| GUI (optional, noVNC) | View login pages, troubleshoot, assist with input or select media | `novnc`, `vX.Y.Z-novnc` |
 
-**1. Pull Image from Docker Hub (Recommended)**
-
-We provide pre-built Docker images that can be directly pulled from Docker Hub:
-
-```bash
-# Pull the latest image
-docker pull xpzouying/xiaohongshu-mcp
-```
-
-Docker Hub URL: [https://hub.docker.com/r/xpzouying/xiaohongshu-mcp](https://hub.docker.com/r/xpzouying/xiaohongshu-mcp)
-
-**2. Start with Docker Compose (Recommended)**
-
-We provide a pre-configured `docker-compose.yml` file that can be used directly:
+Run one of the following from the project root:
 
 ```bash
-# Download docker-compose.yml
-wget https://raw.githubusercontent.com/xpzouying/xiaohongshu-mcp/main/docker/docker-compose.yml
-
-# Or if you've already cloned the project, enter the docker directory
-cd docker
-
-# Start service
-docker compose up -d
-
-# View logs
-docker compose logs -f
-
-# Stop service
-docker compose stop
+# Default headless deployment
+docker compose -f docker/docker-compose.yml up -d
 ```
-
-**3. Build Image Yourself (Optional)**
-
-If you need to customize or modify the code, you can build the image yourself:
 
 ```bash
-# Run in project root directory
-docker build -t xpzouying/xiaohongshu-mcp .
+# Optional GUI deployment
+docker compose -f docker/novnc/compose.yml up -d
 ```
 
-**4. Configuration Notes**
+For the GUI deployment, open the [browser desktop](http://127.0.0.1:6080/vnc.html?autoconnect=true&resize=scale). Both deployments use `http://127.0.0.1:18060/mcp` for MCP.
 
-The Docker version automatically:
+The desktop has no separate password. Access it locally or through SSH forwarding; **do not expose it directly to the internet**. Stop the existing instance before switching deployments.
 
-- Configures the built-in browser and Chinese fonts
-- Mounts `./data` for storing cookies and runtime data directories
-- Mounts `./images` for storing publish images
-- Exposes port 18060 for MCP connection
-
-For detailed instructions, please refer to: [Docker Deployment Guide](./docker/README.md)
-
-</details>
+For image registries, data directories and detailed steps, see the [Docker deployment guide](./docker/README.md) and [GUI deployment guide](./docker/novnc/README.md) (in Chinese).
 
 For Windows issues, check here first: [Windows Installation Guide](./docs/windows_guide.md)
 
