@@ -111,20 +111,18 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 	}
 
 	// 注意 .Context(ctx) 会替换掉 NewSearchAction 里设的 60s deadline，必须在其后重新 Timeout，
-	// 否则搜索页不 stable 时 MustWaitStable/MustWait 会永久挂起（无 deadline 可依赖）。
+	// 否则页面等待没有 deadline 可依赖，异常时会永久挂起。
 	page := s.page.Context(ctx).Timeout(60 * time.Second)
 
+	// 导航前订阅，避免漏掉很快完成的首屏搜索响应。
+	responses, stop := watchSearchResponses(page, keyword)
+	defer stop()
 	searchURL := makeSearchURL(keyword)
 	page.MustNavigate(searchURL)
-	// 搜索页会持续发起后台请求，等待整个页面 stable 可能在首批结果已经到达后仍耗尽60秒。
-	// 这里只等待当前只读操作真正依赖的搜索状态，或页面明确展示无结果。
-	page.MustWait(`() => {
-		const feeds = window.__INITIAL_STATE__?.search?.feeds;
-		const value = feeds ? (feeds.value !== undefined ? feeds.value : feeds._value) : null;
-		if (Array.isArray(value) && value.length > 0) return true;
-		const text = document.body?.innerText || "";
-		return text.includes("暂无相关笔记") || text.includes("没有找到相关结果");
-	}`)
+	if err := waitSearchReady(page, keyword, responses); err != nil {
+		return nil, fmt.Errorf("等待搜索结果失败: %w", err)
+	}
+	stop()
 	humanize.Delay(ctx, humanize.AfterNavigate)
 
 	if len(pending) > 0 {
