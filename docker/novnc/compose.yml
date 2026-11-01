@@ -1,0 +1,19 @@
+services:
+  xiaohongshu-mcp:
+    build:
+      context: .
+      args:
+        MCP_IMAGE: ${MCP_IMAGE:-xpzouying/xiaohongshu-mcp:v2.5.5}
+    image: xiaohongshu-mcp-novnc:local
+    restart: unless-stopped
+    shm_size: 1gb
+    environment:
+      COOKIES_PATH: /app/data/cookies.json
+      AUTH_TOKEN: ${AUTH_TOKEN:-}
+      XHS_PROXY: ${XHS_PROXY:-}
+    volumes:
+      - ${XHS_DATA_DIR:-./data}:/app/data
+      - ${XHS_MEDIA_DIR:-./images}:/app/images:ro
+    ports:
+      - "127.0.0.1:${XHS_MCP_PORT:-18060}:18060"
+      - "127.0.0.1:${XHS_NOVNC_PORT:-6080}:6080"
