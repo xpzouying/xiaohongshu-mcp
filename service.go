@@ -530,6 +530,83 @@ func (s *XiaohongshuService) FavoriteFeed(ctx context.Context, feedID, xsecToken
 	return &ActionResult{FeedID: feedID, Success: true, Message: "收藏成功或已收藏"}, nil
 }
 
+// ListBoards 获取用户收藏专辑列表，userID 为空时使用当前登录用户
+func (s *XiaohongshuService) ListBoards(ctx context.Context, userID string) (*BoardListResponse, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewBoardAction(page)
+	boards, err := action.ListBoards(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	return &BoardListResponse{Boards: boards, Count: len(boards)}, nil
+}
+
+// MoveNoteToBoard 将收藏笔记移动到指定专辑
+func (s *XiaohongshuService) MoveNoteToBoard(ctx context.Context, noteID, targetBoardID, sourceBoardID string) (*MoveNoteResult, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewBoardAction(page)
+	if err := action.MoveNoteToBoard(ctx, noteID, targetBoardID, sourceBoardID); err != nil {
+		return nil, err
+	}
+	return &MoveNoteResult{
+		NoteID:        noteID,
+		TargetBoardID: targetBoardID,
+		Success:       true,
+		Message:       "移动成功，收藏时间未变",
+	}, nil
+}
+
+// CreateBoard 新建一个空专辑
+func (s *XiaohongshuService) CreateBoard(ctx context.Context, name string, private bool) (*xiaohongshu.Board, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	return xiaohongshu.NewBoardAction(page).CreateBoard(ctx, name, private)
+}
+
+// DeleteBoard 删除专辑。专辑内的笔记不会取消收藏，只是回到未归类状态
+func (s *XiaohongshuService) DeleteBoard(ctx context.Context, boardID string) error {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	return xiaohongshu.NewBoardAction(page).DeleteBoard(ctx, boardID)
+}
+
+// RemoveNoteFromBoard 将笔记移出专辑，但保留收藏（收藏时间不变）
+func (s *XiaohongshuService) RemoveNoteFromBoard(ctx context.Context, noteID, sourceBoardID string) (*MoveNoteResult, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewBoardAction(page)
+	if err := action.RemoveNoteFromBoard(ctx, noteID, sourceBoardID); err != nil {
+		return nil, err
+	}
+	return &MoveNoteResult{
+		NoteID:  noteID,
+		Success: true,
+		Message: "已移出专辑，收藏保留且收藏时间未变",
+	}, nil
+}
+
 // UnfavoriteFeed 取消收藏笔记
 func (s *XiaohongshuService) UnfavoriteFeed(ctx context.Context, feedID, xsecToken string) (*ActionResult, error) {
 	b := newBrowser()

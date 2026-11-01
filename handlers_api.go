@@ -322,6 +322,94 @@ func healthHandler(c *gin.Context) {
 	}, "服务正常")
 }
 
+// listBoardsHandler 获取用户收藏专辑列表
+func (s *AppServer) listBoardsHandler(c *gin.Context) {
+	userID := c.Query("user_id")
+
+	result, err := s.xiaohongshuService.ListBoards(c.Request.Context(), userID)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "LIST_BOARDS_FAILED",
+			"获取专辑列表失败", err.Error())
+		return
+	}
+
+	c.Set("account", "ai-report")
+	respondSuccess(c, result, "获取专辑列表成功")
+}
+
+// moveNoteToBoardHandler 将收藏笔记移动到指定专辑
+func (s *AppServer) moveNoteToBoardHandler(c *gin.Context) {
+	var req MoveNoteToBoardRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
+			"请求参数错误", err.Error())
+		return
+	}
+
+	result, err := s.xiaohongshuService.MoveNoteToBoard(c.Request.Context(), req.NoteID, req.TargetBoardID, req.SourceBoardID)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "MOVE_NOTE_TO_BOARD_FAILED",
+			"移动笔记到专辑失败", err.Error())
+		return
+	}
+
+	c.Set("account", "ai-report")
+	respondSuccess(c, result, result.Message)
+}
+
+// createBoardHandler 新建专辑
+func (s *AppServer) createBoardHandler(c *gin.Context) {
+	var req CreateBoardRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST", "请求参数错误", err.Error())
+		return
+	}
+
+	board, err := s.xiaohongshuService.CreateBoard(c.Request.Context(), req.Name, req.Private)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "CREATE_BOARD_FAILED", "创建专辑失败", err.Error())
+		return
+	}
+
+	respondSuccess(c, board, "创建专辑成功")
+}
+
+// deleteBoardHandler 删除专辑
+func (s *AppServer) deleteBoardHandler(c *gin.Context) {
+	var req DeleteBoardRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST", "请求参数错误", err.Error())
+		return
+	}
+
+	if err := s.xiaohongshuService.DeleteBoard(c.Request.Context(), req.BoardID); err != nil {
+		respondError(c, http.StatusInternalServerError, "DELETE_BOARD_FAILED", "删除专辑失败", err.Error())
+		return
+	}
+
+	respondSuccess(c, gin.H{"board_id": req.BoardID}, "删除专辑成功")
+}
+
+// removeNoteFromBoardHandler 将笔记移出专辑，但保留收藏
+func (s *AppServer) removeNoteFromBoardHandler(c *gin.Context) {
+	var req RemoveNoteFromBoardRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
+			"请求参数错误", err.Error())
+		return
+	}
+
+	result, err := s.xiaohongshuService.RemoveNoteFromBoard(c.Request.Context(), req.NoteID, req.SourceBoardID)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "REMOVE_NOTE_FROM_BOARD_FAILED",
+			"将笔记移出专辑失败", err.Error())
+		return
+	}
+
+	c.Set("account", "ai-report")
+	respondSuccess(c, result, result.Message)
+}
+
 // myProfileHandler 我的信息
 func (s *AppServer) myProfileHandler(c *gin.Context) {
 	// 获取当前登录用户信息
