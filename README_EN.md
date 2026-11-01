@@ -1,7 +1,7 @@
 # xiaohongshu-mcp
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-31-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-32-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 [![Philanthropy](https://img.shields.io/badge/Philanthropy-CNY%202010.00-brightgreen?style=flat-square)](./DONATIONS.md)
@@ -1102,6 +1102,7 @@ Thanks to all friends who have contributed to this project! (In no particular or
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/ZhuYichuan"><img src="https://avatars.githubusercontent.com/u/7954801?v=4?s=100" width="100px;" alt="openlts"/><br /><sub><b>openlts</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=ZhuYichuan" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/galois1983"><img src="https://avatars.githubusercontent.com/u/80469442?v=4?s=100" width="100px;" alt="galois1983"/><br /><sub><b>galois1983</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=galois1983" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/xPeiPeix"><img src="https://avatars.githubusercontent.com/u/42157266?v=4?s=100" width="100px;" alt="Peip"/><br /><sub><b>Peip</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=xPeiPeix" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/zhenzoo"><img src="https://avatars.githubusercontent.com/u/273501489?v=4?s=100" width="100px;" alt="zhenzoo"/><br /><sub><b>zhenzoo</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=zhenzoo" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>
