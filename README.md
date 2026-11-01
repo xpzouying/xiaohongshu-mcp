@@ -383,64 +383,32 @@ go env -w  GOPROXY=https://goproxy.io,direct
 
 </details>
 
-**方式三：使用 Docker 容器（最简单）**
+**方式三：使用 Docker 容器**
 
-<details>
-<summary>Docker 部署详情</summary>
+默认推荐无界面版；需要查看浏览器或短暂人工辅助时，选择 GUI 版。
 
-使用 Docker 部署是最简单的方式，无需安装任何开发环境。
+| 部署方式 | 适用场景 | 镜像标签 |
+| --- | --- | --- |
+| 无界面（默认） | 日常 MCP 自动化，镜像更小 | `latest`、`vX.Y.Z` |
+| GUI（noVNC，可选） | 查看登录页面、排查现场、辅助输入或选择素材 | `novnc`、`vX.Y.Z-novnc` |
 
-**1. 从 Docker Hub 拉取镜像（推荐）**
-
-我们提供了预构建的 Docker 镜像，可以直接从 Docker Hub 拉取使用：
-
-```bash
-# 拉取最新镜像
-docker pull xpzouying/xiaohongshu-mcp
-```
-
-Docker Hub 地址：[https://hub.docker.com/r/xpzouying/xiaohongshu-mcp](https://hub.docker.com/r/xpzouying/xiaohongshu-mcp)
-
-**2. 使用 Docker Compose 启动（推荐）**
-
-我们提供了配置好的 `docker-compose.yml` 文件，可以直接使用：
+在项目根目录执行，二选一：
 
 ```bash
-# 下载 docker-compose.yml
-wget https://raw.githubusercontent.com/xpzouying/xiaohongshu-mcp/main/docker/docker-compose.yml
-
-# 或者如果已经克隆了项目，进入 docker 目录
-cd docker
-
-# 启动服务
-docker compose up -d
-
-# 查看日志
-docker compose logs -f
-
-# 停止服务
-docker compose stop
+# 默认无界面版
+docker compose -f docker/docker-compose.yml up -d
 ```
-
-**3. 自己构建镜像（可选）**
 
 ```bash
-# 在项目根目录运行
-docker build -t xpzouying/xiaohongshu-mcp .
+# 可选 GUI 版
+docker compose -f docker/novnc/compose.yml up -d
 ```
 
-**4. 配置说明**
+GUI 启动后打开 [浏览器桌面](http://127.0.0.1:6080/vnc.html?autoconnect=true&resize=scale)。两种部署的 MCP 地址均为 `http://127.0.0.1:18060/mcp`。
 
-Docker 版本会自动：
+GUI 无独立密码，仅限本机或 SSH 转发访问，**不要直接暴露公网**。切换部署前先停止旧实例。
 
-- 配置内置浏览器和中文字体
-- 挂载 `./data` 用于存储 cookies 和运行数据目录
-- 挂载 `./images` 用于存储发布的图片
-- 暴露 18060 端口供 MCP 连接
-
-详细使用说明请参考：[Docker 部署指南](./docker/README.md)
-
-</details>
+详细步骤、镜像源和数据目录配置见 [Docker 部署指南](./docker/README.md) 与 [GUI 部署指南](./docker/novnc/README.md)。
 
 Windows 遇到问题首先看这里：[Windows 安装指南](./docs/windows_guide.md)
 
