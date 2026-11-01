@@ -69,7 +69,15 @@ app_pid=$!
 pids+=("$app_pid")
 
 # 任一桌面组件退出都让容器失败，交给 restart 策略恢复，避免假健康。
-status=0
-wait -n -p stopped "${pids[@]}" || status=$?
-if [[ "$stopped" != "$app_pid" && "$status" == 0 ]]; then status=1; fi
-exit "$status"
+# 定期检查全部子进程，避免 wait -n 漏掉进入等待前已退出的进程。
+while true; do
+    for pid in "${pids[@]}"; do
+        if ! kill -0 "$pid" 2>/dev/null; then
+            status=0
+            wait "$pid" || status=$?
+            if [[ "$pid" != "$app_pid" && "$status" == 0 ]]; then status=1; fi
+            exit "$status"
+        fi
+    done
+    sleep 1
+done
