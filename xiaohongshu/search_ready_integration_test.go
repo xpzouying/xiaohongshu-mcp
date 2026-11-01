@@ -72,6 +72,8 @@ func TestSearchReadyLocal(t *testing.T) {
 		{name: "api_error", wantErr: "搜索接口"},
 		{name: "http_error", wantErr: "HTTP 503"},
 		{name: "retry", want: 1},
+		{name: "overlap_empty", want: 1},
+		{name: "overlap_error", want: 1},
 		{name: "unrelated", want: 1},
 		{name: "later_page", want: 1},
 		{name: "network_error", wantErr: "搜索请求未完成"},
@@ -101,12 +103,20 @@ func TestSearchReadyLocal(t *testing.T) {
 					}
 					_ = json.Unmarshal([]byte(h.Request.Body()), &request)
 					attempt := attempts.Add(1)
-					time.Sleep(120 * time.Millisecond)
+					if strings.HasPrefix(tc.name, "overlap_") && attempt == 2 {
+						time.Sleep(450 * time.Millisecond)
+					} else {
+						time.Sleep(120 * time.Millisecond)
+					}
 					h.Response.SetHeader("Content-Type", "application/json")
 					body := `{"code":0,"success":true,"data":{"items":[{"id":"expected","model_type":"note"}],"has_more":false}}`
 					switch {
 					case request.Keyword == "other" || request.Page != 1:
 						body = `{"code":-1,"success":false}`
+					case tc.name == "overlap_empty" && attempt == 1:
+						body = `{"code":0,"success":true,"data":{"has_more":false}}`
+					case tc.name == "overlap_error" && attempt == 1:
+						body = `{"code":-100,"success":false}`
 					case tc.name == "empty":
 						body = `{"code":0,"success":true,"data":{"items":[],"has_more":false}}`
 					case tc.name == "empty_no_items":
@@ -186,6 +196,11 @@ const request = (keyword, page = 1) => fetch('/api/sns/web/v2/search/notes', {
         search.search.state._value = 'error';
         await new Promise(resolve => setTimeout(resolve, 180));
         search.search.state._value = 'loading';
+    }
+    if (mode.startsWith('overlap_')) {
+        // 站点对旧空响应/异常先设置 error，再检查当前搜索 ID。
+        request(mode).then(() => {setFeeds([]); search.search.state._value = 'error'});
+        await new Promise(resolve => setTimeout(resolve, 30));
     }
     let response = await request(mode);
     if (mode === 'retry' && !response.body.success) response = await request(mode);

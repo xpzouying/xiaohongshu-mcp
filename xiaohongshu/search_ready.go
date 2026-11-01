@@ -46,6 +46,8 @@ func watchSearchResponses(page *rod.Page, keyword string) (<-chan searchResponse
 			Page    int    `json:"page"`
 		}
 		if json.Unmarshal([]byte(body), &request) == nil && request.Keyword == keyword && request.Page == 1 {
+			// 同关键词也可能重新发起搜索，忽略旧请求后到的完成和失败事件。
+			clear(requests)
 			requests[e.RequestID] = 0
 			// 页面可能重试，旧的失败或空响应不能作为新请求的完成信号。
 			update(searchResponse{})
