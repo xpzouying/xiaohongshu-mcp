@@ -1,0 +1,24 @@
+services:
+  xiaohongshu-mcp:
+    image: ${XHS_NOVNC_IMAGE:-xpzouying/xiaohongshu-mcp:novnc}
+    restart: unless-stopped
+    shm_size: 1gb
+    cap_drop:
+      - ALL
+    # 兼容宿主其他 UID 拥有的已有 data 目录，其余 capabilities 全部移除。
+    cap_add:
+      - DAC_OVERRIDE
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      COOKIES_PATH: /app/data/cookies.json
+      AUTH_TOKEN: ${AUTH_TOKEN:-}
+      XHS_PROXY: ${XHS_PROXY:-}
+      NOVNC_PORT: ${XHS_NOVNC_PORT:-6080}
+      NOVNC_ALLOWED_ORIGINS: ${NOVNC_ALLOWED_ORIGINS:-}
+    volumes:
+      - ${XHS_DATA_DIR:-./data}:/app/data
+      - ${XHS_MEDIA_DIR:-./images}:/app/images:ro
+    ports:
+      - "127.0.0.1:${XHS_MCP_PORT:-18060}:18060"
+      - "127.0.0.1:${XHS_NOVNC_PORT:-6080}:6080"
