@@ -15,7 +15,7 @@ jobs:
 
       - uses: actions/setup-go@v7
         with:
-          go-version: "1.24"
+          go-version-file: go.mod
           cache: true
 
       - name: Build
@@ -23,6 +23,9 @@ jobs:
 
       - name: Vet
         run: go vet ./...
+
+      - name: Check Go vulnerabilities
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
 
       - name: Unit tests
         run: go test ./...
