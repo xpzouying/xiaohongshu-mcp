@@ -1,155 +1,64 @@
-# Docker 使用说明
+# Docker 部署
 
-## 0. 重点注意
+默认使用无界面版；需要查看或辅助操作浏览器时，使用 [GUI 部署](novnc/README.md)。
 
-写在最前面。
+## 启动
 
-- 启动后，会产生一个 `images/` 目录，用于存储发布的图片。它会挂载到 Docker 容器里面。
-  如果要使用本地图片发布的话，请确保图片拷贝到 `./images/` 目录下，并且让 MCP 在发布的时候，指定文件夹为：`/app/images`，否则一定失败。
-- Docker 镜像内置浏览器，并在构建阶段预下载。请挂载 `./data:/app/data`，用于持久化 cookies 和运行数据目录。
+先启动 Docker，在 `docker/` 目录执行以下操作。未下载项目时，也可将 [docker-compose.yml](docker-compose.yml) 保存到空目录，在该目录操作。
 
-## 1. 获取 Docker 镜像
-
-### 1.1 从 Docker Hub 拉取（推荐）
-
-我们提供了预构建的 Docker 镜像，可以直接从 Docker Hub 拉取使用：
-
-```bash
-# 拉取最新镜像
-docker pull xpzouying/xiaohongshu-mcp
-```
-
-Docker Hub 地址：[https://hub.docker.com/r/xpzouying/xiaohongshu-mcp](https://hub.docker.com/r/xpzouying/xiaohongshu-mcp)
-
-### 1.2 从阿里云镜像源拉取（国内用户推荐）
-
-国内用户可以使用阿里云容器镜像服务，拉取速度更快：
-
-```bash
-# 拉取最新镜像
-docker pull crpi-hocnvtkomt7w9v8t.cn-beijing.personal.cr.aliyuncs.com/xpzouying/xiaohongshu-mcp
-```
-
-### 1.3 自己构建镜像（可选）
-
-在有项目的Dockerfile的目录运行
-
-```bash
-docker build -t xpzouying/xiaohongshu-mcp .
-```
-
-`xpzouying/xiaohongshu-mcp`为镜像名称和版本。
-
-<img width="2576" height="874" alt="image" src="https://github.com/user-attachments/assets/fe7e87f1-623f-409f-8b54-e11d380fc7b8" />
-
-## 2. 手动 Docker Compose
-
-> **国内用户提示**：如需使用阿里云镜像源，请修改 `docker-compose.yml` 文件，注释掉 Docker Hub 镜像行，取消阿里云镜像行的注释：
-> ```yaml
-> # image: xpzouying/xiaohongshu-mcp
-> image: crpi-hocnvtkomt7w9v8t.cn-beijing.personal.cr.aliyuncs.com/xpzouying/xiaohongshu-mcp
-> ```
-
-```bash
-# 注意：在 docker-compose.yml 文件的同一个目录，或者手动指定 docker-compose.yml。
-
-# --- 启动 docker 容器 ---
-# 启动 docker-compose
-docker compose up -d
-
-# 查看日志
-docker logs -f xiaohongshu-mcp
-
-# 或者
-docker compose logs -f
-```
-
-查看日志，下面表示成功启动。
-
-<img width="1012" height="98" alt="image" src="https://github.com/user-attachments/assets/c374f112-a5b5-4cf6-bd9f-080252079b10" />
-
-
-```bash
-# 停止 docker-compose
-docker compose stop
-
-# 查看实时日志
-docker logs -f xiaohongshu-mcp
-
-# 进入容器
-docker exec -it xiaohongshu-mcp bash
-
-# 手动更新容器
-docker compose pull && docker compose up -d
-```
-
-## 3. 使用 MCP-Inspector 进行连接
-
-**注意 IP 换成你自己的 IP**
-
-<img width="2606" height="1164" alt="image" src="https://github.com/user-attachments/assets/495916ad-0643-491d-ae3c-14cbf431c16f" />
-
-对应的 Docker 日志一切正常。
-
-<img width="1662" height="458" alt="image" src="https://github.com/user-attachments/assets/309c2dab-51c4-4502-a41b-cdd4a3dd57ac" />
-
-## 4. 配置代理（可选）
-
-如果需要通过代理访问小红书，可以通过 `XHS_PROXY` 环境变量配置。
-
-### 使用 docker run
-
-```bash
-docker run -e XHS_PROXY=http://user:pass@proxy:port xpzouying/xiaohongshu-mcp
-```
-
-### 使用 docker-compose
-
-在 `docker-compose.yml` 的 `environment` 中添加 `XHS_PROXY`：
+国内用户可先将 `docker-compose.yml` 中的 `image` 改为阿里云镜像；默认使用 Docker Hub，可跳过：
 
 ```yaml
-environment:
-  - COOKIES_PATH=/app/data/cookies.json
-  - HOME=/app/data/home
-  - XDG_CONFIG_HOME=/app/data/config
-  - XHS_PROXY=http://user:pass@proxy:port
+image: crpi-hocnvtkomt7w9v8t.cn-beijing.personal.cr.aliyuncs.com/xpzouying/xiaohongshu-mcp:latest
 ```
-
-支持 HTTP/HTTPS/SOCKS5 代理。日志中会自动隐藏代理的认证信息，输出示例：
-
-```
-Using proxy: http://***:***@proxy:port
-```
-
-## 5. 配置访问鉴权（可选）
-
-不设置或设置为空时，鉴权默认关闭。生产环境建议通过 `AUTH_TOKEN` 环境变量配置访问令牌。
-
-### 使用 docker run
 
 ```bash
-docker run -e AUTH_TOKEN=your-secret-token -p 18060:18060 xpzouying/xiaohongshu-mcp
+docker compose up -d
 ```
 
-### 使用 docker compose
+MCP 地址：`http://127.0.0.1:18060/mcp`，接入方式见 [客户端配置](../README.md#2-mcp-客户端接入)。
+
+## 登录与素材
+
+- 让 AI 获取小红书登录二维码，再用手机 App 扫码。
+- `data/` 保存登录状态和运行数据，更新时保留。
+- 图片、视频放入 `images/`，告诉 AI 容器内的文件路径，例如 `/app/images/cover.jpg`。
+
+## 日常管理
+
+| 操作 | 命令 |
+| --- | --- |
+| 查看日志 | `docker compose logs -f` |
+| 停止服务（保留数据） | `docker compose down` |
+| 更新 | `docker compose pull && docker compose up -d` |
+
+<details>
+<summary>按需配置：访问令牌、代理与自行构建</summary>
+
+### 访问令牌
+
+对外提供 MCP 服务时，设置 `AUTH_TOKEN`：
 
 ```bash
 AUTH_TOKEN=your-secret-token docker compose up -d
 ```
 
-Compose 通过 `${AUTH_TOKEN:-}` 读取宿主环境变量。启用鉴权后，所有 MCP 客户端请求都必须带上自定义请求头：`Authorization: Bearer <token>`。
+Windows PowerShell 先执行 `$env:AUTH_TOKEN = 'your-secret-token'`，再运行 `docker compose up -d`。客户端请求需带 `Authorization: Bearer <token>`。
 
-## 6. 扫码登录
+### 代理
 
-1. **重要**，一定要先把 App 提前打开，准备扫码登录。
-2. 尽快扫码，有可能二维码会过期。
+在 Compose 的 `environment` 列表中追加：
 
-打开 MCP-Inspector 获取二维码和进行扫码。
+```yaml
+- XHS_PROXY=http://user:pass@proxy:port
+```
 
-<img width="2632" height="1468" alt="image" src="https://github.com/user-attachments/assets/543a5427-50e3-4970-b942-5d05d69596f4" />
+支持 HTTP、HTTPS 和 SOCKS5；无需认证时省略 `user:pass@`。
 
-<img width="2624" height="1222" alt="image" src="https://github.com/user-attachments/assets/4f38ca81-1014-4874-ab4d-baf02b750b55" />
+### 自行构建
 
-扫码成功后，再次扫码后，就会提示已经完成登录了。
+在项目根目录执行 `docker build -t xiaohongshu-mcp:local .`，再将 Compose 的 `image` 改为 `xiaohongshu-mcp:local`。
 
-<img width="2614" height="994" alt="image" src="https://github.com/user-attachments/assets/5356914a-3241-4bfd-b6b2-49c1cc5e3394" />
+使用官方固定版本时，将镜像标签 `latest` 换成 `vX.Y.Z`。
+
+</details>

@@ -1,11 +1,11 @@
 # xiaohongshu-mcp
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-31-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-32-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
-[![Philanthropy](https://img.shields.io/badge/Philanthropy-CNY%201810.00-brightgreen?style=flat-square)](./DONATIONS.md)
-[![Gratitude](https://img.shields.io/badge/Gratitude-CNY%201524.64-blue?style=flat-square)](./DONATIONS.md)
+[![Philanthropy](https://img.shields.io/badge/Philanthropy-CNY%202010.00-brightgreen?style=flat-square)](./DONATIONS.md)
+[![Gratitude](https://img.shields.io/badge/Gratitude-CNY%201624.21-blue?style=flat-square)](./DONATIONS.md)
 [![Docker Pulls](https://img.shields.io/docker/pulls/xpzouying/xiaohongshu-mcp?style=flat-square&logo=docker)](https://hub.docker.com/r/xpzouying/xiaohongshu-mcp)
 
 MCP for RedNote (Xiaohongshu) / xiaohongshu.com. Give your AI assistant direct access to RedNote data.
@@ -383,66 +383,32 @@ go env -w  GOPROXY=https://goproxy.io,direct
 
 </details>
 
-**Method 3: Using Docker Container (Simplest)**
+**Method 3: Using Docker**
 
-<details>
-<summary>Docker Deployment Details</summary>
+Use the headless image for everyday automation. Choose the optional GUI image when you need to view the browser or briefly assist it.
 
-Using Docker deployment is the simplest method, requiring no development environment installation.
+| Deployment | Use case | Image tags |
+| --- | --- | --- |
+| Headless (default) | Everyday MCP automation with a smaller image | `latest`, `vX.Y.Z` |
+| GUI (optional, noVNC) | View login pages, troubleshoot, assist with input or select media | `novnc`, `vX.Y.Z-novnc` |
 
-**1. Pull Image from Docker Hub (Recommended)**
-
-We provide pre-built Docker images that can be directly pulled from Docker Hub:
-
-```bash
-# Pull the latest image
-docker pull xpzouying/xiaohongshu-mcp
-```
-
-Docker Hub URL: [https://hub.docker.com/r/xpzouying/xiaohongshu-mcp](https://hub.docker.com/r/xpzouying/xiaohongshu-mcp)
-
-**2. Start with Docker Compose (Recommended)**
-
-We provide a pre-configured `docker-compose.yml` file that can be used directly:
+Run one of the following from the project root:
 
 ```bash
-# Download docker-compose.yml
-wget https://raw.githubusercontent.com/xpzouying/xiaohongshu-mcp/main/docker/docker-compose.yml
-
-# Or if you've already cloned the project, enter the docker directory
-cd docker
-
-# Start service
-docker compose up -d
-
-# View logs
-docker compose logs -f
-
-# Stop service
-docker compose stop
+# Default headless deployment
+docker compose -f docker/docker-compose.yml up -d
 ```
-
-**3. Build Image Yourself (Optional)**
-
-If you need to customize or modify the code, you can build the image yourself:
 
 ```bash
-# Run in project root directory
-docker build -t xpzouying/xiaohongshu-mcp .
+# Optional GUI deployment
+docker compose -f docker/novnc/compose.yml up -d
 ```
 
-**4. Configuration Notes**
+For the GUI deployment, open the [browser desktop](http://127.0.0.1:6080/vnc.html?autoconnect=true&resize=scale). Both deployments use `http://127.0.0.1:18060/mcp` for MCP.
 
-The Docker version automatically:
+The desktop has no separate password. Access it locally or through SSH forwarding; **do not expose it directly to the internet**. Stop the existing instance before switching deployments.
 
-- Configures the built-in browser and Chinese fonts
-- Mounts `./data` for storing cookies and runtime data directories
-- Mounts `./images` for storing publish images
-- Exposes port 18060 for MCP connection
-
-For detailed instructions, please refer to: [Docker Deployment Guide](./docker/README.md)
-
-</details>
+For image registries, data directories and detailed steps, see the [Docker deployment guide](./docker/README.md) and [GUI deployment guide](./docker/novnc/README.md) (in Chinese).
 
 For Windows issues, check here first: [Windows Installation Guide](./docs/windows_guide.md)
 
@@ -1102,6 +1068,7 @@ Thanks to all friends who have contributed to this project! (In no particular or
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/ZhuYichuan"><img src="https://avatars.githubusercontent.com/u/7954801?v=4?s=100" width="100px;" alt="openlts"/><br /><sub><b>openlts</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=ZhuYichuan" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/galois1983"><img src="https://avatars.githubusercontent.com/u/80469442?v=4?s=100" width="100px;" alt="galois1983"/><br /><sub><b>galois1983</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=galois1983" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/xPeiPeix"><img src="https://avatars.githubusercontent.com/u/42157266?v=4?s=100" width="100px;" alt="Peip"/><br /><sub><b>Peip</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=xPeiPeix" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/zhenzoo"><img src="https://avatars.githubusercontent.com/u/273501489?v=4?s=100" width="100px;" alt="zhenzoo"/><br /><sub><b>zhenzoo</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=zhenzoo" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>

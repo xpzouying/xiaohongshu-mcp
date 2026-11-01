@@ -18,20 +18,37 @@ permissions:
 
 jobs:
   docker:
+    if: github.repository == 'xpzouying/xiaohongshu-mcp'
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v7
+      with:
+        # 手动发布也必须构建对应版本的代码。
+        ref: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref }}
+        persist-credentials: false
 
     # tag 触发时版本号取自 tag 本身；手动触发时取输入参数
     - name: Resolve version
       id: version
+      env:
+        REQUESTED_VERSION: ${{ inputs.version }}
+        TAG_VERSION: ${{ github.ref_name }}
       run: |
-        if [ "${{ github.event_name }}" = "push" ]; then
-          echo "version=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+        if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+          version="$TAG_VERSION"
         else
-          echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          version="$REQUESTED_VERSION"
         fi
+        if [[ ! "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9][a-zA-Z0-9.-]*)?$ ]] || (( ${#version} > 121 )); then
+          echo "无效的版本号" >&2
+          exit 1
+        fi
+        if [[ ! -f docker/novnc/Dockerfile ]]; then
+          echo "此版本不包含可选 GUI 镜像，停止发布" >&2
+          exit 1
+        fi
+        echo "version=$version" >> "$GITHUB_OUTPUT"
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v4
@@ -51,6 +68,7 @@ jobs:
 
     # 一次构建，同时推送 Docker Hub 和阿里云
     - name: Build and push Docker image (AMD64)
+      id: headless
       uses: docker/build-push-action@v7
       with:
         context: .
@@ -64,10 +82,30 @@ jobs:
           xpzouying/xiaohongshu-mcp:latest
           crpi-hocnvtkomt7w9v8t.cn-beijing.personal.cr.aliyuncs.com/xpzouying/xiaohongshu-mcp:${{ steps.version.outputs.version }}
           crpi-hocnvtkomt7w9v8t.cn-beijing.personal.cr.aliyuncs.com/xpzouying/xiaohongshu-mcp:latest
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+        cache-from: type=gha,scope=headless
+        cache-to: type=gha,scope=headless,mode=max
         # BuildKit v0.32 起默认附加 provenance / sbom 证明，其空配置描述符用
         # application/vnd.oci.empty.v1+json，阿里云个人版 ACR 不认这个媒体类型，
         # 会在推送时 denied。项目没用到这些证明，直接关掉。
+        provenance: false
+        sbom: false
+
+    # GUI 使用本次构建的无界面镜像 digest，避免版本或标签漂移。
+    - name: Build and push optional noVNC image (AMD64)
+      uses: docker/build-push-action@v7
+      with:
+        context: ./docker/novnc
+        file: ./docker/novnc/Dockerfile
+        push: true
+        platforms: linux/amd64
+        build-args: |
+          MCP_IMAGE=xpzouying/xiaohongshu-mcp@${{ steps.headless.outputs.digest }}
+        tags: |
+          xpzouying/xiaohongshu-mcp:${{ steps.version.outputs.version }}-novnc
+          xpzouying/xiaohongshu-mcp:novnc
+          crpi-hocnvtkomt7w9v8t.cn-beijing.personal.cr.aliyuncs.com/xpzouying/xiaohongshu-mcp:${{ steps.version.outputs.version }}-novnc
+          crpi-hocnvtkomt7w9v8t.cn-beijing.personal.cr.aliyuncs.com/xpzouying/xiaohongshu-mcp:novnc
+        cache-from: type=gha,scope=novnc
+        cache-to: type=gha,scope=novnc,mode=max
         provenance: false
         sbom: false
