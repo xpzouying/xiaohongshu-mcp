@@ -2,3 +2,4 @@
 !Dockerfile
 !start.sh
 !fcitx5-profile
+!rime-default.custom.yaml

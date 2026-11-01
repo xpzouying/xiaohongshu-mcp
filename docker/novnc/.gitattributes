@@ -1,2 +1,3 @@
 start.sh text eol=lf
 fcitx5-profile text eol=lf
+rime-default.custom.yaml text eol=lf

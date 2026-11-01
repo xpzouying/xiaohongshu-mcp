@@ -3,10 +3,17 @@ set -Eeuo pipefail
 
 # dbus-run-session 提供共享会话，浏览器与输入法必须继承同一组环境。
 export DISPLAY=:99 XDG_RUNTIME_DIR=/tmp/xhs-runtime
-mkdir -p "$XDG_RUNTIME_DIR" "$XDG_CONFIG_HOME/fcitx5" "$XDG_CONFIG_HOME/gtk-3.0"
+rime_dir="${XDG_DATA_HOME:-$HOME/.local/share}/fcitx5/rime"
+# Rime 首次部署会并发写配置，预建 build 目录避免创建目录的竞态。
+mkdir -p "$XDG_RUNTIME_DIR" "$rime_dir/build" "$XDG_CONFIG_HOME/fcitx5" "$XDG_CONFIG_HOME/gtk-3.0"
 chmod 700 "$XDG_RUNTIME_DIR"
 if [[ ! -f "$XDG_CONFIG_HOME/fcitx5/profile" ]]; then
     cp /usr/local/share/xhs-fcitx5-profile "$XDG_CONFIG_HOME/fcitx5/profile"
+fi
+# 迁移旧镜像自带的拼音项，保留其他输入法配置。
+sed -i 's/^DefaultIM=pinyin$/DefaultIM=rime/; s/^Name=pinyin$/Name=rime/' "$XDG_CONFIG_HOME/fcitx5/profile"
+if [[ ! -f "$rime_dir/default.custom.yaml" ]]; then
+    cp /usr/local/share/xhs-rime-default.custom.yaml "$rime_dir/default.custom.yaml"
 fi
 # 不覆盖用户已有设置，只在首次运行添加素材入口。
 touch "$XDG_CONFIG_HOME/gtk-3.0/bookmarks"
@@ -62,7 +69,10 @@ pids+=("$!")
 # VNC 仅在容器回环监听；Caps Lock 状态参与键码转换。
 x11vnc -display "$DISPLAY" -rfbport 5900 -localhost -forever -shared -nopw -capslock &
 pids+=("$!")
-websockify --web /usr/share/novnc 6080 localhost:5900 &
+# 仅允许配置好的网页来源连接桌面，阻止其他网站跨站控制本机桌面。
+novnc_port="${NOVNC_PORT:-6080}"
+origins="${NOVNC_ALLOWED_ORIGINS:-http://127.0.0.1:$novnc_port http://localhost:$novnc_port http://[::1]:$novnc_port}"
+websockify --web /usr/share/novnc --auth-plugin ExpectOrigin --auth-source "$origins" 6080 localhost:5900 &
 pids+=("$!")
 "$@" &
 app_pid=$!

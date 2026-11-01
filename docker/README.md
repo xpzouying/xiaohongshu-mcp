@@ -9,6 +9,8 @@
 - Docker 镜像内置浏览器，并在构建阶段预下载。请挂载 `./data:/app/data`，用于持久化 cookies 和运行数据目录。
 - 需要查看和辅助操作容器里的实际浏览器，可选用 [noVNC 可视化部署](novnc/README.md)，含中文拼音、Caps Lock 和只读本机素材挂载；普通无界面部署不受影响。
 
+默认标签 `latest`、`vX.Y.Z` 均不带 GUI；可选桌面版使用 `novnc`、`vX.Y.Z-novnc` 标签，两款均由正式发版流程同步发布到 Docker Hub 和阿里云。桌面版标签从包含本功能的首次正式发版开始提供。
+
 ## 1. 获取 Docker 镜像
 
 ### 1.1 从 Docker Hub 拉取（推荐）

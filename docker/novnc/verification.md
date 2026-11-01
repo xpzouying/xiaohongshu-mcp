@@ -1,5 +1,20 @@
 # 可视化部署实测
 
+## 合并前补充验证（2026-11-01）
+
+维护者在 macOS / OrbStack 的 Linux/amd64 独立测试容器中补充验证，未使用真实账号或 Cookie：
+
+- 默认无 GUI 标签保持不变；GUI 新增 `novnc`、`vX.Y.Z-novnc`，两款同步发布 Docker Hub / 阿里云，GUI 基于同次发版的无 GUI digest 构建。发布流程经 actionlint 校验；实际推送在下一次正式发版执行。
+- 输入法改为 Ubuntu 仓库提供的 Fcitx5 Rime，移除 Qt WebEngine。英文、Shift、Caps Lock、`nihao` → “你好”、Ctrl+Space 双向切换，以及系统文件窗口选择容器启动后新增的宿主素材均通过真实 RFB 键鼠事件验证。
+- MCP 鉴权、noVNC WebSocket/RFB、只读素材、组件正常/异常提前退出、MCP 退出码、组件故障后重启和 SIGKILL 后显示锁恢复通过。启用 `cap_drop: ALL` 和 `no-new-privileges` 后仍通过。
+- 桌面连接仅接受配置的本机 Origin，跨站和缺失 Origin 的 WebSocket 连接均被拒绝；这不等于增加桌面密码，仍不可直接暴露公网或不可信 Docker 网络。
+- Grype v0.121.0（校验官方发布资产 SHA256）使用当天数据库对官方 v2.5.5 基线与 GUI 镜像比较：GUI 新增/升级 High、Critical 为 0。保留基础镜像已有告警，按维护者决定后续单独处理；此结果不代表整款镜像没有漏洞。
+- 本地测得未压缩镜像：基线约 1.16 GB，原桌面层约 1.97 GB，Rime 版约 1.58 GB。构建时仅临时调整本机软件包下载路径，成品来源配置已恢复，仓库 Dockerfile 没有加入下载转发。
+
+可重复验证的脚本为 `smoke_test.py`（含 `input_test.py`）及 `check_vulnerabilities.py`；Docker CI 对同次代码构建的两款镜像执行检查，并保存漏洞报告。
+
+下面保留原始投稿的演示记录；其中输入法截图对应切换 Rime 之前的 Fcitx5 内置拼音版本。
+
 下方“输入和文件选择”“启停与访问”使用隔离测试环境：Windows 宿主、Docker Desktop 的 Linux/amd64 容器；基础镜像为官方 `v2.5.5`（digest `sha256:5bc690d0c7907f069886ddeb6b37abbe4bdd37bd431975b914c7c27435b1b602`）。
 
 测试实例使用独立空白 data 与只读素材目录。先调用原服务的获取登录二维码接口，让 **MCP 自己启动浏览器**；未扫码登录，再经 noVNC 将该窗口导航到容器内的本地测试页。截图里的输入框是隔离测试页，不是小红书发布页。

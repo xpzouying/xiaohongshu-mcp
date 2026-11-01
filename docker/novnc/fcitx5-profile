@@ -1,14 +1,14 @@
 [Groups/0]
 Name=Default
 Default Layout=us
-DefaultIM=pinyin
+DefaultIM=rime
 
 [Groups/0/Items/0]
 Name=keyboard-us
 Layout=
 
 [Groups/0/Items/1]
-Name=pinyin
+Name=rime
 Layout=
 
 [GroupOrder]
