@@ -104,6 +104,7 @@ def check_rfb(port, origin="http://127.0.0.1", expected=101):
 def main(image):
     name = "xhs-novnc-test-" + uuid.uuid4().hex[:12]
     network = name + "-network"
+    volume = name + "-data"
     containers = []
     try:
         metadata = json.loads(docker("image", "inspect", image).stdout)[0]
@@ -119,16 +120,31 @@ assert not list(Path('/var/lib/apt/lists').glob('*'))
 assert not list(Path('/app/data').rglob('cookies.json'))
 """)
         docker("network", "create", network)
+        docker("volume", "create", volume)
+        docker("run", "--rm", "--network", "none", "--entrypoint", "python3",
+               "--mount", f"type=volume,src={volume},dst=/app/data", image, "-c", """
+from pathlib import Path
+import os
+root = Path('/app/data')
+profile = root/'config/fcitx5/profile'
+profile.parent.mkdir(parents=True, exist_ok=True)
+profile.write_text(Path('/usr/local/share/xhs-fcitx5-profile').read_text().replace('=rime', '=pinyin'))
+for path in [root, *root.rglob('*')]:
+    os.chown(path, 12345, 12345)
+    path.chmod(0o755 if path.is_dir() else 0o644)
+""")
         with tempfile.TemporaryDirectory(prefix="xhs-novnc-test-") as directory:
             media = Path(directory)
             containers.append(name)
             docker(
                 "run", "-d", "--name", name, "--network", network,
-                "--cap-drop=ALL", "--security-opt=no-new-privileges:true", "--shm-size=1g",
+                "--cap-drop=ALL", "--cap-add=DAC_OVERRIDE",
+                "--security-opt=no-new-privileges:true", "--shm-size=1g",
                 "-e", "AUTH_TOKEN=isolated-smoke-test", "-p", "127.0.0.1::18060",
                 "-e", "NOVNC_ALLOWED_ORIGINS=http://127.0.0.1",
                 "-p", "127.0.0.1::6080", "--mount",
-                f"type=bind,src={media},dst=/app/images,readonly", image,
+                f"type=bind,src={media},dst=/app/images,readonly",
+                "--mount", f"type=volume,src={volume},dst=/app/data", image,
             )
 
             def port(container_port):
@@ -153,6 +169,7 @@ assert not list(Path('/app/data').rglob('cookies.json'))
                 assert error.code == 401, error.code
             print("PASS 启动、MCP 鉴权、回环端口和 WebSocket/RFB 桌面", flush=True)
             print("PASS 拒绝跨站及缺少 Origin 的桌面连接", flush=True)
+            print("PASS 兼容其他 UID 的已有 data 和旧版输入法配置", flush=True)
 
             (media / "newest.txt").write_text("created after startup\n")
             docker("exec", name, "python3", "-c", """
@@ -217,6 +234,7 @@ for pid in pids:
         for container in containers:
             docker("rm", "-f", container, check=False)
         docker("network", "rm", network, check=False)
+        docker("volume", "rm", volume, check=False)
 
 
 if __name__ == "__main__":

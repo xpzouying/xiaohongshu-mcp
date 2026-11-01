@@ -22,15 +22,31 @@ permissions:
 jobs:
   docker-images:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
+      - uses: docker/setup-buildx-action@v4
+        id: buildx
+        with:
+          use: false
+
       # 使用同一份 PR 代码构建两种镜像，测试过程中不登录或推送仓库。
       - name: Build default headless image
-        run: docker build --build-arg VERSION=ci -t xhs-mcp:ci .
+        uses: docker/build-push-action@v7
+        with:
+          builder: ${{ steps.buildx.outputs.name }}
+          context: .
+          load: true
+          tags: xhs-mcp:ci
+          build-args: VERSION=ci
+          # PR 缓存与正式发布缓存隔离，避免混用不受信任的构建结果。
+          cache-from: type=gha,scope=ci-headless
+          cache-to: type=gha,scope=ci-headless,mode=max
+          provenance: false
+          sbom: false
 
       - name: Check headless image remains the default
         run: |
@@ -38,7 +54,8 @@ jobs:
           docker run --rm --entrypoint /bin/sh xhs-mcp:ci -c '! command -v Xvfb && ! command -v x11vnc && ! command -v fcitx5'
 
       - name: Build optional noVNC image
-        run: docker build --build-arg MCP_IMAGE=xhs-mcp:ci -t xhs-mcp:ci-novnc docker/novnc
+        # 默认 docker builder 可以读取上一步加载到本机的基础镜像。
+        run: docker build --builder default --build-arg MCP_IMAGE=xhs-mcp:ci -t xhs-mcp:ci-novnc docker/novnc
 
       - name: Check noVNC startup, access boundaries and recovery
         run: python3 docker/novnc/smoke_test.py xhs-mcp:ci-novnc

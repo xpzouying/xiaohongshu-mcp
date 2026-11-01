@@ -69,7 +69,7 @@ Compose 只向宿主 `127.0.0.1` 发布 MCP 和 noVNC 端口，原始 VNC 只在
 
 桌面层只增加 Ubuntu 软件包仓库中的组件及本目录的启动脚本和输入法配置，不下载额外安装脚本，不包含账号、Cookie 或密钥。使用 Rime 避免引入 Qt WebEngine，关闭推荐包安装并清理 apt 索引。没有安装云拼音或 SSH 服务。
 
-Compose 移除额外 Linux capabilities 并设置 `no-new-privileges`，素材目录只读。容器沿用基础镜像的运行用户；这些限制不能替代桌面鉴权或公网访问控制。
+Compose 仅保留访问已有 data 目录所需的 `DAC_OVERRIDE`，移除其他 Linux capabilities 并设置 `no-new-privileges`，素材目录只读。容器沿用基础镜像的运行用户；这些限制不能替代桌面鉴权或公网访问控制。
 
 WebSocket 只接受本机页面来源，拒绝其他网站及没有 Origin 的桌面连接。Compose 会根据 `XHS_NOVNC_PORT` 配置来源；手动 `docker run` 映射其他端口时同时设置 `NOVNC_PORT`。SSH 转发使用不同本地端口时，可通过 `NOVNC_ALLOWED_ORIGINS` 指定浏览器实际访问的本机来源（空格分隔）；这不会增加密码认证。
 

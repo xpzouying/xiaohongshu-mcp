@@ -5,6 +5,9 @@ services:
     shm_size: 1gb
     cap_drop:
       - ALL
+    # 兼容宿主其他 UID 拥有的已有 data 目录，其余 capabilities 全部移除。
+    cap_add:
+      - DAC_OVERRIDE
     security_opt:
       - no-new-privileges:true
     environment:
