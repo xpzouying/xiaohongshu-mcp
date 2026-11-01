@@ -36,11 +36,13 @@ func setupRoutes(appServer *AppServer) *gin.Engine {
 			Stateless: true,
 		},
 	)
+	// 使用标准库中间件拒绝跨站 MCP 请求。
+	mcpHTTPHandler := http.NewCrossOriginProtection().Handler(mcpHandler)
 	protected := router.Group("")
 	protected.Use(authMiddleware(appServer.authToken))
 
-	protected.Any("/mcp", gin.WrapH(mcpHandler))
-	protected.Any("/mcp/*path", gin.WrapH(mcpHandler))
+	protected.Any("/mcp", gin.WrapH(mcpHTTPHandler))
+	protected.Any("/mcp/*path", gin.WrapH(mcpHTTPHandler))
 
 	// API 路由组
 	api := protected.Group("/api/v1")

@@ -125,3 +125,41 @@ func TestPointerSettle_HasSufficientFloor(t *testing.T) {
 	assert.GreaterOrEqual(t, dist.sample(-5), 200*time.Millisecond,
 		"极端偏小的采样也应被 clamp 到 200ms 以上")
 }
+
+func TestRectClamp(t *testing.T) {
+	r := Rect{Left: 10, Top: 20, Right: 110, Bottom: 220}
+
+	cases := []struct {
+		name string
+		in   proto.Point
+		want proto.Point
+	}{
+		{"内部不动", proto.Point{X: 50, Y: 100}, proto.Point{X: 50, Y: 100}},
+		{"左上越界", proto.Point{X: -5, Y: 0}, proto.Point{X: 10, Y: 20}},
+		{"右下越界", proto.Point{X: 999, Y: 999}, proto.Point{X: 110, Y: 220}},
+		{"只越一边", proto.Point{X: 50, Y: -3}, proto.Point{X: 50, Y: 20}},
+		{"边上不动", proto.Point{X: 10, Y: 220}, proto.Point{X: 10, Y: 220}},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			assert.Equal(t, c.want, r.clamp(c.in))
+		})
+	}
+}
+
+func TestRectInset(t *testing.T) {
+	t.Run("正常收缩", func(t *testing.T) {
+		got := Rect{Left: 0, Top: 0, Right: 100, Bottom: 100}.Inset(10)
+		assert.Equal(t, Rect{Left: 10, Top: 10, Right: 90, Bottom: 90}, got)
+	})
+
+	t.Run("太窄则该方向不收", func(t *testing.T) {
+		in := Rect{Left: 0, Top: 0, Right: 15, Bottom: 100}
+		got := in.Inset(10)
+		assert.Equal(t, 0.0, got.Left)
+		assert.Equal(t, 15.0, got.Right)
+		assert.Equal(t, 10.0, got.Top)
+		assert.Equal(t, 90.0, got.Bottom)
+	})
+}
