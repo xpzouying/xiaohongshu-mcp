@@ -4,7 +4,7 @@
 [![All Contributors](https://img.shields.io/badge/all_contributors-31-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
-[![Philanthropy](https://img.shields.io/badge/Philanthropy-CNY%201810.00-brightgreen?style=flat-square)](./DONATIONS.md)
+[![Philanthropy](https://img.shields.io/badge/Philanthropy-CNY%202010.00-brightgreen?style=flat-square)](./DONATIONS.md)
 [![Gratitude](https://img.shields.io/badge/Gratitude-CNY%201624.21-blue?style=flat-square)](./DONATIONS.md)
 [![Docker Pulls](https://img.shields.io/docker/pulls/xpzouying/xiaohongshu-mcp?style=flat-square&logo=docker)](https://hub.docker.com/r/xpzouying/xiaohongshu-mcp)
 
