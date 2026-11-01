@@ -59,11 +59,17 @@ func TestPublishContentImagesSchema(t *testing.T) {
 				require.Error(t, resolved.Validate(input))
 			})
 			t.Run("tool_call", func(t *testing.T) {
-				_, err := session.CallTool(ctx, &mcp.CallToolParams{
+				result, err := session.CallTool(ctx, &mcp.CallToolParams{
 					Name: "publish_content", Arguments: json.RawMessage(test.input),
 				})
-				require.ErrorContains(t, err, "validating")
-				require.ErrorContains(t, err, "images")
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				require.True(t, result.IsError)
+				require.NotEmpty(t, result.Content)
+				content, ok := result.Content[0].(*mcp.TextContent)
+				require.True(t, ok)
+				require.Contains(t, content.Text, "validating")
+				require.Contains(t, content.Text, "images")
 			})
 		})
 	}
