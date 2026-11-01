@@ -1,7 +1,7 @@
 # xiaohongshu-mcp
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-36-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-37-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 [![Philanthropy](https://img.shields.io/badge/Philanthropy-CNY%202010.00-brightgreen?style=flat-square)](./DONATIONS.md)
@@ -1075,6 +1075,7 @@ Thanks to all friends who have contributed to this project! (In no particular or
     </tr>
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://www.zhihu.com/people/lim0-34"><img src="https://avatars.githubusercontent.com/u/39004676?v=4?s=100" width="100px;" alt="Qu Yuli"/><br /><sub><b>Qu Yuli</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=DLLXW" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/ao-lj-ao"><img src="https://avatars.githubusercontent.com/u/287673796?v=4?s=100" width="100px;" alt="ao-lj-ao"/><br /><sub><b>ao-lj-ao</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=ao-lj-ao" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>
