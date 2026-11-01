@@ -25,7 +25,7 @@ python3 docker/novnc/smoke_test.py xiaohongshu-mcp-novnc:local
 
 需要 Docker 和 Python 3。测试使用隔离容器、临时数据和随机回环端口，结束后清理。
 
-[Docker CI](../../.github/workflows/docker-test.yml) 自动构建两款镜像、执行相同检查，并用固定版本 Grype 比较漏洞告警；完整报告保存在 CI artifact 中。参见 [通过的 CI 记录](https://github.com/xpzouying/xiaohongshu-mcp/actions/runs/41320463382)。
+[Docker CI](../../../.github/workflows/docker-test.yml) 自动构建两款镜像、执行相同检查，并用固定版本 Grype 比较漏洞告警；完整报告保存在 CI artifact 中。参见 [通过的 CI 记录](https://github.com/xpzouying/xiaohongshu-mcp/actions/runs/41320463382)。
 
 ## 原始演示
 
