@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/go-rod/rod"
+	"github.com/go-rod/rod/lib/cdp"
 	"github.com/go-rod/rod/lib/launcher"
 	"github.com/go-rod/rod/lib/proto"
 	"github.com/stretchr/testify/require"
@@ -20,7 +21,7 @@ import (
 )
 
 // 本地页面全部拦截，不加载登录态，也不访问小红书。
-func newSearchFixtureBrowser(t *testing.T) *rod.Browser {
+func newSearchFixtureBrowser(t *testing.T, wrapClient ...func(rod.CDPClient) rod.CDPClient) *rod.Browser {
 	t.Helper()
 	bin := os.Getenv("XHS_TEST_BROWSER")
 	if bin == "" {
@@ -34,6 +35,11 @@ func newSearchFixtureBrowser(t *testing.T) *rod.Browser {
 	controlURL, err := l.Launch()
 	require.NoError(t, err)
 	b := rod.New().ControlURL(controlURL).NoDefaultDevice()
+	if len(wrapClient) > 0 {
+		client, err := cdp.StartWithURL(context.Background(), controlURL, nil)
+		require.NoError(t, err)
+		b = rod.New().Client(wrapClient[0](client)).NoDefaultDevice()
+	}
 	require.NoError(t, b.Connect())
 	t.Cleanup(func() {
 		_ = b.Close()

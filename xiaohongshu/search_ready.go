@@ -159,6 +159,12 @@ func waitSearchReady(page *rod.Page, keyword string, responses <-chan searchResp
 		if err != nil {
 			return err
 		}
+		// 读取页面期间可能有新请求或响应到达，先消费通知并重读，避免沿用旧快照。
+		select {
+		case response = <-responses:
+			continue
+		default:
+		}
 		if state.Value.Get("ready").Bool() || (state.Value.Get("empty").Bool() && response.empty) {
 			return nil
 		}
