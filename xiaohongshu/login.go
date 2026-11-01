@@ -3,10 +3,13 @@ package xiaohongshu
 import (
 	"context"
 	"encoding/json"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/go-rod/rod"
 	"github.com/pkg/errors"
+	"github.com/xpzouying/xiaohongshu-mcp/humanize"
 )
 
 type LoginAction struct {
@@ -20,20 +23,13 @@ func NewLogin(page *rod.Page) *LoginAction {
 func (a *LoginAction) CheckLoginStatus(ctx context.Context) (bool, error) {
 	// 加超时保护：只是查登录态的快速检查，不应无限挂（登录扫码的等待在 Login/WaitForLogin 里）
 	pp := a.page.Context(ctx).Timeout(30 * time.Second)
-	pp.MustNavigate("https://www.xiaohongshu.com/explore").MustWaitLoad()
-
-	time.Sleep(1 * time.Second)
-
-	exists, _, err := pp.Has(`.main-container .user .link-wrapper .channel`)
-	if err != nil {
-		return false, errors.Wrap(err, "check login status failed")
+	if err := pp.Navigate(webURL("/explore")); err != nil {
+		return false, errors.Wrap(err, "navigate to explore page failed")
 	}
-
-	if !exists {
-		return false, errors.Wrap(err, "login status element not found")
+	if err := pp.WaitLoad(); err != nil {
+		return false, errors.Wrap(err, "wait for explore page failed")
 	}
-
-	return true, nil
+	return loginPageShowsSignedInUser(pp), nil
 }
 
 // CurrentUser 当前登录用户的基础信息。
@@ -73,33 +69,58 @@ func (a *LoginAction) CurrentUser(ctx context.Context) (*CurrentUser, error) {
 func (a *LoginAction) Login(ctx context.Context) error {
 	pp := a.page.Context(ctx)
 
-	// 导航到小红书首页，这会触发二维码弹窗
-	pp.MustNavigate("https://www.xiaohongshu.com/explore").MustWaitLoad()
-
-	time.Sleep(2 * time.Second)
-
-	if exists, _, _ := pp.Has(".main-container .user .link-wrapper .channel"); exists {
+	if err := pp.Navigate(webURL("/explore")); err != nil {
+		return err
+	}
+	if err := pp.WaitLoad(); err != nil {
+		return err
+	}
+	if loginPageShowsSignedInUser(pp) {
 		return nil
 	}
-
-	pp.MustElement(".main-container .user .link-wrapper .channel")
-
+	if err := clickLoginControl(pp); err != nil {
+		// 国内站可能已经自动打开登录弹窗。
+		if exists, _, _ := pp.Has(".login-container .qrcode-img"); !exists {
+			return err
+		}
+	}
+	if !a.WaitForLogin(ctx) {
+		return errors.Wrap(ctx.Err(), "等待登录结束")
+	}
 	return nil
 }
 
 func (a *LoginAction) FetchQrcodeImage(ctx context.Context) (string, bool, error) {
-	pp := a.page.Context(ctx)
+	pp := a.page.Context(ctx).Timeout(30 * time.Second)
 
-	// 导航到小红书首页，这会触发二维码弹窗
-	pp.MustNavigate("https://www.xiaohongshu.com/explore").MustWaitLoad()
+	if err := pp.Navigate(webURL("/explore")); err != nil {
+		return "", false, errors.Wrap(err, "navigate to explore page failed")
+	}
+	if err := pp.WaitLoad(); err != nil {
+		return "", false, errors.Wrap(err, "wait for explore page failed")
+	}
 
-	time.Sleep(2 * time.Second)
-
-	if exists, _, _ := pp.Has(".main-container .user .link-wrapper .channel"); exists {
+	if loginPageShowsSignedInUser(pp) {
 		return "", true, nil
 	}
 
-	src, err := pp.MustElement(".login-container .qrcode-img").Attribute("src")
+	qrSelector := ".login-container .qrcode-img"
+	qr, err := pp.Timeout(2 * time.Second).Element(qrSelector)
+	if err != nil {
+		if loginPageShowsSignedInUser(pp) {
+			return "", true, nil
+		}
+		// RedNote 不会自动打开登录弹窗，先点击登录。
+		if err := clickLoginControl(pp); err != nil {
+			return "", false, errors.Wrap(err, "login modal did not open")
+		}
+		qr, err = pp.Timeout(10 * time.Second).Element(qrSelector)
+		if err != nil {
+			return "", false, errors.Wrap(err, "login QR did not appear after opening login modal")
+		}
+	}
+
+	src, err := qr.Attribute("src")
 	if err != nil {
 		return "", false, errors.Wrap(err, "get qrcode src failed")
 	}
@@ -108,6 +129,54 @@ func (a *LoginAction) FetchQrcodeImage(ctx context.Context) (string, bool, error
 	}
 
 	return *src, false, nil
+}
+
+func loginPageShowsSignedInUser(page *rod.Page) bool {
+	info, err := page.Info()
+	if err != nil {
+		return false
+	}
+	current, err := url.Parse(info.URL)
+	if err != nil {
+		return false
+	}
+	selected, _ := url.Parse(webURL(""))
+	if current.Scheme != "https" || (current.Host != selected.Host && current.Host != strings.TrimPrefix(selected.Host, "www.")) {
+		return false
+	}
+	if !isRedNote() {
+		exists, _, err := page.Timeout(time.Second).Has(".main-container .user .link-wrapper .channel")
+		return err == nil && exists
+	}
+	res, err := page.Eval(`() => {
+		const user = window.__INITIAL_STATE__ && window.__INITIAL_STATE__.user;
+		const flag = user && user.loggedIn;
+		const loggedIn = flag && typeof flag === 'object' && 'value' in flag ? flag.value : flag;
+		const info = user && user.userInfo;
+		const value = info && info.value !== undefined ? info.value : info;
+		return loggedIn !== false && !!(value && value.guest !== true &&
+			typeof (value.userId || value.user_id) === 'string' &&
+			(value.userId || value.user_id).trim());
+	}`)
+	return err == nil && res.Value.Bool()
+}
+
+func clickLoginControl(page *rod.Page) error {
+	elems, err := page.Timeout(5 * time.Second).Elements("button, [role=button]")
+	if err != nil {
+		return err
+	}
+	for _, elem := range elems {
+		text, err := elem.Text()
+		if err != nil {
+			continue
+		}
+		label := strings.ToLower(strings.TrimSpace(text))
+		if (label == "登录" || label == "登录/注册" || label == "log in" || label == "sign in") && humanize.Visible(elem) {
+			return humanize.Click(elem)
+		}
+	}
+	return errors.New("login control not found")
 }
 
 func (a *LoginAction) WaitForLogin(ctx context.Context) bool {
@@ -120,8 +189,7 @@ func (a *LoginAction) WaitForLogin(ctx context.Context) bool {
 		case <-ctx.Done():
 			return false
 		case <-ticker.C:
-			el, err := pp.Element(".main-container .user .link-wrapper .channel")
-			if err == nil && el != nil {
+			if loginPageShowsSignedInUser(pp) {
 				return true
 			}
 		}

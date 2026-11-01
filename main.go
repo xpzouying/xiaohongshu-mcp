@@ -8,6 +8,7 @@ import (
 	"github.com/xpzouying/xiaohongshu-mcp/browser"
 	"github.com/xpzouying/xiaohongshu-mcp/configs"
 	"github.com/xpzouying/xiaohongshu-mcp/cookies"
+	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
 )
 
 // version 构建版本号，发布时通过 -ldflags "-X main.version=vX.Y.Z" 注入。
@@ -23,6 +24,9 @@ func main() {
 	flag.StringVar(&port, "port", ":18060", "端口")
 	flag.StringVar(&token, "token", "", "鉴权 Token，留空则读取 AUTH_TOKEN")
 	flag.Parse()
+	if err := xiaohongshu.ValidateSite(); err != nil {
+		logrus.Fatal(err)
+	}
 	if token == "" {
 		token = os.Getenv("AUTH_TOKEN")
 	}

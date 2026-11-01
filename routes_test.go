@@ -53,11 +53,11 @@ func TestMCPStatelessSinglePost(t *testing.T) {
 	assert.NotEmpty(t, result.Result.Tools, "应返回已注册的工具")
 }
 
-// TestNotificationToolsRegistered 固定通知相关工具已注册到 MCP。
+// TestNotificationAndDraftToolsRegistered 固定通知和草稿工具已注册到 MCP。
 //
 // 三个工具的注册各是 registerTools 里一段独立代码，漏掉任何一个编译都不会报错，
 // 只有真正调用时才会发现工具不存在。
-func TestNotificationToolsRegistered(t *testing.T) {
+func TestNotificationAndDraftToolsRegistered(t *testing.T) {
 	router := setupRoutes(NewAppServer(NewXiaohongshuService(), ""))
 	server := httptest.NewServer(router)
 	defer server.Close()
@@ -86,7 +86,7 @@ func TestNotificationToolsRegistered(t *testing.T) {
 		names[tool.Name] = true
 	}
 
-	for _, want := range []string{"get_unread_count", "list_notifications", "reply_notification", "like_notification"} {
+	for _, want := range []string{"get_unread_count", "list_notifications", "reply_notification", "like_notification", "save_draft"} {
 		assert.True(t, names[want], "工具 %s 应已注册", want)
 	}
 }

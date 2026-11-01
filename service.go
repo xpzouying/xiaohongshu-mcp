@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/go-rod/rod"
@@ -263,6 +264,35 @@ func (s *XiaohongshuService) PublishContent(ctx context.Context, req *PublishReq
 	}
 
 	return response, nil
+}
+
+// SaveDraft 保存图文草稿，不调用发布操作。
+func (s *XiaohongshuService) SaveDraft(ctx context.Context, req *PublishRequest) (*PublishResponse, error) {
+	if strings.TrimSpace(req.Title) == "" || strings.TrimSpace(req.Content) == "" {
+		return nil, fmt.Errorf("标题和正文不能为空")
+	}
+	if xhsutil.CalcTitleLength(req.Title) > 20 {
+		return nil, fmt.Errorf("标题长度超过限制")
+	}
+	if len(req.Images) == 0 {
+		return nil, fmt.Errorf("至少需要一张图片")
+	}
+	imagePaths, err := s.processImages(req.Images)
+	if err != nil {
+		return nil, err
+	}
+	content := xiaohongshu.PublishImageContent{Title: req.Title, Content: req.Content, Tags: req.Tags, ImagePaths: imagePaths}
+	err = withBrowserPage(func(page *rod.Page) error {
+		action, err := xiaohongshu.NewPublishImageAction(page)
+		if err != nil {
+			return err
+		}
+		return action.SaveDraft(ctx, content)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &PublishResponse{Title: req.Title, Content: req.Content, Images: len(imagePaths), Status: "网页创作者中心草稿已保存；手机端可能不同步"}, nil
 }
 
 // processImages 处理图片列表，支持URL下载和本地路径
