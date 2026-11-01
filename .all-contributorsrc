@@ -306,6 +306,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "eeeggplant",
+      "name": "eggplant",
+      "avatar_url": "https://avatars.githubusercontent.com/u/73321941?v=4",
+      "profile": "https://github.com/eeeggplant",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
