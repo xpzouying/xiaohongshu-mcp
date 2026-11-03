@@ -627,18 +627,11 @@ func (s *XiaohongshuService) ReplyNotification(ctx context.Context, commentID, c
 	return xiaohongshu.NewNotificationAction(page).Reply(ctx, commentID, content)
 }
 
-// newBrowser 建一个浏览器实例，受并发闸门约束（见 browser_lease.go）。
-//
-// 返回的是 *leasedBrowser 而非裸 *headless_browser.Browser：它内嵌了后者，
-// 调用方用到的 NewPage 由方法提升直接透传，只有 Close 被拦下来顺便归还名额，
-// 所以 19 个调用点一处都不用改。
-func newBrowser() *leasedBrowser {
-	return newLeasedBrowser(func() *headless_browser.Browser {
-		return browser.NewBrowser(configs.IsHeadless(),
-			browser.WithFingerprintSeed(configs.FingerprintSeed()),
-			browser.WithProxy(configs.Proxy()),
-		)
-	})
+func newBrowser() *headless_browser.Browser {
+	return browser.NewBrowser(configs.IsHeadless(),
+		browser.WithFingerprintSeed(configs.FingerprintSeed()),
+		browser.WithProxy(configs.Proxy()),
+	)
 }
 
 func saveCookies(page *rod.Page) error {
