@@ -137,19 +137,18 @@ func (s *XiaohongshuService) CheckLoginStatus(ctx context.Context) (*LoginStatus
 // GetLoginQrcode 获取登录的扫码二维码
 func (s *XiaohongshuService) GetLoginQrcode(ctx context.Context) (*LoginQrcodeResponse, error) {
 	b := newBrowser()
+	// 建页和取码都可能 panic。只有后台接手扫码后，才由它关闭浏览器。
+	handedOff := false
+	defer func() {
+		if !handedOff {
+			b.Close()
+		}
+	}()
+
 	page := b.NewPage()
-
-	deferFunc := func() {
-		_ = page.Close()
-		b.Close()
-	}
-
 	loginAction := xiaohongshu.NewLogin(page)
 
 	img, loggedIn, err := loginAction.FetchQrcodeImage(ctx)
-	if err != nil || loggedIn {
-		defer deferFunc()
-	}
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +156,8 @@ func (s *XiaohongshuService) GetLoginQrcode(ctx context.Context) (*LoginQrcodeRe
 	timeout := 4 * time.Minute
 
 	if !loggedIn {
-		s.waitScanInBackground(loginAction, page, deferFunc, timeout)
+		s.waitScanInBackground(loginAction, page, b.Close, timeout)
+		handedOff = true
 	}
 
 	return &LoginQrcodeResponse{
