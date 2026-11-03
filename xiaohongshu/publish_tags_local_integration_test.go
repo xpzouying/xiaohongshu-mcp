@@ -21,6 +21,7 @@ func TestInputTagLocal(t *testing.T) {
 	}{
 		{"相似话题排在前面", "", "#散步"},
 		{"候选被替换", "replace", "#散步"},
+		{"同一候选行原位改名", "rename", "#散步日记"},
 		{"候选消失", "remove", ""},
 		{"没有联想框", "absent", ""},
 	} {
@@ -36,20 +37,37 @@ func TestInputTagLocal(t *testing.T) {
 			page.MustEval(`change => {
 				const list = document.getElementById('creator-editor-topic-container');
 				if (change === 'absent') { list.remove(); return; }
+				const editor = document.getElementById('editor');
+				const appendTopic = name => {
+					const a = document.createElement('a');
+					a.className = 'tiptap-topic';
+					a.dataset.topic = JSON.stringify({name: name.slice(1)});
+					a.textContent = name;
+					editor.append(a);
+				};
+				if (change === 'rename') appendTopic('#散步');
 				list.onclick = e => {
-					document.body.dataset.picked = e.target.closest('.item').querySelector('.name').textContent;
+					const name = e.target.closest('.item').querySelector('.name').textContent;
+					document.body.dataset.picked = name;
+					setTimeout(() => appendTopic(name), 120);
 				};
 				if (!change) return;
 				list.firstElementChild.remove();
 				document.addEventListener('mousemove', () => {
 					const item = list.lastElementChild;
-					if (change === 'replace') item.replaceWith(item.cloneNode(true));
+					if (change === 'rename') item.querySelector('.name').textContent = '#散步日记';
+					else if (change === 'replace') item.replaceWith(item.cloneNode(true));
 					else item.remove();
 					document.body.dataset.changed = change;
 				}, {once: true});
 			}`, tc.change)
 			editor := page.MustElement("#editor")
-			require.NoError(t, inputTag(page.GetContext(), editor, "散步"))
+			err := inputTag(page.GetContext(), editor, "散步")
+			if tc.change == "rename" {
+				require.ErrorContains(t, err, "插入的话题与请求不符")
+			} else {
+				require.NoError(t, err)
+			}
 			require.Equal(t, tc.wantPicked, page.MustEval("() => document.body.dataset.picked || ''").String())
 			if tc.change == "replace" || tc.change == "remove" {
 				require.Equal(t, tc.change, page.MustEval("() => document.body.dataset.changed").String())

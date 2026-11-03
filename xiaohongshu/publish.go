@@ -2,6 +2,7 @@ package xiaohongshu
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"math/rand"
 	"os"
@@ -765,6 +766,10 @@ func inputTag(ctx context.Context, contentElem *rod.Element, tag string) error {
 		return errors.Wrap(err, "输入标签内容失败")
 	}
 
+	previous, err := contentElem.Elements("a[data-topic]")
+	if err != nil {
+		return errors.Wrap(err, "读取编辑器话题失败")
+	}
 	selected, err := selectTopicItem(contentElem.Page(), tag)
 	if err != nil {
 		return err
@@ -773,8 +778,52 @@ func inputTag(ctx context.Context, contentElem *rod.Element, tag string) error {
 		slog.Warn("未找到同名话题，保留纯文本", "tag", tag)
 		return humanize.Type(ctx, contentElem, " ")
 	}
-	slog.Info("成功点击标签联想选项", "tag", tag)
-	time.Sleep(500 * time.Millisecond) // 等编辑器插入话题节点
+	if err := verifyInsertedTopic(contentElem, len(previous), tag); err != nil {
+		return err
+	}
+	slog.Info("已插入话题", "tag", tag)
+	return nil
+}
+
+// 候选行可能原位改名。确认编辑器实际追加的话题后才能继续发布。
+func verifyInsertedTopic(editor *rod.Element, previous int, tag string) error {
+	wait := editor.Timeout(time.Second)
+	defer wait.CancelTimeout()
+	var node *rod.Element
+	for {
+		nodes, err := wait.Elements("a[data-topic]")
+		if err != nil {
+			return errors.Wrap(err, "未确认编辑器插入话题")
+		}
+		if len(nodes) > previous {
+			if len(nodes) != previous+1 {
+				return errors.New("编辑器插入的话题数量不符")
+			}
+			node = nodes[previous]
+			break
+		}
+		select {
+		case <-wait.GetContext().Done():
+			return errors.Wrap(wait.GetContext().Err(), "未确认编辑器插入话题")
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
+	raw, err := node.Attribute("data-topic")
+	if err != nil {
+		return errors.Wrap(err, "读取新话题失败")
+	}
+	if raw == nil {
+		return errors.New("新话题缺少 data-topic")
+	}
+	var topic struct {
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal([]byte(*raw), &topic); err != nil {
+		return errors.Wrap(err, "解析新话题失败")
+	}
+	if !strings.EqualFold(topic.Name, strings.TrimSpace(tag)) {
+		return errors.Errorf("插入的话题与请求不符：期望 %q，实际 %q", tag, topic.Name)
+	}
 	return nil
 }
 
