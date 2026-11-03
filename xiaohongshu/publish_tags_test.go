@@ -14,7 +14,9 @@ func TestTopicTextMatches(t *testing.T) {
 		want bool
 	}{
 		{"带 # 前缀", "#gpt订阅", "gpt订阅", true},
-		{"带浏览数后缀", "#gpt订阅 1.2万次浏览", "gpt订阅", true},
+		{"同前缀的长话题", "#ChatGPT5", "ChatGPT", false},
+		{"空标签", "#GPT", "", false},
+		{"两侧留白", " #GPT订阅 ", "gpt订阅", true},
 		{"大小写不同", "#GPT订阅", "gpt订阅", true},
 		{"纯文本命中", "gpt订阅", "gpt订阅", true},
 		{"不相关话题", "#chatgpt充值", "gpt订阅", false},

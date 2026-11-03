@@ -765,88 +765,91 @@ func inputTag(ctx context.Context, contentElem *rod.Element, tag string) error {
 		return errors.Wrap(err, "输入标签内容失败")
 	}
 
-	page := contentElem.Page()
-
-	// 等文本命中 tag 的联想项出现。原来是固定 sleep 1s 后直接点第一个 .item：
-	// 联想结果随输入防抖刷新，取到节点、移动鼠标、按下之间列表可能已经换过一批，
-	// 旧节点随即脱离文档（Shape 取不到 quad），点击报「元素无可点击区域」而整单发布失败；
-	// 而且「第一个」还可能是上一条标签的联想项，点错话题。
-	item, err := waitTopicItem(ctx, page, tag)
+	selected, err := selectTopicItem(contentElem.Page(), tag)
 	if err != nil {
-		// 平台没有这个词的话题时联想列表为空，退化成纯文本（保持原有行为）
-		slog.Warn("未找到标签联想选项，退化为纯文本", "tag", tag)
+		return err
+	}
+	if !selected {
+		slog.Warn("未找到同名话题，保留纯文本", "tag", tag)
 		return humanize.Type(ctx, contentElem, " ")
 	}
-
-	// 点击前重新解析节点：失败几乎都是节点在按下前被替换，重取一次即可。
-	var lastErr error
-	for attempt := 0; attempt < topicClickAttempts; attempt++ {
-		if attempt > 0 {
-			next, err := waitTopicItem(ctx, page, tag)
-			if err != nil {
-				return errors.Wrap(err, "话题联想项在点击前消失")
-			}
-			item = next
-		}
-		if lastErr = humanize.Click(item); lastErr == nil {
-			slog.Info("成功点击标签联想选项", "tag", tag)
-			time.Sleep(500 * time.Millisecond) // 技术等待：等标签处理完成
-			return nil
-		}
-	}
-	return errors.Wrap(lastErr, "点击标签联想选项失败")
+	slog.Info("成功点击标签联想选项", "tag", tag)
+	time.Sleep(500 * time.Millisecond) // 等编辑器插入话题节点
+	return nil
 }
 
-// waitTopicItem 轮询等待可见、且文本命中 tag 的话题联想项。
-//
-// 不用 page.Element：它只在元素出现时重试，既拿不到「还没有联想结果」这个状态，
-// 也等不到列表刷新成当前 tag 的结果。这里用 Has/Elements 单次查询自己做轮询。
-func waitTopicItem(ctx context.Context, page *rod.Page, tag string) (*rod.Element, error) {
-	deadline := time.Now().Add(topicItemTimeout)
+// 联想列表会重绘，每次点击前都重新查找，查找和点击共用一个时间窗口。
+func selectTopicItem(page *rod.Page, tag string) (bool, error) {
+	topicPage := page.Timeout(topicItemTimeout)
+	defer topicPage.CancelTimeout()
+	ctx := topicPage.GetContext()
 
-	for {
-		if item := findTopicItem(page, tag); item != nil {
-			return item, nil
+	var clickErr error
+	for attempts := 0; ctx.Err() == nil && attempts < topicClickAttempts; {
+		item, err := findTopicItem(topicPage, tag)
+		if err != nil {
+			if errors.Is(err, context.DeadlineExceeded) && ctx.Err() != nil {
+				break
+			}
+			return false, errors.Wrap(err, "查找话题联想项失败")
 		}
-
-		if time.Now().After(deadline) {
-			return nil, errors.Errorf("等待话题联想项超时: #%s", tag)
+		if item == nil {
+			// 候选已消失时，等到窗口结束再按无匹配项处理。
+			clickErr = nil
+		} else {
+			clickErr = humanize.Click(item)
+			if clickErr == nil {
+				return true, nil
+			}
+			attempts++
 		}
 
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
 		case <-time.After(topicItemPollInterval):
 		}
 	}
+	if err := page.GetContext().Err(); err != nil {
+		return false, err
+	}
+	return false, errors.Wrap(clickErr, "点击标签联想选项失败")
 }
 
-// findTopicItem 在联想列表里找可见、且文本命中 tag 的项。
-func findTopicItem(page *rod.Page, tag string) *rod.Element {
-	has, container, err := page.Has("#creator-editor-topic-container")
-	if err != nil || !has || container == nil {
-		return nil
-	}
-
-	items, err := container.Elements(".item")
+func findTopicItem(page *rod.Page, tag string) (*rod.Element, error) {
+	items, err := page.Elements("#creator-editor-topic-container .item")
 	if err != nil {
-		return nil
+		return nil, err
 	}
-
 	for _, item := range items {
-		if visible, err := item.Visible(); err != nil || !visible {
+		// .name 是话题名，浏览数或“新建话题”在另一个子节点。
+		names, err := item.Elements(".name")
+		if err != nil {
+			return nil, err
+		}
+		if len(names) == 0 {
 			continue
 		}
-		if text, err := item.Text(); err == nil && topicTextMatches(text, tag) {
-			return item
+		name, err := names[0].Text()
+		if err != nil {
+			return nil, err
+		}
+		if !topicTextMatches(name, tag) {
+			continue
+		}
+		visible, err := item.Visible()
+		if err != nil {
+			return nil, err
+		}
+		if visible {
+			return item, nil
 		}
 	}
-	return nil
+	return nil, nil
 }
 
-// topicTextMatches 联想项文本是否命中 tag。联想项一般带 # 前缀，可能还有浏览数后缀。
-func topicTextMatches(text, tag string) bool {
-	return strings.Contains(strings.ToLower(text), strings.ToLower(tag))
+func topicTextMatches(name, tag string) bool {
+	name = strings.TrimPrefix(strings.TrimSpace(name), "#")
+	return name != "" && strings.EqualFold(name, strings.TrimSpace(tag))
 }
 
 func findTextboxByPlaceholder(page *rod.Page) (*rod.Element, error) {

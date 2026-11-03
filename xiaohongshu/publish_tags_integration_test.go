@@ -3,15 +3,17 @@
 // 集成测试：起有头浏览器 + 需登录态 + 触网，默认 go test 不编译不运行。
 // 只填到发布页校验标签，不点「发布」，不产生笔记。
 //
-// 手动跑：
+// 素材文件是本地 JSON，包含 title、content 和五个不带 # 的 tags。
 //
-//	XHS_TEST_IMAGE=/path/to.jpg XHS_TEST_SHOT=/tmp/shot.png \
+//	XHS_TEST_IMAGE=/path/to.jpg XHS_TEST_NOTE=/path/to/note.json \
 //	  go test -tags integration ./xiaohongshu/ -run TestInputTagsCreatesTopic -v -timeout 15m
 package xiaohongshu
 
 import (
 	"context"
+	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -40,7 +42,17 @@ func TestInputTagsCreatesTopic(t *testing.T) {
 		t.Skipf("SKIP: 测试图片不可用: %v", err)
 	}
 
-	tags := []string{"gpt订阅", "ChatGPT", "人工智能", "程序员", "效率工具"}
+	notePath := os.Getenv("XHS_TEST_NOTE")
+	if notePath == "" {
+		t.Skip("需要 XHS_TEST_NOTE 提供本次使用的标题、正文和标签")
+	}
+	data, err := os.ReadFile(notePath)
+	require.NoError(t, err)
+	var note PublishImageContent
+	require.NoError(t, json.Unmarshal(data, &note))
+	require.NotEmpty(t, strings.TrimSpace(note.Title))
+	require.NotEmpty(t, strings.TrimSpace(note.Content))
+	require.Len(t, note.Tags, 5)
 
 	ctx := context.Background()
 
@@ -66,35 +78,35 @@ func TestInputTagsCreatesTopic(t *testing.T) {
 	// 与 submitPublish 保持同样的顺序：标题 → 正文 → 关引导卡 → 回点标题 → 标签
 	titleElem, err := action.page.Element("div.d-input input")
 	require.NoError(t, err)
-	require.NoError(t, humanize.Type(ctx, titleElem, "标签回归验证（不会发布）"))
+	require.NoError(t, humanize.Type(ctx, titleElem, note.Title))
 
 	contentElem, err := getContentElement(action.page, contentElemTimeout)
 	require.NoError(t, err)
-	require.NoError(t, humanize.Type(ctx, contentElem, "只验证话题标签，不点发布。"))
+	require.NoError(t, humanize.Type(ctx, contentElem, note.Content))
 
 	closeFeatureGuide(action.page)
-	require.NoError(t, waitAndClickTitleInput(titleElem))
-	require.NoError(t, inputTags(ctx, contentElem, tags))
+	tryRefocusTitle(action.page)
+	require.NoError(t, inputTags(ctx, contentElem, note.Tags))
 
 	if shot := os.Getenv("XHS_TEST_SHOT"); shot != "" {
-		action.page.MustScreenshot(shot)
+		contentElem.MustScreenshot(shot)
 		t.Logf("截图已保存: %s", shot)
 	}
 
 	// 话题会渲染成 <a class="tiptap-topic" data-topic='{"name":"..."}'>
-	topicElems := waitTopicElems(t, contentElem, len(tags))
-	require.Len(t, topicElems, len(tags), "话题节点数少于标签数，有标签退化成纯文本或没插进去")
+	topicElems := waitTopicElems(t, contentElem, len(note.Tags))
+	require.Len(t, topicElems, len(note.Tags), "话题节点数与请求不符")
 
 	// 顺序也要对得上：第 i 个话题节点必须就是第 i 个标签，否则说明点到了残留的联想项。
 	for i, elem := range topicElems {
 		raw, err := elem.Attribute("data-topic")
 		require.NoError(t, err)
 		require.NotNil(t, raw, "第 %d 个话题节点缺少 data-topic", i+1)
-		assert.Contains(t, *raw, tags[i], "第 %d 个话题与请求的标签不符（可能点到了残留的联想项）", i+1)
-
-		text, err := elem.Text()
-		require.NoError(t, err)
-		assert.Contains(t, text, tags[i])
+		var topic struct {
+			Name string `json:"name"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(*raw), &topic))
+		assert.True(t, strings.EqualFold(note.Tags[i], topic.Name), "第 %d 个话题：请求 %q，实际 %q", i+1, note.Tags[i], topic.Name)
 	}
 }
 
