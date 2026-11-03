@@ -1,0 +1,7 @@
+services:
+  xiaohongshu-mcp:
+    image: xiaohongshu-mcp-novnc:local
+    build:
+      context: .
+      args:
+        MCP_IMAGE: ${MCP_IMAGE:-xpzouying/xiaohongshu-mcp:v2.5.5}

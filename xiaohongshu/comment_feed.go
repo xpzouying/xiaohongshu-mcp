@@ -190,7 +190,7 @@ func (f *CommentFeedAction) ReplyToComment(ctx context.Context, feedID, xsecToke
 	return nil
 }
 
-// findCommentElement 滚动查找指定评论：优先按 commentID 命中，否则按 userID 匹配。
+// findCommentElement 滚动查找指定评论：提供 commentID 时精确匹配，仅未提供时按 userID 匹配。
 // 二级评论折叠在「展开 N 条回复」后面，未展开时不在 DOM 里，因此查找过程中要展开。
 func findCommentElement(ctx context.Context, page *rod.Page, commentID, userID string) (*rod.Element, error) {
 	logrus.Infof("开始查找评论 - commentID: %s, userID: %s", commentID, userID)
@@ -272,25 +272,36 @@ func findCommentElement(ctx context.Context, page *rod.Page, commentID, userID s
 
 // lookupComment 在当前已渲染的评论里查找目标，找不到返回 nil。
 func lookupComment(page *rod.Page, commentID, userID string) *rod.Element {
+	return lookupCommentTarget(commentID, userID,
+		func(id string) *rod.Element {
+			if el, err := page.Timeout(2 * time.Second).Element(fmt.Sprintf("#comment-%s", id)); err == nil {
+				return el
+			}
+			return nil
+		},
+		func(id string) *rod.Element {
+			// 一级和二级评论都带 .comment-item；.parent-comment 会把整个楼层一起匹配上。
+			elements, err := page.Timeout(2 * time.Second).Elements(".comment-item")
+			if err != nil {
+				return nil
+			}
+			for _, el := range elements {
+				if userEl, err := el.Timeout(500 * time.Millisecond).Element(fmt.Sprintf(`[data-user-id="%s"]`, id)); err == nil && userEl != nil {
+					return el
+				}
+			}
+			return nil
+		})
+}
+
+// lookupCommentTarget 将评论定位策略与页面查询分开。
+func lookupCommentTarget(commentID, userID string, findByID, findByUserID func(string) *rod.Element) *rod.Element {
 	if commentID != "" {
-		if el, err := page.Timeout(2 * time.Second).Element(fmt.Sprintf("#comment-%s", commentID)); err == nil && el != nil {
-			return el
-		}
+		// 同一用户可能有多条评论；ID 未命中时留给上层展开、滚动后重查，不能按用户兜底。
+		return findByID(commentID)
 	}
-
-	if userID == "" {
-		return nil
-	}
-
-	// 一级和二级评论都带 .comment-item；.parent-comment 会把整个楼层一起匹配上。
-	elements, err := page.Timeout(2 * time.Second).Elements(".comment-item")
-	if err != nil {
-		return nil
-	}
-	for _, el := range elements {
-		if userEl, err := el.Timeout(500 * time.Millisecond).Element(fmt.Sprintf(`[data-user-id="%s"]`, userID)); err == nil && userEl != nil {
-			return el
-		}
+	if userID != "" {
+		return findByUserID(userID)
 	}
 	return nil
 }

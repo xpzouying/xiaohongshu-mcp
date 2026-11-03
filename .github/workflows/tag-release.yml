@@ -35,9 +35,9 @@ jobs:
       id: version
       run: |
         if [ "${{ github.event_name }}" = "push" ]; then
-          echo "version=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+          echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
         else
-          echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          echo "version=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
         fi
 
     # 校验只在手动触发时需要：tag 触发时格式已由 tag 过滤保证，且 tag 必然已存在
@@ -59,9 +59,10 @@ jobs:
         echo "Version $VERSION is valid"
 
     - name: Set up Go
+      id: setup_go
       uses: actions/setup-go@v7
       with:
-        go-version: '1.24'
+        go-version-file: go.mod
 
     - name: Build for multiple platforms
       env:
@@ -96,7 +97,7 @@ jobs:
           COMMITS=$(git log --oneline --format="- %s (%h)" | head -20)
         else
           echo "Generating changelog from $PREV_TAG to HEAD"
-          COMMITS=$(git log $PREV_TAG..HEAD --oneline --format="- %s (%h)")
+          COMMITS=$(git log "${PREV_TAG}..HEAD" --oneline --format="- %s (%h)")
         fi
 
         # Save to output
@@ -104,7 +105,7 @@ jobs:
           echo "commits<<EOF"
           echo "$COMMITS"
           echo "EOF"
-        } >> $GITHUB_OUTPUT
+        } >> "$GITHUB_OUTPUT"
 
     - name: Create tag and release
       uses: softprops/action-gh-release@v3
@@ -158,7 +159,7 @@ jobs:
           ### 📊 构建信息
 
           - **Commit**: ${{ github.sha }}
-          - **Go Version**: 1.24
+          - **Go Version**: ${{ steps.setup_go.outputs.go-version }}
           - **Build Time**: ${{ github.event.repository.updated_at }}
         files: |
           xiaohongshu-mcp-darwin-arm64

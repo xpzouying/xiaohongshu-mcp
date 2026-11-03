@@ -224,8 +224,9 @@ func (s *AppServer) handlePublishVideo(ctx context.Context, args map[string]inte
 
 	scheduleAt, _ := args["schedule_at"].(string)
 	visibility := parseVisibility(args)
+	isOriginal, _ := args["is_original"].(bool)
 
-	logrus.Infof("MCP: 发布视频 - 标题: %s, 标签数量: %d, 定时: %s, visibility: %s, 商品: %v", title, len(tags), scheduleAt, visibility, products)
+	logrus.Infof("MCP: 发布视频 - 标题: %s, 标签数量: %d, 定时: %s, 原创: %v, visibility: %s, 商品: %v", title, len(tags), scheduleAt, isOriginal, visibility, products)
 
 	req := &PublishVideoRequest{
 		Title:      title,
@@ -233,6 +234,7 @@ func (s *AppServer) handlePublishVideo(ctx context.Context, args map[string]inte
 		Video:      videoPath,
 		Tags:       tags,
 		ScheduleAt: scheduleAt,
+		IsOriginal: isOriginal,
 		Visibility: visibility,
 		Products:   products,
 	}

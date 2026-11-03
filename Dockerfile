@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.6
 
 # ---- build stage ----
-FROM golang:1.24 AS builder
+FROM golang:1.27.3 AS builder
 
 WORKDIR /src
 # 配置 Go 模块代理为国内源

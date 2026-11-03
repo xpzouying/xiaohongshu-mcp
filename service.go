@@ -69,6 +69,7 @@ type PublishVideoRequest struct {
 	Video      string   `json:"video" binding:"required"`
 	Tags       []string `json:"tags,omitempty"`
 	ScheduleAt string   `json:"schedule_at,omitempty"` // 定时发布时间，ISO8601格式，为空则立即发布
+	IsOriginal bool     `json:"is_original,omitempty"` // 是否声明原创
 	Visibility string   `json:"visibility,omitempty"`  // 可见范围: "公开可见"(默认), "仅自己可见", "仅互关好友可见"
 	Products   []string `json:"products,omitempty"`    // 商品关键词列表，用于绑定带货商品
 }
@@ -136,19 +137,18 @@ func (s *XiaohongshuService) CheckLoginStatus(ctx context.Context) (*LoginStatus
 // GetLoginQrcode 获取登录的扫码二维码
 func (s *XiaohongshuService) GetLoginQrcode(ctx context.Context) (*LoginQrcodeResponse, error) {
 	b := newBrowser()
+	// 建页和取码都可能 panic。只有后台接手扫码后，才由它关闭浏览器。
+	handedOff := false
+	defer func() {
+		if !handedOff {
+			b.Close()
+		}
+	}()
+
 	page := b.NewPage()
-
-	deferFunc := func() {
-		_ = page.Close()
-		b.Close()
-	}
-
 	loginAction := xiaohongshu.NewLogin(page)
 
 	img, loggedIn, err := loginAction.FetchQrcodeImage(ctx)
-	if err != nil || loggedIn {
-		defer deferFunc()
-	}
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +156,8 @@ func (s *XiaohongshuService) GetLoginQrcode(ctx context.Context) (*LoginQrcodeRe
 	timeout := 4 * time.Minute
 
 	if !loggedIn {
-		s.waitScanInBackground(loginAction, page, deferFunc, timeout)
+		s.waitScanInBackground(loginAction, page, b.Close, timeout)
+		handedOff = true
 	}
 
 	return &LoginQrcodeResponse{
@@ -332,6 +333,7 @@ func (s *XiaohongshuService) PublishVideo(ctx context.Context, req *PublishVideo
 		Tags:         req.Tags,
 		VideoPath:    req.Video,
 		ScheduleTime: scheduleTime,
+		IsOriginal:   req.IsOriginal,
 		Visibility:   req.Visibility,
 		Products:     req.Products,
 	}

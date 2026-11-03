@@ -156,3 +156,52 @@ func TestMCPAcceptsConfiguredBearerToken(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, recorder.Code)
 }
+
+func TestMCPRequestBoundaries(t *testing.T) {
+	router := setupRoutes(NewAppServer(NewXiaohongshuService(), ""))
+	tests := []struct {
+		name        string
+		origin      string
+		contentType string
+		wantStatus  int
+	}{
+		{name: "native client", contentType: "application/json", wantStatus: http.StatusOK},
+		{name: "same origin", origin: "http://localhost:18060", contentType: "application/json", wantStatus: http.StatusOK},
+		{name: "JSON with charset", contentType: "application/json; charset=utf-8", wantStatus: http.StatusOK},
+		{name: "cross-site JSON", origin: "https://untrusted.example", contentType: "application/json", wantStatus: http.StatusForbidden},
+		{name: "cross-site simple request", origin: "https://untrusted.example", contentType: "text/plain", wantStatus: http.StatusForbidden},
+		{name: "opaque origin", origin: "null", contentType: "application/json", wantStatus: http.StatusForbidden},
+		{name: "non-JSON content", contentType: "text/plain", wantStatus: http.StatusUnsupportedMediaType},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodPost, "http://localhost:18060/mcp",
+				strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`))
+			request.Header.Set("Content-Type", tt.contentType)
+			request.Header.Set("Accept", "application/json, text/event-stream")
+			if tt.origin != "" {
+				request.Header.Set("Origin", tt.origin)
+			}
+			recorder := httptest.NewRecorder()
+
+			router.ServeHTTP(recorder, request)
+
+			assert.Equal(t, tt.wantStatus, recorder.Code)
+		})
+	}
+}
+
+func TestMCPRejectsNullJSONKey(t *testing.T) {
+	router := setupRoutes(NewAppServer(NewXiaohongshuService(), ""))
+	// 尾随 NUL 的键不能覆盖真实 method 并触发另一个工具。
+	request := httptest.NewRequest(http.MethodPost, "/mcp",
+		strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"not-a-method","method\u0000":"tools/list"}`))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Accept", "application/json, text/event-stream")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	assert.Equal(t, http.StatusBadRequest, recorder.Code, "含 NUL 的 JSON 键应被拒绝")
+}
