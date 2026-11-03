@@ -15,6 +15,8 @@ type browserConfig struct {
 	fingerprintSeed int
 	// proxy 代理地址；非空时启用。
 	proxy string
+	// userDataDir 持久 Chrome profile 目录；非空时启用。
+	userDataDir string
 }
 
 type Option func(*browserConfig)
@@ -30,6 +32,13 @@ func WithProxy(proxy string) Option {
 func WithFingerprintSeed(seed int) Option {
 	return func(c *browserConfig) {
 		c.fingerprintSeed = seed
+	}
+}
+
+// WithUserDataDir 设置持久 Chrome user-data-dir。空字符串不启用。
+func WithUserDataDir(dir string) Option {
+	return func(c *browserConfig) {
+		c.userDataDir = dir
 	}
 }
 
@@ -73,6 +82,12 @@ func NewBrowser(headless bool, options ...Option) *headless_browser.Browser {
 		headless_browser.WithExtraFlags(map[string]string{"fingerprint-brand": "Chrome"}),
 	}
 	opts = append(opts, headless_browser.WithChromeBinPath(binPath))
+
+	// 持久 profile（由调用方经 Option 传入，env/flag 读取放在入口层）。
+	if cfg.userDataDir != "" {
+		opts = append(opts, headless_browser.WithUserDataDir(cfg.userDataDir))
+		logrus.Infof("Using user-data-dir: %s", cfg.userDataDir)
+	}
 
 	// 代理（由调用方经 Option 传入，env 读取放在入口层）。
 	if cfg.proxy != "" {
