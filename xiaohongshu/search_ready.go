@@ -3,12 +3,14 @@ package xiaohongshu
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/go-rod/rod"
+	"github.com/go-rod/rod/lib/cdp"
 	"github.com/go-rod/rod/lib/proto"
 )
 
@@ -134,16 +136,22 @@ func parseSearchResponse(body []byte) searchResponse {
 }
 
 // searchReadinessJS 只读当前搜索状态；全局对象存在和空态文案都不是完成信号。
+//
+// 顺带返回当前路径：风控会把主框架延迟重定向到验证页/登录页，那里永远等不到
+// 搜索结果，必须让等待方据此提前退出。只取 location.pathname，不含查询串——
+// 登录页的 redirectPath 参数里可能带着验证页地址，不能据此误判。
 const searchReadinessJS = `(keyword) => {
+	const path = location.pathname;
 	const unwrap = value => value?.value !== undefined ? value.value :
 		(value?._value !== undefined ? value._value : value);
 	const search = window.__INITIAL_STATE__?.search;
 	const currentKeyword = unwrap(search?.searchContext)?.keyword;
 	const urlKeyword = new URL(location.href).searchParams.get('keyword');
-	if (currentKeyword !== undefined ? currentKeyword !== keyword : urlKeyword !== keyword) return {};
+	if (currentKeyword !== undefined ? currentKeyword !== keyword : urlKeyword !== keyword) return {path};
 	const feeds = unwrap(search?.feeds);
 	const state = unwrap(search?.state);
 	return {
+		path,
 		ready: Array.isArray(feeds) && feeds.length > 0 && state !== 'loading' && state !== 'error',
 		empty: Array.isArray(feeds) && feeds.length === 0 && state !== 'loading',
 		failed: state === 'error'
@@ -157,7 +165,30 @@ func waitSearchReady(page *rod.Page, keyword string, responses <-chan searchResp
 	for {
 		state, err := page.Eval(searchReadinessJS, keyword)
 		if err != nil {
+			// 跳转会让执行上下文短暂失效。先确认主框架是否已经落到验证页/登录页——
+			// 跳转本身就会让 eval 报错，而拦截页才是真正的原因。
+			// 注意：page 的 deadline 已经耗尽时，这里的子超时同样失效、直接返回 nil，
+			// 那种情况下面会把 deadline 错误原样返回给调用方。
+			if blocked := CheckPageBlocked(page); blocked != nil {
+				return blocked
+			}
+			// 只是跳转期间的上下文失效就重试，别把瞬时错误当成等待结果。
+			if isTransientContextError(err) {
+				select {
+				case <-page.GetContext().Done():
+					return page.GetContext().Err()
+				case <-ticker.C:
+				}
+				continue
+			}
 			return err
+		}
+		// 主框架进入验证页或登录页时，搜索结果永远不会就绪，立即退出。
+		// 站点是延迟重定向：导航返回时页面还是搜索页，所以不能只在导航后判一次。
+		// 注意 gson 在 path 缺失时给出 "<nil>"，所以判定必须依赖精确/前缀匹配，
+		// 不能改成子串匹配。
+		if blocked := classifyBlockedPath(state.Value.Get("path").Str()); blocked != nil {
+			return blocked
 		}
 		// 读取页面期间可能有新请求或响应到达，先消费通知并重读，避免沿用旧快照。
 		select {
@@ -179,4 +210,12 @@ func waitSearchReady(page *rod.Page, keyword string, responses <-chan searchResp
 		case <-ticker.C:
 		}
 	}
+}
+
+// isTransientContextError 判断 eval 失败是否只是跳转期间执行上下文短暂失效。
+// 这类错误应当重试，而不是当成等待结果返回给调用方。
+func isTransientContextError(err error) bool {
+	return errors.Is(err, cdp.ErrCtxNotFound) ||
+		errors.Is(err, cdp.ErrCtxDestroyed) ||
+		errors.Is(err, cdp.ErrObjNotFound)
 }
