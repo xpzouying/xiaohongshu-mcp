@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/go-rod/rod"
+	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/xiaohongshu-mcp/errors"
 )
 
@@ -18,7 +19,9 @@ func NewFeedsListAction(page *rod.Page) *FeedsListAction {
 	pp := page.Timeout(60 * time.Second)
 
 	pp.MustNavigate("https://www.xiaohongshu.com")
-	pp.MustWaitDOMStable()
+	if err := pp.WaitDOMStable(time.Second, 0.1); err != nil {
+		logrus.Warnf("首页 DOM 未在预期内稳定，继续执行: %v", err)
+	}
 
 	return &FeedsListAction{page: pp}
 }
