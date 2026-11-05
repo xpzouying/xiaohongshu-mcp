@@ -167,6 +167,51 @@ func TestSearchReadyLocal(t *testing.T) {
 	}
 }
 
+// 首个 search_result 的 HTML 被站点拖住时，导航超时后原地重试，第二次加载照常等到结果。
+func TestSearchRetriesStalledNavigation(t *testing.T) {
+	b := newSearchFixtureBrowser(t)
+	humanize.SetProvider(searchFixtureTiming{})
+	t.Cleanup(func() { humanize.SetProvider(humanize.DefaultProvider{}) })
+	oldTimeout := searchNavigateTimeout
+	searchNavigateTimeout = 300 * time.Millisecond
+	t.Cleanup(func() { searchNavigateTimeout = oldTimeout })
+
+	page := b.MustPage()
+	done := make(chan struct{})
+	router := page.HijackRequests()
+	var htmlAttempts atomic.Int32
+	router.MustAdd("*", func(h *rod.Hijack) {
+		h.OnError = func(error) {}
+		switch path := h.Request.URL().Path; {
+		case strings.HasPrefix(path, "/search_result"):
+			if htmlAttempts.Add(1) == 1 {
+				<-done
+			}
+			h.Response.SetHeader("Content-Type", "text/html; charset=utf-8")
+			h.Response.SetBody(searchFixtureHTML("stalled_html"))
+		case path == "/api/sns/web/v2/search/notes":
+			h.Response.SetHeader("Content-Type", "application/json")
+			h.Response.SetBody(`{"code":0,"success":true,"data":{"items":[{"id":"expected","model_type":"note"}],"has_more":false}}`)
+		default:
+			h.Response.SetBody("")
+		}
+	})
+	go router.Run()
+	t.Cleanup(func() {
+		close(done)
+		_ = page.Close()
+		_ = router.Stop()
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	feeds, err := NewSearchAction(page).Search(ctx, "stalled_html")
+	require.NoError(t, err)
+	require.Len(t, feeds, 1)
+	require.Equal(t, "expected", feeds[0].ID)
+	require.EqualValues(t, 2, htmlAttempts.Load())
+}
+
 func searchFixtureHTML(name string) string {
 	keyword, _ := json.Marshal(name)
 	return fmt.Sprintf(`<!doctype html><meta charset="utf-8"><div id="clock"></div>
