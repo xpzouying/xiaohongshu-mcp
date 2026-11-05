@@ -868,6 +868,7 @@ After successful connection, you can use the following MCP tools:
   - `visibility`: Visibility scope (optional), supports `公开可见` / public (default), `仅自己可见` / self-only, `仅互关好友可见` / mutual-followers-only
   - `products`: Product keyword list (optional), used to attach products for social commerce. Provide a product name or product ID; the system searches automatically and picks the first match. Requires the product feature to be enabled on your account. Example: [面膜, 防晒霜SPF50]
 - `list_feeds` - Get RedNote homepage recommendation list (no parameters)
+- `list_scheduled_notes` - Read all active appointments from the current account's creator backend (no parameters), including manually scheduled image-text and video notes. Returns the account, note IDs, titles, and scheduled times with `+08:00`. `complete: true` requires the final page and a matching backend total. Expired login, incomplete pagination, or unknown states return an error instead of an empty calendar. Also available through `GET /api/v1/notes/scheduled` with the existing authentication middleware.
 - `search_feeds` - Search RedNote content (required: keyword)
   - `filters`: Filter options (optional). Values must be passed exactly as the Chinese strings below — they match the labels on the RedNote filter panel.
     - `sort_by`: Sort by - `综合` / comprehensive (default) | `最新` / latest | `最多点赞` / most liked | `最多评论` / most comments | `最多收藏` / most saved
