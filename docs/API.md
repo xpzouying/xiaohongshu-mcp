@@ -483,6 +483,7 @@ Content-Type: application/json
         "desc": "笔记详细内容描述",
         "type": "normal",
         "time": 1702195200000,
+        "timeText": "2023-12-10 16:00",
         "ipLocation": "浙江",
         "user": {
           "userId": "user_id_123",
@@ -516,6 +517,7 @@ Content-Type: application/json
             "content": "评论内容",
             "likeCount": "10",
             "createTime": 1702195200000,
+            "createTimeText": "2023-12-10 16:00",
             "ipLocation": "北京",
             "liked": false,
             "userInfo": {
@@ -529,6 +531,7 @@ Content-Type: application/json
                 "id": "sub_comment_id_1",
                 "content": "子评论内容",
                 "createTime": 1702195300000,
+                "createTimeText": "2023-12-10 16:01",
                 "userInfo": {
                   "nickname": "回复者昵称"
                 }
