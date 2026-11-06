@@ -29,11 +29,34 @@ func (a *LoginAction) CheckLoginStatus(ctx context.Context) (bool, error) {
 		return false, errors.Wrap(err, "check login status failed")
 	}
 
-	if !exists {
-		return false, errors.Wrap(err, "login status element not found")
+	if exists {
+		return true, nil
 	}
 
-	return true, nil
+	// 回退：DOM selector 受页面结构/加载时序影响（见 issue #838，Cookie 有效时仍可能
+	// 找不到该元素）。改为读取页面注水的 __INITIAL_STATE__，登录判定与 CurrentUser
+	// 一致：有 userInfo 且非 guest 才视为已登录；状态尚未注水时按未登录返回，不报错。
+	loggedIn, err := a.pageStateLoggedIn(pp)
+	if err != nil {
+		return false, errors.Wrap(err, "check login status via page state failed")
+	}
+
+	return loggedIn, nil
+}
+
+// pageStateLoggedIn 从 __INITIAL_STATE__ 判断登录态。抽取自 CurrentUser 的内联脚本，
+// 供 selector 失效时的回退检测复用；guest 会话与未注水状态均返回 false。
+func (a *LoginAction) pageStateLoggedIn(pp *rod.Page) (bool, error) {
+	res, err := pp.Eval(`() => {
+		const u = window.__INITIAL_STATE__ && window.__INITIAL_STATE__.user;
+		const info = u && u.userInfo && u.userInfo.value !== undefined ? u.userInfo.value : (u && u.userInfo);
+		if (!info || info.guest) return "false";
+		return "true";
+	}`)
+	if err != nil {
+		return false, err
+	}
+	return res.Value.String() == "true", nil
 }
 
 // CurrentUser 当前登录用户的基础信息。
