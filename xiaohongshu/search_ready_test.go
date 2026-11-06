@@ -1,8 +1,11 @@
 package xiaohongshu
 
 import (
+	"context"
+	"errors"
 	"testing"
 
+	"github.com/go-rod/rod/lib/cdp"
 	"github.com/stretchr/testify/require"
 )
 
@@ -56,5 +59,24 @@ func TestIsSearchNotesURL(t *testing.T) {
 		"://invalid",
 	} {
 		require.False(t, isSearchNotesURL(raw), raw)
+	}
+}
+
+// TestIsTransientContextError 跳转期间执行上下文会短暂失效，这类错误应当重试；
+// 其余错误（尤其是 deadline）必须原样返回给调用方。
+func TestIsTransientContextError(t *testing.T) {
+	for _, err := range []error{
+		cdp.ErrCtxNotFound,
+		cdp.ErrCtxDestroyed,
+		cdp.ErrObjNotFound,
+	} {
+		require.True(t, isTransientContextError(err), "%v 应判为瞬时错误", err)
+	}
+	for _, err := range []error{
+		context.DeadlineExceeded,
+		context.Canceled,
+		errors.New("boom"),
+	} {
+		require.False(t, isTransientContextError(err), "%v 不应判为瞬时错误", err)
 	}
 }

@@ -125,6 +125,13 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 	stop()
 	humanize.Delay(ctx, humanize.AfterNavigate)
 
+	// 等待结束到读结果之间还有一段延迟（生产环境 600ms~6s）。风控的重定向
+	// 可能正好落在这段窗口里：结果此时已经就绪，但页面已经被换掉。
+	// 这里再判一次，避免后面读到空结果，或筛选交互在验证页上死等。
+	if blocked := CheckPageBlocked(page); blocked != nil {
+		return nil, blocked
+	}
+
 	if len(pending) > 0 {
 		// 悬停在筛选按钮上展开面板
 		filterButton := page.MustElement(`div.filter`)
@@ -182,6 +189,10 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 	}`).String()
 
 	if result == "" {
+		// 跳转若发生在筛选交互期间，ErrNoFeeds 同样会把真正原因盖掉。
+		if blocked := CheckPageBlocked(page); blocked != nil {
+			return nil, blocked
+		}
 		return nil, errors.ErrNoFeeds
 	}
 

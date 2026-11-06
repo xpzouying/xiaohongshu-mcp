@@ -17,6 +17,7 @@ import (
 	"github.com/go-rod/rod/lib/launcher"
 	"github.com/go-rod/rod/lib/proto"
 	"github.com/stretchr/testify/require"
+	"github.com/xpzouying/xiaohongshu-mcp/errors"
 	"github.com/xpzouying/xiaohongshu-mcp/humanize"
 )
 
@@ -48,23 +49,32 @@ func newSearchFixtureBrowser(t *testing.T, wrapClient ...func(rod.CDPClient) rod
 	return b
 }
 
-type searchFixtureTiming struct{}
+type searchFixtureTiming struct {
+	afterNavigate time.Duration
+}
 
-func (searchFixtureTiming) Timing() humanize.TimingProfile {
+func (t searchFixtureTiming) Timing() humanize.TimingProfile {
+	d := t.afterNavigate
+	if d == 0 {
+		d = time.Millisecond
+	}
 	return humanize.TimingProfile{
-		humanize.AfterNavigate: {Mu: -7, Min: time.Millisecond, Max: time.Millisecond},
+		humanize.AfterNavigate: {Mu: -7, Min: d, Max: d},
 	}
 }
 
 func TestSearchReadyLocal(t *testing.T) {
 	b := newSearchFixtureBrowser(t)
-	humanize.SetProvider(searchFixtureTiming{})
-	t.Cleanup(func() { humanize.SetProvider(humanize.DefaultProvider{}) })
 
 	cases := []struct {
-		name    string
-		want    int
-		wantErr string
+		name     string
+		want     int
+		wantErr  string
+		wantIs   error
+		deadline time.Duration
+		// afterNavigate 模拟生产里的导航后停顿（600ms~6s）。
+		// 风控的重定向可能正好落在这段窗口里，必须能单独覆盖。
+		afterNavigate time.Duration
 	}{
 		{name: "background", want: 1},
 		{name: "dom", want: 1},
@@ -85,9 +95,29 @@ func TestSearchReadyLocal(t *testing.T) {
 		{name: "network_error", wantErr: "搜索请求未完成"},
 		{name: "invalid_response", wantErr: "解析搜索响应"},
 		{name: "never_ready", wantErr: "context deadline exceeded"},
+
+		// 风控是延迟重定向：导航返回时页面还是搜索页，几百毫秒后主框架才被换掉。
+		// 这两条覆盖「跳转发生在等待期间」——只在导航后判一次是抓不到的。
+		{name: "redirect_captcha", wantIs: errors.ErrVerificationRequired, deadline: 3500 * time.Millisecond},
+		{name: "redirect_login", wantIs: errors.ErrLoginRequired, deadline: 3500 * time.Millisecond},
+		// 立刻替换：等价于导航直接落在验证页/登录页。
+		{name: "redirect_captcha_now", wantIs: errors.ErrVerificationRequired, deadline: 3500 * time.Millisecond},
+		{name: "redirect_login_now", wantIs: errors.ErrLoginRequired, deadline: 3500 * time.Millisecond},
+		// 结果已就绪、搜索「成功」之后，风控才把页面换掉——落在 Search 的
+		// AfterNavigate 延迟窗口里。这是上一版真正的漏网点：测试把该延迟压成
+		// 1ms，正好绕开它，于是这里退回 ErrNoFeeds 也没人发现。
+		{
+			name:          "ready_then_redirect_captcha",
+			wantIs:        errors.ErrVerificationRequired,
+			deadline:      3500 * time.Millisecond,
+			afterNavigate: time.Second,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			humanize.SetProvider(searchFixtureTiming{afterNavigate: tc.afterNavigate})
+			t.Cleanup(func() { humanize.SetProvider(humanize.DefaultProvider{}) })
+
 			page := b.MustPage()
 			done := make(chan struct{})
 			router := page.HijackRequests()
@@ -149,11 +179,27 @@ func TestSearchReadyLocal(t *testing.T) {
 				_ = router.Stop()
 			})
 
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			deadline := tc.deadline
+			if deadline == 0 {
+				deadline = 2 * time.Second
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), deadline)
 			defer cancel()
 			var feeds []Feed
 			var err error
+			start := time.Now()
 			require.NotPanics(t, func() { feeds, err = NewSearchAction(page).Search(ctx, tc.name) })
+			elapsed := time.Since(start)
+
+			if tc.wantIs != nil {
+				// 必须能被 errors.Is 识别，调用方才能分流（引导扫码 vs 重新登录）。
+				require.ErrorIs(t, err, tc.wantIs)
+				// 必须在 deadline 前退出，而不是耗到超时只报一句 context deadline exceeded。
+				require.NotErrorIs(t, err, context.DeadlineExceeded)
+				require.Less(t, elapsed, 2*time.Second,
+					"应在 deadline 之前退出，实际 %v（deadline %v）", elapsed, deadline)
+				return
+			}
 			if tc.wantErr != "" {
 				require.ErrorContains(t, err, tc.wantErr)
 				return
@@ -167,7 +213,22 @@ func TestSearchReadyLocal(t *testing.T) {
 	}
 }
 
+// redirectFixtureHTML 风控重定向页：刻意不设置 window.__INITIAL_STATE__，
+// 与真实的验证页/登录页一致——那里永远等不到搜索结果。
+var redirectFixtureHTML = map[string]string{
+	"redirect_captcha": `<!doctype html><meta charset="utf-8"><script>setTimeout(() => location.replace('/website-login/captcha'), 500)</script>`,
+	// 登录页带上真实的 redirectPath 查询串：路径仍是登录页，不能被其中的
+	// captcha 字样带偏。这样 JS 侧改成 location.href 或子串匹配都会被抓到。
+	"redirect_login":       `<!doctype html><meta charset="utf-8"><script>setTimeout(() => location.replace('/website-login/?redirectPath=/website-login/captcha'), 500)</script>`,
+	"redirect_captcha_now": `<!doctype html><meta charset="utf-8"><script>setTimeout(() => location.replace('/website-login/captcha'), 0)</script>`,
+	"redirect_login_now":   `<!doctype html><meta charset="utf-8"><script>setTimeout(() => location.replace('/website-login/'), 0)</script>`,
+}
+
 func searchFixtureHTML(name string) string {
+	if html, ok := redirectFixtureHTML[name]; ok {
+		return html
+	}
+
 	keyword, _ := json.Marshal(name)
 	return fmt.Sprintf(`<!doctype html><meta charset="utf-8"><div id="clock"></div>
 <script>
@@ -220,6 +281,10 @@ const request = (keyword, page = 1) => fetch('/api/sns/web/v2/search/notes', {
     }
     setFeeds([{id: 'expected', modelType: 'note', noteCard: {displayTitle: 'local fixture'}}]);
     search.search.state._value = 'success';
+    if (mode === 'ready_then_redirect_captcha') {
+        // 结果已就绪之后才被风控换页，落在 Search 的 AfterNavigate 延迟窗口里。
+        setTimeout(() => location.replace('/website-login/captcha'), 300);
+    }
 })().catch(() => {search.search.state._value = 'error'});
 </script>`, keyword)
 }
