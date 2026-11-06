@@ -7,8 +7,8 @@ publishing articles on Xiaohongshu (RED) creator center.
 CLI usage:
     # Basic commands (image-text mode)
     python cdp_publish.py check-login [--headless] [--account NAME]
-    python cdp_publish.py fill --title "标题" --content "正文" --images img1.jpg [--headless] [--account NAME]
-    python cdp_publish.py publish --title "标题" --content "正文" --images img1.jpg [--headless] [--account NAME]
+    python cdp_publish.py fill --title "标题" --content "正文" [--images img1.jpg] [--headless] [--account NAME]
+    python cdp_publish.py publish --title "标题" --content "正文" [--images img1.jpg] [--headless] [--account NAME]
     python cdp_publish.py click-publish [--headless] [--account NAME]
 
     # Long article mode
@@ -32,7 +32,7 @@ Library usage:
     publisher.publish(
         title="Article title",
         content="Article body text",
-        image_paths=["/path/to/img1.jpg", "/path/to/img2.jpg"],
+        image_paths=None,  # omit images to use Xiaohongshu official text-cover feature
     )
 """
 
@@ -75,7 +75,10 @@ SELECTORS = {
     # Upload area - the file input element for images (visible after clicking tab)
     "upload_input": "input.upload-input",
     "upload_input_alt": 'input[type="file"]',
-    # Title input field (visible after image upload)
+    # Official text-cover flow, used when image-text mode has no images.
+    "text_cover_text": "文字配图",
+    "text_cover_input": 'textarea, input[type="text"], div[contenteditable="true"]',
+    # Title input field (visible after image upload or text-cover creation)
     "title_input": 'input[placeholder*="填写标题"]',
     "title_input_alt": "input.d-text",
     # Content editor area - TipTap/ProseMirror contenteditable div
@@ -365,6 +368,267 @@ class XiaohongshuPublisher:
         print("[cdp_publish] Images uploaded. Waiting for editor to appear...")
         time.sleep(UPLOAD_WAIT)
 
+    def _click_visible_text(self, texts: list[str], exact: bool = False) -> bool:
+        """Click the first visible clickable element matching any text."""
+        texts_json = json.dumps(texts, ensure_ascii=False)
+        exact_json = json.dumps(exact)
+        return bool(self._evaluate(f"""
+            (function() {{
+                var texts = {texts_json};
+                var exact = {exact_json};
+                function visible(el) {{
+                    var style = window.getComputedStyle(el);
+                    var rect = el.getBoundingClientRect();
+                    return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+                }}
+                function disabled(el) {{
+                    return el.disabled || el.getAttribute('aria-disabled') === 'true' || String(el.className || '').indexOf('disabled') >= 0;
+                }}
+                function match(text, target) {{
+                    text = text.replace(/\\s+/g, ' ').trim();
+                    return exact ? text === target : text.indexOf(target) >= 0;
+                }}
+                var matches = [];
+                var nodes = Array.prototype.slice.call(document.querySelectorAll('button, [role="button"], a, div, span'));
+                for (var i = 0; i < nodes.length; i++) {{
+                    var node = nodes[i];
+                    if (!visible(node) || disabled(node)) continue;
+                    var text = node.textContent || '';
+                    for (var j = 0; j < texts.length; j++) {{
+                        if (!match(text, texts[j])) continue;
+                        var clickable = node.closest('button, [role="button"], a') || node;
+                        if (!visible(clickable) || disabled(clickable)) continue;
+                        matches.push({{ el: clickable, length: text.replace(/\\s+/g, ' ').trim().length }});
+                        break;
+                    }}
+                }}
+                if (!matches.length) return false;
+                matches.sort(function(a, b) {{ return a.length - b.length; }});
+                matches[0].el.click();
+                return true;
+            }})();
+        """))
+
+    def _fill_official_text_cover_input(self, title: str) -> bool:
+        """Fill Xiaohongshu official text-cover input with the note title."""
+        escaped_title = json.dumps(title)
+        selector = SELECTORS["text_cover_input"]
+        return bool(self._evaluate(f"""
+            (function() {{
+                var value = {escaped_title};
+                function visible(el) {{
+                    var style = window.getComputedStyle(el);
+                    var rect = el.getBoundingClientRect();
+                    return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+                }}
+                function score(el) {{
+                    var placeholder = el.getAttribute('placeholder') || '';
+                    var aria = el.getAttribute('aria-label') || '';
+                    var text = (placeholder + ' ' + aria + ' ' + (el.textContent || '')).trim();
+                    if (placeholder.indexOf('填写标题') >= 0) return -10;
+                    if (text.indexOf('文字配图') >= 0) return 20;
+                    if (text.indexOf('文字') >= 0) return 15;
+                    if (text.indexOf('配图') >= 0) return 15;
+                    if (text.indexOf('输入') >= 0 || text.indexOf('请输入') >= 0) return 8;
+                    return 1;
+                }}
+                var candidates = Array.prototype.slice.call(document.querySelectorAll('{selector}'))
+                    .filter(function(el) {{ return visible(el) && !el.disabled && score(el) > 0; }})
+                    .sort(function(a, b) {{ return score(b) - score(a); }});
+                if (!candidates.length) return false;
+                var el = candidates[0];
+                el.focus();
+                if (el.isContentEditable) {{
+                    el.textContent = value;
+                }} else if (el.tagName === 'TEXTAREA') {{
+                    var textSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
+                    textSetter.call(el, value);
+                }} else {{
+                    var inputSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+                    inputSetter.call(el, value);
+                }}
+                el.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                el.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                return true;
+            }})();
+        """))
+
+    def _publish_editor_ready(self) -> bool:
+        """Return true when title input and content editor are available."""
+        return bool(self._evaluate(f"""
+            !!(document.querySelector('{SELECTORS["title_input"]}') || document.querySelector('{SELECTORS["title_input_alt"]}')) &&
+            !!(document.querySelector('{SELECTORS["content_editor"]}') || document.querySelector('{SELECTORS["content_editor_alt"]}'))
+        """))
+
+    def _wait_publish_editor_ready(self, timeout: int = 20) -> bool:
+        """Wait until the image-text publish editor appears."""
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if self._publish_editor_ready():
+                return True
+            time.sleep(1)
+        return False
+
+    def _click_selector(self, selector: str) -> bool:
+        """Dispatch a full click sequence on the first visible element matching selector."""
+        selector_json = json.dumps(selector)
+        return bool(self._evaluate(f"""
+            (function() {{
+                var selector = {selector_json};
+                function visible(el) {{
+                    var style = window.getComputedStyle(el);
+                    var rect = el.getBoundingClientRect();
+                    return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+                }}
+                var elements = Array.prototype.slice.call(document.querySelectorAll(selector)).filter(visible);
+                if (!elements.length) return false;
+                var el = elements[0];
+                el.scrollIntoView({{ block: 'center', inline: 'center' }});
+                var rect = el.getBoundingClientRect();
+                var opts = {{
+                    bubbles: true,
+                    cancelable: true,
+                    composed: true,
+                    view: window,
+                    clientX: rect.x + rect.width / 2,
+                    clientY: rect.y + rect.height / 2,
+                    button: 0,
+                    buttons: 1,
+                }};
+                ['pointerover', 'pointerenter', 'mouseover', 'mouseenter', 'pointermove', 'mousemove', 'pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach(function(type) {{
+                    var Ctor = type.indexOf('pointer') === 0 && window.PointerEvent ? PointerEvent : MouseEvent;
+                    el.dispatchEvent(new Ctor(type, opts));
+                }});
+                return true;
+            }})();
+        """))
+
+    def _select_random_text_cover_card(self) -> bool:
+        """Randomly choose one non-default official text-cover card and click next."""
+        result = self._evaluate(r"""
+            (async function() {
+                function visible(el) {
+                    var style = window.getComputedStyle(el);
+                    var rect = el.getBoundingClientRect();
+                    return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+                }
+                function selected(el) {
+                    var className = String(el.className || '');
+                    return /active|selected|current|checked|choose|chosen/i.test(className) ||
+                        el.getAttribute('aria-selected') === 'true' ||
+                        el.getAttribute('data-selected') === 'true';
+                }
+                function clickElement(el) {
+                    el.scrollIntoView({ block: 'center', inline: 'center' });
+                    var rect = el.getBoundingClientRect();
+                    var x = rect.x + rect.width / 2;
+                    var y = rect.y + rect.height / 2;
+                    var hit = document.elementFromPoint(x, y);
+                    var target = hit && hit.closest && hit.closest('.cover-item') ? hit : el;
+                    var opts = {
+                        bubbles: true,
+                        cancelable: true,
+                        composed: true,
+                        view: window,
+                        clientX: x,
+                        clientY: y,
+                        button: 0,
+                        buttons: 1,
+                    };
+                    ['pointerover', 'pointerenter', 'mouseover', 'mouseenter', 'pointermove', 'mousemove', 'pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach(function(type) {
+                        var Ctor = type.indexOf('pointer') === 0 && window.PointerEvent ? PointerEvent : MouseEvent;
+                        target.dispatchEvent(new Ctor(type, opts));
+                    });
+                }
+                function sleep(ms) {
+                    return new Promise(function(resolve) { setTimeout(resolve, ms); });
+                }
+
+                var cards = Array.prototype.slice.call(document.querySelectorAll('.cover-item')).filter(visible);
+                if (!cards.length) return { ok: false, reason: 'no cards' };
+
+                var selectedIndex = cards.findIndex(selected);
+                var candidates = cards.map(function(card, index) { return { card: card, index: index }; });
+                if (cards.length > 1) {
+                    // 第 0 张通常是默认卡片；没有明确选中态时也避开它。
+                    candidates = candidates.filter(function(item) {
+                        return item.index !== (selectedIndex >= 0 ? selectedIndex : 0);
+                    });
+                }
+                if (!candidates.length) {
+                    candidates = cards.map(function(card, index) { return { card: card, index: index }; });
+                }
+
+                var item = candidates[Math.floor(Math.random() * candidates.length)];
+                clickElement(item.card);
+                await sleep(800);
+
+                var afterIndex = cards.findIndex(selected);
+                var next = document.querySelector('.overview-footer button') ||
+                    Array.prototype.slice.call(document.querySelectorAll('button')).find(function(btn) {
+                        return visible(btn) && (btn.innerText || btn.textContent || '').indexOf('下一步') >= 0;
+                    });
+                if (!next) return { ok: false, reason: 'no next button', chosenIndex: item.index, selectedIndex: afterIndex };
+
+                clickElement(next);
+                return {
+                    ok: true,
+                    chosenIndex: item.index,
+                    selectedIndex: afterIndex,
+                    text: (item.card.innerText || item.card.textContent || '').replace(/\s+/g, ' ').trim(),
+                };
+            })();
+        """)
+        if isinstance(result, dict) and result.get("ok"):
+            print(
+                "[cdp_publish] Selected official text-cover card "
+                f"#{result.get('chosenIndex')} {result.get('text') or ''}".strip()
+            )
+            return True
+        print(f"[cdp_publish] Failed to select official text-cover card: {result}")
+        return False
+
+    def _create_official_text_cover(self, title: str):
+        """Use Xiaohongshu's official '文字配图' feature when no image is provided."""
+        print("[cdp_publish] Using official '文字配图' feature...")
+
+        if not self._click_visible_text([SELECTORS["text_cover_text"]]):
+            raise CDPError("Could not find official '文字配图' entry on the publish page.")
+        time.sleep(1)
+
+        if not self._fill_official_text_cover_input(title):
+            raise CDPError("Could not find official text-cover input. The page structure may have changed.")
+
+        for _ in range(5):
+            if self._publish_editor_ready():
+                print("[cdp_publish] Official text cover created.")
+                return
+            page_text = self._evaluate("document.body.innerText || ''")
+            if "选择一个喜欢的卡片" in page_text:
+                break
+            if not self._click_selector('.edit-text-button'):
+                self._click_visible_text(["生成图片", "生成配图"])
+            time.sleep(2)
+
+        for _ in range(20):
+            if self._publish_editor_ready():
+                print("[cdp_publish] Official text cover created.")
+                return
+            page_text = self._evaluate("document.body.innerText || ''")
+            if "选择一个喜欢的卡片" in page_text:
+                if not self._select_random_text_cover_card():
+                    raise CDPError("Could not select an official text-cover card.")
+                time.sleep(2)
+            else:
+                self._click_visible_text(["完成", "确认", "使用", "下一步"])
+                time.sleep(1)
+
+        if self._wait_publish_editor_ready(timeout=8):
+            print("[cdp_publish] Official text cover created.")
+            return
+
+        raise CDPError("Official text-cover flow did not reach the publish editor.")
+
     def _fill_title(self, title: str):
         """Fill in the article title."""
         print(f"[cdp_publish] Setting title: {title[:40]}...")
@@ -429,7 +693,18 @@ class XiaohongshuPublisher:
 
         btn_text = SELECTORS["publish_button_text"]
         clicked = self._evaluate(f"""
-            (function() {{
+            (async function() {{
+                var widget = document.querySelector('xhs-publish-btn');
+                if (widget && widget.getAttribute('submit-disabled') !== 'true') {{
+                    if (typeof widget._onPublish === 'function') {{
+                        var ret = widget._onPublish();
+                        if (ret && typeof ret.then === 'function') await ret;
+                        return true;
+                    }}
+                    widget.click();
+                    return true;
+                }}
+
                 // Strategy 1: search <button> elements by text
                 var buttons = document.querySelectorAll('button');
                 for (var i = 0; i < buttons.length; i++) {{
@@ -774,20 +1049,17 @@ class XiaohongshuPublisher:
         Execute the full publish workflow:
         1. Navigate to creator publish page
         2. Click '上传图文' tab
-        3. Upload images (this triggers the editor to appear)
+        3. Upload images, or use official '文字配图' when images are omitted
         4. Fill title
         5. Fill content
 
         Args:
             title: Article title
             content: Article body text (paragraphs separated by newlines)
-            image_paths: List of local file paths to images to upload
+            image_paths: Optional list of local file paths to images to upload
         """
         if not self.ws:
             raise CDPError("Not connected. Call connect() first.")
-
-        if not image_paths:
-            raise CDPError("At least one image is required to publish on Xiaohongshu.")
 
         # Step 1: Navigate to publish page
         self._navigate(XHS_CREATOR_URL)
@@ -796,8 +1068,11 @@ class XiaohongshuPublisher:
         # Step 2: Click '上传图文' tab
         self._click_image_text_tab()
 
-        # Step 3: Upload images (editor appears after upload)
-        self._upload_images(image_paths)
+        # Step 3: Upload images, or use official text-cover flow when no image is provided.
+        if image_paths:
+            self._upload_images(image_paths)
+        else:
+            self._create_official_text_cover(title)
 
         # Step 4: Fill title
         self._fill_title(title)
@@ -834,14 +1109,14 @@ def main():
     p_fill.add_argument("--title", required=True)
     p_fill.add_argument("--content", default=None)
     p_fill.add_argument("--content-file", default=None, help="Read content from file")
-    p_fill.add_argument("--images", nargs="+", required=True)
+    p_fill.add_argument("--images", nargs="*", default=None)
 
     # publish - fill form and click publish
     p_pub = sub.add_parser("publish", help="Fill form and click publish")
     p_pub.add_argument("--title", required=True)
     p_pub.add_argument("--content", default=None)
     p_pub.add_argument("--content-file", default=None, help="Read content from file")
-    p_pub.add_argument("--images", nargs="+", required=True)
+    p_pub.add_argument("--images", nargs="*", default=None)
 
     # long-article - long article mode
     p_long = sub.add_parser("long-article", help="Fill long article content with auto-format and template selection")
