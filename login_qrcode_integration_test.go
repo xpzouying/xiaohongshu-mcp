@@ -18,7 +18,8 @@ import (
 	"github.com/xpzouying/xiaohongshu-mcp/configs"
 )
 
-func TestLoginQrcodeClosesBrowserOnNavigationPanic(t *testing.T) {
+// 导航失败时取码返回错误（不再 panic），浏览器同样要被关闭。
+func TestLoginQrcodeClosesBrowserOnNavigationFailure(t *testing.T) {
 	// 首次下载浏览器的时间不计入取码超时。
 	_, err := browser.EnsureBrowser()
 	require.NoError(t, err)
@@ -44,7 +45,8 @@ func TestLoginQrcodeClosesBrowserOnNavigationPanic(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
-	require.Panics(t, func() { NewXiaohongshuService().GetLoginQrcode(ctx) })
+	require.NotPanics(t, func() { _, err = NewXiaohongshuService().GetLoginQrcode(ctx) })
+	require.Error(t, err)
 	require.True(t, sawNavigation.Load())
 	// rod 在浏览器退出后才删除 profile。
 	_, err = os.Lstat(profileDir)
