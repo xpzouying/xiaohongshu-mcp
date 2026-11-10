@@ -126,6 +126,11 @@ func submitPublishVideo(ctx context.Context, page *rod.Page, title, content stri
 		return errors.Wrap(err, "输入正文失败")
 	}
 	tryRefocusTitle(page)
+	if len(tags) > 0 {
+		if err := startEditorTail(contentElem); err != nil {
+			return err
+		}
+	}
 	if err := inputTags(ctx, contentElem, tags); err != nil {
 		return err
 	}
