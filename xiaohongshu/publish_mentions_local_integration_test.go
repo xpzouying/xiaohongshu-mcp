@@ -6,6 +6,8 @@
 package xiaohongshu
 
 import (
+	"fmt"
+	"html"
 	"os"
 	"strings"
 	"testing"
@@ -120,7 +122,7 @@ func TestInputMentionLocal(t *testing.T) {
 		require.Equal(t, "1", page.MustEval("() => document.body.dataset.replaced || ''").String())
 	})
 
-	t.Run("点中候选但节点结构未识别时只告警", func(t *testing.T) {
+	t.Run("点中候选但节点结构未识别时阻断", func(t *testing.T) {
 		page := b.MustPage("about:blank").Timeout(20 * time.Second)
 		defer page.Close()
 		page.MustSetDocumentContent(mentionMockPage)
@@ -133,12 +135,12 @@ func TestInputMentionLocal(t *testing.T) {
 		}`)
 
 		editor := page.MustElement("#editor")
-		require.NoError(t, inputMentions(page.GetContext(), editor, []string{"小明"}),
-			"结构未识别不应阻断发布")
+		require.Error(t, inputMentions(page.GetContext(), editor, []string{"小明"}),
+			"未确认插入结果时必须阻断发布")
 		require.Equal(t, "小明", page.MustEval("() => document.body.dataset.picked || ''").String())
 	})
 
-	t.Run("插入节点的昵称与请求不一致时校验失败但不阻断", func(t *testing.T) {
+	t.Run("插入节点的昵称与请求不一致时阻断", func(t *testing.T) {
 		page := b.MustPage("about:blank").Timeout(20 * time.Second)
 		defer page.Close()
 		page.MustSetDocumentContent(mentionMockPage)
@@ -157,9 +159,20 @@ func TestInputMentionLocal(t *testing.T) {
 		}`)
 
 		editor := page.MustElement("#editor")
-		require.NoError(t, inputMentions(page.GetContext(), editor, []string{"小明"}),
-			"校验不一致只告警，不应阻断发布")
+		require.ErrorContains(t, inputMentions(page.GetContext(), editor, []string{"小明"}),
+			"插入的@节点与请求不一致")
 		require.Equal(t, "小明", page.MustEval("() => document.body.dataset.picked || ''").String())
+	})
+
+	t.Run("同名但ID不匹配时阻断", func(t *testing.T) {
+		page := b.MustPage("about:blank").Timeout(20 * time.Second)
+		defer page.Close()
+		page.MustSetDocumentContent(mentionMockPage)
+		page.MustEval(jsMentionPick)
+
+		err := inputMentions(page.GetContext(), page.MustElement("#editor"),
+			[]string{"小明|0123456789abcdef01234567"})
+		require.ErrorContains(t, err, "插入的@节点与请求不一致")
 	})
 
 	t.Run("只给 user_id 时用 id 搜索并取第一个候选", func(t *testing.T) {
@@ -189,21 +202,6 @@ func TestInputMentionLocal(t *testing.T) {
 			page.MustEval(`() => JSON.parse(document.querySelector('a.tiptap-at').getAttribute('data-user')).userId`).String())
 	})
 
-	t.Run("insertedMentionMatches 以 user_id 为准", func(t *testing.T) {
-		page := b.MustPage("about:blank").Timeout(20 * time.Second)
-		defer page.Close()
-		page.MustSetDocumentContent(`<a class="tiptap-at" id="m" contenteditable="false"
-			data-user='{"userId":"0123456789abcdef01234567","nickname":"张三"}'>@张三</a>`)
-
-		node := page.MustElement("#m")
-		require.True(t, insertedMentionMatches(node, atTarget{
-			Name: "张三", UserID: "0123456789abcdef01234567"}), "id 一致应通过")
-		require.False(t, insertedMentionMatches(node, atTarget{
-			Name: "张三", UserID: "568beaa5e4251d66da7ca2af"}), "id 不一致必须判失败")
-		require.True(t, insertedMentionMatches(node, atTarget{Name: "张三"}), "只给昵称时按昵称校验")
-		require.False(t, insertedMentionMatches(node, atTarget{Name: "别人"}), "昵称不一致必须判失败")
-	})
-
 	t.Run("空昵称被跳过", func(t *testing.T) {
 		page := b.MustPage("about:blank").Timeout(20 * time.Second)
 		defer page.Close()
@@ -213,4 +211,62 @@ func TestInputMentionLocal(t *testing.T) {
 		require.NoError(t, inputMentions(page.GetContext(), editor, []string{"", "  ", "@"}))
 		require.Equal(t, "", strings.TrimSpace(editor.MustProperty("textContent").String()))
 	})
+}
+
+// 没有候选时会重试两次，每次只能删除刚输入的 @ 和查询词。
+func TestInputMentionRetryLocal(t *testing.T) {
+	b := newMentionFixtureBrowser(t)
+	page := b.MustPage("about:blank").Timeout(45 * time.Second)
+	defer page.Close()
+	page.MustSetDocumentContent(`<div id="editor" contenteditable="true"></div>`)
+	editor := page.MustElement("#editor")
+	require.NoError(t, editor.Input("原文X"))
+	const userID = "0123456789abcdef01234567"
+
+	err := inputMentions(page.GetContext(), editor, []string{userID})
+	require.ErrorContains(t, err, "没能搜到候选用户")
+	require.Equal(t, "原文X@"+userID, editor.MustText(), "重试不得删除已有正文")
+}
+
+// 静态页面覆盖身份和数量校验；TestInputMentionLocal 验证错误传回输入入口。
+func TestVerifyInsertedMentionIdentityLocal(t *testing.T) {
+	b := newMentionFixtureBrowser(t)
+	const userID = "0123456789abcdef01234567"
+	tests := []struct {
+		name    string
+		target  string
+		attr    string
+		count   int
+		wantErr bool
+	}{
+		{"正确ID允许昵称变化", "小明|" + userID, `{"userId":"0123456789abcdef01234567","nickname":"新昵称"}`, 1, false},
+		{"同名错误ID", "小明|" + userID, `{"userId":"aaaaaaaaaaaaaaaaaaaaaaaa","nickname":"小明"}`, 1, true},
+		{"只有ID时选到错误用户", userID, `{"userId":"aaaaaaaaaaaaaaaaaaaaaaaa","nickname":"小明"}`, 1, true},
+		{"同名但缺少ID", "小明|" + userID, `{"nickname":"小明"}`, 1, true},
+		{"同名但空ID", "小明|" + userID, `{"userId":"","nickname":"小明"}`, 1, true},
+		{"同名但属性损坏", "小明|" + userID, `not-json`, 1, true},
+		{"同名但属性缺失", "小明|" + userID, "", 1, true},
+		{"额外插入节点", "小明|" + userID, `{"userId":"0123456789abcdef01234567","nickname":"小明"}`, 2, true},
+		{"只给昵称匹配", "小明", `{"userId":"0123456789abcdef01234567","nickname":"小明"}`, 1, false},
+		{"只给昵称不匹配", "别人", `{"userId":"0123456789abcdef01234567","nickname":"小明"}`, 1, true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			page := b.MustPage("about:blank").Timeout(20 * time.Second)
+			defer page.Close()
+			attr := ""
+			if tc.attr != "" {
+				attr = fmt.Sprintf(` data-user="%s"`, html.EscapeString(tc.attr))
+			}
+			node := fmt.Sprintf(`<a class="tiptap-at" contenteditable="false"%s>@小明</a>`, attr)
+			page.MustSetDocumentContent(`<div id="editor">` + strings.Repeat(node, tc.count) + `</div>`)
+
+			err := verifyInsertedMention(page.MustElement("#editor"), 0, parseAtTarget(tc.target))
+			if tc.wantErr {
+				require.Error(t, err, "身份或节点数量未确认时必须阻断发布")
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }

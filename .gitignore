@@ -53,6 +53,3 @@ docker/docker-compose.override.yml
 # 本地分析/调试产物，不进仓库
 debug/
 .worktrees/
-
-# WorkBuddy 本地工作记录/探测产物
-.workbuddy/

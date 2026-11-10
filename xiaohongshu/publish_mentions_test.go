@@ -1,9 +1,6 @@
 package xiaohongshu
 
-import (
-	"strings"
-	"testing"
-)
+import "testing"
 
 func TestMentionTextMatches(t *testing.T) {
 	tests := []struct {
@@ -47,9 +44,6 @@ func TestMentionAttrMatches(t *testing.T) {
 	u, ok := parseMentionUser(attr)
 	if !ok || u.UserID != "0123456789abcdef01234567" || u.Nickname != "张三" {
 		t.Fatalf("解析 data-user 失败: %+v ok=%v", u, ok)
-	}
-	if !strings.EqualFold(u.UserID, "0123456789ABCDEF01234567") {
-		t.Fatal("user_id 比对应大小写不敏感")
 	}
 	if _, ok := parseMentionUser(`not-json`); ok {
 		t.Fatal("非法 JSON 不应解析成功")

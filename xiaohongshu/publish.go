@@ -66,11 +66,6 @@ var mentionItemContainers = []string{
 	"div.mention-container",
 }
 
-// mentionItemNameSelectors 联想项里昵称节点的候选选择器。
-// 真实 DOM 的昵称是夹在头像 img 之间的纯文本节点，没有这些类名；
-// 保留在这里只是给未来改版留个钩子，当前实际走 mentionItemName 的整行文本兜底。
-var mentionItemNameSelectors = []string{".name", ".nickname", ".user-name"}
-
 // mentionNodeQuery 编辑器里提及节点的候选选择器，只用于确认插入真的发生。
 // 真实结构（2026-11 真机探测）：<a class="tiptap-at" data-user='{"userId":"...","nickname":"..."}'
 // contenteditable="false">@昵称</a>。
@@ -792,8 +787,7 @@ func startEditorTail(contentElem *rod.Element) error {
 }
 
 // atTarget 一个 @ 目标。
-// 小红书联想框只能按昵称搜索（实测输入纯 user_id 候选数为 0），
-// 所以 Name 用来搜，UserID 用来在插入后核实「@ 的是不是这个人」。
+// Name 用于昵称搜索，UserID 用于插入后核实身份，也可单独作为查询词。
 type atTarget struct {
 	Name   string
 	UserID string
@@ -806,7 +800,7 @@ var userIDPattern = regexp.MustCompile(`^[0-9a-fA-F]{24}$`)
 //
 //	"昵称"                  —— 只按昵称搜，不做 id 校验
 //	"昵称|user_id"          —— 按昵称搜，插入后校验 user_id（推荐，防同名歧义）
-//	"user_id"               —— 只剩 id，无法搜索，调用方会报错
+//	"user_id"               —— 用 id 搜索，插入后校验 user_id
 func parseAtTarget(raw string) atTarget {
 	raw = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(raw), "@"))
 	if raw == "" {
@@ -856,8 +850,7 @@ func (t atTarget) describe() string {
 
 // inputMention 在正文里插入一个用户提及节点。
 //
-// 查询词：有昵称用昵称，只有 user_id 就直接用 id 搜——真机对照实验确认
-// 联想框会把 24 位 user_id 当查询词解析（乱码搜不到、id 能搜到对应的人）。
+// 查询词：有昵称用昵称，只有 user_id 就直接用 id 搜。
 // 只有 id 时不知道昵称，取第一个候选，插入后再用 data-user.userId 校验。
 //
 // 昵称搜不到时退回纯文本 @昵称并告警，不阻断发布（与话题标签同样的取舍）；
@@ -881,7 +874,7 @@ func inputMention(ctx context.Context, contentElem *rod.Element, target atTarget
 	for attempt := 0; attempt < attempts && !selected; attempt++ {
 		if attempt > 0 {
 			// 上一次没等到候选，清掉已输入的查询词再试
-			clearEditorInput(ctx, contentElem, len([]rune(query))+2)
+			clearEditorInput(ctx, contentElem, len([]rune(query))+1)
 			time.Sleep(300 * time.Millisecond)
 		}
 
@@ -912,11 +905,9 @@ func inputMention(ctx context.Context, contentElem *rod.Element, target atTarget
 		return humanize.Type(ctx, contentElem, " ")
 	}
 
-	// 结构没识别到时只告警：候选确实点中了，可能只是选择器过期，
-	// 此时中断发布会把能用的功能变成不可用。
+	// 点击候选不代表身份正确，必须确认插入结果后才能继续发布。
 	if err := verifyInsertedMention(contentElem, before, target); err != nil {
-		slog.Warn("已点中@候选，但未通过校验（选择器或 user_id 不匹配）",
-			"user", target.Name, "user_id", target.UserID, "error", err.Error())
+		return err
 	}
 	slog.Info("已插入@用户", "user", target.Name, "user_id", target.UserID)
 
@@ -975,11 +966,11 @@ func waitAndSelectFirstMention(page *rod.Page) (bool, error) {
 }
 
 func countMentionNodes(contentElem *rod.Element) int {
-	res, err := contentElem.Eval(`() => this.querySelectorAll('` + mentionNodeQuery + `').length`)
+	nodes, err := contentElem.Elements(mentionNodeQuery)
 	if err != nil {
 		return 0
 	}
-	return int(res.Value.Num())
+	return len(nodes)
 }
 
 // verifyInsertedMention 等编辑器把刚才的点击渲染成提及节点，数量必须比之前多 1，
@@ -990,8 +981,14 @@ func verifyInsertedMention(editor *rod.Element, previous int, target atTarget) e
 
 	for {
 		nodes, err := wait.Elements(mentionNodeQuery)
-		if err == nil && len(nodes) > previous {
-			if !insertedMentionMatches(nodes[len(nodes)-1], target) {
+		if err != nil {
+			return errors.Wrap(err, "读取编辑器提及节点失败")
+		}
+		if len(nodes) > previous {
+			if len(nodes) != previous+1 {
+				return errors.New("编辑器插入的@节点数量不符")
+			}
+			if !insertedMentionMatches(nodes[previous], target) {
 				return errors.Errorf("插入的@节点与请求不一致（昵称 %q，user_id %q）", target.Name, target.UserID)
 			}
 			return nil
@@ -1016,13 +1013,18 @@ type mentionUser struct {
 func insertedMentionMatches(node *rod.Element, target atTarget) bool {
 	if attr, err := node.Attribute("data-user"); err == nil && attr != nil {
 		if u, ok := parseMentionUser(*attr); ok {
-			if target.UserID != "" && u.UserID != "" {
+			if target.UserID != "" {
 				return strings.EqualFold(u.UserID, target.UserID)
 			}
 			if target.Name != "" && u.Nickname != "" {
 				return strings.EqualFold(strings.TrimSpace(u.Nickname), target.Name)
 			}
 		}
+	}
+
+	// 指定了 ID 时，缺失或损坏的身份信息不能退回昵称匹配。
+	if target.UserID != "" {
+		return false
 	}
 
 	text, err := node.Text()
@@ -1113,26 +1115,8 @@ func findMentionItem(page *rod.Page, name string) (*rod.Element, error) {
 	return nil, nil
 }
 
-// mentionItemName 取联想项展示的昵称。优先专用类名，退回到首行文本
-// （部分版本一行里是「昵称 12万粉丝」）。
+// mentionItemName 取联想项首行文本，真实昵称是夹在头像 img 之间的文本节点。
 func mentionItemName(item *rod.Element) (string, error) {
-	for _, sel := range mentionItemNameSelectors {
-		elems, err := item.Elements(sel)
-		if err != nil {
-			return "", err
-		}
-		if len(elems) == 0 {
-			continue
-		}
-		text, err := elems[0].Text()
-		if err != nil {
-			return "", err
-		}
-		if name := strings.TrimSpace(text); name != "" {
-			return name, nil
-		}
-	}
-
 	text, err := item.Text()
 	if err != nil {
 		return "", err
