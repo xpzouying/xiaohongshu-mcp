@@ -86,6 +86,7 @@ func TestInputTagsCreatesTopic(t *testing.T) {
 
 	closeFeatureGuide(action.page)
 	tryRefocusTitle(action.page)
+	require.NoError(t, startEditorTail(contentElem))
 	require.NoError(t, inputTags(ctx, contentElem, note.Tags))
 
 	if shot := os.Getenv("XHS_TEST_SHOT"); shot != "" {

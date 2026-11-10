@@ -127,6 +127,7 @@ func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]in
 	content, _ := args["content"].(string)
 	imagePathsInterface, _ := args["images"].([]interface{})
 	tagsInterface, _ := args["tags"].([]interface{})
+	atUsersInterface, _ := args["at_users"].([]interface{})
 	productsInterface, _ := args["products"].([]interface{})
 
 	var imagePaths []string
@@ -150,18 +151,26 @@ func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]in
 		}
 	}
 
+	var atUsers []string
+	for _, u := range atUsersInterface {
+		if uStr, ok := u.(string); ok {
+			atUsers = append(atUsers, uStr)
+		}
+	}
+
 	scheduleAt, _ := args["schedule_at"].(string)
 	visibility := parseVisibility(args)
 
 	isOriginal, _ := args["is_original"].(bool)
 
-	logrus.Infof("MCP: 发布内容 - 标题: %s, 图片数量: %d, 标签数量: %d, 定时: %s, 原创: %v, visibility: %s, 商品: %v", title, len(imagePaths), len(tags), scheduleAt, isOriginal, visibility, products)
+	logrus.Infof("MCP: 发布内容 - 标题: %s, 图片数量: %d, 标签数量: %d, @人数: %d, 定时: %s, 原创: %v, visibility: %s, 商品: %v", title, len(imagePaths), len(tags), len(atUsers), scheduleAt, isOriginal, visibility, products)
 
 	req := &PublishRequest{
 		Title:      title,
 		Content:    content,
 		Images:     imagePaths,
 		Tags:       tags,
+		AtUsers:    atUsers,
 		ScheduleAt: scheduleAt,
 		IsOriginal: isOriginal,
 		Visibility: visibility,

@@ -189,6 +189,7 @@ Content-Type: application/json
     "http://example.com/image2.jpg"
   ],
   "tags": ["标签1", "标签2"],
+  "at_users": ["小明", "旅行日记"],
   "visibility": "公开可见"
 }
 ```
@@ -198,6 +199,12 @@ Content-Type: application/json
 - `content` (string, required): 笔记内容
 - `images` (array, required): 图片URL数组，至少包含一张图片
 - `tags` (array, optional): 标签数组
+- `at_users` (array, optional): 需要 @ 的用户，插入在正文之后、话题之前。三种写法：
+  - `"昵称"`：按昵称搜索并点中同名候选；找不到同名用户时退化成纯文本 `@昵称`，不会阻断发布
+  - `"user_id"`：直接用 24 位 user_id 当查询词搜索（实测可行，如 `0123456789abcdef01234567`），取第一个候选，插入后用节点里的 `userId` 校验；搜不到直接报错
+  - `"昵称|user_id"`：按昵称搜索，插入后校验 `userId`（昵称可读、id 防同名，最稳妥）
+  - 点击候选后必须确认插入了一个匹配的提及节点，否则报错并中止发布。指定 `user_id` 时，节点 ID 缺失、无法解析或不匹配均视为失败，不会退回昵称校验。
+  - 昵称必须与联想列表完全一致（支持带「12万粉丝」这类后缀，按分隔符判定边界）
 - `schedule_at` (string, optional): 定时发布时间，ISO8601 格式如 `2024-01-20T10:30:00+08:00`，支持1小时至14天内。不填则立即发布
 - `is_original` (boolean, optional): 是否声明原创，`true` 为声明原创，不填则不声明
 - `visibility` (string, optional): 可见范围，支持: `公开可见`(默认)、`仅自己可见`、`仅互关好友可见`。不填则默认公开可见
@@ -211,6 +218,7 @@ Content-Type: application/json
     "title": "笔记标题",
     "content": "笔记内容",
     "images": 2,
+    "at_users": ["小明", "旅行日记"],
     "status": "发布完成"
   },
   "message": "发布成功"

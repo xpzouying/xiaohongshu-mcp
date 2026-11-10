@@ -22,6 +22,7 @@ type PublishContentArgs struct {
 	Content    string   `json:"content" jsonschema:"正文内容，不包含以#开头的标签内容，所有话题标签都用tags参数来生成和提供即可"`
 	Images     []string `json:"images" jsonschema:"图片路径列表（至少需要1张图片）。支持两种方式：1. HTTP/HTTPS图片链接（自动下载）；2. 本地图片绝对路径（推荐，如:/Users/user/image.jpg）"`
 	Tags       []string `json:"tags,omitempty" jsonschema:"话题标签列表（可选参数），如 [美食, 旅行, 生活]"`
+	AtUsers    []string `json:"at_users,omitempty" jsonschema:"需要@的用户列表（可选），如 [小明, 小红|0123456789abcdef01234567, 0123456789abcdef01234567]。支持 昵称、昵称|user_id、user_id 三种写法（纯 id 会当查询词搜索并取第一个候选，插入后校验 userId）。找不到同名用户时退化为纯文本 @昵称，不会阻断发布"`
 	ScheduleAt string   `json:"schedule_at,omitempty" jsonschema:"定时发布时间（可选），ISO8601格式如 2024-01-20T10:30:00+08:00，支持1小时至14天内。不填则立即发布"`
 	IsOriginal bool     `json:"is_original,omitempty" jsonschema:"是否声明原创（可选），true为声明原创，false或不填则不声明"`
 	Visibility string   `json:"visibility,omitempty" jsonschema:"可见范围（可选），支持: 公开可见(默认)、仅自己可见、仅互关好友可见。不填则默认公开可见"`
@@ -253,6 +254,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 				"content":     args.Content,
 				"images":      convertStringsToInterfaces(args.Images),
 				"tags":        convertStringsToInterfaces(args.Tags),
+				"at_users":    convertStringsToInterfaces(args.AtUsers),
 				"schedule_at": args.ScheduleAt,
 				"is_original": args.IsOriginal,
 				"visibility":  args.Visibility,

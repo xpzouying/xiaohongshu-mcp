@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/input"
@@ -23,6 +24,7 @@ type PublishImageContent struct {
 	Title        string
 	Content      string
 	Tags         []string
+	AtUsers      []string // 需要 @ 的用户昵称列表，插入在正文之后、话题之前
 	ImagePaths   []string
 	ScheduleTime *time.Time // 定时发布时间，nil 表示立即发布
 	IsOriginal   bool       // 是否声明原创
@@ -44,7 +46,30 @@ const (
 	topicItemTimeout      = 5 * time.Second
 	topicItemPollInterval = 200 * time.Millisecond
 	topicClickAttempts    = 3
+
+	// maxAtUsers 单篇最多 @ 的人数，超出截断，避免被判成刷量
+	maxAtUsers = 10
+
+	// @ 搜索：联想框偶发不出候选（实测同一 id 两次跑 0/1 个），失败要清空重试
+	mentionSearchAttempts = 3
+	// mentionIDSearchTimeout 用 user_id 搜索时等候选的窗口（实测约 1.5s 才出来）
+	mentionIDSearchTimeout = 4 * time.Second
 )
+
+// mentionItemContainers @ 联想列表的候选容器，按先后顺序尝试。
+// 小红书前端改版时只需在这里补选择器，不用动插入逻辑。
+var mentionItemContainers = []string{
+	"#creator-editor-at-container",
+	"#creator-editor-mention-container",
+	"#creator-editor-topic-container", // 部分版本 @ 与 # 共用一个容器
+	"div.at-container",
+	"div.mention-container",
+}
+
+// mentionNodeQuery 编辑器里提及节点的候选选择器，只用于确认插入真的发生。
+// 真实结构（2026-11 真机探测）：<a class="tiptap-at" data-user='{"userId":"...","nickname":"..."}'
+// contenteditable="false">@昵称</a>。
+const mentionNodeQuery = `a.tiptap-at, a[data-user], a[data-at], a[data-user-id], a.tiptap-mention, span[data-at]`
 
 func NewPublishImageAction(page *rod.Page) (*PublishAction, error) {
 
@@ -98,9 +123,15 @@ func (p *PublishAction) Publish(ctx context.Context, content PublishImageContent
 		tags = tags[:10]
 	}
 
-	logrus.Infof("发布内容: title=%s, images=%v, tags=%v, schedule=%v, original=%v, visibility=%s, products=%v", content.Title, len(content.ImagePaths), tags, content.ScheduleTime, content.IsOriginal, content.Visibility, content.Products)
+	atUsers := content.AtUsers
+	if len(atUsers) > maxAtUsers {
+		logrus.Warnf("@用户数量超过%d，截取前%d个", maxAtUsers, maxAtUsers)
+		atUsers = atUsers[:maxAtUsers]
+	}
 
-	if err := submitPublish(ctx, page, content.Title, content.Content, tags, content.ScheduleTime, content.IsOriginal, content.Visibility, content.Products); err != nil {
+	logrus.Infof("发布内容: title=%s, images=%v, tags=%v, at=%v, schedule=%v, original=%v, visibility=%s, products=%v", content.Title, len(content.ImagePaths), tags, atUsers, content.ScheduleTime, content.IsOriginal, content.Visibility, content.Products)
+
+	if err := submitPublish(ctx, page, content.Title, content.Content, tags, atUsers, content.ScheduleTime, content.IsOriginal, content.Visibility, content.Products); err != nil {
 		return errors.Wrap(err, "小红书发布失败")
 	}
 
@@ -351,7 +382,7 @@ func waitForUploadComplete(page *rod.Page, expectedCount int) error {
 	return errors.Errorf("第%d张图片上传超时(60s)，请检查网络连接和图片大小", expectedCount)
 }
 
-func submitPublish(ctx context.Context, page *rod.Page, title, content string, tags []string, scheduleTime *time.Time, isOriginal bool, visibility string, products []string) error {
+func submitPublish(ctx context.Context, page *rod.Page, title, content string, tags []string, atUsers []string, scheduleTime *time.Time, isOriginal bool, visibility string, products []string) error {
 	titleElem, err := page.Element("div.d-input input")
 	if err != nil {
 		return errors.Wrap(err, "查找标题输入框失败")
@@ -377,6 +408,16 @@ func submitPublish(ctx context.Context, page *rod.Page, title, content string, t
 	}
 	closeFeatureGuide(page)
 	tryRefocusTitle(page)
+
+	// @ 和 # 都要另起段落，换行只做一次，避免两者之间多出空行
+	if len(atUsers) > 0 || len(tags) > 0 {
+		if err := startEditorTail(contentElem); err != nil {
+			return err
+		}
+	}
+	if err := inputMentions(ctx, contentElem, atUsers); err != nil {
+		return err
+	}
 	if err := inputTags(ctx, contentElem, tags); err != nil {
 		return err
 	}
@@ -718,13 +759,10 @@ func findContentElement(page *rod.Page) (*rod.Element, error) {
 	return findTextboxByPlaceholder(page)
 }
 
-func inputTags(ctx context.Context, contentElem *rod.Element, tags []string) error {
-	if len(tags) == 0 {
-		return nil
-	}
-
-	time.Sleep(1 * time.Second)
-
+// startEditorTail 把光标推到正文末尾的新段落。
+// @ 和 # 都会被编辑器当成行内节点，不另起段落就会挤进正文最后一行。
+// 原先这段内联在 inputTags 里，@ 也要用，抽出来保证只换行一次。
+func startEditorTail(contentElem *rod.Element) error {
 	for i := 0; i < 20; i++ {
 		ka, err := contentElem.KeyActions()
 		if err != nil {
@@ -742,6 +780,378 @@ func inputTags(ctx context.Context, contentElem *rod.Element, tags []string) err
 	}
 	if err := ka.Press(input.Enter).Press(input.Enter).Do(); err != nil {
 		return errors.Wrap(err, "按下回车键失败")
+	}
+
+	time.Sleep(1 * time.Second)
+	return nil
+}
+
+// atTarget 一个 @ 目标。
+// Name 用于昵称搜索，UserID 用于插入后核实身份，也可单独作为查询词。
+type atTarget struct {
+	Name   string
+	UserID string
+}
+
+// userIDPattern 小红书用户 ID：24 位十六进制。
+var userIDPattern = regexp.MustCompile(`^[0-9a-fA-F]{24}$`)
+
+// parseAtTarget 解析 at_users 的一项，支持三种写法：
+//
+//	"昵称"                  —— 只按昵称搜，不做 id 校验
+//	"昵称|user_id"          —— 按昵称搜，插入后校验 user_id（推荐，防同名歧义）
+//	"user_id"               —— 用 id 搜索，插入后校验 user_id
+func parseAtTarget(raw string) atTarget {
+	raw = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(raw), "@"))
+	if raw == "" {
+		return atTarget{}
+	}
+
+	for _, sep := range []string{"|", "｜"} {
+		name, id, ok := strings.Cut(raw, sep)
+		if !ok {
+			continue
+		}
+		id = strings.TrimSpace(id)
+		if userIDPattern.MatchString(id) {
+			return atTarget{Name: strings.TrimSpace(name), UserID: strings.ToLower(id)}
+		}
+		// 分隔符后面不是 user_id：昵称本身带竖线，整体按昵称处理
+		return atTarget{Name: raw}
+	}
+
+	if userIDPattern.MatchString(raw) {
+		return atTarget{UserID: strings.ToLower(raw)}
+	}
+	return atTarget{Name: raw}
+}
+
+// inputMentions 逐个 @ 用户。调用前光标应已在正文末尾的新段落（见 startEditorTail）。
+func inputMentions(ctx context.Context, contentElem *rod.Element, users []string) error {
+	for _, raw := range users {
+		target := parseAtTarget(raw)
+		if target.Name == "" && target.UserID == "" {
+			continue
+		}
+		if err := inputMention(ctx, contentElem, target); err != nil {
+			return errors.Wrapf(err, "输入@[%s]失败", target.describe())
+		}
+	}
+	return nil
+}
+
+// describe 日志/报错里用来区分「昵称」和「只有 id」两种目标。
+func (t atTarget) describe() string {
+	if t.Name != "" {
+		return t.Name
+	}
+	return t.UserID
+}
+
+// inputMention 在正文里插入一个用户提及节点。
+//
+// 查询词：有昵称用昵称，只有 user_id 就直接用 id 搜。
+// 只有 id 时不知道昵称，取第一个候选，插入后再用 data-user.userId 校验。
+//
+// 昵称搜不到时退回纯文本 @昵称并告警，不阻断发布（与话题标签同样的取舍）；
+// 只给 id 却搜不到时直接报错，避免正文里落下一串无意义的 id。
+func inputMention(ctx context.Context, contentElem *rod.Element, target atTarget) error {
+	before := countMentionNodes(contentElem)
+	query := target.Name
+	if query == "" {
+		query = target.UserID
+	}
+
+	// 昵称搜索命中即止，不做重试：搜不到就是没这个人，重试只会白白拖长发布耗时；
+	// id 搜索实测偶发不出候选，才需要清空重试。
+	attempts := 1
+	if target.Name == "" {
+		attempts = mentionSearchAttempts
+	}
+
+	selected := false
+	var err error
+	for attempt := 0; attempt < attempts && !selected; attempt++ {
+		if attempt > 0 {
+			// 上一次没等到候选，清掉已输入的查询词再试
+			clearEditorInput(ctx, contentElem, len([]rune(query))+1)
+			time.Sleep(300 * time.Millisecond)
+		}
+
+		if err := humanize.Type(ctx, contentElem, "@"); err != nil {
+			return errors.Wrap(err, "输入@失败")
+		}
+		time.Sleep(200 * time.Millisecond) // 技术等待：等联想下拉框弹出
+		if err := humanize.Type(ctx, contentElem, query); err != nil {
+			return errors.Wrap(err, "输入@查询词失败")
+		}
+
+		if target.Name == "" {
+			// 只有 id：联想列表里就是那个人，取第一个候选
+			selected, err = waitAndSelectFirstMention(contentElem.Page())
+		} else {
+			selected, err = selectMentionItem(contentElem.Page(), target.Name)
+		}
+		if err != nil {
+			return err
+		}
+	}
+
+	if !selected {
+		if target.Name == "" {
+			return errors.Errorf("用 user_id[%s] 没能搜到候选用户，请改传 \"昵称|user_id\"", target.UserID)
+		}
+		slog.Warn("未找到同名用户，保留纯文本 @", "user", target.Name, "user_id", target.UserID)
+		return humanize.Type(ctx, contentElem, " ")
+	}
+
+	// 点击候选不代表身份正确，必须确认插入结果后才能继续发布。
+	if err := verifyInsertedMention(contentElem, before, target); err != nil {
+		return err
+	}
+	slog.Info("已插入@用户", "user", target.Name, "user_id", target.UserID)
+
+	// 尾随空格把上一个人和下一个 @ 隔开，避免两段联想连在一起
+	return humanize.Type(ctx, contentElem, " ")
+}
+
+// clearEditorInput 删掉刚输入的查询词（含 @）。
+func clearEditorInput(ctx context.Context, contentElem *rod.Element, n int) {
+	for i := 0; i < n; i++ {
+		if ctx.Err() != nil {
+			return
+		}
+		ka, err := contentElem.KeyActions()
+		if err != nil {
+			return
+		}
+		if err := ka.Press(input.Backspace).Do(); err != nil {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+// waitAndSelectFirstMention 等到联想列表出现后点第一个候选（id 搜索用，此时不知道昵称）。
+func waitAndSelectFirstMention(page *rod.Page) (bool, error) {
+	wait := page.Timeout(mentionIDSearchTimeout)
+	defer wait.CancelTimeout()
+
+	for {
+		for _, container := range mentionItemContainers {
+			items, err := wait.Elements(container + " .item")
+			if err != nil {
+				return false, err
+			}
+			for _, item := range items {
+				visible, err := item.Visible()
+				if err != nil {
+					continue
+				}
+				if !visible {
+					continue
+				}
+				if err := humanize.Click(item); err == nil {
+					return true, nil
+				}
+			}
+		}
+
+		select {
+		case <-wait.GetContext().Done():
+			return false, nil
+		case <-time.After(topicItemPollInterval):
+		}
+	}
+}
+
+func countMentionNodes(contentElem *rod.Element) int {
+	nodes, err := contentElem.Elements(mentionNodeQuery)
+	if err != nil {
+		return 0
+	}
+	return len(nodes)
+}
+
+// verifyInsertedMention 等编辑器把刚才的点击渲染成提及节点，数量必须比之前多 1，
+// 且节点内容与请求一致（给了 user_id 就认 user_id，否则认昵称）。
+func verifyInsertedMention(editor *rod.Element, previous int, target atTarget) error {
+	wait := editor.Timeout(time.Second)
+	defer wait.CancelTimeout()
+
+	for {
+		nodes, err := wait.Elements(mentionNodeQuery)
+		if err != nil {
+			return errors.Wrap(err, "读取编辑器提及节点失败")
+		}
+		if len(nodes) > previous {
+			if len(nodes) != previous+1 {
+				return errors.New("编辑器插入的@节点数量不符")
+			}
+			if !insertedMentionMatches(nodes[previous], target) {
+				return errors.Errorf("插入的@节点与请求不一致（昵称 %q，user_id %q）", target.Name, target.UserID)
+			}
+			return nil
+		}
+		select {
+		case <-wait.GetContext().Done():
+			return errors.Wrapf(wait.GetContext().Err(), "未确认@%s插入", target.Name)
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
+}
+
+// mentionUser 真机节点上的 data-user 内容。
+type mentionUser struct {
+	UserID   string `json:"userId"`
+	Nickname string `json:"nickname"`
+}
+
+// insertedMentionMatches 校验插入的提及节点就是请求的那个人。
+// 真实节点形如 <a class="tiptap-at" data-user='{"userId":"...","nickname":"..."}'>；
+// 请求里带了 user_id 就以 user_id 为准（昵称可以改，id 不会变）。
+func insertedMentionMatches(node *rod.Element, target atTarget) bool {
+	if attr, err := node.Attribute("data-user"); err == nil && attr != nil {
+		if u, ok := parseMentionUser(*attr); ok {
+			if target.UserID != "" {
+				return strings.EqualFold(u.UserID, target.UserID)
+			}
+			if target.Name != "" && u.Nickname != "" {
+				return strings.EqualFold(strings.TrimSpace(u.Nickname), target.Name)
+			}
+		}
+	}
+
+	// 指定了 ID 时，缺失或损坏的身份信息不能退回昵称匹配。
+	if target.UserID != "" {
+		return false
+	}
+
+	text, err := node.Text()
+	if err != nil {
+		return false
+	}
+	return mentionTextEquals(text, target.Name)
+}
+
+// parseMentionUser 解析 data-user JSON；解析不出来或没有昵称都算失败。
+func parseMentionUser(attr string) (mentionUser, bool) {
+	var u mentionUser
+	if err := json.Unmarshal([]byte(attr), &u); err != nil {
+		return u, false
+	}
+	if u.Nickname == "" && u.UserID == "" {
+		return u, false
+	}
+	return u, true
+}
+
+// mentionTextEquals 节点文本形如 "@昵称"，去掉 @ 后精确比对。
+func mentionTextEquals(text, name string) bool {
+	text = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(text), "@"))
+	return strings.EqualFold(text, name)
+}
+
+// 联想列表会重绘，每次点击前都重新查找，查找和点击共用一个时间窗口。
+func selectMentionItem(page *rod.Page, name string) (bool, error) {
+	mentionPage := page.Timeout(topicItemTimeout)
+	defer mentionPage.CancelTimeout()
+	ctx := mentionPage.GetContext()
+
+	var clickErr error
+	for attempts := 0; ctx.Err() == nil && attempts < topicClickAttempts; {
+		item, err := findMentionItem(mentionPage, name)
+		if err != nil {
+			if errors.Is(err, context.DeadlineExceeded) && ctx.Err() != nil {
+				break
+			}
+			return false, errors.Wrap(err, "查找@联想项失败")
+		}
+		if item == nil {
+			// 候选还没出来或已消失，等窗口结束再按无匹配处理
+			clickErr = nil
+		} else {
+			clickErr = humanize.Click(item)
+			if clickErr == nil {
+				return true, nil
+			}
+			attempts++
+		}
+
+		select {
+		case <-ctx.Done():
+		case <-time.After(topicItemPollInterval):
+		}
+	}
+	if err := page.GetContext().Err(); err != nil {
+		return false, err
+	}
+	return false, errors.Wrap(clickErr, "点击@联想选项失败")
+}
+
+func findMentionItem(page *rod.Page, name string) (*rod.Element, error) {
+	for _, container := range mentionItemContainers {
+		items, err := page.Elements(container + " .item")
+		if err != nil {
+			return nil, err
+		}
+		for _, item := range items {
+			itemName, err := mentionItemName(item)
+			if err != nil || itemName == "" {
+				continue
+			}
+			if !mentionTextMatches(itemName, name) {
+				continue
+			}
+			visible, err := item.Visible()
+			if err != nil {
+				return nil, err
+			}
+			if visible {
+				return item, nil
+			}
+		}
+	}
+	return nil, nil
+}
+
+// mentionItemName 取联想项首行文本，真实昵称是夹在头像 img 之间的文本节点。
+func mentionItemName(item *rod.Element) (string, error) {
+	text, err := item.Text()
+	if err != nil {
+		return "", err
+	}
+	if line, _, ok := strings.Cut(strings.TrimSpace(text), "\n"); ok {
+		return strings.TrimSpace(line), nil
+	}
+	return strings.TrimSpace(text), nil
+}
+
+// mentionTextMatches 昵称精确匹配；候选行带粉丝数等后缀时，要求边界分隔符。
+// 宁可匹配不上退成纯文本，也不能 @ 错人。
+func mentionTextMatches(candidate, name string) bool {
+	candidate = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(candidate), "@"))
+	name = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(name), "@"))
+	if candidate == "" || name == "" {
+		return false
+	}
+	if strings.EqualFold(candidate, name) {
+		return true
+	}
+	if len(candidate) > len(name) && strings.EqualFold(candidate[:len(name)], name) {
+		// 按 rune 取紧随其后的字符：'｜' 这类全角分隔符超出 byte 范围
+		r, _ := utf8.DecodeRuneInString(candidate[len(name):])
+		switch r {
+		case ' ', '\t', '\n', '·', '｜', '|', '(':
+			return true
+		}
+	}
+	return false
+}
+
+func inputTags(ctx context.Context, contentElem *rod.Element, tags []string) error {
+	if len(tags) == 0 {
+		return nil
 	}
 
 	time.Sleep(1 * time.Second)
