@@ -562,7 +562,18 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	logrus.Infof("Registered %d MCP tools", 18)
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "list_scheduled_notes",
+			Description: "只读查询当前账号创作者后台全部有效定时发布笔记，包含手动预约的图文和视频。自动翻完全部分页，返回账号、北京时间、笔记ID、标题、预约时间和complete完整性标记。登录失效、缺页或未知状态返回错误，不能当作没有预约。",
+			Annotations: &mcp.ToolAnnotations{Title: "List Scheduled Notes", ReadOnlyHint: true, DestructiveHint: boolPtr(false)},
+		},
+		withPanicRecovery("list_scheduled_notes", func(ctx context.Context, req *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
+			return convertToMCPResult(appServer.handleListScheduledNotes(ctx)), nil, nil
+		}),
+	)
+
+	logrus.Infof("Registered %d MCP tools", 19)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式
