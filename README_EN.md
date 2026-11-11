@@ -62,6 +62,8 @@ Donate via Alipay to **xpzouying@gmail.com**.
 
 ## Project Overview
 
+**Optional image OCR:** Pass `include_image_text=true` to the MCP or HTTP feed detail API to extract text locally on CPU, preserving image order, confidence and errors. Disabled by default; see [OCR.md](OCR.md) for setup.
+
 **Main Features**
 
 > 💡 **Tip:** Click on the feature titles below to expand and view video demonstrations
