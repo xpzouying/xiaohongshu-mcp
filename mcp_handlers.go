@@ -813,6 +813,36 @@ func (s *AppServer) handleReplyNotification(ctx context.Context, commentID, cont
 	return marshalMCPResult(result, "回复")
 }
 
+// handleGetCreatorStats 获取创作者中心数据看板
+func (s *AppServer) handleGetCreatorStats(ctx context.Context, days int) *MCPToolResult {
+	logrus.Infof("MCP: 获取创作者数据 days=%d", days)
+
+	result, err := s.xiaohongshuService.GetCreatorStats(ctx, days)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "获取创作者数据失败: " + err.Error()}},
+			IsError: true,
+		}
+	}
+
+	return marshalMCPResult(result, "获取创作者数据")
+}
+
+// handleGetNoteStats 获取单篇笔记数据详情
+func (s *AppServer) handleGetNoteStats(ctx context.Context, noteID string) *MCPToolResult {
+	logrus.Infof("MCP: 获取笔记数据 note=%s", noteID)
+
+	result, err := s.xiaohongshuService.GetNoteStats(ctx, noteID)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "获取笔记数据失败: " + err.Error()}},
+			IsError: true,
+		}
+	}
+
+	return marshalMCPResult(result, "获取笔记数据")
+}
+
 // marshalMCPResult 把结果序列化成 MCP 文本内容。
 func marshalMCPResult(result any, action string) *MCPToolResult {
 	jsonData, err := json.MarshalIndent(result, "", "  ")

@@ -115,6 +115,16 @@ type ListNotificationsArgs struct {
 	Limit int    `json:"limit,omitempty" jsonschema:"返回条数上限，默认20"`
 }
 
+// CreatorStatsArgs 创作者数据参数
+type CreatorStatsArgs struct {
+	Days int `json:"days,omitempty" jsonschema:"统计周期: 7(默认) 或 30 天"`
+}
+
+// NoteStatsArgs 单篇笔记数据参数
+type NoteStatsArgs struct {
+	NoteID string `json:"note_id" jsonschema:"笔记ID，可从 get_creator_stats 的 notes[].note_id 或 get_my_profile 获取"`
+}
+
 // LikeNotificationArgs 通知点赞参数
 type LikeNotificationArgs struct {
 	CommentID string `json:"comment_id" jsonschema:"目标评论ID，从 list_notifications 的 comment_id 字段获取"`
@@ -562,7 +572,39 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	logrus.Infof("Registered %d MCP tools", 18)
+	// 工具 19: 创作者数据看板
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "get_creator_stats",
+			Description: "获取当前账号在创作者中心「数据看板」的数据：近 7 或 30 天的账号概览（曝光、观看、封面点击率、互动、主页访客、涨粉）及环比和逐日趋势、观众来源占比、近 30 天发布笔记的逐篇数据（第一页最多 10 篇）、粉丝增减与活跃粉丝。会依次打开 3 个创作者中心页面，耗时较长，不宜频繁调用。",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Get Creator Stats",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("get_creator_stats", func(ctx context.Context, req *mcp.CallToolRequest, args CreatorStatsArgs) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleGetCreatorStats(ctx, args.Days)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	// 工具 20: 单篇笔记数据
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "get_note_stats",
+			Description: "获取自己某篇笔记在创作者中心的数据详情：曝光、观看、封面点击率、平均观看时长、完播率、2 秒退出率、互动，各项的粉丝占比，与同类笔记的对比，按天/按小时趋势，观看来源和观众画像。观看数不足 100 时同类对比、观看来源、观众画像为空（后两项附提示）。",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Get Note Stats",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("get_note_stats", func(ctx context.Context, req *mcp.CallToolRequest, args NoteStatsArgs) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleGetNoteStats(ctx, args.NoteID)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	logrus.Infof("Registered %d MCP tools", 20)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式

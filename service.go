@@ -601,6 +601,28 @@ func (s *XiaohongshuService) ListNotifications(ctx context.Context, tab string, 
 	return xiaohongshu.NewNotificationAction(page).List(ctx, parsed, limit)
 }
 
+// GetCreatorStats 获取创作者中心数据看板
+func (s *XiaohongshuService) GetCreatorStats(ctx context.Context, days int) (*xiaohongshu.CreatorStats, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	return xiaohongshu.NewCreatorStatsAction(page).Overview(ctx, days)
+}
+
+// GetNoteStats 获取单篇笔记的数据详情
+func (s *XiaohongshuService) GetNoteStats(ctx context.Context, noteID string) (*xiaohongshu.NoteStats, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	return xiaohongshu.NewCreatorStatsAction(page).Note(ctx, noteID)
+}
+
 // LikeNotification 给通知里的评论点赞或取消点赞
 func (s *XiaohongshuService) LikeNotification(ctx context.Context, commentID string, unlike bool) (*xiaohongshu.NotificationLikeResult, error) {
 	b := newBrowser()
