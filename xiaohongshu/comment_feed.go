@@ -3,6 +3,8 @@ package xiaohongshu
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/go-rod/rod"
@@ -86,17 +88,40 @@ func (f *CommentFeedAction) PostComment(ctx context.Context, feedID, xsecToken, 
 	return nil
 }
 
+// emoticonRe 匹配小红书表情码，如 [笑哭R]、[偷笑R]。
+var emoticonRe = regexp.MustCompile(`\[[^\[\]]{1,20}\]`)
+
+// splitCommentFragments 按表情码切分内容。表情码在页面上渲染为图片，不出现在
+// innerText 中，全文 includes 必然失配；切分后逐段校验可避免误判未成功。
+func splitCommentFragments(content string) []string {
+	parts := emoticonRe.Split(content, -1)
+	fragments := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if t := strings.TrimSpace(p); t != "" {
+			fragments = append(fragments, t)
+		}
+	}
+	return fragments
+}
+
 // commentRendered 就地读当前页评论区 DOM，判断指定文本的评论是否已渲染出现。
 // 不重新导航、不滚动——只读已加载的 .comments-container 的可见文本。
+// 内容按表情码切分后逐段校验（表情渲染为图片，不出现在 innerText）。
 func commentRendered(page *rod.Page, content string) bool {
-	res, err := page.Eval(`(txt) => {
-		const c = document.querySelector('.comments-container');
-		return c ? c.innerText.includes(txt) : false;
-	}`, content)
-	if err != nil {
+	fragments := splitCommentFragments(content)
+	if len(fragments) == 0 {
 		return false
 	}
-	return res.Value.Bool()
+	for _, fragment := range fragments {
+		res, err := page.Eval(`(txt) => {
+			const c = document.querySelector('.comments-container');
+			return c ? c.innerText.includes(txt) : false;
+		}`, fragment)
+		if err != nil || !res.Value.Bool() {
+			return false
+		}
+	}
+	return true
 }
 
 func waitCommentRendered(page *rod.Page, content string, timeout time.Duration) bool {
