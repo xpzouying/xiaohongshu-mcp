@@ -16,6 +16,7 @@ import (
 	"github.com/go-rod/rod/lib/proto"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"github.com/xpzouying/xiaohongshu-mcp/configs"
 	"github.com/xpzouying/xiaohongshu-mcp/humanize"
 )
 
@@ -37,8 +38,6 @@ type PublishAction struct {
 }
 
 const (
-	urlOfPublic = `https://creator.xiaohongshu.com/publish/publish?source=official`
-
 	// contentElemTimeout 查找正文输入框的轮询窗口
 	contentElemTimeout = 10 * time.Second
 
@@ -79,7 +78,7 @@ func NewPublishImageAction(page *rod.Page) (*PublishAction, error) {
 		return nil, err
 	}
 
-	if err := pp.Navigate(urlOfPublic); err != nil {
+	if err := pp.Navigate(urlOfPublish()); err != nil {
 		return nil, errors.Wrap(err, "导航到发布页面失败")
 	}
 
@@ -1934,4 +1933,9 @@ func waitForModalClose(page *rod.Page) error {
 	}
 
 	return errors.New("等待弹窗关闭超时")
+}
+
+// urlOfPublish 发布页地址，域名跟随当前站点。
+func urlOfPublish() string {
+	return configs.CreatorURL("/publish/publish?source=official")
 }
