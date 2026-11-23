@@ -37,8 +37,6 @@ type PublishAction struct {
 }
 
 const (
-	urlOfPublic = `https://creator.xiaohongshu.com/publish/publish?source=official`
-
 	// contentElemTimeout 查找正文输入框的轮询窗口
 	contentElemTimeout = 10 * time.Second
 
@@ -72,37 +70,7 @@ var mentionItemContainers = []string{
 const mentionNodeQuery = `a.tiptap-at, a[data-user], a[data-at], a[data-user-id], a.tiptap-mention, span[data-at]`
 
 func NewPublishImageAction(page *rod.Page) (*PublishAction, error) {
-
-	pp := page.Timeout(300 * time.Second)
-
-	if err := ensureCreatorSession(pp); err != nil {
-		return nil, err
-	}
-
-	if err := pp.Navigate(urlOfPublic); err != nil {
-		return nil, errors.Wrap(err, "导航到发布页面失败")
-	}
-
-	if err := pp.WaitLoad(); err != nil {
-		logrus.Warnf("等待页面加载出现问题: %v，继续尝试", err)
-	}
-	time.Sleep(2 * time.Second)
-
-	if err := pp.WaitDOMStable(time.Second, 0.1); err != nil {
-		logrus.Warnf("等待 DOM 稳定出现问题: %v，继续尝试", err)
-	}
-	time.Sleep(1 * time.Second)
-
-	if err := mustClickPublishTab(pp, "上传图文"); err != nil {
-		logrus.Errorf("点击上传图文 TAB 失败: %v", err)
-		return nil, err
-	}
-
-	time.Sleep(1 * time.Second)
-
-	return &PublishAction{
-		page: pp,
-	}, nil
+	return newPublishAction(page, "上传图文")
 }
 
 func (p *PublishAction) Publish(ctx context.Context, content PublishImageContent) error {
@@ -110,7 +78,6 @@ func (p *PublishAction) Publish(ctx context.Context, content PublishImageContent
 		return errors.New("图片不能为空")
 	}
 
-	// 重设超时：.Context(ctx) 会替换掉 NewPublishImageAction 里 Timeout(300s) 的 deadline
 	page := p.page.Context(ctx).Timeout(300 * time.Second)
 
 	if err := uploadImages(page, content.ImagePaths); err != nil {
@@ -184,47 +151,39 @@ func clickEmptyPosition(page *rod.Page) {
 	}
 }
 
-func mustClickPublishTab(page *rod.Page, tabname string) error {
-	page.MustElement(`div.upload-content`).MustWaitVisible()
+func clickPublishTab(page *rod.Page, tabname string) error {
+	ctx := page.GetContext()
+	ticker := time.NewTicker(200 * time.Millisecond)
+	defer ticker.Stop()
 
-	deadline := time.Now().Add(15 * time.Second)
 	blockedAtLeastOnce := false
-
-	for time.Now().Before(deadline) {
+	for ctx.Err() == nil {
 		tab, blocked, err := getTabElement(page, tabname)
-		if err != nil {
+		switch {
+		case err != nil:
 			logrus.Warnf("获取发布 TAB 元素失败: %v", err)
-			time.Sleep(200 * time.Millisecond)
-			continue
-		}
-
-		if tab == nil {
-			time.Sleep(200 * time.Millisecond)
-			continue
-		}
-
-		if blocked {
+		case blocked:
 			blockedAtLeastOnce = true
 			logrus.Info("发布 TAB 被遮挡，尝试关闭浮层")
 			dismissPopCover(page)
-			time.Sleep(200 * time.Millisecond)
-			continue
-		}
-
-		if err := humanize.Click(tab); err != nil {
+		case tab != nil:
+			err = humanize.Click(tab)
+			if err == nil {
+				return nil
+			}
 			logrus.Warnf("点击发布 TAB 失败: %v", err)
-			time.Sleep(200 * time.Millisecond)
-			continue
 		}
 
-		return nil
+		select {
+		case <-ctx.Done():
+		case <-ticker.C:
+		}
 	}
 
-	// 区分两种失败：找不到 TAB，和找到了但浮层一直关不掉
 	if blockedAtLeastOnce {
-		return errors.Errorf("发布 TAB %s 一直被浮层遮挡，Esc 与点击空白都未能关闭", tabname)
+		return errors.Wrapf(ctx.Err(), "发布 TAB %s 一直被浮层遮挡，Esc 与点击空白都未能关闭", tabname)
 	}
-	return errors.Errorf("没有找到发布 TAB - %s", tabname)
+	return errors.Wrapf(ctx.Err(), "无法切换到发布 TAB %s", tabname)
 }
 
 func getTabElement(page *rod.Page, tabname string) (*rod.Element, bool, error) {
