@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-rod/rod"
 	"github.com/sirupsen/logrus"
+	"github.com/xpzouying/xiaohongshu-mcp/configs"
 	"github.com/xpzouying/xiaohongshu-mcp/humanize"
 )
 
@@ -99,7 +100,7 @@ func NewNotificationAction(page *rod.Page) *NotificationAction {
 func (n *NotificationAction) UnreadCount(ctx context.Context) (*NotificationCount, error) {
 	page := n.page.Timeout(60 * time.Second)
 
-	page.MustNavigate("https://www.xiaohongshu.com/explore").MustWaitLoad()
+	page.MustNavigate(configs.WebURL("/explore")).MustWaitLoad()
 	humanize.Delay(ctx, humanize.AfterNavigate)
 
 	if err := page.WaitStable(time.Second); err != nil {
@@ -148,7 +149,7 @@ func (n *NotificationAction) List(ctx context.Context, tab NotificationTab, limi
 
 	page := n.page.Timeout(3 * time.Minute)
 
-	page.MustNavigate("https://www.xiaohongshu.com/notification").MustWaitLoad()
+	page.MustNavigate(configs.WebURL("/notification")).MustWaitLoad()
 	humanize.Delay(ctx, humanize.AfterNavigate)
 
 	if err := n.switchTab(ctx, page, tab); err != nil {

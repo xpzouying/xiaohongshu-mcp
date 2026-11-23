@@ -48,6 +48,7 @@ func TestIsSearchNotesURL(t *testing.T) {
 	for _, raw := range []string{
 		"https://so.xiaohongshu.com/api/sns/web/v2/search/notes",
 		"https://edith.xiaohongshu.com/api/sns/web/v1/search/notes?fixture=1",
+		"https://webapi.rednote.com/api/sns/web/v1/search/notes",
 	} {
 		require.True(t, isSearchNotesURL(raw), raw)
 	}
@@ -56,6 +57,7 @@ func TestIsSearchNotesURL(t *testing.T) {
 		"https://so.xiaohongshu.com/api/sns/web/v1/homefeed",
 		"https://xiaohongshu.com.example.com/api/sns/web/v2/search/notes",
 		"https://notxiaohongshu.com/api/sns/web/v2/search/notes",
+		"https://notrednote.com/api/sns/web/v2/search/notes",
 		"://invalid",
 	} {
 		require.False(t, isSearchNotesURL(raw), raw)

@@ -467,6 +467,10 @@ XHS_PROXY=http://proxy:port go run .
 
 支持 HTTP/HTTPS/SOCKS5 代理，日志中会自动隐藏代理的认证信息。
 
+**海外站点（可选）**：
+
+海外 IP 扫码登录后，会话落在 `www.rednote.com` / `creator.rednote.com`。服务会按 cookies 里 `web_session` 的域名自动选择站点，一般不用配置；需要强制指定时设置 `XHS_SITE=rednote` 或 `XHS_SITE=xiaohongshu`。
+
 **访问鉴权（可选）**：
 
 默认关闭鉴权。生产环境建议使用 `AUTH_TOKEN` 环境变量配置；非空的启动参数优先于环境变量，留空则读取 `AUTH_TOKEN`。

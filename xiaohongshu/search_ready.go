@@ -98,7 +98,11 @@ func watchSearchResponses(page *rod.Page, keyword string) (<-chan searchResponse
 
 func isSearchNotesURL(raw string) bool {
 	u, err := url.Parse(raw)
-	if err != nil || !strings.HasSuffix(u.Hostname(), ".xiaohongshu.com") {
+	if err != nil {
+		return false
+	}
+	// 海外会话走 rednote.com 的接口域名。
+	if h := u.Hostname(); !strings.HasSuffix(h, ".xiaohongshu.com") && !strings.HasSuffix(h, ".rednote.com") {
 		return false
 	}
 	return u.Path == "/api/sns/web/v1/search/notes" || u.Path == "/api/sns/web/v2/search/notes"

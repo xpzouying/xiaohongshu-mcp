@@ -1,17 +1,19 @@
 package xiaohongshu
 
 import (
+	"strings"
 	"time"
 
 	"github.com/go-rod/rod"
 	"github.com/pkg/errors"
+	"github.com/xpzouying/xiaohongshu-mcp/configs"
 	"github.com/xpzouying/xiaohongshu-mcp/humanize"
 )
 
 const (
-	urlOfCreatorHome = `https://creator.xiaohongshu.com/?source=official`
-
-	creatorSessionCookie  = "galaxy_creator_session_id"
+	creatorSessionCookie = "galaxy_creator_session_id"
+	// 海外站创作者中心直接沿用主站 .rednote.com 的 web_session，没有单独的创作者会话 cookie。
+	intlSessionCookie     = "web_session"
 	creatorSessionTimeout = 15 * time.Second
 )
 
@@ -21,7 +23,7 @@ func ensureCreatorSession(page *rod.Page) error {
 		return nil
 	}
 
-	if err := page.Navigate(urlOfCreatorHome); err != nil {
+	if err := page.Navigate(configs.CreatorURL("/?source=official")); err != nil {
 		return errors.Wrap(err, "打开创作者中心失败")
 	}
 
@@ -41,8 +43,12 @@ func hasCreatorSession(page *rod.Page) bool {
 	if err != nil {
 		return false
 	}
+	intl := configs.IsIntl()
 	for _, c := range cks {
 		if c.Name == creatorSessionCookie {
+			return true
+		}
+		if intl && c.Name == intlSessionCookie && strings.HasSuffix(c.Domain, "rednote.com") {
 			return true
 		}
 	}
