@@ -8,7 +8,6 @@ import (
 
 	"github.com/go-rod/rod"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/xiaohongshu-mcp/humanize"
 )
 
@@ -26,34 +25,7 @@ type PublishVideoContent struct {
 
 // NewPublishVideoAction 进入发布页并切换到"上传视频"
 func NewPublishVideoAction(page *rod.Page) (*PublishAction, error) {
-	pp := page.Timeout(300 * time.Second)
-
-	if err := ensureCreatorSession(pp); err != nil {
-		return nil, err
-	}
-
-	if err := pp.Navigate(urlOfPublic); err != nil {
-		return nil, errors.Wrap(err, "导航到发布页面失败")
-	}
-
-	// 使用 WaitLoad 代替 WaitIdle（更宽松）
-	if err := pp.WaitLoad(); err != nil {
-		logrus.Warnf("等待页面加载出现问题: %v，继续尝试", err)
-	}
-	time.Sleep(2 * time.Second)
-
-	if err := pp.WaitDOMStable(time.Second, 0.1); err != nil {
-		logrus.Warnf("等待 DOM 稳定出现问题: %v，继续尝试", err)
-	}
-	time.Sleep(1 * time.Second)
-
-	if err := mustClickPublishTab(pp, "上传视频"); err != nil {
-		return nil, errors.Wrap(err, "切换到上传视频失败")
-	}
-
-	time.Sleep(1 * time.Second)
-
-	return &PublishAction{page: pp}, nil
+	return newPublishAction(page, "上传视频")
 }
 
 // PublishVideo 上传视频并提交
@@ -62,7 +34,6 @@ func (p *PublishAction) PublishVideo(ctx context.Context, content PublishVideoCo
 		return errors.New("视频不能为空")
 	}
 
-	// 重设超时：.Context(ctx) 会替换掉 NewPublishVideoAction 里 Timeout(300s) 的 deadline
 	page := p.page.Context(ctx).Timeout(300 * time.Second)
 
 	if err := uploadVideo(page, content.VideoPath); err != nil {
