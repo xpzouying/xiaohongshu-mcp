@@ -48,10 +48,11 @@ type CommentLoadConfig struct {
 
 // FeedDetailRequest Feed详情请求
 type FeedDetailRequest struct {
-	FeedID          string             `json:"feed_id" binding:"required"`
-	XsecToken       string             `json:"xsec_token" binding:"required"`
-	LoadAllComments bool               `json:"load_all_comments,omitempty"`
-	CommentConfig   *CommentLoadConfig `json:"comment_config,omitempty"`
+	FeedID           string             `json:"feed_id" binding:"required"`
+	XsecToken        string             `json:"xsec_token" binding:"required"`
+	IncludeImageText bool               `json:"include_image_text,omitempty"`
+	LoadAllComments  bool               `json:"load_all_comments,omitempty"`
+	CommentConfig    *CommentLoadConfig `json:"comment_config,omitempty"`
 }
 
 type SearchFeedsRequest struct {
@@ -61,8 +62,11 @@ type SearchFeedsRequest struct {
 
 // FeedDetailResponse Feed详情响应
 type FeedDetailResponse struct {
-	FeedID string `json:"feed_id"`
-	Data   any    `json:"data"`
+	FeedID      string      `json:"feed_id"`
+	Data        any         `json:"data"`
+	TextContent string      `json:"text_content"`
+	ImageTexts  []ImageText `json:"image_texts,omitempty"`
+	OCRError    string      `json:"ocr_error,omitempty"`
 }
 
 // PostCommentRequest 发表评论请求

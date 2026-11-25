@@ -29,6 +29,10 @@ go.work.sum
 # env file
 .env
 
+# 本地 OCR 环境与 Python 缓存
+.ocr-venv/
+__pycache__/
+
 # Editor/IDE
 # .idea/
 # .vscode/
