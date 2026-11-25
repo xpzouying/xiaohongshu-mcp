@@ -1699,7 +1699,7 @@ func setAIDeclaration(page *rod.Page) error {
 	if err != nil {
 		return err
 	}
-	menus, err := visibleDeclarationElements(page, menu)
+	menus, err := visibleDeclarationElements(page.Elements(menu))
 	if err != nil {
 		return err
 	}
@@ -1707,7 +1707,7 @@ func setAIDeclaration(page *rod.Page) error {
 		if label == aiDeclarationOption {
 			return nil
 		}
-		if err := humanize.Click(trigger); err != nil {
+		if err := clickDeclarationElement(trigger); err != nil {
 			return errors.Wrap(err, "点击内容类型声明下拉框失败")
 		}
 	}
@@ -1716,7 +1716,7 @@ func setAIDeclaration(page *rod.Page) error {
 	poll := utils.BackoffSleeper(100*time.Millisecond, 100*time.Millisecond, nil)
 	// 菜单与选项可能分两次挂载，只点击可见的精确匹配项。
 	err = utils.Retry(ctx, poll, func() (bool, error) {
-		options, err := visibleDeclarationElements(page, menu+" div.d-option-content")
+		options, err := visibleDeclarationElements(page.Elements(menu + " div.d-option-content"))
 		if err != nil {
 			return true, err
 		}
@@ -1729,7 +1729,7 @@ func setAIDeclaration(page *rod.Page) error {
 				return false, nil
 			}
 			if strings.TrimSpace(text) == aiDeclarationOption {
-				return true, humanize.Click(option)
+				return true, clickDeclarationElement(option)
 			}
 		}
 		return false, nil
@@ -1747,7 +1747,7 @@ func setAIDeclaration(page *rod.Page) error {
 			return false, nil
 		}
 		reason = "内容类型声明下拉菜单未关闭"
-		menus, err := visibleDeclarationElements(page, menu)
+		menus, err := visibleDeclarationElements(page.Elements(menu))
 		if err != nil {
 			return true, err
 		}
@@ -1756,19 +1756,48 @@ func setAIDeclaration(page *rod.Page) error {
 	return errors.Wrap(err, reason)
 }
 
+// Rod 的 Mouse 绑定原页面，直接调用 CDP 才能沿用元素的超时上下文。
+func clickDeclarationElement(elem *rod.Element) error {
+	if err := elem.WaitEnabled(); err != nil {
+		return err
+	}
+	point, err := elem.WaitInteractable()
+	if err != nil {
+		return err
+	}
+	if err := elem.GetContext().Err(); err != nil {
+		return err
+	}
+	return (proto.InputSynthesizeTapGesture{
+		X:                 point.X,
+		Y:                 point.Y,
+		GestureSourceType: proto.InputGestureSourceTypeMouse,
+	}).Call(elem)
+}
+
 func findDeclarationControl(page *rod.Page) (*rod.Element, string, error) {
-	wrappers, err := visibleDeclarationElements(page, "div.d-select-wrapper")
+	wrappers, err := visibleDeclarationElements(page.Elements("div.d-select-wrapper"))
 	if err != nil {
 		return nil, "", err
 	}
 	var trigger *rod.Element
 	var label string
 	for _, wrapper := range wrappers {
-		content := wrapper
-		if ok, child, err := wrapper.Has("div.d-select-content"); err != nil {
+		labels, err := wrapper.Elements("div.d-select-content")
+		if err != nil {
 			return nil, "", err
-		} else if ok {
-			content = child
+		}
+		content := wrapper
+		if len(labels) > 0 {
+			// 只读可见的标签，避免隐藏旧节点被当作当前声明。
+			visible, err := visibleDeclarationElements(labels, nil)
+			if err != nil {
+				return nil, "", err
+			}
+			content = visible.First()
+			if content == nil {
+				continue
+			}
 		}
 		text, err := content.Text()
 		if err != nil {
@@ -1798,14 +1827,20 @@ func findDeclarationControl(page *rod.Page) (*rod.Element, string, error) {
 }
 
 // 查询成功且无可见元素时返回 (nil, nil)，查询失败不能当作菜单已关闭。
-func visibleDeclarationElements(page *rod.Page, selector string) (rod.Elements, error) {
-	elements, err := page.Elements(selector)
+func visibleDeclarationElements(elements rod.Elements, err error) (rod.Elements, error) {
 	if err != nil {
 		return nil, err
 	}
 	var visible rod.Elements
 	for _, el := range elements {
 		shown, err := el.Visible()
+		if err != nil {
+			return nil, err
+		}
+		if !shown {
+			continue
+		}
+		shown, err = humanize.CheckVisible(el)
 		if err != nil {
 			return nil, err
 		}

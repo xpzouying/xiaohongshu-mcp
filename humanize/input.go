@@ -85,11 +85,17 @@ const effectiveOpacityJS = `() => {
 // Visible 判断元素是否可见到足以作为点击目标。取不到样式时按可见处理，
 // 宁可放过也不要挡掉正常元素。
 func Visible(elem *rod.Element) bool {
+	visible, err := CheckVisible(elem)
+	return err != nil || visible
+}
+
+// CheckVisible 按现有点击阈值判断不透明度，并返回样式读取错误。
+func CheckVisible(elem *rod.Element) (bool, error) {
 	res, err := elem.Eval(effectiveOpacityJS)
 	if err != nil {
-		return true
+		return false, err
 	}
-	return res.Value.Num() >= minOpacity
+	return res.Value.Num() >= minOpacity, nil
 }
 
 // 不用 document.elementFromPoint：结果不稳定
