@@ -1,7 +1,7 @@
 # xiaohongshu-mcp
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-43-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-44-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 [![善款已捐](https://img.shields.io/badge/善款已捐-CNY%202010.00-brightgreen?style=flat-square)](./DONATIONS.md)
@@ -1084,6 +1084,7 @@ npx mcporter list xiaohongshu-mcp
     </tr>
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/SkySlity"><img src="https://avatars.githubusercontent.com/u/52128805?v=4&size=100" width="100px" height="100px" alt="SkySlity"/><br /><sub><b>SkySlity</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=SkySlity" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Ridotto"><img src="https://avatars.githubusercontent.com/u/263834524?v=4&size=100" width="100px" height="100px" alt="Ridotto"/><br /><sub><b>Ridotto</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=Ridotto" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>
