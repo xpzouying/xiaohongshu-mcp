@@ -1,7 +1,7 @@
 # xiaohongshu-mcp
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-41-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-43-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 [![善款已捐](https://img.shields.io/badge/善款已捐-CNY%202010.00-brightgreen?style=flat-square)](./DONATIONS.md)
@@ -1004,7 +1004,7 @@ npx mcporter list xiaohongshu-mcp
 **重要：在群里问问题之前，请一定要先仔细看完 README 文档以及查看 Issues。**
 
 ### 微信群
-|                                                 微信群 26 群                                        |                                                 微信群 27 群                                         |
+|                                                 微信群 27 群                                        |                                                 微信群 28 群                                         |
 | :------------------------------------------------------------------------------------------------: | :------------------------------------------------------------------------------------------------: |
 | <img src="https://raw.githubusercontent.com/ltzteam/images/refs/heads/main/2.JPG" alt="WechatIMG119" width="300"> | <img src="https://raw.githubusercontent.com/ltzteam/images/refs/heads/main/3.JPG" alt="WechatIMG119" width="300"> |
 
@@ -1080,6 +1080,10 @@ npx mcporter list xiaohongshu-mcp
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/ACCLE123"><img src="https://avatars.githubusercontent.com/u/95094975?v=4&size=100" width="100px" height="100px" alt="ACCLE123"/><br /><sub><b>ACCLE123</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=ACCLE123" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/SamYunquChen"><img src="https://avatars.githubusercontent.com/u/106165995?v=4&size=100" width="100px" height="100px" alt="SamYunquChen"/><br /><sub><b>SamYunquChen</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=SamYunquChen" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/kalivid"><img src="https://avatars.githubusercontent.com/u/22721966?v=4&size=100" width="100px" height="100px" alt="kalivid"/><br /><sub><b>kalivid</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=kalivid" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/zhyfor"><img src="https://avatars.githubusercontent.com/u/6119494?v=4&size=100" width="100px" height="100px" alt="zhyfor"/><br /><sub><b>zhyfor</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=zhyfor" title="Code">💻</a></td>
+    </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/SkySlity"><img src="https://avatars.githubusercontent.com/u/52128805?v=4&size=100" width="100px" height="100px" alt="SkySlity"/><br /><sub><b>SkySlity</b></sub></a><br /><a href="https://github.com/xpzouying/xiaohongshu-mcp/commits?author=SkySlity" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>
