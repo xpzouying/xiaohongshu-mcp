@@ -859,12 +859,14 @@ After successful connection, you can use the following MCP tools:
   - `tags`: Topic tags list (optional), e.g. `["food", "travel", "lifestyle"]`
   - `schedule_at`: Scheduled publish time (optional), ISO8601 format, supports 1 hour to 14 days ahead
   - `is_original`: Declare as original content (optional), default is not declared
+  - `is_ai_generated`: Declare AI-generated content (optional), `true` selects "笔记含AI合成内容", omitted or `false` leaves the page default unchanged
   - `visibility`: Visibility scope (optional), supports `公开可见` / public (default), `仅自己可见` / self-only, `仅互关好友可见` / mutual-followers-only
   - `products`: Product keyword list (optional), used to attach products for social commerce. Provide a product name or product ID; the system searches automatically and picks the first match. Requires the product feature to be enabled on your account. Example: [面膜, 防晒霜SPF50]
 - `publish_with_video` - Publish video content to RedNote (required: title, content, video)
   - `video`: Local video file absolute path (single file only)
   - `tags`: Topic tags list (optional), e.g. `["food", "travel", "lifestyle"]`
   - `schedule_at`: Scheduled publish time (optional), ISO8601 format, supports 1 hour to 14 days ahead
+  - `is_ai_generated`: Declare AI-generated content (optional), `true` selects "笔记含AI合成内容", omitted or `false` leaves the page default unchanged
   - `visibility`: Visibility scope (optional), supports `公开可见` / public (default), `仅自己可见` / self-only, `仅互关好友可见` / mutual-followers-only
   - `products`: Product keyword list (optional), used to attach products for social commerce. Provide a product name or product ID; the system searches automatically and picks the first match. Requires the product feature to be enabled on your account. Example: [面膜, 防晒霜SPF50]
 - `list_feeds` - Get RedNote homepage recommendation list (no parameters)

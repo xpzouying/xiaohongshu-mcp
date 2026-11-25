@@ -207,6 +207,7 @@ Content-Type: application/json
   - 昵称必须与联想列表完全一致（支持带「12万粉丝」这类后缀，按分隔符判定边界）
 - `schedule_at` (string, optional): 定时发布时间，ISO8601 格式如 `2024-01-20T10:30:00+08:00`，支持1小时至14天内。不填则立即发布
 - `is_original` (boolean, optional): 是否声明原创，`true` 为声明原创，不填则不声明
+- `is_ai_generated` (boolean, optional): 是否声明内容含AI合成，`true` 为勾选「笔记含AI合成内容」，设置失败会报错中止发布；不填或 `false` 则跳过操作（保持页面默认）
 - `visibility` (string, optional): 可见范围，支持: `公开可见`(默认)、`仅自己可见`、`仅互关好友可见`。不填则默认公开可见
 - `products` (array, optional): 商品关键词列表，用于绑定带货商品。填写商品名称或商品ID，自动搜索并选择第一个匹配结果，需账号已开通商品功能
 
@@ -252,6 +253,7 @@ Content-Type: application/json
 - `video` (string, required): 本地视频文件绝对路径
 - `tags` (array, optional): 标签数组
 - `schedule_at` (string, optional): 定时发布时间，ISO8601 格式如 `2024-01-20T10:30:00+08:00`，支持1小时至14天内。不填则立即发布
+- `is_ai_generated` (boolean, optional): 是否声明内容含AI合成，`true` 为勾选「笔记含AI合成内容」，设置失败会报错中止发布；不填或 `false` 则跳过操作（保持页面默认）
 - `visibility` (string, optional): 可见范围，支持: `公开可见`(默认)、`仅自己可见`、`仅互关好友可见`。不填则默认公开可见
 - `products` (array, optional): 商品关键词列表，用于绑定带货商品。填写商品名称或商品ID，自动搜索并选择第一个匹配结果，需账号已开通商品功能
 

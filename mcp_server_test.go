@@ -74,3 +74,71 @@ func TestPublishContentImagesSchema(t *testing.T) {
 		})
 	}
 }
+
+func TestPublishAIDeclarationSchema(t *testing.T) {
+	t.Setenv("TMPDIR", t.TempDir())
+	ctx := context.Background()
+	server := InitMCPServer(&AppServer{})
+	clientTransport, serverTransport := mcp.NewInMemoryTransports()
+	serverSession, err := server.Connect(ctx, serverTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { serverSession.Close() })
+	client := mcp.NewClient(&mcp.Implementation{Name: "schema-test", Version: "1.0.0"}, nil)
+	session, err := client.Connect(ctx, clientTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { session.Close() })
+
+	tools, err := session.ListTools(ctx, nil)
+	require.NoError(t, err)
+
+	schemas := map[string]*jsonschema.Resolved{}
+	for _, tool := range tools.Tools {
+		if tool.Name != "publish_content" && tool.Name != "publish_with_video" {
+			continue
+		}
+		var schema jsonschema.Schema
+		encoded, err := json.Marshal(tool.InputSchema)
+		require.NoError(t, err)
+		require.NoError(t, json.Unmarshal(encoded, &schema))
+		require.Contains(t, schema.Properties, "is_ai_generated")
+		resolved, err := schema.Resolve(nil)
+		require.NoError(t, err)
+		schemas[tool.Name] = resolved
+	}
+	require.Len(t, schemas, 2)
+
+	cases := []struct {
+		name  string
+		tool  string
+		input string
+		valid bool
+	}{
+		{"image_omitted", "publish_content", `{"title":"t","content":"c","images":["/tmp/a.png"]}`, true},
+		{"image_true", "publish_content", `{"title":"t","content":"c","images":["/tmp/a.png"],"is_ai_generated":true}`, true},
+		{"image_false", "publish_content", `{"title":"t","content":"c","images":["/tmp/a.png"],"is_ai_generated":false}`, true},
+		{"image_wrong_type", "publish_content", `{"title":"t","content":"c","images":["/tmp/a.png"],"is_ai_generated":"yes"}`, false},
+		{"video_omitted", "publish_with_video", `{"title":"t","content":"c","video":"/tmp/a.mp4"}`, true},
+		{"video_true", "publish_with_video", `{"title":"t","content":"c","video":"/tmp/a.mp4","is_ai_generated":true}`, true},
+		{"video_wrong_type", "publish_with_video", `{"title":"t","content":"c","video":"/tmp/a.mp4","is_ai_generated":1}`, false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var input any
+			require.NoError(t, json.Unmarshal([]byte(tc.input), &input))
+			if tc.valid {
+				require.NoError(t, schemas[tc.tool].Validate(input))
+			} else {
+				require.Error(t, schemas[tc.tool].Validate(input))
+			}
+		})
+	}
+
+	var imgReq PublishRequest
+	require.NoError(t, json.Unmarshal([]byte(`{"title":"t","content":"c","images":["/tmp/a.png"],"is_ai_generated":true}`), &imgReq))
+	require.True(t, imgReq.IsAIGenerated)
+
+	var vidReq PublishVideoRequest
+	require.NoError(t, json.Unmarshal([]byte(`{"title":"t","content":"c","video":"/tmp/a.mp4","is_ai_generated":true}`), &vidReq))
+	require.True(t, vidReq.IsAIGenerated)
+}

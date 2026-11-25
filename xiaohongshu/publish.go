@@ -14,6 +14,7 @@ import (
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/input"
 	"github.com/go-rod/rod/lib/proto"
+	"github.com/go-rod/rod/lib/utils"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/xiaohongshu-mcp/humanize"
@@ -21,15 +22,16 @@ import (
 
 // PublishImageContent 发布图文内容
 type PublishImageContent struct {
-	Title        string
-	Content      string
-	Tags         []string
-	AtUsers      []string // 需要 @ 的用户昵称列表，插入在正文之后、话题之前
-	ImagePaths   []string
-	ScheduleTime *time.Time // 定时发布时间，nil 表示立即发布
-	IsOriginal   bool       // 是否声明原创
-	Visibility   string     // 可见范围: "公开可见"(默认), "仅自己可见", "仅互关好友可见"
-	Products     []string   // 商品关键词列表，用于绑定带货商品
+	Title         string
+	Content       string
+	Tags          []string
+	AtUsers       []string // 需要 @ 的用户昵称列表，插入在正文之后、话题之前
+	ImagePaths    []string
+	ScheduleTime  *time.Time // 定时发布时间，nil 表示立即发布
+	IsOriginal    bool       // 是否声明原创
+	IsAIGenerated bool       // 是否声明内容含AI合成
+	Visibility    string     // 可见范围: "公开可见"(默认), "仅自己可见", "仅互关好友可见"
+	Products      []string   // 商品关键词列表，用于绑定带货商品
 }
 
 type PublishAction struct {
@@ -96,9 +98,9 @@ func (p *PublishAction) Publish(ctx context.Context, content PublishImageContent
 		atUsers = atUsers[:maxAtUsers]
 	}
 
-	logrus.Infof("发布内容: title=%s, images=%v, tags=%v, at=%v, schedule=%v, original=%v, visibility=%s, products=%v", content.Title, len(content.ImagePaths), tags, atUsers, content.ScheduleTime, content.IsOriginal, content.Visibility, content.Products)
+	logrus.Infof("发布内容: title=%s, images=%v, tags=%v, at=%v, schedule=%v, original=%v, ai_generated=%v, visibility=%s, products=%v", content.Title, len(content.ImagePaths), tags, atUsers, content.ScheduleTime, content.IsOriginal, content.IsAIGenerated, content.Visibility, content.Products)
 
-	if err := submitPublish(ctx, page, content.Title, content.Content, tags, atUsers, content.ScheduleTime, content.IsOriginal, content.Visibility, content.Products); err != nil {
+	if err := submitPublish(ctx, page, content.Title, content.Content, tags, atUsers, content.ScheduleTime, content.IsOriginal, content.IsAIGenerated, content.Visibility, content.Products); err != nil {
 		return errors.Wrap(err, "小红书发布失败")
 	}
 
@@ -341,7 +343,7 @@ func waitForUploadComplete(page *rod.Page, expectedCount int) error {
 	return errors.Errorf("第%d张图片上传超时(60s)，请检查网络连接和图片大小", expectedCount)
 }
 
-func submitPublish(ctx context.Context, page *rod.Page, title, content string, tags []string, atUsers []string, scheduleTime *time.Time, isOriginal bool, visibility string, products []string) error {
+func submitPublish(ctx context.Context, page *rod.Page, title, content string, tags []string, atUsers []string, scheduleTime *time.Time, isOriginal bool, isAIGenerated bool, visibility string, products []string) error {
 	titleElem, err := page.Element("div.d-input input")
 	if err != nil {
 		return errors.Wrap(err, "查找标题输入框失败")
@@ -405,6 +407,14 @@ func submitPublish(ctx context.Context, page *rod.Page, title, content string, t
 			return errors.Wrap(err, "设置原创声明失败（已请求原创，中止发布）")
 		}
 		slog.Info("已声明原创")
+	}
+
+	// 处理 AI 内容声明：显式请求了 AI 声明但设置失败 → 报错中止，避免漏标被限流
+	if isAIGenerated {
+		if err := setAIDeclaration(page); err != nil {
+			return errors.Wrap(err, "设置AI内容声明失败（已请求声明AI合成内容，中止发布）")
+		}
+		slog.Info("已声明笔记含AI合成内容")
 	}
 
 	if err := bindProducts(ctx, page, products); err != nil {
@@ -1635,6 +1645,169 @@ func isButtonDisabled(btn *rod.Element) bool {
 		return true
 	}
 	return false
+}
+
+const aiDeclarationOption = "笔记含AI合成内容"
+
+func setAIDeclaration(page *rod.Page) error {
+	page = page.Timeout(10 * time.Second)
+	defer page.CancelTimeout()
+	const menu = "div.declaration-drop-down"
+
+	trigger, label, err := findDeclarationControl(page)
+	if err != nil {
+		return err
+	}
+	menus, err := visibleDeclarationElements(page.Elements(menu))
+	if err != nil {
+		return err
+	}
+	if len(menus) == 0 {
+		if label == aiDeclarationOption {
+			return nil
+		}
+		if err := clickDeclarationElement(trigger); err != nil {
+			return errors.Wrap(err, "点击内容类型声明下拉框失败")
+		}
+	}
+
+	ctx := page.GetContext()
+	poll := utils.BackoffSleeper(100*time.Millisecond, 100*time.Millisecond, nil)
+	// 菜单与选项可能分两次挂载，只点击可见的精确匹配项。
+	err = utils.Retry(ctx, poll, func() (bool, error) {
+		options, err := visibleDeclarationElements(page.Elements(menu + " div.d-option-content"))
+		if err != nil {
+			return true, err
+		}
+		for _, option := range options {
+			text, err := option.Text()
+			if err != nil {
+				if ctx.Err() != nil {
+					return true, err
+				}
+				return false, nil
+			}
+			if strings.TrimSpace(text) == aiDeclarationOption {
+				return true, clickDeclarationElement(option)
+			}
+		}
+		return false, nil
+	})
+	if err != nil {
+		return errors.Wrap(err, "等待并选择可见的AI内容声明选项失败")
+	}
+
+	// Vue 可能替换整个控件，每次从当前页面确认展示值与菜单状态。
+	reason := "AI内容声明未生效"
+	err = utils.Retry(ctx, poll, func() (bool, error) {
+		_, label, err := findDeclarationControl(page)
+		if err != nil || label != aiDeclarationOption {
+			reason = "AI内容声明未生效"
+			return false, nil
+		}
+		reason = "内容类型声明下拉菜单未关闭"
+		menus, err := visibleDeclarationElements(page.Elements(menu))
+		if err != nil {
+			return true, err
+		}
+		return len(menus) == 0, nil
+	})
+	return errors.Wrap(err, reason)
+}
+
+// Rod 的 Mouse 绑定原页面，直接调用 CDP 才能沿用元素的超时上下文。
+func clickDeclarationElement(elem *rod.Element) error {
+	if err := elem.WaitEnabled(); err != nil {
+		return err
+	}
+	point, err := elem.WaitInteractable()
+	if err != nil {
+		return err
+	}
+	if err := elem.GetContext().Err(); err != nil {
+		return err
+	}
+	return (proto.InputSynthesizeTapGesture{
+		X:                 point.X,
+		Y:                 point.Y,
+		GestureSourceType: proto.InputGestureSourceTypeMouse,
+	}).Call(elem)
+}
+
+func findDeclarationControl(page *rod.Page) (*rod.Element, string, error) {
+	wrappers, err := visibleDeclarationElements(page.Elements("div.d-select-wrapper"))
+	if err != nil {
+		return nil, "", err
+	}
+	var trigger *rod.Element
+	var label string
+	for _, wrapper := range wrappers {
+		labels, err := wrapper.Elements("div.d-select-content")
+		if err != nil {
+			return nil, "", err
+		}
+		content := wrapper
+		if len(labels) > 0 {
+			// 只读可见的标签，避免隐藏旧节点被当作当前声明。
+			visible, err := visibleDeclarationElements(labels, nil)
+			if err != nil {
+				return nil, "", err
+			}
+			content = visible.First()
+			if content == nil {
+				continue
+			}
+		}
+		text, err := content.Text()
+		if err != nil {
+			return nil, "", err
+		}
+		text = strings.TrimSpace(text)
+		switch text {
+		case "添加内容类型声明", "虚构演绎，仅供娱乐", aiDeclarationOption, "内容包含营销广告", "内容来源声明":
+		default:
+			marked, err := wrapper.Matches(`.declaration-wrapper, [lass~="declaration-wrapper"]`)
+			if err != nil {
+				return nil, "", err
+			}
+			if !marked {
+				continue
+			}
+		}
+		if trigger != nil {
+			return nil, "", errors.New("找到多个可见的内容类型声明下拉框")
+		}
+		trigger, label = content, text
+	}
+	if trigger == nil {
+		return nil, "", errors.New("未找到内容类型声明下拉框")
+	}
+	return trigger, label, nil
+}
+
+// 查询成功且无可见元素时返回 (nil, nil)，查询失败不能当作菜单已关闭。
+func visibleDeclarationElements(elements rod.Elements, err error) (rod.Elements, error) {
+	if err != nil {
+		return nil, err
+	}
+	var visible rod.Elements
+	for _, el := range elements {
+		shown, err := el.Visible()
+		if err != nil {
+			return nil, err
+		}
+		if !shown {
+			continue
+		}
+		shown, err = humanize.CheckVisible(el)
+		if err != nil {
+			return nil, err
+		}
+		if shown {
+			visible = append(visible, el)
+		}
+	}
+	return visible, nil
 }
 
 // bindProducts 绑定商品到发布内容
