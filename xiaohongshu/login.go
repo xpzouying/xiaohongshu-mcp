@@ -9,6 +9,9 @@ import (
 	"github.com/pkg/errors"
 )
 
+// 等二维码渲染的上限。扫码本身的等待在 WaitForLogin 里，不受这个限制。
+const qrcodeWaitTimeout = 20 * time.Second
+
 type LoginAction struct {
 	page *rod.Page
 }
@@ -99,7 +102,14 @@ func (a *LoginAction) FetchQrcodeImage(ctx context.Context) (string, bool, error
 		return "", true, nil
 	}
 
-	src, err := pp.MustElement(".login-container .qrcode-img").Attribute("src")
+	// 带超时地等二维码：等不到就报错。MustElement 无限期等待，
+	// 页面结构对不上时会无声挂死——不报错、不超时、日志也没有。
+	el, err := pp.Timeout(qrcodeWaitTimeout).Element(".login-container .qrcode-img")
+	if err != nil {
+		return "", false, errors.Wrap(err, "qrcode element not found")
+	}
+
+	src, err := el.Attribute("src")
 	if err != nil {
 		return "", false, errors.Wrap(err, "get qrcode src failed")
 	}
