@@ -26,9 +26,7 @@ description: >
                       │
                       ├─ 有图片 → 适当总结内容 → 判断模式 → 发布流程
                       │
-                      └─ 无图片 → 提示用户手动下载图片
-                                  │
-                                  └─ 用户提供图片后 → 发布流程
+                      └─ 无图片 → 使用小红书官方文字配图 → 判断模式 → 发布流程
 ```
 
 ## Step 1: 判断输入类型
@@ -57,25 +55,11 @@ description: >
 
 #### 图片提取失败处理
 
-如果从网页中提取不到图片URL，或图片URL无法访问，**必须**：
-
-1. 告知用户图片提取失败
-2. 提供原网页链接，请用户手动访问
-3. 指导用户：
-   - 在浏览器中打开原网页
-   - 右键点击想要的图片 → "图片另存为" 或 "复制图片地址"
-   - 将保存的图片路径或复制的图片URL提供给我
-4. 等待用户提供图片后再继续发布流程
+如果从网页中提取不到图片URL，或图片URL无法访问，直接告知用户将使用小红书官方“文字配图”功能，并继续发布流程。图文模式运行 `publish_pipeline.py` 时不传 `--image-urls` 或 `--images`，脚本会自动点击发布页里的“文字配图”，用标题生成官方配图，并随机选择一个官方卡片。
 
 **示例提示语**：
 ```
-从网页中未能提取到可用的图片。请手动获取：
-
-1. 打开原文链接：[URL]
-2. 找到合适的配图，右键另存为本地，或复制图片地址
-3. 将图片路径或URL发给我
-
-拿到图片后我们继续发布。
+从网页中未能提取到可用图片，将使用小红书官方文字配图继续发布。
 ```
 
 ## Step 3: 内容检查
@@ -135,6 +119,11 @@ python "C:\Users\admin\AI\.claude\skills\post-to-xhs\scripts\publish_pipeline.py
 **有窗口模式**（不添加 `--headless`）：
 ```bash
 python "C:\Users\admin\AI\.claude\skills\post-to-xhs\scripts\publish_pipeline.py" --title-file title.txt --content-file content.txt --image-urls "URL1" "URL2"
+```
+
+**没有图片时使用小红书官方文字配图**：
+```bash
+python "C:\Users\admin\AI\.claude\skills\post-to-xhs\scripts\publish_pipeline.py" --title-file title.txt --content-file content.txt
 ```
 
 **其他参数**：
@@ -205,7 +194,7 @@ python "C:\Users\admin\AI\.claude\skills\post-to-xhs\scripts\cdp_publish.py" cli
 ## 重要提示
 
 - **绝不自动发布** - 必须获得用户确认
-- **图片要求** - 上传图文模式必须有图片；写长文模式图片可选
+- **图片要求** - 上传图文模式有图片时使用用户图片；没有图片时使用小红书官方“文字配图”功能，用标题生成配图并随机选择一个官方卡片；写长文模式图片可选
 - **长文模式** - 必须让用户选择模板，不要自动选择
 - **正文描述** - 长文模式的发布页有独立正文描述框，超过 1000 字需压缩到 800 字左右
 - **无头模式**：使用 `--headless` 参数自动化发布。如需登录，脚本自动切换到有窗口模式
