@@ -23,6 +23,34 @@ func setupRoutes(appServer *AppServer) *gin.Engine {
 	// 健康检查
 	router.GET("/health", healthHandler)
 
+	// OAuth discovery endpoints — return JSON 404 instead of plain text 404.
+	//
+	// Background: Claude Code's MCP HTTP client probes a number of OAuth
+	// .well-known endpoints (per the MCP authorization spec) on every
+	// reconnect. When these paths return Gin's default plain-text
+	// "404 page not found", the client tries to parse the body as JSON,
+	// fails, and ends up stuck in a "needs authentication" state with no
+	// OAuth metadata to act on. The MCP endpoint still works, but the
+	// auth state machine on the client side never recovers without a
+	// process restart.
+	//
+	// Returning a JSON 404 here lets the client cleanly conclude "no auth
+	// metadata, no auth required" and fall back to anonymous mode.
+	noAuthRequired := func(c *gin.Context) {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error":             "not_found",
+			"error_description": "This MCP server does not require authentication",
+		})
+	}
+	router.GET("/.well-known/oauth-protected-resource", noAuthRequired)
+	router.GET("/.well-known/oauth-protected-resource/*path", noAuthRequired)
+	router.GET("/.well-known/oauth-authorization-server", noAuthRequired)
+	router.GET("/.well-known/oauth-authorization-server/*path", noAuthRequired)
+	router.GET("/.well-known/openid-configuration", noAuthRequired)
+	router.GET("/.well-known/openid-configuration/*path", noAuthRequired)
+	router.GET("/mcp/.well-known/*path", noAuthRequired)
+	router.POST("/register", noAuthRequired)
+
 	// MCP 端点 - 使用官方 SDK 的 Streamable HTTP Handler
 	mcpHandler := mcp.NewStreamableHTTPHandler(
 		func(r *http.Request) *mcp.Server {
