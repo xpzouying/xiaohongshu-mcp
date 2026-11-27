@@ -64,10 +64,12 @@ type NotificationUser struct {
 // FeedID / FeedXsecToken 取自笔记信息，与 get_feed_detail、reply_comment_in_feed
 // 所需的参数一致，调用方可以直接拿去读原帖或走笔记页回复。
 type NotificationItem struct {
-	ID            string           `json:"id"`
-	Type          string           `json:"type"`
-	Title         string           `json:"title"`
-	Time          int64            `json:"time"`
+	ID    string `json:"id"`
+	Type  string `json:"type"`
+	Title string `json:"title"`
+	Time  int64  `json:"time"`
+	// TimeText 是 Time 的可读形式（东八区），由服务端回填。
+	TimeText      string           `json:"time_text,omitempty"`
 	From          NotificationUser `json:"from"`
 	CommentID     string           `json:"comment_id,omitempty"`
 	CommentText   string           `json:"comment_text,omitempty"`
@@ -332,10 +334,11 @@ func convertNotifications(raw []rawNotification, limit int) ([]NotificationItem,
 
 		u := r.from()
 		item := NotificationItem{
-			ID:    r.ID,
-			Type:  r.Type,
-			Title: r.Title,
-			Time:  r.Time,
+			ID:       r.ID,
+			Type:     r.Type,
+			Title:    r.Title,
+			Time:     r.Time,
+			TimeText: timestampText(r.Time),
 			From: NotificationUser{
 				UserID:    u.UserID,
 				Nickname:  u.Nickname,
